@@ -17,10 +17,10 @@ import (
 	"github.com/go-graphite/carbonapi/expr"
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/types"
+	"github.com/go-graphite/carbonapi/intervalset"
 	"github.com/go-graphite/carbonapi/pkg/parser"
 	"github.com/go-graphite/carbonapi/util"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"github.com/go-graphite/carbonapi/intervalset"
 
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	"github.com/lomik/zapwriter"
@@ -500,6 +500,12 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
 	}()
+
+	if format == "completer" {
+		if query == "" || query == "/" || query == "." {
+			query = "*"
+		}
+	}
 
 	if query == "" {
 		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
