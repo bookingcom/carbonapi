@@ -502,8 +502,15 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if format == "completer" {
+		var replacer = strings.NewReplacer("/", ".")
+		query = replacer.Replace(query)
+
 		if query == "" || query == "/" || query == "." {
-			query = "*"
+			query = ".*"
+		}
+
+		if strings.LastIndex(query, ".") == len(query)-1 {
+			query += "*"
 		}
 	}
 
@@ -596,8 +603,12 @@ func findCompleter(globs pb.GlobResponse) ([]byte, error) {
 	var complete = make([]completer, 0)
 
 	for _, g := range globs.Matches {
+		path := g.Path
+		if !g.IsLeaf && path[len(path)-1:] != "." {
+			path = g.Path + "."
+		}
 		c := completer{
-			Path: g.Path,
+			Path: path,
 		}
 
 		if g.IsLeaf {
