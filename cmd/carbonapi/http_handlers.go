@@ -507,9 +507,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 
 		if query == "" || query == "/" || query == "." {
 			query = ".*"
-		}
-
-		if strings.LastIndex(query, ".") == len(query)-1 {
+		} else {
 			query += "*"
 		}
 	}
