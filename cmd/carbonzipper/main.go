@@ -152,6 +152,16 @@ const (
 	contentTypePickle   = "application/pickle"
 )
 
+const (
+	formatTypeEmpty         = ""
+	formatTypePickle        = "pickle"
+	formatTypeJSON          = "json"
+	formatTypeProtobuf      = "protobuf"
+	formatTypeProtobuf3     = "protobuf3"
+	formatTypeV2            = "v2"
+	formatTypeCarbonAPIV2PB = "carbonapi_v2_pb"
+)
+
 func findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	uuid := uuid.NewV4()
@@ -212,7 +222,7 @@ func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []p
 	var err error
 	var b []byte
 	switch format {
-	case "protobuf", "protobuf3":
+	case formatTypeProtobuf, formatTypeProtobuf3:
 		w.Header().Set("Content-Type", contentTypeProtobuf)
 		var result pb3.GlobResponse
 		result.Name = query
@@ -220,11 +230,11 @@ func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []p
 		b, err = result.Marshal()
 		/* #nosec */
 		_, _ = w.Write(b)
-	case "json":
+	case formatTypeJSON:
 		w.Header().Set("Content-Type", contentTypeJSON)
 		jEnc := json.NewEncoder(w)
 		err = jEnc.Encode(metrics)
-	case "", "pickle":
+	case formatTypeEmpty, formatTypePickle:
 		w.Header().Set("Content-Type", contentTypePickle)
 
 		var result []map[string]interface{}
@@ -351,24 +361,25 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	var b []byte
 	switch format {
-	case "protobuf", "protobuf3":
+	case formatTypeProtobuf, formatTypeProtobuf3:
 		w.Header().Set("Content-Type", contentTypeProtobuf)
 		b, err = metrics.Marshal()
 
 		memoryUsage += len(b)
 		/* #nosec */
 		_, _ = w.Write(b)
-	case "json":
+	case formatTypeJSON:
 		presponse := createRenderResponse(metrics, nil)
 		w.Header().Set("Content-Type", contentTypeJSON)
 		e := json.NewEncoder(w)
 		err = e.Encode(presponse)
-	case "", "pickle":
+	case formatTypeEmpty, formatTypePickle:
 		presponse := createRenderResponse(metrics, pickle.None{})
 		w.Header().Set("Content-Type", contentTypePickle)
 		e := pickle.NewEncoder(w)
 		err = e.Encode(presponse)
 	}
+
 	if err != nil {
 		http.Error(w, "error marshaling data", http.StatusInternalServerError)
 		accessLogger.Error("render failed",
@@ -481,7 +492,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 
 	var b []byte
 	switch format {
-	case "protobuf", "protobuf3":
+	case formatTypeProtobuf, formatTypeProtobuf3:
 		w.Header().Set("Content-Type", contentTypeProtobuf)
 		var result pb3.ZipperInfoResponse
 		result.Responses = make([]pb3.ServerInfoResponse, len(infos))
@@ -494,7 +505,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		b, err = result.Marshal()
 		/* #nosec */
 		_, _ = w.Write(b)
-	case "", "json":
+	case formatTypeEmpty, formatTypeJSON:
 		w.Header().Set("Content-Type", contentTypeJSON)
 		jEnc := json.NewEncoder(w)
 		err = jEnc.Encode(infos)
