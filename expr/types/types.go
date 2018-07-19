@@ -103,7 +103,7 @@ func ConsolidateJSON(maxDataPoints int, results []*MetricData) {
 	}
 
 	for _, r := range results {
-		numberOfDataPoints := math.Floor(float64(timeRange / r.StepTime))
+		numberOfDataPoints := math.Floor(float64(timeRange) / float64(r.StepTime))
 		if numberOfDataPoints > float64(maxDataPoints) {
 			valuesPerPoint := math.Ceil(numberOfDataPoints / float64(maxDataPoints))
 			r.SetValuesPerPoint(int(valuesPerPoint))
