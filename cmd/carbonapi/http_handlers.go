@@ -17,10 +17,10 @@ import (
 	"github.com/go-graphite/carbonapi/expr"
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/types"
+	"github.com/go-graphite/carbonapi/intervalset"
 	"github.com/go-graphite/carbonapi/pkg/parser"
 	"github.com/go-graphite/carbonapi/util"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"github.com/go-graphite/carbonapi/intervalset"
 
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	"github.com/lomik/zapwriter"
@@ -122,8 +122,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := util.SetUUID(r.Context(), uuid.String())
 	username, _, _ := r.BasicAuth()
 
-	logger := zapwriter.Logger("render")
-	logger.With(
+	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", uuid.String()),
 		zap.String("username", username),
 	)
@@ -501,6 +500,17 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
+	if format == "completer" {
+		var replacer = strings.NewReplacer("/", ".")
+		query = replacer.Replace(query)
+
+		if query == "" || query == "/" || query == "." {
+			query = ".*"
+		} else {
+			query += "*"
+		}
+	}
+
 	if query == "" {
 		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
 		accessLogDetails.HttpCode = http.StatusBadRequest
@@ -590,8 +600,12 @@ func findCompleter(globs pb.GlobResponse) ([]byte, error) {
 	var complete = make([]completer, 0)
 
 	for _, g := range globs.Matches {
+		path := g.Path
+		if !g.IsLeaf && path[len(path)-1:] != "." {
+			path = g.Path + "."
+		}
 		c := completer{
-			Path: g.Path,
+			Path: path,
 		}
 
 		if g.IsLeaf {
