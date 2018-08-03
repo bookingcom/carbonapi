@@ -63,7 +63,6 @@ type Zipper struct {
 	timeoutAfterAllStarted time.Duration
 	timeout                time.Duration
 	timeoutConnect         time.Duration
-	timeoutKeepAlive       time.Duration
 	keepAliveInterval      time.Duration
 
 	searchBackend    string
