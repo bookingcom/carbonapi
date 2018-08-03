@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"time"
 
-	pb3 "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/go-graphite/carbonzipper/limiter"
 	"github.com/go-graphite/carbonzipper/pathcache"
 	cu "github.com/go-graphite/carbonzipper/util/apictx"
 	util "github.com/go-graphite/carbonzipper/util/zipperctx"
+	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
 	"strings"
 
