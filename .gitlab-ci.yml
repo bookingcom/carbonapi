@@ -1,0 +1,39 @@
+image: docker-registry.booking.com/golang/carbonapi-ci:latest
+
+variables:
+  CI_PROJECT_NAMESPACE: go-graphite
+  GOPATH: /gopath
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/gopath/bin
+
+stages:
+- test
+
+before_script:
+  # can avoid copying once this fixed: https://gitlab.com/gitlab-org/gitlab-runner/issues/2211
+  - mkdir -p $GOPATH/src/github.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME/
+  - cp -r ${CI_PROJECT_DIR}/* $GOPATH/src/github.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME/
+  - cd $GOPATH/src/github.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME/
+
+build-and-test:
+  stage: test
+  tags: [ docker ]
+
+  # don't run builds for tags
+  # more details in https://docs.gitlab.com/ce/ci/yaml/README.html#only-and-except-simplified
+  except: [ tags ]
+
+  script:
+  - make
+  - make test
+
+lint:
+  stage: test
+  tags: [ docker ]
+
+  # don't run builds for tags
+  # more details in https://docs.gitlab.com/ce/ci/yaml/README.html#only-and-except-simplified
+  except: [ tags ]
+
+  script:
+  # run static checks
+  - /gitlab-lint.sh
