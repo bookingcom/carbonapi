@@ -19,7 +19,7 @@ import (
 	"github.com/go-graphite/carbonapi/expr/types"
 	"github.com/go-graphite/carbonapi/pkg/parser"
 	"github.com/go-graphite/carbonapi/util"
-	pb "github.com/go-graphite/protocol/carbonapi_v3_pb"
+	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	"github.com/go-graphite/carbonapi/intervalset"
 
 	"github.com/go-graphite/carbonapi/expr/metadata"
