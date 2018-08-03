@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-graphite/carbonapi/expr/types"
 	"github.com/go-graphite/carbonapi/util"
-	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
-	realZipper "github.com/go-graphite/carbonzipper/zipper"
+	pb "github.com/go-graphite/protocol/carbonapi_v3_pb"
+	realZipper "github.com/go-graphite/carbonapi/zipper"
 	"go.uber.org/zap"
 )
 

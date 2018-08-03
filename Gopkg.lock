@@ -45,6 +45,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/dgryski/httputil"
+  packages = ["."]
+  revision = "189c2918cd08517364b3ede5417684ca7a7341fe"
+
+[[projects]]
+  branch = "master"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
   revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
@@ -101,30 +107,24 @@
   version = "v1.4.7"
 
 [[projects]]
-  name = "github.com/go-graphite/carbonzipper"
+  branch = "master"
+  name = "github.com/go-graphite/protocol"
   packages = [
-    "cache",
-    "carbonzipperpb3",
-    "intervalset",
-    "limiter",
-    "mstats",
-    "pathcache",
-    "util/apictx",
-    "util/zipperctx",
-    "zipper"
+    "carbonapi_v2_pb",
+    "carbonapi_v3_pb"
   ]
-  revision = "54ed0747e074cb0f705f00f90df22387c5824763"
-  version = "0.74"
+  revision = "5ae324d480670ee5d15e22eff87e1cabab74069b"
 
 [[projects]]
+  branch = "master"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
     "proto",
-    "protoc-gen-gogo/descriptor"
+    "protoc-gen-gogo/descriptor",
+    "sortkeys"
   ]
-  revision = "100ba4e885062801d56799d78530b73b178a78f3"
-  version = "v0.4"
+  revision = "baf2ea5cdb7ce2d399176f925052690c3dad1f56"
 
 [[projects]]
   branch = "master"
@@ -349,6 +349,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8025f9bc13f8b9ed2ea083a67f5b330a1b911e2a9b7466b59a859dc1da5c1f65"
+  inputs-digest = "8b4bcace60ee36483bfc55b8f4d56581a82582a806d10dd223ef563c366385f4"
   solver-name = "gps-cdcl"
   solver-version = 1

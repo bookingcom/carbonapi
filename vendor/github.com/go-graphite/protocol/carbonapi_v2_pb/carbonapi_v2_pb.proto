@@ -1,7 +1,7 @@
 syntax = "proto3";
-package carbonzipperpb3;
+package carbonapi_v2_pb;
 
-// Regenerate with  protoc --gogo_out=. carbonzipper3.proto 
+// Regenerate with  protoc --gogo_out=. carbonapi_v2_pb.proto
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message FetchResponse {

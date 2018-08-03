@@ -8,7 +8,7 @@ import (
 type key int
 
 const (
-	ctxHeaderUUID = "X-CTX-CarbonAPI-UUID"
+	ctxHeaderUUID = "X-CTX-Carbon-UUID"
 
 	uuidKey key = 0
 )

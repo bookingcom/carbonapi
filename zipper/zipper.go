@@ -13,11 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	pb3 "github.com/go-graphite/carbonzipper/carbonzipperpb3"
-	"github.com/go-graphite/carbonzipper/limiter"
-	"github.com/go-graphite/carbonzipper/pathcache"
-	cu "github.com/go-graphite/carbonzipper/util/apictx"
-	util "github.com/go-graphite/carbonzipper/util/zipperctx"
+	"github.com/go-graphite/carbonapi/limiter"
+	"github.com/go-graphite/carbonapi/pathcache"
+	"github.com/go-graphite/carbonapi/util"
+	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
 	"strings"
 
@@ -451,7 +450,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
-	req = cu.MarshalCtx(ctx, util.MarshalCtx(ctx, req))
+	req = util.MarshalCtx(ctx, util.MarshalCtx(ctx, req))
 
 	logger = logger.With(zap.String("query", server+"/"+uri))
 	z.limiter.Enter(server)

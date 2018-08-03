@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/go-graphite/carbonapi/expr/types"
-	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
-	realZipper "github.com/go-graphite/carbonzipper/zipper"
+	pb "github.com/go-graphite/protocol/carbonapi_v3_pb"
+	realZipper "github.com/go-graphite/carbonapi/zipper"
 	"github.com/lomik/zapwriter"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
