@@ -5,7 +5,7 @@
   branch = "master"
   name = "github.com/bradfitz/gomemcache"
   packages = ["memcache"]
-  revision = "1952afaa557dc08e8e0d89eafab110fb501c1a2b"
+  revision = "bc664df9673713a0ccf26e3b55a673ec7301088b"
 
 [[projects]]
   branch = "master"
@@ -34,14 +34,17 @@
 [[projects]]
   branch = "master"
   name = "github.com/facebookgo/grace"
-  packages = ["gracehttp","gracenet"]
-  revision = "4afe952a37a495ae4ac0c1d4ce5f66e91058d149"
+  packages = [
+    "gracehttp",
+    "gracenet"
+  ]
+  revision = "75cf19382434e82df4dd84953f566b8ad23d6e9e"
 
 [[projects]]
   branch = "master"
   name = "github.com/facebookgo/httpdown"
   packages = ["."]
-  revision = "a3b1354551a26449fbe05f5d855937f6e7acbd71"
+  revision = "5979d39b15c26299dc282711b0d65b113daccea6"
 
 [[projects]]
   branch = "master"
@@ -56,22 +59,21 @@
   revision = "1b76add642e42c6ffba7211ad7b3939ce654526e"
 
 [[projects]]
-  name = "github.com/gogo/protobuf"
-  packages = ["gogoproto","proto","protoc-gen-gogo/descriptor"]
-  revision = "100ba4e885062801d56799d78530b73b178a78f3"
-  version = "v0.4"
-
-[[projects]]
-  name = "github.com/lestrrat/go-file-rotatelogs"
-  packages = ["."]
-  revision = "9df8b44f21785240553882138c5df2e9cc1db910"
-  version = "v2.1.0"
+  branch = "master"
+  name = "github.com/go-graphite/protocol"
+  packages = ["carbonapi_v2_pb"]
+  revision = "5ae324d480670ee5d15e22eff87e1cabab74069b"
 
 [[projects]]
   branch = "master"
-  name = "github.com/lestrrat/go-strftime"
-  packages = ["."]
-  revision = "04ef93e285313c8978cbc7cad26d2aa7a9927451"
+  name = "github.com/gogo/protobuf"
+  packages = [
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor",
+    "sortkeys"
+  ]
+  revision = "baf2ea5cdb7ce2d399176f925052690c3dad1f56"
 
 [[projects]]
   branch = "master"
@@ -83,7 +85,7 @@
   branch = "master"
   name = "github.com/lomik/zapwriter"
   packages = ["."]
-  revision = "d4499a33b5929c4a2e7e169165f594f35b39638c"
+  revision = "16d2b21dab41b7573d6ff8f1edfea39b0eff7e48"
 
 [[projects]]
   branch = "master"
@@ -92,22 +94,16 @@
   revision = "0c2bab2b173d2cd9385ea6da5cec7b14b5019f11"
 
 [[projects]]
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
-
-[[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
-  revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
-  version = "v1.1.0"
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
 
 [[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
-  revision = "4e336646b2ef9fc6e47be8e21594178f98e5ebcf"
-  version = "v1.2.0"
+  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
+  version = "v1.3.2"
 
 [[projects]]
   name = "go.uber.org/multierr"
@@ -117,19 +113,26 @@
 
 [[projects]]
   name = "go.uber.org/zap"
-  packages = [".","buffer","internal/bufferpool","internal/color","internal/exit","zapcore"]
-  revision = "9d9d6135afe89b6fc4a05e9a8552526caba38048"
-  version = "v1.5.0"
+  packages = [
+    ".",
+    "buffer",
+    "internal/bufferpool",
+    "internal/color",
+    "internal/exit",
+    "zapcore"
+  ]
+  revision = "4d45f9617f7d90f7a663ff21c7a4321dbe78098b"
+  version = "v1.9.0"
 
 [[projects]]
-  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "eb3733d160e74a9c7e442f435eb3bea458e1d19f"
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3205edcd7eba91dfe002f50735e34a94f620b07f64bd185e39dea077c378cbc2"
+  inputs-digest = "5c5ffe1b4a5759992dabf76565ddc4eaeffad0fc64e1e6ba0349016e51732ecb"
   solver-name = "gps-cdcl"
   solver-version = 1
