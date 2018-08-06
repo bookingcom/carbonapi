@@ -300,7 +300,7 @@ var config = struct {
 
 	Upstreams: realZipper.Config{
 		Timeouts: realZipper.Timeouts{
-			Global:       10000 * time.Second,
+			Global:       10000 * time.Millisecond,
 			AfterStarted: 2 * time.Second,
 			Connect:      200 * time.Millisecond,
 		},
