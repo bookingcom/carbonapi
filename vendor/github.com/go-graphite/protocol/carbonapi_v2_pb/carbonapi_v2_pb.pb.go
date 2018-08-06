@@ -2167,6 +2167,10 @@ func (m *FetchResponse) Unmarshal(dAtA []byte) error {
 			}
 		case 6:
 			if wireType == 0 {
+				if len(m.IsAbsent) == 0 && len(m.Values) > 0 {
+					m.IsAbsent = make([]bool, 0, len(m.Values))
+				}
+
 				var v int
 				for shift := uint(0); ; shift += 7 {
 					if shift >= 64 {
@@ -2202,26 +2206,22 @@ func (m *FetchResponse) Unmarshal(dAtA []byte) error {
 				if packedLen < 0 {
 					return ErrInvalidLengthCarbonapiV2Pb
 				}
+
+				if len(m.IsAbsent) == 0 {
+					// Bytes are encoded with varint 0 or 1, which are 1 byte long
+					m.IsAbsent = make([]bool, 0, packedLen)
+				}
+
 				postIndex := iNdEx + packedLen
 				if postIndex > l {
 					return io.ErrUnexpectedEOF
 				}
 				for iNdEx < postIndex {
-					var v int
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowCarbonapiV2Pb
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= (int(b) & 0x7F) << shift
-						if b < 0x80 {
-							break
-						}
+					v := dAtA[iNdEx]
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
 					}
+					iNdEx++
 					m.IsAbsent = append(m.IsAbsent, bool(v != 0))
 				}
 			} else {
