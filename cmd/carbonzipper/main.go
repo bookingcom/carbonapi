@@ -104,6 +104,7 @@ var Metrics = struct {
 	Errors    *expvar.Int
 
 	Goroutines expvar.Func
+	Uptime     expvar.Func
 
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -659,6 +660,12 @@ func main() {
 	})
 	expvar.Publish("goroutines", Metrics.Goroutines)
 
+	startMinute := time.Now().Unix() / 60
+	Metrics.Uptime = expvar.Func(func() interface{} {
+		return time.Now().Unix()/60 - startMinute
+	})
+	expvar.Publish("uptime", Metrics.Uptime)
+
 	// export config via expvars
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
 
@@ -762,6 +769,7 @@ func main() {
 		go mstats.Start(config.Graphite.Interval)
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
+		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
