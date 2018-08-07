@@ -733,7 +733,14 @@ func main() {
 		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
 
 		for i := 0; i <= config.Buckets; i++ {
-			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
+			var lower int
+			if i == 0 {
+				lower = 0
+			} else {
+				lower = 50 * (1 << (uint(i) - 1))
+			}
+			upper := 50 * (1 << uint(i))
+			graphite.Register(fmt.Sprintf("%s.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
 		}
 
 		graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
@@ -793,7 +800,15 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 
 	ms := t.Nanoseconds() / int64(time.Millisecond)
 
-	bucket := int(ms / 100)
+	// The buckets are delimited by the sequence:
+	//	   0, 50, 100, 200, 400, 800, ...
+	var bucket int
+	for bucket = 0; bucket < config.Buckets+1; bucket++ {
+		if ms >= 50*(1<<uint(bucket)) {
+			bucket--
+			break
+		}
+	}
 
 	if bucket < config.Buckets {
 		atomic.AddInt64(&timeBuckets[bucket], 1)
