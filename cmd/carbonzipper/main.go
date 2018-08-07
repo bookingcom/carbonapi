@@ -103,6 +103,8 @@ var Metrics = struct {
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
+	Goroutines expvar.Func
+
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
 
@@ -650,6 +652,11 @@ func main() {
 	httputil.PublishTrackedConnections("httptrack")
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
 
+	Metrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", Metrics.Goroutines)
+
 	// export config via expvars
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
 
@@ -757,6 +764,7 @@ func main() {
 
 		go mstats.Start(config.Graphite.Interval)
 
+		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)

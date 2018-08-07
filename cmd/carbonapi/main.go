@@ -45,6 +45,8 @@ var apiMetrics = struct {
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
+	Goroutines expvar.Func
+
 	// Despite the names, these only count /render requests
 	RenderRequests        *expvar.Int
 	RequestCacheHits      *expvar.Int
@@ -455,6 +457,11 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
 
+	apiMetrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", apiMetrics.Goroutines)
+
 	config.limiter = newLimiter(config.Concurency)
 	config.zipper = zipper
 
@@ -643,6 +650,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 		go mstats.Start(config.Graphite.Interval)
 
+		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
