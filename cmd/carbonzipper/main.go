@@ -99,6 +99,10 @@ var config = struct {
 
 // Metrics contains grouped expvars for /debug/vars and graphite
 var Metrics = struct {
+	Requests  *expvar.Int
+	Responses *expvar.Int
+	Errors    *expvar.Int
+
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
 
@@ -121,6 +125,10 @@ var Metrics = struct {
 	SearchCacheMisses *expvar.Int
 	SearchCacheHits   *expvar.Int
 }{
+	Requests:  expvar.NewInt("requests"),
+	Responses: expvar.NewInt("responses"),
+	Errors:    expvar.NewInt("errors"),
+
 	FindRequests: expvar.NewInt("find_requests"),
 	FindErrors:   expvar.NewInt("find_errors"),
 
@@ -179,6 +187,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
 
+	Metrics.Requests.Add(1)
 	Metrics.FindRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -198,6 +207,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -210,12 +220,15 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []pb3.GlobMatch) error {
@@ -286,6 +299,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
 	Metrics.RenderRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -303,8 +317,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 	accessLogger = accessLogger.With(
@@ -321,8 +337,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	until, err := strconv.Atoi(req.FormValue("until"))
 	if err != nil {
 		http.Error(w, "until is not a integer", http.StatusBadRequest)
@@ -332,6 +350,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -343,6 +362,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -356,6 +376,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -389,6 +410,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -397,6 +419,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) []map[string]interface{} {
@@ -443,6 +467,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
 	Metrics.InfoRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -458,8 +483,10 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 
@@ -475,6 +502,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -487,6 +515,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -518,12 +547,15 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -534,12 +566,15 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
+
 	/* #nosec */
 	fmt.Fprintf(w, "Ok\n")
 	accessLogger.Info("lb request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+	Metrics.Responses.Add(1)
 }
 
 func main() {
@@ -681,6 +716,10 @@ func main() {
 		pattern := config.Graphite.Pattern
 		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
+
+		graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
+		graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
+		graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
 
 		graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
 		graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
