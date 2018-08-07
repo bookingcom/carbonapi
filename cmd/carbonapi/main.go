@@ -6,6 +6,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -16,31 +17,34 @@ import (
 	"time"
 	"unicode"
 
-	"io/ioutil"
-
-	"github.com/facebookgo/grace/gracehttp"
-	"github.com/facebookgo/pidfile"
 	"github.com/go-graphite/carbonapi/cache"
 	"github.com/go-graphite/carbonapi/carbonapipb"
+	"github.com/go-graphite/carbonapi/expr/functions"
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/helper"
+	"github.com/go-graphite/carbonapi/expr/rewrite"
 	"github.com/go-graphite/carbonapi/mstats"
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/pkg/parser"
 	realZipper "github.com/go-graphite/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+
+	"github.com/facebookgo/grace/gracehttp"
+	"github.com/facebookgo/pidfile"
 	"github.com/gorilla/handlers"
+	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/spf13/viper"
-
-	"github.com/go-graphite/carbonapi/expr/functions"
-	"github.com/go-graphite/carbonapi/expr/rewrite"
-	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
 
 var apiMetrics = struct {
-	Requests              *expvar.Int
+	// Total counts across all request types
+	Requests  *expvar.Int
+	Responses *expvar.Int
+	Errors    *expvar.Int
+
+	// Despite the names, these only count /render requests
 	RenderRequests        *expvar.Int
 	RequestCacheHits      *expvar.Int
 	RequestCacheMisses    *expvar.Int
@@ -56,7 +60,10 @@ var apiMetrics = struct {
 	CacheSize  expvar.Func
 	CacheItems expvar.Func
 }{
-	Requests: expvar.NewInt("requests"),
+	Requests:  expvar.NewInt("requests"),
+	Responses: expvar.NewInt("responses"),
+	Errors:    expvar.NewInt("errors"),
+
 	// TODO: request_cache -> render_cache
 	RenderRequests:        expvar.NewInt("render_requests"),
 	RequestCacheHits:      expvar.NewInt("request_cache_hits"),
@@ -148,9 +155,11 @@ func deferredAccessLogging(accessLogger *zap.Logger, accessLogDetails *carbonapi
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	if logAsError {
 		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
+		apiMetrics.Errors.Add(1)
 	} else {
 		accessLogDetails.HttpCode = http.StatusOK
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
+		apiMetrics.Responses.Add(1)
 	}
 }
 
@@ -314,9 +323,11 @@ var config = struct {
 
 func zipperStats(stats *realZipper.Stats) {
 	zipperMetrics.Timeouts.Add(stats.Timeouts)
+
 	zipperMetrics.FindErrors.Add(stats.FindErrors)
 	zipperMetrics.RenderErrors.Add(stats.RenderErrors)
 	zipperMetrics.InfoErrors.Add(stats.InfoErrors)
+
 	zipperMetrics.SearchRequests.Add(stats.SearchRequests)
 	zipperMetrics.SearchCacheHits.Add(stats.SearchCacheHits)
 	zipperMetrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
@@ -564,6 +575,9 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
 		graphite.Register(fmt.Sprintf("%s.requests", pattern), apiMetrics.Requests)
+		graphite.Register(fmt.Sprintf("%s.responses", pattern), apiMetrics.Responses)
+		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
+
 		graphite.Register(fmt.Sprintf("%s.request_cache_hits", pattern), apiMetrics.RequestCacheHits)
 		graphite.Register(fmt.Sprintf("%s.request_cache_misses", pattern), apiMetrics.RequestCacheMisses)
 		graphite.Register(fmt.Sprintf("%s.request_cache_overhead_ns", pattern), apiMetrics.RenderCacheOverheadNS)

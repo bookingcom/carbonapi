@@ -401,6 +401,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
+						apiMetrics.Errors.Add(1) // TODO(gmagnusson): Are we double-counting this error?
 						logger.Error("panic during eval:",
 							zap.String("cache_key", cacheKey),
 							zap.Any("reason", r),
@@ -438,6 +439,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				zap.Duration("runtime", time.Since(t0)),
 			)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			logAsError = true
 			return
 		}
 	case rawFormat:
@@ -475,6 +477,8 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
 	ctx := util.SetUUID(r.Context(), uuid.String())
 	username, _, _ := r.BasicAuth()
+
+	apiMetrics.Requests.Add(1)
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
@@ -660,6 +664,8 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
 
+	apiMetrics.Requests.Add(1)
+
 	if format == "" {
 		format = jsonFormat
 	}
@@ -730,6 +736,11 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	accessLogger := zapwriter.Logger("access")
 
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
+
 	w.Write([]byte("Ok\n"))
 
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
@@ -751,6 +762,11 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 func versionHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	accessLogger := zapwriter.Logger("access")
+
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
 
 	if config.GraphiteWeb09Compatibility {
 		w.Write([]byte("0.9.15\n"))
@@ -780,6 +796,8 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
+	apiMetrics.Requests.Add(1)
+
 	accessLogger := zapwriter.Logger("access")
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:  "functions",
@@ -796,8 +814,6 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
 	}()
-
-	apiMetrics.Requests.Add(1)
 
 	err := r.ParseForm()
 	if err != nil {
@@ -908,5 +924,10 @@ supported requests:
 `)
 
 func usageHandler(w http.ResponseWriter, r *http.Request) {
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
+
 	w.Write(usageMsg)
 }
