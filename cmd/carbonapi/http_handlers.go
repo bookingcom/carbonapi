@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	pickle "github.com/lomik/og-rek"
-	"github.com/satori/go.uuid"
-
 	"github.com/go-graphite/carbonapi/carbonapipb"
 	"github.com/go-graphite/carbonapi/date"
 	"github.com/go-graphite/carbonapi/expr"
@@ -22,8 +19,11 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"github.com/dgryski/httputil"
 	"github.com/go-graphite/carbonapi/expr/metadata"
+	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -41,24 +41,25 @@ const (
 
 func initHandlers() *http.ServeMux {
 	r := http.DefaultServeMux
-	r.HandleFunc("/render/", renderHandler)
-	r.HandleFunc("/render", renderHandler)
 
-	r.HandleFunc("/metrics/find/", findHandler)
-	r.HandleFunc("/metrics/find", findHandler)
+	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
+	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))
 
-	r.HandleFunc("/info/", infoHandler)
-	r.HandleFunc("/info", infoHandler)
+	r.HandleFunc("/metrics/find/", httputil.TimeHandler(findHandler, bucketRequestTimes))
+	r.HandleFunc("/metrics/find", httputil.TimeHandler(findHandler, bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", lbcheckHandler)
+	r.HandleFunc("/info/", httputil.TimeHandler(infoHandler, bucketRequestTimes))
+	r.HandleFunc("/info", httputil.TimeHandler(infoHandler, bucketRequestTimes))
 
-	r.HandleFunc("/version", versionHandler)
-	r.HandleFunc("/version/", versionHandler)
+	r.HandleFunc("/lb_check", httputil.TimeHandler(lbcheckHandler, bucketRequestTimes))
 
-	r.HandleFunc("/functions", functionsHandler)
-	r.HandleFunc("/functions/", functionsHandler)
+	r.HandleFunc("/version", httputil.TimeHandler(versionHandler, bucketRequestTimes))
+	r.HandleFunc("/version/", httputil.TimeHandler(versionHandler, bucketRequestTimes))
 
-	r.HandleFunc("/", usageHandler)
+	r.HandleFunc("/functions", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+
+	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
 	return r
 }
 
@@ -327,16 +328,16 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				// Request is "small enough" -- send the entire thing as a render request
 
 				apiMetrics.RenderRequests.Add(1)
-				config.limiter.enter()
+				config.limiter.Enter(localHostName)
 				accessLogDetails.ZipperRequests++
 
 				r, err := config.zipper.Render(ctx, m.Metric, mfetch.From, mfetch.Until)
 				if err != nil {
 					errors[target] = err.Error()
-					config.limiter.leave()
+					config.limiter.Leave(localHostName)
 					continue
 				}
-				config.limiter.leave()
+				config.limiter.Leave(localHostName)
 				metricMap[mfetch] = r
 				for i := range r {
 					size += r[i].Size()
@@ -354,7 +355,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 					leaves++
 
 					apiMetrics.RenderRequests.Add(1)
-					config.limiter.enter()
+					config.limiter.Enter(localHostName)
 					accessLogDetails.ZipperRequests++
 
 					go func(path string, from, until int32) {
@@ -363,7 +364,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 						} else {
 							rch <- renderResponse{nil, err}
 						}
-						config.limiter.leave()
+						config.limiter.Leave(localHostName)
 					}(m.Path, mfetch.From, mfetch.Until)
 				}
 
@@ -438,6 +439,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				zap.Duration("runtime", time.Since(t0)),
 			)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			logAsError = true
 			return
 		}
 	case rawFormat:
@@ -475,6 +477,8 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
 	ctx := util.SetUUID(r.Context(), uuid.String())
 	username, _, _ := r.BasicAuth()
+
+	apiMetrics.Requests.Add(1)
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
@@ -660,6 +664,8 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
 
+	apiMetrics.Requests.Add(1)
+
 	if format == "" {
 		format = jsonFormat
 	}
@@ -730,6 +736,11 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	accessLogger := zapwriter.Logger("access")
 
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
+
 	w.Write([]byte("Ok\n"))
 
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
@@ -751,6 +762,11 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 func versionHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	accessLogger := zapwriter.Logger("access")
+
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
 
 	if config.GraphiteWeb09Compatibility {
 		w.Write([]byte("0.9.15\n"))
@@ -780,6 +796,8 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
+	apiMetrics.Requests.Add(1)
+
 	accessLogger := zapwriter.Logger("access")
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:  "functions",
@@ -796,8 +814,6 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
 	}()
-
-	apiMetrics.Requests.Add(1)
 
 	err := r.ParseForm()
 	if err != nil {
@@ -908,5 +924,10 @@ supported requests:
 `)
 
 func usageHandler(w http.ResponseWriter, r *http.Request) {
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
+
 	w.Write(usageMsg)
 }

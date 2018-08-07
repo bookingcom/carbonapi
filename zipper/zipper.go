@@ -81,6 +81,14 @@ type Zipper struct {
 	logger *zap.Logger
 }
 
+func (z Zipper) LimiterUse() map[string]float64 {
+	return z.limiter.LimiterUse()
+}
+
+func (z Zipper) MaxLimiterUse() float64 {
+	return z.limiter.MaxLimiterUse()
+}
+
 // Stats provides zipper-related statistics
 type Stats struct {
 	Timeouts          int64

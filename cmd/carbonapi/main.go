@@ -6,6 +6,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -13,34 +14,45 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 
-	"io/ioutil"
-
-	"github.com/facebookgo/grace/gracehttp"
-	"github.com/facebookgo/pidfile"
 	"github.com/go-graphite/carbonapi/cache"
 	"github.com/go-graphite/carbonapi/carbonapipb"
+	"github.com/go-graphite/carbonapi/expr/functions"
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/helper"
+	"github.com/go-graphite/carbonapi/expr/rewrite"
+	"github.com/go-graphite/carbonapi/limiter"
 	"github.com/go-graphite/carbonapi/mstats"
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/go-graphite/carbonapi/util"
 	realZipper "github.com/go-graphite/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+
+	"github.com/facebookgo/grace/gracehttp"
+	"github.com/facebookgo/pidfile"
 	"github.com/gorilla/handlers"
+	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/spf13/viper"
-
-	"github.com/go-graphite/carbonapi/expr/functions"
-	"github.com/go-graphite/carbonapi/expr/rewrite"
-	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
 
 var apiMetrics = struct {
-	Requests              *expvar.Int
+	// Total counts across all request types
+	Requests  *expvar.Int
+	Responses *expvar.Int
+	Errors    *expvar.Int
+
+	Goroutines    expvar.Func
+	Uptime        expvar.Func
+	LimiterUse    expvar.Func
+	LimiterUseMax expvar.Func
+
+	// Despite the names, these only count /render requests
 	RenderRequests        *expvar.Int
 	RequestCacheHits      *expvar.Int
 	RequestCacheMisses    *expvar.Int
@@ -56,7 +68,10 @@ var apiMetrics = struct {
 	CacheSize  expvar.Func
 	CacheItems expvar.Func
 }{
-	Requests: expvar.NewInt("requests"),
+	Requests:  expvar.NewInt("requests"),
+	Responses: expvar.NewInt("responses"),
+	Errors:    expvar.NewInt("errors"),
+
 	// TODO: request_cache -> render_cache
 	RenderRequests:        expvar.NewInt("render_requests"),
 	RequestCacheHits:      expvar.NewInt("request_cache_hits"),
@@ -113,6 +128,10 @@ var zipperMetrics = struct {
 	SearchCacheMisses: expvar.NewInt("zipper_search_cache_misses"),
 }
 
+const (
+	localHostName = ""
+)
+
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion = "(development build)"
 
@@ -148,9 +167,11 @@ func deferredAccessLogging(accessLogger *zap.Logger, accessLogDetails *carbonapi
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	if logAsError {
 		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
+		apiMetrics.Errors.Add(1)
 	} else {
 		accessLogDetails.HttpCode = http.StatusOK
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
+		apiMetrics.Responses.Add(1)
 	}
 }
 
@@ -237,9 +258,11 @@ type graphiteConfig struct {
 }
 
 var config = struct {
-	ExtrapolateExperiment      bool               `mapstructure:"extrapolateExperiment"`
+	ExtrapolateExperiment bool `mapstructure:"extrapolateExperiment"`
+
 	Logger                     []zapwriter.Config `mapstructure:"logger"`
 	Listen                     string             `mapstructure:"listen"`
+	Buckets                    int                `mapstructure:"buckets"`
 	Concurency                 int                `mapstructure:"concurency"`
 	Cache                      cacheConfig        `mapstructure:"cache"`
 	Cpus                       int                `mapstructure:"cpus"`
@@ -269,14 +292,16 @@ var config = struct {
 	zipper CarbonZipper
 
 	// Limiter limits concurrent zipper requests
-	limiter limiter
+	limiter limiter.ServerLimiter
 }{
 	ExtrapolateExperiment: false,
-	Listen:                "[::]:8081",
-	Concurency:            20,
-	SendGlobsAsIs:         false,
-	AlwaysSendGlobsAsIs:   false,
-	MaxBatchSize:          100,
+
+	Listen:              "[::]:8081",
+	Buckets:             10,
+	Concurency:          20,
+	SendGlobsAsIs:       false,
+	AlwaysSendGlobsAsIs: false,
+	MaxBatchSize:        100,
 	Cache: cacheConfig{
 		Type:              "mem",
 		DefaultTimeoutSec: 60,
@@ -314,9 +339,11 @@ var config = struct {
 
 func zipperStats(stats *realZipper.Stats) {
 	zipperMetrics.Timeouts.Add(stats.Timeouts)
+
 	zipperMetrics.FindErrors.Add(stats.FindErrors)
 	zipperMetrics.RenderErrors.Add(stats.RenderErrors)
 	zipperMetrics.InfoErrors.Add(stats.InfoErrors)
+
 	zipperMetrics.SearchRequests.Add(stats.SearchRequests)
 	zipperMetrics.SearchCacheHits.Add(stats.SearchCacheHits)
 	zipperMetrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
@@ -439,8 +466,30 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
 
-	config.limiter = newLimiter(config.Concurency)
+	apiMetrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", apiMetrics.Goroutines)
+
+	startMinute := time.Now().Unix() / 60
+	apiMetrics.Uptime = expvar.Func(func() interface{} {
+		return time.Now().Unix()/60 - startMinute
+	})
+	expvar.Publish("uptime", apiMetrics.Uptime)
+
+	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
+	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.Concurency)
 	config.zipper = zipper
+
+	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
+		return config.limiter.LimiterUse()
+	})
+	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
+
+	apiMetrics.LimiterUseMax = expvar.Func(func() interface{} {
+		return config.limiter.MaxLimiterUse()
+	})
+	expvar.Publish("limiter_use_max", apiMetrics.LimiterUseMax)
 
 	switch config.Cache.Type {
 	case "memcache":
@@ -550,6 +599,12 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		zap.Any("config", config),
 	)
 
+	// +1 to track every over the number of buckets we track
+	timeBuckets = make([]int64, config.Buckets+1)
+	expTimeBuckets = make([]int64, config.Buckets+1)
+	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
+	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
+
 	if host != "" {
 		// register our metrics with graphite
 		graphite := g2g.NewGraphite(host, config.Graphite.Interval, 10*time.Second)
@@ -564,6 +619,15 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
 		graphite.Register(fmt.Sprintf("%s.requests", pattern), apiMetrics.Requests)
+		graphite.Register(fmt.Sprintf("%s.responses", pattern), apiMetrics.Responses)
+		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
+
+		for i := 0; i <= config.Buckets; i++ {
+			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
+			lower, upper := util.Bounds(i)
+			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
+		}
+
 		graphite.Register(fmt.Sprintf("%s.request_cache_hits", pattern), apiMetrics.RequestCacheHits)
 		graphite.Register(fmt.Sprintf("%s.request_cache_misses", pattern), apiMetrics.RequestCacheMisses)
 		graphite.Register(fmt.Sprintf("%s.request_cache_overhead_ns", pattern), apiMetrics.RenderCacheOverheadNS)
@@ -609,6 +673,9 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 		go mstats.Start(config.Graphite.Interval)
 
+		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
+		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
+		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), apiMetrics.LimiterUseMax)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
@@ -743,6 +810,63 @@ func setUpConfigUpstreams(logger *zap.Logger) {
 
 	zipperMetrics.SearchCacheItems = expvar.Func(func() interface{} { return config.Upstreams.SearchCache.ECItems() })
 	expvar.Publish("searchCacheItems", zipperMetrics.SearchCacheItems)
+}
+
+var timeBuckets []int64
+var expTimeBuckets []int64
+
+type bucketEntry int
+type expBucketEntry int
+
+func (b bucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
+}
+
+func (b expBucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
+}
+
+func renderTimeBuckets() interface{} {
+	return timeBuckets
+}
+
+func renderExpTimeBuckets() interface{} {
+	return timeBuckets
+}
+
+func findBucketIndex(buckets []int64, bucket int) int {
+	var i int
+	if bucket < 0 {
+		i = 0
+	} else if bucket < len(buckets)-1 {
+		i = bucket
+	} else {
+		i = len(buckets) - 1
+	}
+
+	return i
+}
+
+func bucketRequestTimes(req *http.Request, t time.Duration) {
+	logger := zapwriter.Logger("slow")
+
+	ms := t.Nanoseconds() / int64(time.Millisecond)
+
+	bucket := int(ms / 100)
+	bucketIdx := findBucketIndex(timeBuckets, bucket)
+	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
+
+	expBucket := util.Bucket(ms, config.Buckets)
+	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
+	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
+
+	// This seems slow enough to count as a slow request
+	if bucket >= config.Buckets {
+		logger.Warn("Slow Request",
+			zap.Duration("time", t),
+			zap.String("url", req.URL.String()),
+		)
+	}
 }
 
 func main() {

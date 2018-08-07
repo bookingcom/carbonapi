@@ -99,6 +99,15 @@ var config = struct {
 
 // Metrics contains grouped expvars for /debug/vars and graphite
 var Metrics = struct {
+	Requests  *expvar.Int
+	Responses *expvar.Int
+	Errors    *expvar.Int
+
+	Goroutines    expvar.Func
+	Uptime        expvar.Func
+	LimiterUse    expvar.Func
+	LimiterUseMax expvar.Func
+
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
 
@@ -121,6 +130,10 @@ var Metrics = struct {
 	SearchCacheMisses *expvar.Int
 	SearchCacheHits   *expvar.Int
 }{
+	Requests:  expvar.NewInt("requests"),
+	Responses: expvar.NewInt("responses"),
+	Errors:    expvar.NewInt("errors"),
+
 	FindRequests: expvar.NewInt("find_requests"),
 	FindErrors:   expvar.NewInt("find_errors"),
 
@@ -179,6 +192,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
 
+	Metrics.Requests.Add(1)
 	Metrics.FindRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -198,6 +212,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -210,12 +225,15 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []pb3.GlobMatch) error {
@@ -286,6 +304,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
 	Metrics.RenderRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -303,8 +322,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 	accessLogger = accessLogger.With(
@@ -321,8 +342,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	until, err := strconv.Atoi(req.FormValue("until"))
 	if err != nil {
 		http.Error(w, "until is not a integer", http.StatusBadRequest)
@@ -332,6 +355,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -343,6 +367,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -356,6 +381,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -389,6 +415,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -397,6 +424,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) []map[string]interface{} {
@@ -443,6 +472,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
 	Metrics.InfoRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -458,8 +488,10 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
+
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 
@@ -475,6 +507,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -487,6 +520,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
+		Metrics.Errors.Add(1)
 		return
 	}
 
@@ -518,12 +552,15 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
+		Metrics.Errors.Add(1)
 		return
 	}
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+
+	Metrics.Responses.Add(1)
 }
 
 func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -534,12 +571,15 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("request", req.URL.RequestURI()),
 	)
 
+	Metrics.Requests.Add(1)
+
 	/* #nosec */
 	fmt.Fprintf(w, "Ok\n")
 	accessLogger.Info("lb request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
+	Metrics.Responses.Add(1)
 }
 
 func main() {
@@ -611,9 +651,22 @@ func main() {
 
 	// +1 to track every over the number of buckets we track
 	timeBuckets = make([]int64, config.Buckets+1)
+	expTimeBuckets = make([]int64, config.Buckets+1)
 
 	httputil.PublishTrackedConnections("httptrack")
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
+	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
+
+	Metrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", Metrics.Goroutines)
+
+	startMinute := time.Now().Unix() / 60
+	Metrics.Uptime = expvar.Func(func() interface{} {
+		return time.Now().Unix()/60 - startMinute
+	})
+	expvar.Publish("uptime", Metrics.Uptime)
 
 	// export config via expvars
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
@@ -646,6 +699,16 @@ func main() {
 	expvar.Publish("searchCacheItems", Metrics.SearchCacheItems)
 
 	config.zipper = zipper.NewZipper(sendStats, zipperConfig, zapwriter.Logger("zipper"))
+
+	Metrics.LimiterUse = expvar.Func(func() interface{} {
+		return config.zipper.LimiterUse()
+	})
+	expvar.Publish("limiter_use", Metrics.LimiterUse)
+
+	Metrics.LimiterUseMax = expvar.Func(func() interface{} {
+		return config.zipper.MaxLimiterUse()
+	})
+	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
 
 	http.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes)))
 	http.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes)))
@@ -682,6 +745,10 @@ func main() {
 		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
+		graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
+		graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
+		graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
+
 		graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
 		graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
 
@@ -695,6 +762,8 @@ func main() {
 
 		for i := 0; i <= config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
+			lower, upper := util.Bounds(i)
+			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
 		}
 
 		graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
@@ -711,6 +780,9 @@ func main() {
 
 		go mstats.Start(config.Graphite.Interval)
 
+		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
+		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
+		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), Metrics.LimiterUseMax)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
@@ -738,15 +810,38 @@ func main() {
 }
 
 var timeBuckets []int64
+var expTimeBuckets []int64
 
 type bucketEntry int
+type expBucketEntry int
 
 func (b bucketEntry) String() string {
 	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
 }
 
+func (b expBucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
+}
+
 func renderTimeBuckets() interface{} {
 	return timeBuckets
+}
+
+func renderExpTimeBuckets() interface{} {
+	return expTimeBuckets
+}
+
+func findBucketIndex(buckets []int64, bucket int) int {
+	var i int
+	if bucket < 0 {
+		i = 0
+	} else if bucket < len(buckets)-1 {
+		i = bucket
+	} else {
+		i = len(buckets) - 1
+	}
+
+	return i
 }
 
 func bucketRequestTimes(req *http.Request, t time.Duration) {
@@ -755,12 +850,15 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	ms := t.Nanoseconds() / int64(time.Millisecond)
 
 	bucket := int(ms / 100)
+	bucketIdx := findBucketIndex(timeBuckets, bucket)
+	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
 
-	if bucket < config.Buckets {
-		atomic.AddInt64(&timeBuckets[bucket], 1)
-	} else {
-		// Too big? Increment overflow bucket and log
-		atomic.AddInt64(&timeBuckets[config.Buckets], 1)
+	expBucket := util.Bucket(ms, config.Buckets)
+	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
+	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
+
+	// This seems slow enough to count as a slow request
+	if bucket >= config.Buckets {
 		logger.Warn("Slow Request",
 			zap.Duration("time", t),
 			zap.String("url", req.URL.String()),
