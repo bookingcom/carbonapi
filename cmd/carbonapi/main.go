@@ -576,7 +576,9 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 	// +1 to track every over the number of buckets we track
 	timeBuckets = make([]int64, config.Buckets+1)
+	expTimeBuckets = make([]int64, config.Buckets+1)
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
+	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
 
 	if host != "" {
 		// register our metrics with graphite
@@ -596,6 +598,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
 
 		for i := 0; i <= config.Buckets; i++ {
+			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
 			lower, upper := util.Bounds(i)
 			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
 		}
@@ -783,28 +786,55 @@ func setUpConfigUpstreams(logger *zap.Logger) {
 }
 
 var timeBuckets []int64
+var expTimeBuckets []int64
 
 type bucketEntry int
+type expBucketEntry int
 
 func (b bucketEntry) String() string {
 	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
+}
+
+func (b expBucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
 }
 
 func renderTimeBuckets() interface{} {
 	return timeBuckets
 }
 
+func renderExpTimeBuckets() interface{} {
+	return timeBuckets
+}
+
+func findBucketIndex(buckets []int64, bucket int) int {
+	var i int
+	if bucket < 0 {
+		i = 0
+	} else if bucket < len(buckets)-1 {
+		i = bucket
+	} else {
+		i = len(buckets) - 1
+	}
+
+	return i
+}
+
 func bucketRequestTimes(req *http.Request, t time.Duration) {
 	logger := zapwriter.Logger("slow")
 
 	ms := t.Nanoseconds() / int64(time.Millisecond)
-	bucket := util.Bucket(ms, config.Buckets)
 
-	if bucket < config.Buckets {
-		atomic.AddInt64(&timeBuckets[bucket], 1)
-	} else {
-		// Too big? Increment overflow bucket and log
-		atomic.AddInt64(&timeBuckets[config.Buckets], 1)
+	bucket := int(ms / 100)
+	bucketIdx := findBucketIndex(timeBuckets, bucket)
+	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
+
+	expBucket := util.Bucket(ms, config.Buckets)
+	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
+	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
+
+	// This seems slow enough to count as a slow request
+	if bucket >= config.Buckets {
 		logger.Warn("Slow Request",
 			zap.Duration("time", t),
 			zap.String("url", req.URL.String()),
