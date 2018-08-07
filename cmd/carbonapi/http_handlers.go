@@ -402,7 +402,6 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						apiMetrics.Errors.Add(1) // TODO(gmagnusson): Are we double-counting this error?
 						logger.Error("panic during eval:",
 							zap.String("cache_key", cacheKey),
 							zap.Any("reason", r),
