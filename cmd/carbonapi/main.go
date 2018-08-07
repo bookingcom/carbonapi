@@ -24,6 +24,7 @@ import (
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/helper"
 	"github.com/go-graphite/carbonapi/expr/rewrite"
+	"github.com/go-graphite/carbonapi/limiter"
 	"github.com/go-graphite/carbonapi/mstats"
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/pkg/parser"
@@ -124,6 +125,10 @@ var zipperMetrics = struct {
 	SearchCacheHits:   expvar.NewInt("zipper_search_cache_hits"),
 	SearchCacheMisses: expvar.NewInt("zipper_search_cache_misses"),
 }
+
+const (
+	localHostName = ""
+)
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion = "(development build)"
@@ -285,7 +290,7 @@ var config = struct {
 	zipper CarbonZipper
 
 	// Limiter limits concurrent zipper requests
-	limiter limiter
+	limiter limiter.ServerLimiter
 }{
 	ExtrapolateExperiment: false,
 
@@ -470,7 +475,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	})
 	expvar.Publish("uptime", apiMetrics.Uptime)
 
-	config.limiter = newLimiter(config.Concurency)
+	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.Concurency)
 	config.zipper = zipper
 
 	switch config.Cache.Type {

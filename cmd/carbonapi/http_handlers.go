@@ -328,16 +328,16 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				// Request is "small enough" -- send the entire thing as a render request
 
 				apiMetrics.RenderRequests.Add(1)
-				config.limiter.enter()
+				config.limiter.Enter(localHostName)
 				accessLogDetails.ZipperRequests++
 
 				r, err := config.zipper.Render(ctx, m.Metric, mfetch.From, mfetch.Until)
 				if err != nil {
 					errors[target] = err.Error()
-					config.limiter.leave()
+					config.limiter.Leave(localHostName)
 					continue
 				}
-				config.limiter.leave()
+				config.limiter.Leave(localHostName)
 				metricMap[mfetch] = r
 				for i := range r {
 					size += r[i].Size()
@@ -355,7 +355,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 					leaves++
 
 					apiMetrics.RenderRequests.Add(1)
-					config.limiter.enter()
+					config.limiter.Enter(localHostName)
 					accessLogDetails.ZipperRequests++
 
 					go func(path string, from, until int32) {
@@ -364,7 +364,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 						} else {
 							rch <- renderResponse{nil, err}
 						}
-						config.limiter.leave()
+						config.limiter.Leave(localHostName)
 					}(m.Path, mfetch.From, mfetch.Until)
 				}
 
