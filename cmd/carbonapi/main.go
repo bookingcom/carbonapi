@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -246,9 +247,11 @@ type graphiteConfig struct {
 }
 
 var config = struct {
-	ExtrapolateExperiment      bool               `mapstructure:"extrapolateExperiment"`
+	ExtrapolateExperiment bool `mapstructure:"extrapolateExperiment"`
+
 	Logger                     []zapwriter.Config `mapstructure:"logger"`
 	Listen                     string             `mapstructure:"listen"`
+	Buckets                    int                `mapstructure:"buckets"`
 	Concurency                 int                `mapstructure:"concurency"`
 	Cache                      cacheConfig        `mapstructure:"cache"`
 	Cpus                       int                `mapstructure:"cpus"`
@@ -281,11 +284,13 @@ var config = struct {
 	limiter limiter
 }{
 	ExtrapolateExperiment: false,
-	Listen:                "[::]:8081",
-	Concurency:            20,
-	SendGlobsAsIs:         false,
-	AlwaysSendGlobsAsIs:   false,
-	MaxBatchSize:          100,
+
+	Listen:              "[::]:8081",
+	Buckets:             10,
+	Concurency:          20,
+	SendGlobsAsIs:       false,
+	AlwaysSendGlobsAsIs: false,
+	MaxBatchSize:        100,
 	Cache: cacheConfig{
 		Type:              "mem",
 		DefaultTimeoutSec: 60,
@@ -561,6 +566,10 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		zap.Any("config", config),
 	)
 
+	// +1 to track every over the number of buckets we track
+	timeBuckets = make([]int64, config.Buckets+1)
+	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
+
 	if host != "" {
 		// register our metrics with graphite
 		graphite := g2g.NewGraphite(host, config.Graphite.Interval, 10*time.Second)
@@ -577,6 +586,17 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.requests", pattern), apiMetrics.Requests)
 		graphite.Register(fmt.Sprintf("%s.responses", pattern), apiMetrics.Responses)
 		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
+
+		for i := 0; i <= config.Buckets; i++ {
+			var lower int
+			if i == 0 {
+				lower = 0
+			} else {
+				lower = 50 * (1 << (uint(i) - 1))
+			}
+			upper := 50 * (1 << uint(i))
+			graphite.Register(fmt.Sprintf("%s.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
+		}
 
 		graphite.Register(fmt.Sprintf("%s.request_cache_hits", pattern), apiMetrics.RequestCacheHits)
 		graphite.Register(fmt.Sprintf("%s.request_cache_misses", pattern), apiMetrics.RequestCacheMisses)
@@ -757,6 +777,45 @@ func setUpConfigUpstreams(logger *zap.Logger) {
 
 	zipperMetrics.SearchCacheItems = expvar.Func(func() interface{} { return config.Upstreams.SearchCache.ECItems() })
 	expvar.Publish("searchCacheItems", zipperMetrics.SearchCacheItems)
+}
+
+var timeBuckets []int64
+
+type bucketEntry int
+
+func (b bucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
+}
+
+func renderTimeBuckets() interface{} {
+	return timeBuckets
+}
+
+func bucketRequestTimes(req *http.Request, t time.Duration) {
+	logger := zapwriter.Logger("slow")
+
+	ms := t.Nanoseconds() / int64(time.Millisecond)
+
+	// The buckets are delimited by the sequence:
+	//	   0, 50, 100, 200, 400, 800, ...
+	var bucket int
+	for bucket = 0; bucket < config.Buckets+1; bucket++ {
+		if ms >= 50*(1<<uint(bucket)) {
+			bucket--
+			break
+		}
+	}
+
+	if bucket < config.Buckets {
+		atomic.AddInt64(&timeBuckets[bucket], 1)
+	} else {
+		// Too big? Increment overflow bucket and log
+		atomic.AddInt64(&timeBuckets[config.Buckets], 1)
+		logger.Warn("Slow Request",
+			zap.Duration("time", t),
+			zap.String("url", req.URL.String()),
+		)
+	}
 }
 
 func main() {

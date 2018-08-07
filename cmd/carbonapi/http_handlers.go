@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	pickle "github.com/lomik/og-rek"
-	"github.com/satori/go.uuid"
-
 	"github.com/go-graphite/carbonapi/carbonapipb"
 	"github.com/go-graphite/carbonapi/date"
 	"github.com/go-graphite/carbonapi/expr"
@@ -22,8 +19,11 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"github.com/dgryski/httputil"
 	"github.com/go-graphite/carbonapi/expr/metadata"
+	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -41,24 +41,25 @@ const (
 
 func initHandlers() *http.ServeMux {
 	r := http.DefaultServeMux
-	r.HandleFunc("/render/", renderHandler)
-	r.HandleFunc("/render", renderHandler)
 
-	r.HandleFunc("/metrics/find/", findHandler)
-	r.HandleFunc("/metrics/find", findHandler)
+	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
+	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))
 
-	r.HandleFunc("/info/", infoHandler)
-	r.HandleFunc("/info", infoHandler)
+	r.HandleFunc("/metrics/find/", httputil.TimeHandler(findHandler, bucketRequestTimes))
+	r.HandleFunc("/metrics/find", httputil.TimeHandler(findHandler, bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", lbcheckHandler)
+	r.HandleFunc("/info/", httputil.TimeHandler(infoHandler, bucketRequestTimes))
+	r.HandleFunc("/info", httputil.TimeHandler(infoHandler, bucketRequestTimes))
 
-	r.HandleFunc("/version", versionHandler)
-	r.HandleFunc("/version/", versionHandler)
+	r.HandleFunc("/lb_check", httputil.TimeHandler(lbcheckHandler, bucketRequestTimes))
 
-	r.HandleFunc("/functions", functionsHandler)
-	r.HandleFunc("/functions/", functionsHandler)
+	r.HandleFunc("/version", httputil.TimeHandler(versionHandler, bucketRequestTimes))
+	r.HandleFunc("/version/", httputil.TimeHandler(versionHandler, bucketRequestTimes))
 
-	r.HandleFunc("/", usageHandler)
+	r.HandleFunc("/functions", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+
+	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
 	return r
 }
 
