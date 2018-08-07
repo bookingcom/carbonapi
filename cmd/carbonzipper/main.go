@@ -741,7 +741,7 @@ func main() {
 
 		for i := 0; i <= config.Buckets; i++ {
 			lower, upper := util.Bounds(i)
-			graphite.Register(fmt.Sprintf("%s.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
+			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
 		}
 
 		graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
