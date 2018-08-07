@@ -47,8 +47,10 @@ var apiMetrics = struct {
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
-	Goroutines expvar.Func
-	Uptime     expvar.Func
+	Goroutines    expvar.Func
+	Uptime        expvar.Func
+	LimiterUse    expvar.Func
+	LimiterUseMax expvar.Func
 
 	// Despite the names, these only count /render requests
 	RenderRequests        *expvar.Int
@@ -475,8 +477,19 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	})
 	expvar.Publish("uptime", apiMetrics.Uptime)
 
+	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
 	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.Concurency)
 	config.zipper = zipper
+
+	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
+		return config.limiter.LimiterUse()
+	})
+	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
+
+	apiMetrics.LimiterUseMax = expvar.Func(func() interface{} {
+		return config.limiter.MaxLimiterUse()
+	})
+	expvar.Publish("limiter_use_max", apiMetrics.LimiterUseMax)
 
 	switch config.Cache.Type {
 	case "memcache":
@@ -662,6 +675,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
+		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), apiMetrics.LimiterUseMax)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)

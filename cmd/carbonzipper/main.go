@@ -103,8 +103,10 @@ var Metrics = struct {
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
-	Goroutines expvar.Func
-	Uptime     expvar.Func
+	Goroutines    expvar.Func
+	Uptime        expvar.Func
+	LimiterUse    expvar.Func
+	LimiterUseMax expvar.Func
 
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -698,6 +700,16 @@ func main() {
 
 	config.zipper = zipper.NewZipper(sendStats, zipperConfig, zapwriter.Logger("zipper"))
 
+	Metrics.LimiterUse = expvar.Func(func() interface{} {
+		return config.zipper.LimiterUse()
+	})
+	expvar.Publish("limiter_use", Metrics.LimiterUse)
+
+	Metrics.LimiterUseMax = expvar.Func(func() interface{} {
+		return config.zipper.MaxLimiterUse()
+	})
+	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
+
 	http.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes)))
 	http.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes)))
 	http.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes)))
@@ -770,6 +782,7 @@ func main() {
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
+		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), Metrics.LimiterUseMax)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
