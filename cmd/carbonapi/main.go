@@ -27,6 +27,7 @@ import (
 	"github.com/go-graphite/carbonapi/mstats"
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/go-graphite/carbonapi/util"
 	realZipper "github.com/go-graphite/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
@@ -595,13 +596,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
 
 		for i := 0; i <= config.Buckets; i++ {
-			var lower int
-			if i == 0 {
-				lower = 0
-			} else {
-				lower = 50 * (1 << (uint(i) - 1))
-			}
-			upper := 50 * (1 << uint(i))
+			lower, upper := util.Bounds(i)
 			graphite.Register(fmt.Sprintf("%s.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
 		}
 
@@ -803,16 +798,7 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	logger := zapwriter.Logger("slow")
 
 	ms := t.Nanoseconds() / int64(time.Millisecond)
-
-	// The buckets are delimited by the sequence:
-	//	   0, 50, 100, 200, 400, 800, ...
-	var bucket int
-	for bucket = 0; bucket < config.Buckets+1; bucket++ {
-		if ms >= 50*(1<<uint(bucket)) {
-			bucket--
-			break
-		}
-	}
+	bucket := util.Bucket(ms, config.Buckets)
 
 	if bucket < config.Buckets {
 		atomic.AddInt64(&timeBuckets[bucket], 1)
