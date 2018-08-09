@@ -74,12 +74,8 @@
   branch = "master"
 
 [[constraint]]
-  name = "github.com/gogo/protobuf"
   branch = "master"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/gonum/matrix"
+  name = "gonum.org/v1/gonum"
 
 [[constraint]]
   name = "github.com/gorilla/handlers"
