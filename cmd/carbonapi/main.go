@@ -280,8 +280,13 @@ var config = struct {
 	GraphiteWeb09Compatibility bool               `mapstructure:"graphite09compat"`
 	IgnoreClientTimeout        bool               `mapstructure:"ignoreClientTimeout"`
 	DefaultColors              map[string]string  `mapstructure:"defaultColors"`
-	GraphTemplates             string             `mapstructure:"graphTemplates"`
 	FunctionsConfigs           map[string]string  `mapstructure:"functionsConfig"`
+
+	// NOTE(gmagnusson): Added in 21c5a3cc.
+	// See: https://github.com/go-graphite/carbonapi/issues/163
+	// It's possible this implements a feature in graphite-web that
+	// graphite-web has decided to replace with something completely different.
+	GraphTemplates string `mapstructure:"graphTemplates"`
 
 	queryCache cache.BytesCache
 	findCache  cache.BytesCache
