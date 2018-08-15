@@ -57,12 +57,6 @@ type API struct {
 	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`
 	DefaultColors       map[string]string `yaml:"defaultColors"`
 	FunctionsConfigs    map[string]string `yaml:"functionsConfig"`
-
-	// NOTE(gmagnusson): Added in 21c5a3cc.
-	// See: https://github.com/go-graphite/carbonapi/issues/163
-	// It's possible this implements a feature in graphite-web that
-	// graphite-web has decided to replace with something completely different.
-	GraphTemplates string `yaml:"graphTemplates"`
 }
 
 type CacheConfig struct {

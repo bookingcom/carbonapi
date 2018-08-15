@@ -279,66 +279,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		)
 	}
 
-	/*
-		if config.GraphTemplates != "" {
-			graphTemplates = make(map[string]png.PictureParams)
-			graphTemplatesViper := viper.New()
-			b, err := ioutil.ReadFile(config.GraphTemplates)
-			if err != nil {
-				logger.Fatal("error reading graphTemplates file",
-					zap.String("graphTemplate_path", config.GraphTemplates),
-					zap.Error(err),
-				)
-			}
-
-			if strings.HasSuffix(config.GraphTemplates, ".toml") {
-				logger.Info("will parse config as toml",
-					zap.String("graphTemplate_path", config.GraphTemplates),
-				)
-				graphTemplatesViper.SetConfigType("TOML")
-			} else {
-				logger.Info("will parse config as yaml",
-					zap.String("graphTemplate_path", config.GraphTemplates),
-				)
-				graphTemplatesViper.SetConfigType("YAML")
-			}
-
-			err = graphTemplatesViper.ReadConfig(bytes.NewBuffer(b))
-			if err != nil {
-				logger.Fatal("failed to parse config",
-					zap.String("graphTemplate_path", config.GraphTemplates),
-					zap.Error(err),
-				)
-			}
-
-			for k := range graphTemplatesViper.AllSettings() {
-				// we need to explicitly copy	YDivisors and ColorList
-				newStruct := png.DefaultParams
-				newStruct.ColorList = nil
-				newStruct.YDivisors = nil
-				sub := graphTemplatesViper.Sub(k)
-				sub.Unmarshal(&newStruct)
-				if newStruct.ColorList == nil || len(newStruct.ColorList) == 0 {
-					newStruct.ColorList = make([]string, len(png.DefaultParams.ColorList))
-					for i, v := range png.DefaultParams.ColorList {
-						newStruct.ColorList[i] = v
-					}
-				}
-				if newStruct.YDivisors == nil || len(newStruct.YDivisors) == 0 {
-					newStruct.YDivisors = make([]float64, len(png.DefaultParams.YDivisors))
-					for i, v := range png.DefaultParams.YDivisors {
-						newStruct.YDivisors[i] = v
-					}
-				}
-				graphTemplates[k] = newStruct
-			}
-
-			for name, params := range graphTemplates {
-				png.SetTemplate(name, params)
-			}
-		}
-	*/
-
 	for name, color := range config.DefaultColors {
 		if err := png.SetColor(name, color); err != nil {
 			logger.Warn("invalid color specified and will be ignored",
