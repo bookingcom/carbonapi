@@ -19,7 +19,7 @@ func ParseCommon(r io.Reader) (Common, error) {
 	d := yaml.NewDecoder(r)
 	d.SetStrict(true)
 
-	c := Common{}
+	c := DefaultConfig
 	err := d.Decode(&c)
 
 	return c, err
@@ -73,6 +73,7 @@ var DefaultConfig = Common{
 	Buckets: 10,
 	Graphite: GraphiteConfig{
 		Interval: 60 * time.Second,
+		Host:     "127.0.0.1:3002",
 		Prefix:   "carbon.zipper",
 		Pattern:  "{prefix}.{fqdn}",
 	},
