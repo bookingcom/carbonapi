@@ -5,7 +5,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -16,85 +15,30 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"github.com/go-graphite/carbonapi/cfg"
+	"github.com/go-graphite/carbonapi/intervalset"
+	"github.com/go-graphite/carbonapi/mstats"
+	"github.com/go-graphite/carbonapi/util"
+	"github.com/go-graphite/carbonapi/zipper"
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	"github.com/go-graphite/carbonapi/intervalset"
-	"github.com/go-graphite/carbonapi/mstats"
-	"github.com/go-graphite/carbonapi/pathcache"
-	"github.com/go-graphite/carbonapi/util"
-	"github.com/go-graphite/carbonapi/zipper"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	pickle "github.com/lomik/og-rek"
-	"github.com/peterbourgon/g2g"
-
 	"github.com/lomik/zapwriter"
+	"github.com/peterbourgon/g2g"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
-var defaultLoggerConfig = zapwriter.Config{
-	Logger:           "",
-	File:             "stdout",
-	Level:            "info",
-	Encoding:         "console",
-	EncodingTime:     "iso8601",
-	EncodingDuration: "seconds",
-}
-
-// GraphiteConfig contains configuration bits to send internal stats to Graphite
-type GraphiteConfig struct {
-	Pattern  string
-	Host     string
-	Interval time.Duration
-	Prefix   string
-}
-
 // config contains necessary information for global
 var config = struct {
-	Backends []string       `yaml:"backends"`
-	MaxProcs int            `yaml:"maxProcs"`
-	Graphite GraphiteConfig `yaml:"graphite"`
-	Listen   string         `yaml:"listen"`
-	Buckets  int            `yaml:"buckets"`
-
-	Timeouts          zipper.Timeouts `yaml:"timeouts"`
-	KeepAliveInterval time.Duration   `yaml:"keepAliveInterval"`
-
-	CarbonSearch zipper.CarbonSearch `yaml:"carbonsearch"`
-
-	MaxIdleConnsPerHost int `yaml:"maxIdleConnsPerHost"`
-
-	ConcurrencyLimitPerServer  int                `yaml:"concurrencyLimit"`
-	ExpireDelaySec             int32              `yaml:"expireDelaySec"`
-	Logger                     []zapwriter.Config `yaml:"logger"`
-	GraphiteWeb09Compatibility bool               `yaml:"graphite09compat"`
-
+	cfg.Zipper
 	zipper *zipper.Zipper
 }{
-	MaxProcs: 1,
-	Graphite: GraphiteConfig{
-		Interval: 60 * time.Second,
-		Prefix:   "carbon.zipper",
-		Pattern:  "{prefix}.{fqdn}",
-	},
-	Listen:  ":8080",
-	Buckets: 10,
-
-	Timeouts: zipper.Timeouts{
-		Global:       10000 * time.Millisecond,
-		AfterStarted: 2 * time.Second,
-		Connect:      200 * time.Millisecond,
-	},
-	KeepAliveInterval: 30 * time.Second,
-
-	MaxIdleConnsPerHost: 100,
-
-	ExpireDelaySec: 10 * 60, // 10 minutes
-
-	Logger: []zapwriter.Config{defaultLoggerConfig},
+	cfg.DefaultZipperConfig,
+	nil,
 }
 
 // Metrics contains grouped expvars for /debug/vars and graphite
@@ -583,7 +527,7 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	err := zapwriter.ApplyConfig([]zapwriter.Config{defaultLoggerConfig})
+	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
 	if err != nil {
 		log.Fatal("Failed to initialize logger with default configuration")
 
@@ -602,14 +546,14 @@ func main() {
 		logger.Fatal("missing config file option")
 	}
 
-	cfg, err := ioutil.ReadFile(*configFile)
+	fh, err := os.Open(*configFile)
 	if err != nil {
-		logger.Fatal("unable to load config file:",
+		logger.Fatal("unable to read config file:",
 			zap.Error(err),
 		)
 	}
 
-	err = yaml.Unmarshal(cfg, &config)
+	config.Zipper, err = cfg.ParseZipperConfig(fh)
 	if err != nil {
 		logger.Fatal("failed to parse config",
 			zap.String("config_path", *configFile),
@@ -673,32 +617,20 @@ func main() {
 
 	/* Configure zipper */
 	// set up caches
-	zipperConfig := &zipper.Config{
-		PathCache:   pathcache.NewPathCache(config.ExpireDelaySec),
-		SearchCache: pathcache.NewPathCache(config.ExpireDelaySec),
 
-		ConcurrencyLimitPerServer: config.ConcurrencyLimitPerServer,
-		MaxIdleConnsPerHost:       config.MaxIdleConnsPerHost,
-		Backends:                  config.Backends,
-
-		CarbonSearch:      config.CarbonSearch,
-		Timeouts:          config.Timeouts,
-		KeepAliveInterval: config.KeepAliveInterval,
-	}
-
-	Metrics.CacheSize = expvar.Func(func() interface{} { return zipperConfig.PathCache.ECSize() })
+	Metrics.CacheSize = expvar.Func(func() interface{} { return config.PathCache.ECSize() })
 	expvar.Publish("cacheSize", Metrics.CacheSize)
 
-	Metrics.CacheItems = expvar.Func(func() interface{} { return zipperConfig.PathCache.ECItems() })
+	Metrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", Metrics.CacheItems)
 
-	Metrics.SearchCacheSize = expvar.Func(func() interface{} { return zipperConfig.SearchCache.ECSize() })
+	Metrics.SearchCacheSize = expvar.Func(func() interface{} { return config.SearchCache.ECSize() })
 	expvar.Publish("searchCacheSize", Metrics.SearchCacheSize)
 
-	Metrics.SearchCacheItems = expvar.Func(func() interface{} { return zipperConfig.SearchCache.ECItems() })
+	Metrics.SearchCacheItems = expvar.Func(func() interface{} { return config.SearchCache.ECItems() })
 	expvar.Publish("searchCacheItems", Metrics.SearchCacheItems)
 
-	config.zipper = zipper.NewZipper(sendStats, zipperConfig, zapwriter.Logger("zipper"))
+	config.zipper = zipper.NewZipper(sendStats, config.Zipper, zapwriter.Logger("zipper"))
 
 	Metrics.LimiterUse = expvar.Func(func() interface{} {
 		return config.zipper.LimiterUse()

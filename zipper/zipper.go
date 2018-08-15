@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/limiter"
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/util"
@@ -23,33 +24,6 @@ import (
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
-
-// Timeouts is a global structure that contains configuration for zipper Timeouts
-type Timeouts struct {
-	Global       time.Duration `yaml:"global"`
-	AfterStarted time.Duration `yaml:"afterStarted"`
-	Connect      time.Duration `yaml:"connect"`
-}
-
-// CarbonSearch is a global structure that contains carbonsearch related configuration bits
-type CarbonSearch struct {
-	Backend string `yaml:"backend"`
-	Prefix  string `yaml:"prefix"`
-}
-
-// Config is a structure that contains zipper-related configuration bits
-type Config struct {
-	ConcurrencyLimitPerServer int
-	MaxIdleConnsPerHost       int
-	Backends                  []string
-
-	CarbonSearch CarbonSearch
-
-	PathCache         pathcache.PathCache
-	SearchCache       pathcache.PathCache
-	Timeouts          Timeouts
-	KeepAliveInterval time.Duration `yaml:"keepAliveInterval"`
-}
 
 // Zipper provides interface to Zipper-related functions
 type Zipper struct {
@@ -111,7 +85,7 @@ type nameLeaf struct {
 }
 
 // NewZipper allows to create new Zipper
-func NewZipper(sender func(*Stats), config *Config, logger *zap.Logger) *Zipper {
+func NewZipper(sender func(*Stats), config cfg.Zipper, logger *zap.Logger) *Zipper {
 	z := &Zipper{
 		probeTicker: time.NewTicker(10 * time.Minute),
 		ProbeQuit:   make(chan struct{}),
@@ -123,7 +97,7 @@ func NewZipper(sender func(*Stats), config *Config, logger *zap.Logger) *Zipper 
 		searchCache: config.SearchCache,
 
 		storageClient:             &http.Client{},
-		backends:                  config.Backends,
+		backends:                  config.Common.Backends,
 		searchBackend:             config.CarbonSearch.Backend,
 		searchPrefix:              config.CarbonSearch.Prefix,
 		searchConfigured:          len(config.CarbonSearch.Prefix) > 0 && len(config.CarbonSearch.Backend) > 0,

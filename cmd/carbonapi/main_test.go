@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/expr/types"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+
 	"github.com/lomik/zapwriter"
 	"github.com/stretchr/testify/assert"
 )
@@ -82,13 +84,12 @@ func getMockInfoResponse() map[string]pb.InfoResponse {
 }
 
 func init() {
-	cfg := defaultLoggerConfig
-	cfg.Level = "debug"
-	zapwriter.ApplyConfig([]zapwriter.Config{cfg})
+	c := cfg.DefaultLoggerConfig
+	c.Level = "debug"
+	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
 
-	cfgFile := ""
-	setUpViper(logger, &cfgFile, "CARBONAPI_")
+	config.Backends = []string{"http://127.0.0.1:8080"}
 	setUpConfigUpstreams(logger)
 	setUpConfig(logger, newMockCarbonZipper())
 	initHandlers()
