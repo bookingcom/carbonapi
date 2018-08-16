@@ -636,7 +636,7 @@ func main() {
 	fh.Close()
 
 	setUpConfigUpstreams(logger)
-	zipper := newZipper(zipperStats, config.Zipper, config.IgnoreClientTimeout, logger.With(zap.String("handler", "zipper")))
+	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
 
 	r := initHandlers()
