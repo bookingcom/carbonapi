@@ -28,7 +28,6 @@ import (
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -121,12 +120,9 @@ const (
 
 func findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 	ctx := req.Context()
-	ctx = util.SetUUID(ctx, uuid.String())
 	logger := zapwriter.Logger("find").With(
 		zap.String("handler", "find"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 	logger.Debug("got find request",
@@ -143,7 +139,6 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("handler", "find"),
 		zap.String("format", format),
 		zap.String("target", originalQuery),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -233,14 +228,11 @@ func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []p
 func renderHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	memoryUsage := 0
-	uuid := uuid.NewV4()
 	ctx := req.Context()
 
-	ctx = util.SetUUID(ctx, uuid.String())
 	logger := zapwriter.Logger("render").With(
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.String("handler", "render"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -253,7 +245,6 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "render"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -403,12 +394,9 @@ func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) 
 
 func infoHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 	ctx := req.Context()
-	ctx = util.SetUUID(ctx, uuid.String())
 	logger := zapwriter.Logger("info").With(
 		zap.String("handler", "info"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -421,7 +409,6 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "info"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 	err := req.ParseForm()

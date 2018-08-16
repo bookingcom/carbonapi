@@ -1,8 +1,11 @@
+// Package util provides UUIDs for CarbonAPI and CarbonZipper HTTP requests.
 package util
 
 import (
 	"context"
 	"net/http"
+
+	"github.com/satori/go.uuid"
 )
 
 type key int
@@ -13,38 +16,44 @@ const (
 	uuidKey key = 0
 )
 
-func ifaceToString(v interface{}) string {
-	if v != nil {
-		return v.(string)
+// GetUUID gets the Carbon UUID of a request.
+func GetUUID(ctx context.Context) string {
+	if id := ctx.Value(uuidKey); id != nil {
+		return id.(string)
 	}
+
 	return ""
 }
 
-func getCtxString(ctx context.Context, k key) string {
-	return ifaceToString(ctx.Value(k))
-}
-
-func GetUUID(ctx context.Context) string {
-	return getCtxString(ctx, uuidKey)
-}
-
-func SetUUID(ctx context.Context, v string) context.Context {
-	return context.WithValue(ctx, uuidKey, v)
-}
-
+// ParseCtx ensures that every incoming HTTP request has a Carbon UUID assigned
+// to it.
 func ParseCtx(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		uuid := req.Header.Get(ctxHeaderUUID)
+		id := req.Header.Get(ctxHeaderUUID)
+		if id == "" {
+			id = uuid.NewV4().String()
+		}
 
-		ctx := req.Context()
-		ctx = SetUUID(ctx, uuid)
-
+		ctx := context.WithValue(req.Context(), uuidKey, id)
 		h.ServeHTTP(rw, req.WithContext(ctx))
 	})
 }
 
-func MarshalCtx(ctx context.Context, response *http.Request) *http.Request {
-	response.Header.Add(ctxHeaderUUID, GetUUID(ctx))
+// MarshalCtx ensures that outgoing HTTP requests have a Carbon UUID.
+func MarshalCtx(ctx context.Context, request *http.Request) *http.Request {
+	ctx = WithUUID(ctx)
+	request.Header.Add(ctxHeaderUUID, GetUUID(ctx))
 
-	return response
+	return request
+}
+
+// WithUUID ensures that a context has a Carbon UUID.
+func WithUUID(ctx context.Context) context.Context {
+	if id := GetUUID(ctx); id != "" {
+		return ctx
+	}
+
+	id := uuid.NewV4().String()
+
+	return context.WithValue(ctx, uuidKey, id)
 }

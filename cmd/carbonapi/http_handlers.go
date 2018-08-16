@@ -23,7 +23,6 @@ import (
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -42,24 +41,24 @@ const (
 func initHandlers() *http.ServeMux {
 	r := http.DefaultServeMux
 
-	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
-	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))
+	r.HandleFunc("/render/", httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes))
+	r.HandleFunc("/render", httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes))
 
-	r.HandleFunc("/metrics/find/", httputil.TimeHandler(findHandler, bucketRequestTimes))
-	r.HandleFunc("/metrics/find", httputil.TimeHandler(findHandler, bucketRequestTimes))
+	r.HandleFunc("/metrics/find/", httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes))
+	r.HandleFunc("/metrics/find", httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes))
 
-	r.HandleFunc("/info/", httputil.TimeHandler(infoHandler, bucketRequestTimes))
-	r.HandleFunc("/info", httputil.TimeHandler(infoHandler, bucketRequestTimes))
+	r.HandleFunc("/info/", httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes))
+	r.HandleFunc("/info", httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", httputil.TimeHandler(lbcheckHandler, bucketRequestTimes))
+	r.HandleFunc("/lb_check", httputil.TimeHandler(util.ParseCtx(lbcheckHandler), bucketRequestTimes))
 
-	r.HandleFunc("/version", httputil.TimeHandler(versionHandler, bucketRequestTimes))
-	r.HandleFunc("/version/", httputil.TimeHandler(versionHandler, bucketRequestTimes))
+	r.HandleFunc("/version", httputil.TimeHandler(util.ParseCtx(versionHandler), bucketRequestTimes))
+	r.HandleFunc("/version/", httputil.TimeHandler(util.ParseCtx(versionHandler), bucketRequestTimes))
 
-	r.HandleFunc("/functions", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
-	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+	r.HandleFunc("/functions", httputil.TimeHandler(util.ParseCtx(functionsHandler), bucketRequestTimes))
+	r.HandleFunc("/functions/", httputil.TimeHandler(util.ParseCtx(functionsHandler), bucketRequestTimes))
 
-	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
+	r.HandleFunc("/", httputil.TimeHandler(util.ParseCtx(usageHandler), bucketRequestTimes))
 	return r
 }
 
@@ -116,15 +115,14 @@ type renderResponse struct {
 
 func renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 
 	// TODO: Migrate to context.WithTimeout
 	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+	ctx := r.Context()
 	username, _, _ := r.BasicAuth()
 
 	logger := zapwriter.Logger("render").With(
-		zap.String("carbonapi_uuid", uuid.String()),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", username),
 	)
 
@@ -134,7 +132,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "render",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -472,10 +470,9 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 	// TODO: Migrate to context.WithTimeout
 	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+	ctx := r.Context()
 	username, _, _ := r.BasicAuth()
 
 	apiMetrics.Requests.Add(1)
@@ -490,7 +487,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "find",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -656,10 +653,9 @@ func findList(globs pb.GlobResponse) ([]byte, error) {
 
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 	// TODO: Migrate to context.WithTimeout
 	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+	ctx := r.Context()
 	username, _, _ := r.BasicAuth()
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
@@ -674,7 +670,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "info",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,

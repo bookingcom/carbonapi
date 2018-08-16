@@ -11,6 +11,7 @@ import (
 	_ "net/http/pprof"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-graphite/carbonapi/cfg"
@@ -19,9 +20,6 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
-	"strings"
-
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -354,9 +352,7 @@ func (z *Zipper) findUnpackPB(responses []ServerResponse, stats *Stats) ([]pb3.G
 func (z *Zipper) doProbe() {
 	stats := &Stats{}
 	logger := z.logger.With(zap.String("function", "probe"))
-	// Generate unique ID on every restart
-	uuid := uuid.NewV4()
-	ctx := util.SetUUID(context.Background(), uuid.String())
+	ctx := util.WithUUID(context.Background())
 	query := "/metrics/find/?format=protobuf&query=%2A"
 
 	responses := z.multiGet(ctx, logger, z.backends, query, stats)
@@ -376,7 +372,7 @@ func (z *Zipper) doProbe() {
 	}
 
 	logger.Info("TLD Probe run results",
-		zap.String("carbonzipper_uuid", uuid.String()),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
 		zap.Int("paths_count", len(paths)),
 		zap.Int("responses_received", len(responses)),
 		zap.Int("backends", len(z.backends)),
@@ -389,7 +385,7 @@ func (z *Zipper) doProbe() {
 		logger.Debug("TLD Probe",
 			zap.String("path", k),
 			zap.Strings("servers", v),
-			zap.String("carbonzipper_uuid", uuid.String()),
+			zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
 		)
 	}
 }
@@ -431,7 +427,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
-	req = util.MarshalCtx(ctx, util.MarshalCtx(ctx, req))
+	req = util.MarshalCtx(ctx, req)
 
 	logger = logger.With(zap.String("query", server+"/"+uri))
 	z.limiter.Enter(server)
