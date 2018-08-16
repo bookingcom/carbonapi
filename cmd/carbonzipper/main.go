@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"flag"
@@ -121,7 +122,10 @@ const (
 
 func findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	ctx := req.Context()
+
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	logger := zapwriter.Logger("find").With(
 		zap.String("handler", "find"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -229,7 +233,9 @@ func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []p
 func renderHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	memoryUsage := 0
-	ctx := req.Context()
+
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
 
 	logger := zapwriter.Logger("render").With(
 		zap.Int("memory_usage_bytes", memoryUsage),
@@ -395,7 +401,10 @@ func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) 
 
 func infoHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	ctx := req.Context()
+
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	logger := zapwriter.Logger("info").With(
 		zap.String("handler", "info"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),

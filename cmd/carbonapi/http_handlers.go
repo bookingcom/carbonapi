@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -117,9 +118,9 @@ type renderResponse struct {
 func renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 
 	logger := zapwriter.Logger("render").With(
@@ -471,9 +472,10 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := r.Context()
+
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 
 	apiMetrics.Requests.Add(1)
@@ -654,9 +656,10 @@ func findList(globs pb.GlobResponse) ([]byte, error) {
 
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := r.Context()
+
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
