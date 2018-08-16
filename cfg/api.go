@@ -10,10 +10,46 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 	d := yaml.NewDecoder(r)
 	d.SetStrict(true)
 
-	api := API{}
-	err := d.Decode(api)
+	pre := preAPI{
+		API:       DefaultAPIConfig,
+		Upstreams: DefaultConfig,
+	}
+	err := d.Decode(&pre)
 	if err != nil {
 		return API{}, err
+	}
+
+	api := pre.API
+
+	// Backwards compatibility is king
+	if pre.Concurrency > 0 {
+		api.ConcurrencyLimitPerServer = pre.Concurrency
+	}
+
+	if pre.CPUs > 0 {
+		api.MaxProcs = pre.CPUs
+	}
+
+	if pre.IdleConnections > 0 {
+		api.MaxIdleConnsPerHost = pre.IdleConnections
+	}
+
+	if pre.Upstreams.Buckets != DefaultConfig.Buckets {
+		api.Buckets = pre.Upstreams.Buckets
+	}
+
+	// Any value set to a non-default in a nested structure means we pick all
+	// values from that structure, for the sanity of the ops people.
+	if pre.Upstreams.Timeouts != DefaultConfig.Timeouts {
+		api.Timeouts = pre.Upstreams.Timeouts
+	}
+
+	if pre.Upstreams.CarbonSearch != DefaultConfig.CarbonSearch {
+		api.CarbonSearch = pre.Upstreams.CarbonSearch
+	}
+
+	if len(pre.Upstreams.Backends) >= 1 {
+		api.Backends = pre.Upstreams.Backends
 	}
 
 	return api, nil
@@ -64,4 +100,12 @@ type CacheConfig struct {
 	Size              int      `yaml:"size_mb"`
 	MemcachedServers  []string `yaml:"memcachedServers"`
 	DefaultTimeoutSec int32    `yaml:"defaultTimeoutSec"`
+}
+
+type preAPI struct {
+	API             `yaml:",inline"`
+	Concurrency     int    `yaml:"concurency"`
+	CPUs            int    `yaml:"cpus"`
+	IdleConnections int    `yaml:"idleConnections"`
+	Upstreams       Common `yaml:"upstreams"`
 }

@@ -74,7 +74,7 @@ logger:
 	}
 }
 
-type comparable struct {
+type comparableCommon struct {
 	Listen                     string
 	MaxProcs                   int
 	Timeouts                   Timeouts
@@ -88,8 +88,8 @@ type comparable struct {
 	Graphite                   GraphiteConfig
 }
 
-func project(a Common) comparable {
-	return comparable{
+func toComparableCommon(a Common) comparableCommon {
+	return comparableCommon{
 		Listen:                     a.Listen,
 		MaxProcs:                   a.MaxProcs,
 		Timeouts:                   a.Timeouts,
@@ -105,22 +105,6 @@ func project(a Common) comparable {
 }
 
 func eqCommon(a, b Common) bool {
-	aa := project(a)
-	bb := project(b)
-
-	if aa != bb {
-		return false
-	}
-
-	if len(a.Backends) != len(b.Backends) {
-		return false
-	}
-
-	for i := range a.Backends {
-		if a.Backends[i] != b.Backends[i] {
-			return false
-		}
-	}
-
-	return true
+	return toComparableCommon(a) == toComparableCommon(b) &&
+		eqStringSlice(a.Backends, b.Backends)
 }
