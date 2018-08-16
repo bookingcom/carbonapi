@@ -25,6 +25,7 @@ import (
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/gorilla/handlers"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
@@ -630,10 +631,15 @@ func main() {
 	})
 	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
 
-	http.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes)))
-	http.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes)))
-	http.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes)))
-	http.HandleFunc("/lb_check", lbCheckHandler)
+	r := http.DefaultServeMux
+
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
+	r.HandleFunc("/lb_check", lbCheckHandler)
+
+	handler := handlers.CompressHandler(r)
+	handler = util.UUIDHandler(handler)
 
 	// nothing in the config? check the environment
 	if config.Graphite.Host == "" {
@@ -719,7 +725,7 @@ func main() {
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:    config.Listen,
-		Handler: nil,
+		Handler: handler,
 	})
 
 	if err != nil {

@@ -57,3 +57,23 @@ func WithUUID(ctx context.Context) context.Context {
 
 	return context.WithValue(ctx, uuidKey, id)
 }
+
+type uuidHandler struct {
+	handler http.Handler
+}
+
+// UUIDHandler is middleware that adds a Carbon UUID to all HTTP requests.
+func UUIDHandler(h http.Handler) http.Handler {
+	return uuidHandler{handler: h}
+}
+
+func (h uuidHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	id := r.Header.Get(ctxHeaderUUID)
+	if id == "" {
+		id = uuid.NewV4().String()
+	}
+
+	ctx := context.WithValue(r.Context(), uuidKey, id)
+
+	h.handler.ServeHTTP(w, r.WithContext(ctx))
+}

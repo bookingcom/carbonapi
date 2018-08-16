@@ -38,27 +38,28 @@ const (
 	pickleFormat    = "pickle"
 )
 
-func initHandlers() *http.ServeMux {
+func initHandlers() http.Handler {
 	r := http.DefaultServeMux
 
-	r.HandleFunc("/render/", httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes))
-	r.HandleFunc("/render", httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes))
+	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
+	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))
 
-	r.HandleFunc("/metrics/find/", httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes))
-	r.HandleFunc("/metrics/find", httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes))
+	r.HandleFunc("/metrics/find/", httputil.TimeHandler(findHandler, bucketRequestTimes))
+	r.HandleFunc("/metrics/find", httputil.TimeHandler(findHandler, bucketRequestTimes))
 
-	r.HandleFunc("/info/", httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes))
-	r.HandleFunc("/info", httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes))
+	r.HandleFunc("/info/", httputil.TimeHandler(infoHandler, bucketRequestTimes))
+	r.HandleFunc("/info", httputil.TimeHandler(infoHandler, bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", httputil.TimeHandler(util.ParseCtx(lbcheckHandler), bucketRequestTimes))
+	r.HandleFunc("/lb_check", httputil.TimeHandler(lbcheckHandler, bucketRequestTimes))
 
-	r.HandleFunc("/version", httputil.TimeHandler(util.ParseCtx(versionHandler), bucketRequestTimes))
-	r.HandleFunc("/version/", httputil.TimeHandler(util.ParseCtx(versionHandler), bucketRequestTimes))
+	r.HandleFunc("/version", httputil.TimeHandler(versionHandler, bucketRequestTimes))
+	r.HandleFunc("/version/", httputil.TimeHandler(versionHandler, bucketRequestTimes))
 
-	r.HandleFunc("/functions", httputil.TimeHandler(util.ParseCtx(functionsHandler), bucketRequestTimes))
-	r.HandleFunc("/functions/", httputil.TimeHandler(util.ParseCtx(functionsHandler), bucketRequestTimes))
+	r.HandleFunc("/functions", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
+	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
 
-	r.HandleFunc("/", httputil.TimeHandler(util.ParseCtx(usageHandler), bucketRequestTimes))
+	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
+
 	return r
 }
 

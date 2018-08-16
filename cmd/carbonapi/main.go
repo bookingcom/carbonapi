@@ -639,10 +639,11 @@ func main() {
 	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
 
-	r := initHandlers()
-	handler := handlers.CompressHandler(r)
+	handler := initHandlers()
+	handler = handlers.CompressHandler(handler)
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
+	handler = util.UUIDHandler(handler)
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:    config.Listen,
