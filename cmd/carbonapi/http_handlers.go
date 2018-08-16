@@ -257,6 +257,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	var metrics []string
 	var targetIdx = 0
+	// TODO(gmagnusson): Put the body of this loop in a select { } and cancel work
 	for targetIdx < len(targets) {
 		var target = targets[targetIdx]
 		targetIdx++

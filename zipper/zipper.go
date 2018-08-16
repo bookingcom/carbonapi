@@ -406,7 +406,7 @@ func (z *Zipper) probeTlds() {
 
 var errBadResponseCode = errors.New("bad response code")
 
-func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server string, ch chan<- ServerResponse, started chan<- struct{}) {
+func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server string, ch chan<- ServerResponse) {
 	logger = logger.With(zap.String("handler", "singleGet"))
 
 	u, err := url.Parse(server + uri)
@@ -430,10 +430,34 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 	req = util.MarshalCtx(ctx, req)
 
 	logger = logger.With(zap.String("query", server+"/"+uri))
+
 	z.limiter.Enter(server)
-	started <- struct{}{}
 	defer z.limiter.Leave(server)
-	resp, err := z.storageClient.Do(req.WithContext(ctx))
+
+	var resp *http.Response
+	done := make(chan struct{})
+	go func() {
+		resp, err = z.storageClient.Do(req.WithContext(ctx))
+		done <- struct{}{}
+	}()
+
+WAIT:
+	for {
+		select {
+		case <-done:
+			break WAIT
+
+		case <-ctx.Done():
+			logger.Warn("Request timed out")
+			ch <- ServerResponse{
+				server:   server,
+				response: nil,
+				err:      fmt.Errorf("Timeout"),
+			}
+			return
+		}
+	}
+
 	if err != nil {
 		logger.Debug("query error",
 			zap.Error(err),
@@ -479,30 +503,20 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 
 	// buffered channel so the goroutines don't block on send
 	ch := make(chan ServerResponse, len(servers))
-	startedch := make(chan struct{}, len(servers))
 
 	for _, server := range servers {
-		go z.singleGet(ctx, logger, uri, server, ch, startedch)
+		go z.singleGet(ctx, logger, uri, server, ch)
 	}
 
 	var response []ServerResponse
 
-	timeout := time.After(z.timeout)
-
 	var responses int
-	var started int
 
 	erroredServerList := make(map[string][]string)
 
 GATHER:
 	for {
 		select {
-		case <-startedch:
-			started++
-			if started == len(servers) {
-				timeout = time.After(z.timeoutAfterAllStarted)
-			}
-
 		case r := <-ch:
 			responses++
 			if r.response != nil {
@@ -519,7 +533,7 @@ GATHER:
 				break GATHER
 			}
 
-		case <-timeout:
+		case <-ctx.Done():
 			var servs []string
 			for _, r := range response {
 				servs = append(servs, r.server)
