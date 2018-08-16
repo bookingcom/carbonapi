@@ -646,8 +646,10 @@ func main() {
 	handler = util.UUIDHandler(handler)
 
 	err = gracehttp.Serve(&http.Server{
-		Addr:    config.Listen,
-		Handler: handler,
+		Addr:         config.Listen,
+		Handler:      handler,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: config.Timeouts.Global,
 	})
 
 	if err != nil {
