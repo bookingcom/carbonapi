@@ -25,20 +25,6 @@ func GetUUID(ctx context.Context) string {
 	return ""
 }
 
-// ParseCtx ensures that every incoming HTTP request has a Carbon UUID assigned
-// to it.
-func ParseCtx(h http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		id := req.Header.Get(ctxHeaderUUID)
-		if id == "" {
-			id = uuid.NewV4().String()
-		}
-
-		ctx := context.WithValue(req.Context(), uuidKey, id)
-		h.ServeHTTP(rw, req.WithContext(ctx))
-	})
-}
-
 // MarshalCtx ensures that outgoing HTTP requests have a Carbon UUID.
 func MarshalCtx(ctx context.Context, request *http.Request) *http.Request {
 	ctx = WithUUID(ctx)
