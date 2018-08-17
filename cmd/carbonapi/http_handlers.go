@@ -285,42 +285,14 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			var glob pb.GlobResponse
-			var haveCacheData bool
-
-			if useCache {
-				tc := time.Now()
-				response, err := config.findCache.Get(m.Metric)
-				td := time.Since(tc).Nanoseconds()
-				apiMetrics.FindCacheOverheadNS.Add(td)
-
-				if err == nil {
-					err := glob.Unmarshal(response)
-					haveCacheData = err == nil
-				}
-			}
-
-			if haveCacheData {
-				apiMetrics.FindCacheHits.Add(1)
-			} else if !config.AlwaysSendGlobsAsIs {
-				apiMetrics.FindCacheMisses.Add(1)
-				var err error
-				apiMetrics.FindRequests.Add(1)
-				accessLogDetails.ZipperRequests++
-
-				glob, err = config.zipper.Find(ctx, m.Metric)
+			if !config.AlwaysSendGlobsAsIs {
+				glob, err = resolveGlobs(ctx, m.Metric, useCache, &accessLogDetails)
 				if err != nil {
 					logger.Error("find error",
 						zap.String("metric", m.Metric),
 						zap.Error(err),
 					)
 					continue
-				}
-				b, err := glob.Marshal()
-				if err == nil {
-					tc := time.Now()
-					config.findCache.Set(m.Metric, b, 5*60)
-					td := time.Since(tc).Nanoseconds()
-					apiMetrics.FindCacheOverheadNS.Add(td)
 				}
 			}
 
@@ -471,6 +443,47 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		gotErrors = true
 	}
 	accessLogDetails.HaveNonFatalErrors = gotErrors
+}
+
+func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (pb.GlobResponse, error) {
+	var glob pb.GlobResponse
+	var haveCacheData bool
+
+	if useCache {
+		tc := time.Now()
+		response, err := config.findCache.Get(metric)
+		td := time.Since(tc).Nanoseconds()
+		apiMetrics.FindCacheOverheadNS.Add(td)
+
+		if err == nil {
+			err := glob.Unmarshal(response)
+			haveCacheData = err == nil
+		}
+	}
+
+	if haveCacheData {
+		apiMetrics.FindCacheHits.Add(1)
+	}
+
+	apiMetrics.FindCacheMisses.Add(1)
+	var err error
+	apiMetrics.FindRequests.Add(1)
+	accessLogDetails.ZipperRequests++
+
+	glob, err = config.zipper.Find(ctx, metric)
+	if err != nil {
+		return glob, err
+	}
+
+	b, err := glob.Marshal()
+	if err == nil {
+		tc := time.Now()
+		config.findCache.Set(metric, b, 5*60)
+		td := time.Since(tc).Nanoseconds()
+		apiMetrics.FindCacheOverheadNS.Add(td)
+	}
+
+	return glob, nil
 }
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
