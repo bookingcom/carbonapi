@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/expr/types"
 	"github.com/go-graphite/carbonapi/util"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	realZipper "github.com/go-graphite/carbonapi/zipper"
+	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+
 	"go.uber.org/zap"
 )
 
@@ -30,7 +32,7 @@ type CarbonZipper interface {
 	Render(ctx context.Context, metric string, from, until int32) ([]*types.MetricData, error)
 }
 
-func newZipper(sender func(*realZipper.Stats), config *realZipper.Config, ignoreClientTimeout bool, logger *zap.Logger) *zipper {
+func newZipper(sender func(*realZipper.Stats), config cfg.Zipper, ignoreClientTimeout bool, logger *zap.Logger) *zipper {
 	z := &zipper{
 		z:                   realZipper.NewZipper(sender, config, logger),
 		logger:              logger,

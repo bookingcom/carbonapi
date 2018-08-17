@@ -6,7 +6,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/go-graphite/carbonapi/cache"
 	"github.com/go-graphite/carbonapi/carbonapipb"
+	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/expr/functions"
 	"github.com/go-graphite/carbonapi/expr/functions/cairo/png"
 	"github.com/go-graphite/carbonapi/expr/helper"
@@ -37,7 +37,6 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -234,107 +233,25 @@ func findTreejson(globs pb.GlobResponse) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-var defaultLoggerConfig = zapwriter.Config{
-	Logger:           "",
-	File:             "stdout",
-	Level:            "info",
-	Encoding:         "console",
-	EncodingTime:     "iso8601",
-	EncodingDuration: "seconds",
-}
-
-type cacheConfig struct {
-	Type              string   `mapstructure:"type"`
-	Size              int      `mapstructure:"size_mb"`
-	MemcachedServers  []string `mapstructure:"memcachedServers"`
-	DefaultTimeoutSec int32    `mapstructure:"defaultTimeoutSec"`
-}
-
-type graphiteConfig struct {
-	Pattern  string
-	Host     string
-	Interval time.Duration
-	Prefix   string
-}
-
 var config = struct {
-	ExtrapolateExperiment bool `mapstructure:"extrapolateExperiment"`
-
-	Logger                     []zapwriter.Config `mapstructure:"logger"`
-	Listen                     string             `mapstructure:"listen"`
-	Buckets                    int                `mapstructure:"buckets"`
-	Concurency                 int                `mapstructure:"concurency"`
-	Cache                      cacheConfig        `mapstructure:"cache"`
-	Cpus                       int                `mapstructure:"cpus"`
-	TimezoneString             string             `mapstructure:"tz"`
-	UnicodeRangeTables         []string           `mapstructure:"unicodeRangeTables"`
-	Graphite                   graphiteConfig     `mapstructure:"graphite"`
-	IdleConnections            int                `mapstructure:"idleConnections"`
-	PidFile                    string             `mapstructure:"pidFile"`
-	SendGlobsAsIs              bool               `mapstructure:"sendGlobsAsIs"`
-	AlwaysSendGlobsAsIs        bool               `mapstructure:"alwaysSendGlobsAsIs"`
-	MaxBatchSize               int                `mapstructure:"maxBatchSize"`
-	Zipper                     string             `mapstructure:"zipper"`
-	Upstreams                  realZipper.Config  `mapstructure:"upstreams"`
-	ExpireDelaySec             int32              `mapstructure:"expireDelaySec"`
-	GraphiteWeb09Compatibility bool               `mapstructure:"graphite09compat"`
-	IgnoreClientTimeout        bool               `mapstructure:"ignoreClientTimeout"`
-	DefaultColors              map[string]string  `mapstructure:"defaultColors"`
-	GraphTemplates             string             `mapstructure:"graphTemplates"`
-	FunctionsConfigs           map[string]string  `mapstructure:"functionsConfig"`
+	cfg.API
 
 	queryCache cache.BytesCache
 	findCache  cache.BytesCache
 
 	defaultTimeZone *time.Location
 
-	// Zipper is API entry to carbonzipper
 	zipper CarbonZipper
 
 	// Limiter limits concurrent zipper requests
 	limiter limiter.ServerLimiter
 }{
-	ExtrapolateExperiment: false,
-
-	Listen:              "[::]:8081",
-	Buckets:             10,
-	Concurency:          20,
-	SendGlobsAsIs:       false,
-	AlwaysSendGlobsAsIs: false,
-	MaxBatchSize:        100,
-	Cache: cacheConfig{
-		Type:              "mem",
-		DefaultTimeoutSec: 60,
-	},
-	TimezoneString: "",
-	Graphite: graphiteConfig{
-		Pattern:  "{prefix}.{fqdn}",
-		Host:     "",
-		Interval: 60 * time.Second,
-		Prefix:   "carbon.api",
-	},
-	Cpus:            0,
-	IdleConnections: 10,
-	PidFile:         "",
+	API: cfg.DefaultAPIConfig,
 
 	queryCache: cache.NullCache{},
 	findCache:  cache.NullCache{},
 
 	defaultTimeZone: time.Local,
-	Logger:          []zapwriter.Config{defaultLoggerConfig},
-
-	Upstreams: realZipper.Config{
-		Timeouts: realZipper.Timeouts{
-			Global:       10000 * time.Millisecond,
-			AfterStarted: 2 * time.Second,
-			Connect:      200 * time.Millisecond,
-		},
-		KeepAliveInterval: 30 * time.Second,
-
-		MaxIdleConnsPerHost: 100,
-	},
-	ExpireDelaySec:             10 * 60,
-	GraphiteWeb09Compatibility: false,
 }
 
 func zipperStats(stats *realZipper.Stats) {
@@ -354,25 +271,6 @@ func zipperStats(stats *realZipper.Stats) {
 var graphTemplates map[string]png.PictureParams
 
 func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
-	config.Cache.MemcachedServers = viper.GetStringSlice("cache.memcachedServers")
-	if n := viper.GetString("logger.logger"); n != "" {
-		config.Logger[0].Logger = n
-	}
-	if n := viper.GetString("logger.file"); n != "" {
-		config.Logger[0].File = n
-	}
-	if n := viper.GetString("logger.level"); n != "" {
-		config.Logger[0].Level = n
-	}
-	if n := viper.GetString("logger.encoding"); n != "" {
-		config.Logger[0].Encoding = n
-	}
-	if n := viper.GetString("logger.encodingtime"); n != "" {
-		config.Logger[0].EncodingTime = n
-	}
-	if n := viper.GetString("logger.encodingduration"); n != "" {
-		config.Logger[0].EncodingDuration = n
-	}
 	err := zapwriter.ApplyConfig(config.Logger)
 	if err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
@@ -381,82 +279,13 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		)
 	}
 
-	if config.GraphTemplates != "" {
-		graphTemplates = make(map[string]png.PictureParams)
-		graphTemplatesViper := viper.New()
-		b, err := ioutil.ReadFile(config.GraphTemplates)
-		if err != nil {
-			logger.Fatal("error reading graphTemplates file",
-				zap.String("graphTemplate_path", config.GraphTemplates),
+	for name, color := range config.DefaultColors {
+		if err := png.SetColor(name, color); err != nil {
+			logger.Warn("invalid color specified and will be ignored",
+				zap.String("reason", "color must be valid hex rgb or rbga value, e.x. '#c80032', 'c80032', 'c80032ff', etc."),
 				zap.Error(err),
 			)
 		}
-
-		if strings.HasSuffix(config.GraphTemplates, ".toml") {
-			logger.Info("will parse config as toml",
-				zap.String("graphTemplate_path", config.GraphTemplates),
-			)
-			graphTemplatesViper.SetConfigType("TOML")
-		} else {
-			logger.Info("will parse config as yaml",
-				zap.String("graphTemplate_path", config.GraphTemplates),
-			)
-			graphTemplatesViper.SetConfigType("YAML")
-		}
-
-		err = graphTemplatesViper.ReadConfig(bytes.NewBuffer(b))
-		if err != nil {
-			logger.Fatal("failed to parse config",
-				zap.String("graphTemplate_path", config.GraphTemplates),
-				zap.Error(err),
-			)
-		}
-
-		for k := range graphTemplatesViper.AllSettings() {
-			// we need to explicitly copy	YDivisors and ColorList
-			newStruct := png.DefaultParams
-			newStruct.ColorList = nil
-			newStruct.YDivisors = nil
-			sub := graphTemplatesViper.Sub(k)
-			sub.Unmarshal(&newStruct)
-			if newStruct.ColorList == nil || len(newStruct.ColorList) == 0 {
-				newStruct.ColorList = make([]string, len(png.DefaultParams.ColorList))
-				for i, v := range png.DefaultParams.ColorList {
-					newStruct.ColorList[i] = v
-				}
-			}
-			if newStruct.YDivisors == nil || len(newStruct.YDivisors) == 0 {
-				newStruct.YDivisors = make([]float64, len(png.DefaultParams.YDivisors))
-				for i, v := range png.DefaultParams.YDivisors {
-					newStruct.YDivisors[i] = v
-				}
-			}
-			graphTemplates[k] = newStruct
-		}
-
-		for name, params := range graphTemplates {
-			png.SetTemplate(name, params)
-		}
-	}
-
-	if config.DefaultColors != nil {
-		for name, color := range config.DefaultColors {
-			err = png.SetColor(name, color)
-			if err != nil {
-				logger.Warn("invalid color specified and will be ignored",
-					zap.String("reason", "color must be valid hex rgb or rbga value, e.x. '#c80032', 'c80032', 'c80032ff', etc."),
-					zap.Error(err),
-				)
-			}
-		}
-	}
-
-	if config.FunctionsConfigs != nil {
-		logger.Info("extra configuration for functions found",
-			zap.Any("extra_config", config.FunctionsConfigs),
-		)
-	} else {
-		config.FunctionsConfigs = make(map[string]string)
 	}
 
 	rewrite.New(config.FunctionsConfigs)
@@ -478,7 +307,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	expvar.Publish("uptime", apiMetrics.Uptime)
 
 	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
-	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.Concurency)
+	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.ConcurrencyLimitPerServer)
 	config.zipper = zipper
 
 	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
@@ -578,8 +407,8 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		parser.RangeTables = append(parser.RangeTables, unicode.Latin)
 	}
 
-	if config.Cpus != 0 {
-		runtime.GOMAXPROCS(config.Cpus)
+	if config.MaxProcs != 0 {
+		runtime.GOMAXPROCS(config.MaxProcs)
 	}
 
 	var host string
@@ -701,114 +530,25 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	}
 }
 
-func setUpViper(logger *zap.Logger, configPath *string, viperPrefix string) {
-	if *configPath != "" {
-		b, err := ioutil.ReadFile(*configPath)
-		if err != nil {
-			logger.Fatal("error reading config file",
-				zap.String("config_path", *configPath),
-				zap.Error(err),
-			)
-		}
-
-		if strings.HasSuffix(*configPath, ".toml") {
-			logger.Info("will parse config as toml",
-				zap.String("config_file", *configPath),
-			)
-			viper.SetConfigType("TOML")
-		} else {
-			logger.Info("will parse config as yaml",
-				zap.String("config_file", *configPath),
-			)
-			viper.SetConfigType("YAML")
-		}
-		err = viper.ReadConfig(bytes.NewBuffer(b))
-		if err != nil {
-			logger.Fatal("failed to parse config",
-				zap.String("config_path", *configPath),
-				zap.Error(err),
-			)
-		}
-	}
-
-	if viperPrefix != "" {
-		viper.SetEnvPrefix(viperPrefix)
-	}
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.BindEnv("tz", "carbonapi_tz")
-	viper.SetDefault("listen", "localhost:8081")
-	viper.SetDefault("concurency", 20)
-	viper.SetDefault("cache.type", "mem")
-	viper.SetDefault("cache.size_mb", 0)
-	viper.SetDefault("cache.defaultTimeoutSec", 60)
-	viper.SetDefault("cache.memcachedServers", []string{})
-	viper.SetDefault("cpus", 0)
-	viper.SetDefault("tz", "")
-	viper.SetDefault("sendGlobsAsIs", false)
-	viper.SetDefault("AlwaysSendGlobsAsIs", false)
-	viper.SetDefault("maxBatchSize", 100)
-	viper.SetDefault("graphite.host", "")
-	viper.SetDefault("graphite.interval", "60s")
-	viper.SetDefault("graphite.prefix", "carbon.api")
-	viper.SetDefault("graphite.pattern", "{prefix}.{fqdn}")
-	viper.SetDefault("idleConnections", 10)
-	viper.SetDefault("pidFile", "")
-	viper.SetDefault("upstreams.buckets", 10)
-	viper.SetDefault("upstreams.timeouts.global", "10s")
-	viper.SetDefault("upstreams.timeouts.afterStarted", "2s")
-	viper.SetDefault("upstreams.timeouts.connect", "200ms")
-	viper.SetDefault("upstreams.concurrencyLimit", 0)
-	viper.SetDefault("upstreams.keepAliveInterval", "30s")
-	viper.SetDefault("upstreams.maxIdleConnsPerHost", 100)
-	viper.SetDefault("upstreams.backends", []string{"http://127.0.0.1:8080"})
-	viper.SetDefault("upstreams.carbonsearch.backend", "")
-	viper.SetDefault("upstreams.carbonsearch.prefix", "virt.v1.*")
-	viper.SetDefault("upstreams.graphite09compat", false)
-	viper.SetDefault("expireDelaySec", 10)
-	viper.SetDefault("logger", map[string]string{})
-	viper.AutomaticEnv()
-
-	err := viper.Unmarshal(&config)
-	if err != nil {
-		logger.Fatal("failed to parse config",
-			zap.Error(err),
-		)
-	}
-}
-
 func setUpConfigUpstreams(logger *zap.Logger) {
-	if config.Zipper != "" {
-		logger.Warn("found legacy 'zipper' option, will use it instead of any 'upstreams' specified. This will be removed in future versions!")
-
-		config.Upstreams.Backends = []string{config.Zipper}
-		config.Upstreams.ConcurrencyLimitPerServer = config.Concurency
-		config.Upstreams.MaxIdleConnsPerHost = config.IdleConnections
-		config.Upstreams.KeepAliveInterval = 10 * time.Second
-		// To emulate previous behavior
-		config.Upstreams.Timeouts = realZipper.Timeouts{
-			Connect:      1 * time.Second,
-			AfterStarted: 600 * time.Second,
-			Global:       600 * time.Second,
-		}
-	}
-	if len(config.Upstreams.Backends) == 0 {
+	if len(config.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
 	}
 
 	// Setup in-memory path cache for carbonzipper requests
-	config.Upstreams.PathCache = pathcache.NewPathCache(config.ExpireDelaySec)
-	config.Upstreams.SearchCache = pathcache.NewPathCache(config.ExpireDelaySec)
+	config.PathCache = pathcache.NewPathCache(config.ExpireDelaySec)
+	config.SearchCache = pathcache.NewPathCache(config.ExpireDelaySec)
 
-	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return config.Upstreams.PathCache.ECSize() })
+	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return config.PathCache.ECSize() })
 	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
 
-	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return config.Upstreams.PathCache.ECItems() })
+	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
 
-	zipperMetrics.SearchCacheSize = expvar.Func(func() interface{} { return config.Upstreams.SearchCache.ECSize() })
+	zipperMetrics.SearchCacheSize = expvar.Func(func() interface{} { return config.SearchCache.ECSize() })
 	expvar.Publish("searchCacheSize", zipperMetrics.SearchCacheSize)
 
-	zipperMetrics.SearchCacheItems = expvar.Func(func() interface{} { return config.Upstreams.SearchCache.ECItems() })
+	zipperMetrics.SearchCacheItems = expvar.Func(func() interface{} { return config.SearchCache.ECItems() })
 	expvar.Publish("searchCacheItems", zipperMetrics.SearchCacheItems)
 }
 
@@ -870,21 +610,33 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 }
 
 func main() {
-	err := zapwriter.ApplyConfig([]zapwriter.Config{defaultLoggerConfig})
+	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
 	if err != nil {
 		log.Fatal("Failed to initialize logger with default configuration")
 	}
 	logger := zapwriter.Logger("main")
 
 	configPath := flag.String("config", "", "Path to the `config file`.")
-	envPrefix := flag.String("envprefix", "CARBONAPI_", "Preifx for environment variables override")
-	if *envPrefix == "" {
-		logger.Warn("empty prefix is not recommended due to possible collisions with OS environment variables")
-	}
 	flag.Parse()
-	setUpViper(logger, configPath, *envPrefix)
+
+	fh, err := os.Open(*configPath)
+	if err != nil {
+		logger.Fatal("Failed to open config file",
+			zap.Error(err),
+		)
+	}
+
+	api, err := cfg.ParseAPIConfig(fh)
+	if err != nil {
+		logger.Fatal("Failed to parse config file",
+			zap.Error(err),
+		)
+	}
+	config.API = api
+	fh.Close()
+
 	setUpConfigUpstreams(logger)
-	zipper := newZipper(zipperStats, &config.Upstreams, config.IgnoreClientTimeout, logger.With(zap.String("handler", "zipper")))
+	zipper := newZipper(zipperStats, config.Zipper, config.IgnoreClientTimeout, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
 
 	r := initHandlers()
