@@ -560,6 +560,7 @@ func main() {
 			zap.Error(err),
 		)
 	}
+	fh.Close()
 
 	if len(config.Backends) == 0 {
 		logger.Fatal("no Backends loaded -- exiting")
