@@ -26,7 +26,6 @@ import (
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"github.com/gorilla/handlers"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
@@ -647,8 +646,7 @@ func main() {
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
 
-	handler := handlers.CompressHandler(r)
-	handler = util.UUIDHandler(handler)
+	handler := util.UUIDHandler(r)
 
 	// nothing in the config? check the environment
 	if config.Graphite.Host == "" {
