@@ -31,6 +31,9 @@ debug_zipper: $(SOURCES)
 nocairo: $(SOURCES)
 	$(GO) build -ldflags '-X main.BuildVersion=$(VERSION)'
 
+vet:
+	go vet -composites=false ./...
+
 test:
 	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) test -tags cairo ./... -race
 
