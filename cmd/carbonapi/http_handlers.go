@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -23,7 +24,6 @@ import (
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +39,7 @@ const (
 	pickleFormat    = "pickle"
 )
 
-func initHandlers() *http.ServeMux {
+func initHandlers() http.Handler {
 	r := http.DefaultServeMux
 
 	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
@@ -60,6 +60,7 @@ func initHandlers() *http.ServeMux {
 	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
 
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
+
 	return r
 }
 
@@ -116,15 +117,14 @@ type renderResponse struct {
 
 func renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
 
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 
 	logger := zapwriter.Logger("render").With(
-		zap.String("carbonapi_uuid", uuid.String()),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", username),
 	)
 
@@ -134,7 +134,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "render",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -472,10 +472,10 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 
 	apiMetrics.Requests.Add(1)
@@ -490,7 +490,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "find",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -656,10 +656,10 @@ func findList(globs pb.GlobResponse) ([]byte, error) {
 
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
-	// TODO: Migrate to context.WithTimeout
-	// ctx, _ := context.WithTimeout(context.TODO(), config.ZipperTimeout)
-	ctx := util.SetUUID(r.Context(), uuid.String())
+
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	username, _, _ := r.BasicAuth()
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
@@ -674,7 +674,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "info",
 		Username:      username,
-		CarbonapiUuid: uuid.String(),
+		CarbonapiUuid: util.GetUUID(ctx),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,

@@ -636,17 +636,20 @@ func main() {
 	fh.Close()
 
 	setUpConfigUpstreams(logger)
-	zipper := newZipper(zipperStats, config.Zipper, config.IgnoreClientTimeout, logger.With(zap.String("handler", "zipper")))
+	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
 
-	r := initHandlers()
-	handler := handlers.CompressHandler(r)
+	handler := initHandlers()
+	handler = handlers.CompressHandler(handler)
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
+	handler = util.UUIDHandler(handler)
 
 	err = gracehttp.Serve(&http.Server{
-		Addr:    config.Listen,
-		Handler: handler,
+		Addr:         config.Listen,
+		Handler:      handler,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: config.Timeouts.Global,
 	})
 
 	if err != nil {

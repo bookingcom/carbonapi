@@ -1,5 +1,7 @@
 all: carbonapi carbonzipper
 
+debug: debug_api debug_zipper
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
         EXTRA_PKG_CONFIG_PATH=/opt/X11/lib/pkgconfig
@@ -20,8 +22,11 @@ carbonapi: $(SOURCES)
 carbonzipper: $(SOURCES)
 	$(GO) build --ldflags '-X main.BuildVersion=$(VERSION)' $(PKG_CARBONZIPPER)
 
-debug: $(SOURCES)
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -tags cairo -ldflags '-X main.BuildVersion=$(VERSION)' -gcflags=all='-l -N' $(PKG_CARBONAPI) $(PKG_CARBONZIPPER)
+debug_api: $(SOURCES)
+	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -tags cairo -ldflags '-X main.BuildVersion=$(VERSION)' -gcflags=all='-l -N' $(PKG_CARBONAPI)
+
+debug_zipper: $(SOURCES)
+	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -ldflags '-X main.BuildVersion=$(VERSION)' -gcflags=all='-l -N' $(PKG_CARBONZIPPER)
 
 nocairo: $(SOURCES)
 	$(GO) build -ldflags '-X main.BuildVersion=$(VERSION)'

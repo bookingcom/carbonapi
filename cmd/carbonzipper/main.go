@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"flag"
@@ -25,10 +26,10 @@ import (
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/gorilla/handlers"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
@@ -121,12 +122,12 @@ const (
 
 func findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
-	ctx := req.Context()
-	ctx = util.SetUUID(ctx, uuid.String())
+
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	logger := zapwriter.Logger("find").With(
 		zap.String("handler", "find"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 	logger.Debug("got find request",
@@ -143,7 +144,6 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("handler", "find"),
 		zap.String("format", format),
 		zap.String("target", originalQuery),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -233,14 +233,13 @@ func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []p
 func renderHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	memoryUsage := 0
-	uuid := uuid.NewV4()
-	ctx := req.Context()
 
-	ctx = util.SetUUID(ctx, uuid.String())
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	logger := zapwriter.Logger("render").With(
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.String("handler", "render"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -253,7 +252,6 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "render"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -403,12 +401,12 @@ func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) 
 
 func infoHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	uuid := uuid.NewV4()
-	ctx := req.Context()
-	ctx = util.SetUUID(ctx, uuid.String())
+
+	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	defer cancel()
+
 	logger := zapwriter.Logger("info").With(
 		zap.String("handler", "info"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
@@ -421,7 +419,6 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "info"),
-		zap.String("carbonzipper_uuid", uuid.String()),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 	err := req.ParseForm()
@@ -643,10 +640,15 @@ func main() {
 	})
 	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
 
-	http.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(findHandler), bucketRequestTimes)))
-	http.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(renderHandler), bucketRequestTimes)))
-	http.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(util.ParseCtx(infoHandler), bucketRequestTimes)))
-	http.HandleFunc("/lb_check", lbCheckHandler)
+	r := http.DefaultServeMux
+
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
+	r.HandleFunc("/lb_check", lbCheckHandler)
+
+	handler := handlers.CompressHandler(r)
+	handler = util.UUIDHandler(handler)
 
 	// nothing in the config? check the environment
 	if config.Graphite.Host == "" {
@@ -731,8 +733,10 @@ func main() {
 	}
 
 	err = gracehttp.Serve(&http.Server{
-		Addr:    config.Listen,
-		Handler: nil,
+		Addr:         config.Listen,
+		Handler:      handler,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: config.Timeouts.Global,
 	})
 
 	if err != nil {

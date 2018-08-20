@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/util"
 	realZipper "github.com/go-graphite/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
@@ -19,9 +18,8 @@ var errNoMetrics = errors.New("no metrics")
 type zipper struct {
 	z *realZipper.Zipper
 
-	logger              *zap.Logger
-	statsSender         func(*realZipper.Stats)
-	ignoreClientTimeout bool
+	logger      *zap.Logger
+	statsSender func(*realZipper.Stats)
 }
 
 // The CarbonZipper interface exposes access to realZipper
@@ -32,12 +30,11 @@ type CarbonZipper interface {
 	Render(ctx context.Context, metric string, from, until int32) ([]*types.MetricData, error)
 }
 
-func newZipper(sender func(*realZipper.Stats), config cfg.Zipper, ignoreClientTimeout bool, logger *zap.Logger) *zipper {
+func newZipper(sender func(*realZipper.Stats), config cfg.Zipper, logger *zap.Logger) *zipper {
 	z := &zipper{
-		z:                   realZipper.NewZipper(sender, config, logger),
-		logger:              logger,
-		statsSender:         sender,
-		ignoreClientTimeout: ignoreClientTimeout,
+		z:           realZipper.NewZipper(sender, config, logger),
+		logger:      logger,
+		statsSender: sender,
 	}
 
 	return z
@@ -45,13 +42,7 @@ func newZipper(sender func(*realZipper.Stats), config cfg.Zipper, ignoreClientTi
 
 func (z zipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error) {
 	var pbresp pb.GlobResponse
-	newCtx := ctx
-	if z.ignoreClientTimeout {
-		uuid := util.GetUUID(ctx)
-		newCtx = util.SetUUID(context.Background(), uuid)
-	}
-
-	res, stats, err := z.z.Find(newCtx, z.logger, metric)
+	res, stats, err := z.z.Find(ctx, z.logger, metric)
 	if err != nil {
 		return pbresp, err
 	}
@@ -65,12 +56,7 @@ func (z zipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error
 }
 
 func (z zipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResponse, error) {
-	newCtx := ctx
-	if z.ignoreClientTimeout {
-		uuid := util.GetUUID(ctx)
-		newCtx = util.SetUUID(context.Background(), uuid)
-	}
-	resp, stats, err := z.z.Info(newCtx, z.logger, metric)
+	resp, stats, err := z.z.Info(ctx, z.logger, metric)
 	if err != nil {
 		return nil, fmt.Errorf("http.Get: %+v", err)
 	}
@@ -82,12 +68,7 @@ func (z zipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResp
 
 func (z zipper) Render(ctx context.Context, metric string, from, until int32) ([]*types.MetricData, error) {
 	var result []*types.MetricData
-	newCtx := ctx
-	if z.ignoreClientTimeout {
-		uuid := util.GetUUID(ctx)
-		newCtx = util.SetUUID(context.Background(), uuid)
-	}
-	pbresp, stats, err := z.z.Render(newCtx, z.logger, metric, from, until)
+	pbresp, stats, err := z.z.Render(ctx, z.logger, metric, from, until)
 	if err != nil {
 		return result, err
 	}
