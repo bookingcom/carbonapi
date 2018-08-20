@@ -61,6 +61,8 @@ func initHandlers() http.Handler {
 
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
 
+	r.HandleFunc("/debug/version", debugVersionHandler)
+
 	return r
 }
 
@@ -930,4 +932,13 @@ func usageHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Write(usageMsg)
+}
+
+func debugVersionHandler(w http.ResponseWriter, r *http.Request) {
+	apiMetrics.Requests.Add(1)
+	defer func() {
+		apiMetrics.Responses.Add(1)
+	}()
+
+	fmt.Fprintf(w, "GIT_TAG: %s\n", BuildVersion)
 }
