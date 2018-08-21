@@ -264,7 +264,6 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetIdx++
 
 		exp, e, err := parser.ParseExpr(target)
-
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
 			http.Error(w, msg, http.StatusBadRequest)
@@ -361,13 +360,31 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			accessLogDetails.Reason = err.Error()
 			logAsError = true
 			return
-		} else if rewritten {
+		}
+
+		if rewritten {
 			// TODO(gmagnusson): Have the loop be
 			//
 			//		for i := 0; i < total; i++
 			//
 			// and update total here with len(newTargets) so we actually
 			// end up looking at any of the things in there.
+			//
+			// Ugh, I'm now paranoid that the compiler or the runtime will
+			// inline 'total' at some point in the future as an optimization.
+			// Maybe have the loop instead be:
+			//
+			// for {
+			//		if len(targets) == 0 {
+			//			break
+			//		}
+			//
+			//		target = targets[0]
+			//		targets = targets[1:]
+			// }
+			//
+			// If it walks like a stack, and it quacks like a stack ...
+
 			targets = append(targets, newTargets...)
 			continue
 		}
@@ -382,13 +399,20 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 					)
 				}
 			}()
+
 			exprs, err := expr.EvalExpr(exp, from32, until32, metricMap)
-			if err != nil && err != parser.ErrSeriesDoesNotExist {
-				errors[target] = err.Error()
-				accessLogDetails.Reason = err.Error()
-				logAsError = true
+			if err != nil {
+				if err != parser.ErrSeriesDoesNotExist {
+					errors[target] = err.Error()
+					accessLogDetails.Reason = err.Error()
+					logAsError = true
+				}
+
+				// If err == parser.ErrSeriesDoesNotExist, exprs == nil, so we
+				// can just return here.
 				return
 			}
+
 			results = append(results, exprs...)
 		}()
 	}
