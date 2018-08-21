@@ -450,9 +450,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "failed to create new request"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
 		ch <- ServerResponse{server: server, response: nil, err: err}
@@ -463,37 +461,12 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 	logger = logger.With(zap.String("query", server+"/"+uri))
 
 	z.limiter.Enter(server)
-	defer z.limiter.Leave(server)
-
-	var resp *http.Response
-	done := make(chan struct{})
-	go func() {
-		resp, err = z.storageClient.Do(req.WithContext(ctx))
-		done <- struct{}{}
-	}()
-
-WAIT:
-	for {
-		select {
-		case <-done:
-			break WAIT
-
-		case <-ctx.Done():
-			logger.Warn("Request timed out")
-			ch <- ServerResponse{
-				server:   server,
-				response: nil,
-				err:      fmt.Errorf("Timeout"),
-			}
-			return
-		}
-	}
+	resp, err := z.storageClient.Do(req.WithContext(ctx))
+	z.limiter.Leave(server)
 
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "query error"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
 		ch <- ServerResponse{server: server, response: nil, err: err}
@@ -510,9 +483,7 @@ WAIT:
 
 	if resp.StatusCode != http.StatusOK {
 		if ce := logger.Check(zap.DebugLevel, "bad response code"); ce != nil {
-			ce.Write(
-				zap.Int("response_code", resp.StatusCode),
-			)
+			ce.Write(zap.Int("response_code", resp.StatusCode))
 		}
 
 		ch <- ServerResponse{server: server, response: nil, err: errBadResponseCode}
@@ -522,9 +493,7 @@ WAIT:
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "error reading body"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
 		ch <- ServerResponse{server: server, response: nil, err: err}
