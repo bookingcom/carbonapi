@@ -161,9 +161,12 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 				zap.String("server", r.server),
 				zap.Error(err),
 			)
-			logger.Debug("response hexdump",
-				zap.String("response", hex.Dump(r.response)),
-			)
+
+			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
+				ce.Write(
+					zap.String("response", hex.Dump(r.response)),
+				)
+			}
 			stats.RenderErrors++
 			continue
 		}
@@ -181,15 +184,20 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 	}
 
 	for name, decoded := range metrics {
-		logger.Debug("decoded response",
-			zap.String("name", name),
-			zap.Any("decoded", decoded),
-		)
+		if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
+			ce.Write(
+				zap.String("name", name),
+				zap.Any("decoded", decoded),
+			)
+		}
 
 		if len(decoded) == 1 {
-			logger.Debug("only one decoded response to merge",
-				zap.String("name", name),
-			)
+			if ce := logger.Check(zap.DebugLevel, "only one decoded response to merge"); ce != nil {
+				ce.Write(
+					zap.String("name", name),
+				)
+			}
+
 			m := decoded[0]
 			multi.Metrics = append(multi.Metrics, m)
 			continue
@@ -270,9 +278,13 @@ func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[stri
 				zap.String("server", r.server),
 				zap.Error(err),
 			)
-			logger.Debug("response hexdump",
-				zap.String("response", hex.Dump(r.response)),
-			)
+
+			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
+				ce.Write(
+					zap.String("response", hex.Dump(r.response)),
+				)
+			}
+
 			stats.InfoErrors++
 			continue
 		}
@@ -284,9 +296,13 @@ func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[stri
 					zap.String("server", r.server),
 					zap.Error(err),
 				)
-				logger.Debug("response hexdump",
-					zap.String("response", hex.Dump(r.response)),
-				)
+
+				if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
+					ce.Write(
+						zap.String("response", hex.Dump(r.response)),
+					)
+				}
+
 				stats.InfoErrors++
 				continue
 			}
@@ -300,9 +316,11 @@ func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[stri
 		}
 	}
 
-	logger.Debug("info request",
-		zap.Any("decoded_response", decoded),
-	)
+	if ce := logger.Check(zap.DebugLevel, "info request"); ce != nil {
+		ce.Write(
+			zap.Any("decoded_response", decoded),
+		)
+	}
 
 	return decoded
 }
@@ -323,9 +341,13 @@ func (z *Zipper) findUnpackPB(responses []ServerResponse, stats *Stats) ([]pb3.G
 				zap.String("server", r.server),
 				zap.Error(err),
 			)
-			logger.Debug("response hexdump",
-				zap.String("response", hex.Dump(r.response)),
-			)
+
+			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
+				ce.Write(
+					zap.String("response", hex.Dump(r.response)),
+				)
+			}
+
 			stats.FindErrors += 1
 			continue
 		}
@@ -382,11 +404,14 @@ func (z *Zipper) doProbe() {
 	// update our cache of which servers have which metrics
 	for k, v := range paths {
 		z.pathCache.Set(k, v)
-		logger.Debug("TLD Probe",
-			zap.String("path", k),
-			zap.Strings("servers", v),
-			zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
-		)
+
+		if ce := logger.Check(zap.DebugLevel, "TLD Probe"); ce != nil {
+			ce.Write(
+				zap.String("path", k),
+				zap.Strings("servers", v),
+				zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
+			)
+		}
 	}
 }
 
@@ -411,19 +436,25 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 
 	u, err := url.Parse(server + uri)
 	if err != nil {
-		logger.Debug("error parsing uri",
-			zap.String("uri", server+uri),
-			zap.Error(err),
-		)
+		if ce := logger.Check(zap.DebugLevel, "error parsing uri"); ce != nil {
+			ce.Write(
+				zap.String("uri", server+uri),
+				zap.Error(err),
+			)
+		}
+
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		logger.Debug("failed to create new request",
-			zap.Error(err),
-		)
+		if ce := logger.Check(zap.DebugLevel, "failed to create new request"); ce != nil {
+			ce.Write(
+				zap.Error(err),
+			)
+		}
+
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
@@ -459,9 +490,12 @@ WAIT:
 	}
 
 	if err != nil {
-		logger.Debug("query error",
-			zap.Error(err),
-		)
+		if ce := logger.Check(zap.DebugLevel, "query error"); ce != nil {
+			ce.Write(
+				zap.Error(err),
+			)
+		}
+
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
@@ -475,18 +509,24 @@ WAIT:
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Debug("bad response code",
-			zap.Int("response_code", resp.StatusCode),
-		)
+		if ce := logger.Check(zap.DebugLevel, "bad response code"); ce != nil {
+			ce.Write(
+				zap.Int("response_code", resp.StatusCode),
+			)
+		}
+
 		ch <- ServerResponse{server: server, response: nil, err: errBadResponseCode}
 		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logger.Debug("error reading body",
-			zap.Error(err),
-		)
+		if ce := logger.Check(zap.DebugLevel, "error reading body"); ce != nil {
+			ce.Write(
+				zap.Error(err),
+			)
+		}
+
 		ch <- ServerResponse{server: server, response: nil, err: err}
 		return
 	}
@@ -496,10 +536,12 @@ WAIT:
 
 func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []string, uri string, stats *Stats) []ServerResponse {
 	logger = logger.With(zap.String("handler", "multiGet"))
-	logger.Debug("querying servers",
-		zap.Strings("servers", servers),
-		zap.String("uri", uri),
-	)
+	if ce := logger.Check(zap.DebugLevel, "querying servers"); ce != nil {
+		ce.Write(
+			zap.Strings("servers", servers),
+			zap.String("uri", uri),
+		)
+	}
 
 	// buffered channel so the goroutines don't block on send
 	ch := make(chan ServerResponse, len(servers))
@@ -564,10 +606,12 @@ GATHER:
 	}
 
 	if len(erroredServerList) != 0 {
-		logger.Debug("non fatal errors happened while querying servers",
-			zap.Int("", len(erroredServerList)),
-			zap.Any("list_of_errors", erroredServerList),
-		)
+		if ce := logger.Check(zap.DebugLevel, "non fatal errors happened while querying servers"); ce != nil {
+			ce.Write(
+				zap.Int("", len(erroredServerList)),
+				zap.Any("list_of_errors", erroredServerList),
+			)
+		}
 	}
 
 	return response

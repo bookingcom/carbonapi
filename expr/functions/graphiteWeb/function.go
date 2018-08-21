@@ -15,9 +15,9 @@ import (
 	"github.com/go-graphite/carbonapi/expr/interfaces"
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	"github.com/go-graphite/carbonapi/expr/types"
+	"github.com/go-graphite/carbonapi/limiter"
 	"github.com/go-graphite/carbonapi/pkg/parser"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"github.com/go-graphite/carbonapi/limiter"
 	"github.com/lomik/zapwriter"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -391,10 +391,12 @@ func (f *graphiteWeb) Do(e parser.Expr, from, until int32, values map[parser.Met
 		return nil, fmt.Errorf("max tries exceeded for request target=%v", target)
 	}
 
-	f.logger.Debug("got response",
-		zap.String("request", request),
-		zap.String("body", string(body)),
-	)
+	if ce := f.logger.Check(zap.DebugLevel, "got response"); ce != nil {
+		ce.Write(
+			zap.String("request", request),
+			zap.String("body", string(body)),
+		)
+	}
 
 	var tmp []graphiteMetric
 
