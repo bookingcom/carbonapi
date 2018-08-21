@@ -129,9 +129,12 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("handler", "find"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
-	logger.Debug("got find request",
-		zap.String("request", req.URL.RequestURI()),
-	)
+
+	if ce := logger.Check(zap.DebugLevel, "got find request"); ce != nil {
+		ce.Write(
+			zap.String("request", req.URL.RequestURI()),
+		)
+	}
 
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
@@ -242,9 +245,11 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	logger.Debug("got render request",
-		zap.String("request", req.URL.RequestURI()),
-	)
+	if ce := logger.Check(zap.DebugLevel, "got render request"); ce != nil {
+		ce.Write(
+			zap.String("request", req.URL.RequestURI()),
+		)
+	}
 
 	Metrics.Requests.Add(1)
 	Metrics.RenderRequests.Add(1)
@@ -409,9 +414,11 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	logger.Debug("request",
-		zap.String("request", req.URL.RequestURI()),
-	)
+	if ce := logger.Check(zap.DebugLevel, "request"); ce != nil {
+		ce.Write(
+			zap.String("request", req.URL.RequestURI()),
+		)
+	}
 
 	Metrics.Requests.Add(1)
 	Metrics.InfoRequests.Add(1)
@@ -507,9 +514,12 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	logger := zapwriter.Logger("loadbalancer").With(zap.String("handler", "loadbalancer"))
 	accessLogger := zapwriter.Logger("access").With(zap.String("handler", "loadbalancer"))
-	logger.Debug("loadbalacner",
-		zap.String("request", req.URL.RequestURI()),
-	)
+
+	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
+		ce.Write(
+			zap.String("request", req.URL.RequestURI()),
+		)
+	}
 
 	Metrics.Requests.Add(1)
 

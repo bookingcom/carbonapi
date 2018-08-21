@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-graphite/carbonapi/carbonapipb"
@@ -113,7 +114,7 @@ const (
 )
 
 type renderResponse struct {
-	data  *types.MetricData
+	data  []*types.MetricData
 	error error
 }
 
@@ -257,12 +258,12 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	var metrics []string
 	var targetIdx = 0
+	// TODO(gmagnusson): Put the body of this loop in a select { } and cancel work
 	for targetIdx < len(targets) {
 		var target = targets[targetIdx]
 		targetIdx++
 
 		exp, e, err := parser.ParseExpr(target)
-
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
 			http.Error(w, msg, http.StatusBadRequest)
@@ -283,107 +284,50 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			var glob pb.GlobResponse
-			var haveCacheData bool
-
-			if useCache {
-				tc := time.Now()
-				response, err := config.findCache.Get(m.Metric)
-				td := time.Since(tc).Nanoseconds()
-				apiMetrics.FindCacheOverheadNS.Add(td)
-
-				if err == nil {
-					err := glob.Unmarshal(response)
-					haveCacheData = err == nil
-				}
+			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails)
+			if err != nil {
+				logger.Error("find error",
+					zap.String("metric", m.Metric),
+					zap.Error(err),
+				)
+				continue
 			}
 
-			if haveCacheData {
-				apiMetrics.FindCacheHits.Add(1)
-			} else if !config.AlwaysSendGlobsAsIs {
-				apiMetrics.FindCacheMisses.Add(1)
-				var err error
-				apiMetrics.FindRequests.Add(1)
-				accessLogDetails.ZipperRequests++
-
-				glob, err = config.zipper.Find(ctx, m.Metric)
-				if err != nil {
-					logger.Error("find error",
-						zap.String("metric", m.Metric),
-						zap.Error(err),
-					)
-					continue
-				}
-				b, err := glob.Marshal()
-				if err == nil {
-					tc := time.Now()
-					config.findCache.Set(m.Metric, b, 5*60)
-					td := time.Since(tc).Nanoseconds()
-					apiMetrics.FindCacheOverheadNS.Add(td)
-				}
-			}
-
-			sendGlobs := config.AlwaysSendGlobsAsIs || (config.SendGlobsAsIs && len(glob.Matches) < config.MaxBatchSize)
-			accessLogDetails.SendGlobs = sendGlobs
-
-			if sendGlobs {
-				// Request is "small enough" -- send the entire thing as a render request
-
-				apiMetrics.RenderRequests.Add(1)
-				config.limiter.Enter(localHostName)
-				accessLogDetails.ZipperRequests++
-
-				r, err := config.zipper.Render(ctx, m.Metric, mfetch.From, mfetch.Until)
-				if err != nil {
-					errors[target] = err.Error()
-					config.limiter.Leave(localHostName)
-					continue
-				}
-				config.limiter.Leave(localHostName)
-				metricMap[mfetch] = r
-				for i := range r {
-					size += r[i].Size()
-				}
-
-			} else {
-				// Request is "too large"; send render requests individually
-				// TODO(dgryski): group the render requests into batches
-				rch := make(chan renderResponse, len(glob.Matches))
-				var leaves int
-				for _, m := range glob.Matches {
-					if !m.IsLeaf {
-						continue
-					}
-					leaves++
+			// TODO(dgryski): group the render requests into batches
+			rch := make(chan renderResponse, len(renderRequests))
+			for _, m := range renderRequests {
+				go func(path string, from, until int32) {
+					config.limiter.Enter(localHostName)
+					defer config.limiter.Leave(localHostName)
 
 					apiMetrics.RenderRequests.Add(1)
-					config.limiter.Enter(localHostName)
-					accessLogDetails.ZipperRequests++
+					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
-					go func(path string, from, until int32) {
-						if r, err := config.zipper.Render(ctx, path, from, until); err == nil {
-							rch <- renderResponse{r[0], nil}
-						} else {
-							rch <- renderResponse{nil, err}
-						}
-						config.limiter.Leave(localHostName)
-					}(m.Path, mfetch.From, mfetch.Until)
+					r, err := config.zipper.Render(ctx, path, from, until)
+					rch <- renderResponse{r, err}
+				}(m, mfetch.From, mfetch.Until)
+			}
+
+			errors := make([]error, 0)
+			for i := 0; i < len(renderRequests); i++ {
+				resp := <-rch
+				if resp.error != nil {
+					errors = append(errors, resp.error)
+					continue
 				}
 
-				errors := make([]error, 0)
-				for i := 0; i < leaves; i++ {
-					if r := <-rch; r.error == nil {
-						size += r.data.Size()
-						metricMap[mfetch] = append(metricMap[mfetch], r.data)
-					} else {
-						errors = append(errors, r.error)
-					}
+				for _, r := range resp.data {
+					size += r.Size()
+					metricMap[mfetch] = append(metricMap[mfetch], r)
 				}
-				if len(errors) != 0 {
-					logger.Error("render error occurred while fetching data",
-						zap.Any("errors", errors),
-					)
-				}
+			}
+
+			close(rch)
+
+			if len(errors) != 0 {
+				logger.Error("render error occurred while fetching data",
+					zap.Any("errors", errors),
+				)
 			}
 
 			expr.SortMetrics(metricMap[mfetch], mfetch)
@@ -398,29 +342,61 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			accessLogDetails.Reason = err.Error()
 			logAsError = true
 			return
-		} else if rewritten {
+		}
+
+		if rewritten {
+			// TODO(gmagnusson): Have the loop be
+			//
+			//		for i := 0; i < total; i++
+			//
+			// and update total here with len(newTargets) so we actually
+			// end up looking at any of the things in there.
+			//
+			// Ugh, I'm now paranoid that the compiler or the runtime will
+			// inline 'total' at some point in the future as an optimization.
+			// Maybe have the loop instead be:
+			//
+			// for {
+			//		if len(targets) == 0 {
+			//			break
+			//		}
+			//
+			//		target = targets[0]
+			//		targets = targets[1:]
+			// }
+			//
+			// If it walks like a stack, and it quacks like a stack ...
+
 			targets = append(targets, newTargets...)
-		} else {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("panic during eval:",
-							zap.String("cache_key", cacheKey),
-							zap.Any("reason", r),
-							zap.Stack("stack"),
-						)
-					}
-				}()
-				exprs, err := expr.EvalExpr(exp, from32, until32, metricMap)
-				if err != nil && err != parser.ErrSeriesDoesNotExist {
+			continue
+		}
+
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("panic during eval:",
+						zap.String("cache_key", cacheKey),
+						zap.Any("reason", r),
+						zap.Stack("stack"),
+					)
+				}
+			}()
+
+			exprs, err := expr.EvalExpr(exp, from32, until32, metricMap)
+			if err != nil {
+				if err != parser.ErrSeriesDoesNotExist {
 					errors[target] = err.Error()
 					accessLogDetails.Reason = err.Error()
 					logAsError = true
-					return
 				}
-				results = append(results, exprs...)
-			}()
-		}
+
+				// If err == parser.ErrSeriesDoesNotExist, exprs == nil, so we
+				// can just return here.
+				return
+			}
+
+			results = append(results, exprs...)
+		}()
 	}
 
 	var body []byte
@@ -470,6 +446,82 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		gotErrors = true
 	}
 	accessLogDetails.HaveNonFatalErrors = gotErrors
+}
+
+func sendGlobs(glob pb.GlobResponse) bool {
+	// Yay globals
+	if config.AlwaysSendGlobsAsIs {
+		return true
+	}
+
+	return config.SendGlobsAsIs && len(glob.Matches) < config.MaxBatchSize
+}
+
+func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (pb.GlobResponse, error) {
+	var glob pb.GlobResponse
+	var haveCacheData bool
+
+	if useCache {
+		tc := time.Now()
+		response, err := config.findCache.Get(metric)
+		td := time.Since(tc).Nanoseconds()
+		apiMetrics.FindCacheOverheadNS.Add(td)
+
+		if err == nil {
+			err := glob.Unmarshal(response)
+			haveCacheData = err == nil
+		}
+	}
+
+	if haveCacheData {
+		apiMetrics.FindCacheHits.Add(1)
+	}
+
+	apiMetrics.FindCacheMisses.Add(1)
+	var err error
+	apiMetrics.FindRequests.Add(1)
+	accessLogDetails.ZipperRequests++
+
+	glob, err = config.zipper.Find(ctx, metric)
+	if err != nil {
+		return glob, err
+	}
+
+	b, err := glob.Marshal()
+	if err == nil {
+		tc := time.Now()
+		config.findCache.Set(metric, b, 5*60)
+		td := time.Since(tc).Nanoseconds()
+		apiMetrics.FindCacheOverheadNS.Add(td)
+	}
+
+	return glob, nil
+}
+
+func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) ([]string, error) {
+	if config.AlwaysSendGlobsAsIs {
+		accessLogDetails.SendGlobs = true
+		return []string{m.Metric}, nil
+	}
+
+	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails)
+	if err != nil {
+		return nil, err
+	}
+
+	if sendGlobs(glob) {
+		accessLogDetails.SendGlobs = true
+		return []string{m.Metric}, nil
+	}
+
+	renderRequests := make([]string, 0, len(glob.Matches))
+	for _, m := range glob.Matches {
+		if m.IsLeaf {
+			renderRequests = append(renderRequests, m.Path)
+		}
+	}
+
+	return renderRequests, nil
 }
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
