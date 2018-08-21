@@ -284,31 +284,13 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			var glob pb.GlobResponse
-			if !config.AlwaysSendGlobsAsIs {
-				glob, err = resolveGlobs(ctx, m.Metric, useCache, &accessLogDetails)
-				if err != nil {
-					logger.Error("find error",
-						zap.String("metric", m.Metric),
-						zap.Error(err),
-					)
-					continue
-				}
-			}
-
-			sendGlobs := config.AlwaysSendGlobsAsIs || (config.SendGlobsAsIs && len(glob.Matches) < config.MaxBatchSize)
-			accessLogDetails.SendGlobs = sendGlobs
-
-			var renderRequests []string
-			if sendGlobs {
-				renderRequests = []string{m.Metric}
-			} else {
-				renderRequests = make([]string, 0, len(glob.Matches))
-				for _, m := range glob.Matches {
-					if m.IsLeaf {
-						renderRequests = append(renderRequests, m.Path)
-					}
-				}
+			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails)
+			if err != nil {
+				logger.Error("find error",
+					zap.String("metric", m.Metric),
+					zap.Error(err),
+				)
+				continue
 			}
 
 			// TODO(dgryski): group the render requests into batches
@@ -466,6 +448,15 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogDetails.HaveNonFatalErrors = gotErrors
 }
 
+func sendGlobs(glob pb.GlobResponse) bool {
+	// Yay globals
+	if config.AlwaysSendGlobsAsIs {
+		return true
+	}
+
+	return config.SendGlobsAsIs && len(glob.Matches) < config.MaxBatchSize
+}
+
 func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (pb.GlobResponse, error) {
 	var glob pb.GlobResponse
 	var haveCacheData bool
@@ -505,6 +496,32 @@ func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDe
 	}
 
 	return glob, nil
+}
+
+func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) ([]string, error) {
+	if config.AlwaysSendGlobsAsIs {
+		accessLogDetails.SendGlobs = true
+		return []string{m.Metric}, nil
+	}
+
+	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails)
+	if err != nil {
+		return nil, err
+	}
+
+	if sendGlobs(glob) {
+		accessLogDetails.SendGlobs = true
+		return []string{m.Metric}, nil
+	}
+
+	renderRequests := make([]string, 0, len(glob.Matches))
+	for _, m := range glob.Matches {
+		if m.IsLeaf {
+			renderRequests = append(renderRequests, m.Path)
+		}
+	}
+
+	return renderRequests, nil
 }
 
 func findHandler(w http.ResponseWriter, r *http.Request) {
