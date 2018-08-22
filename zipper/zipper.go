@@ -3,7 +3,6 @@ package zipper
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -20,6 +19,7 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -144,8 +144,11 @@ type ServerResponse struct {
 	err      error
 }
 
-var errNoResponses = fmt.Errorf("No responses fetched from upstream")
-var errNoMetricsFetched = fmt.Errorf("No metrics in the response")
+var (
+	errNoResponses      = "No responses fetched from upstream"
+	errNoMetricsFetched = "No metrics in the response"
+	errBadResponseCode  = "Bad response code"
+)
 
 func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.MultiFetchResponse) {
 	logger := z.logger.With(zap.String("function", "mergeResponses"))
@@ -429,8 +432,6 @@ func (z *Zipper) probeTlds() {
 	}
 }
 
-var errBadResponseCode = errors.New("bad response code")
-
 func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server string, ch chan<- ServerResponse) {
 	logger = logger.With(zap.String("handler", "singleGet"))
 
@@ -443,7 +444,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			)
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Error parsing URI")}
 		return
 	}
 
@@ -453,7 +454,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Failed to create new request")}
 		return
 	}
 	req = util.MarshalCtx(ctx, req)
@@ -469,7 +470,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s errored", server)}
 		return
 	}
 	defer resp.Body.Close()
@@ -486,7 +487,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Int("response_code", resp.StatusCode))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: errBadResponseCode}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Errorf("Request to %s error: Bad response code %d", server, resp.StatusCode)}
 		return
 	}
 
@@ -496,7 +497,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s error: Error reading body")}
 		return
 	}
 
@@ -514,39 +515,35 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 
 	// buffered channel so the goroutines don't block on send
 	ch := make(chan ServerResponse, len(servers))
-
 	for _, server := range servers {
 		go z.singleGet(ctx, logger, uri, server, ch)
 	}
 
-	var response []ServerResponse
-
-	var responses int
-
-	erroredServerList := make(map[string][]string)
+	responses := make([]ServerResponse, 0, len(servers))
 
 GATHER:
 	for {
 		select {
 		case r := <-ch:
-			responses++
-			if r.response != nil {
-				response = append(response, r)
-			} else {
-				if r.err != nil {
-					list := erroredServerList[r.err.Error()]
-					list = append(list, r.server)
-					erroredServerList[r.err.Error()] = list
-				}
+			if r.err != nil {
+				logger.Error("multiGet error",
+					zap.String("error", fmt.Sprintf("%+v", r.err)),
+					zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+				)
+				continue
 			}
 
-			if responses == len(servers) {
+			responses = append(responses, r)
+
+			if len(responses) == len(servers) {
 				break GATHER
 			}
 
 		case <-ctx.Done():
+			stats.Timeouts++
+
 			var servs []string
-			for _, r := range response {
+			for _, r := range responses {
 				servs = append(servs, r.server)
 			}
 
@@ -567,23 +564,14 @@ GATHER:
 			logger.Warn("timeout waiting for more responses",
 				zap.String("uri", uri),
 				zap.Strings("timeouted_servers", timeoutedServs),
-				zap.Strings("answers_from_servers", servs),
+				zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 			)
-			stats.Timeouts++
+
 			break GATHER
 		}
 	}
 
-	if len(erroredServerList) != 0 {
-		if ce := logger.Check(zap.DebugLevel, "non fatal errors happened while querying servers"); ce != nil {
-			ce.Write(
-				zap.Int("", len(erroredServerList)),
-				zap.Any("list_of_errors", erroredServerList),
-			)
-		}
-	}
-
-	return response
+	return responses
 }
 
 func (z *Zipper) fetchCarbonsearchResponse(ctx context.Context, logger *zap.Logger, url string, stats *Stats) []string {
@@ -666,13 +654,13 @@ func (z *Zipper) Render(ctx context.Context, logger *zap.Logger, target string, 
 	}
 
 	if len(responses) == 0 {
-		return nil, stats, errNoResponses
+		return nil, stats, errors.New(errNoResponses)
 	}
 
 	servers, metrics := z.mergeResponses(responses, stats)
 
 	if metrics == nil {
-		return nil, stats, errNoMetricsFetched
+		return nil, stats, errors.New(errNoMetricsFetched)
 	}
 
 	z.pathCache.Set(target, servers)
@@ -705,7 +693,7 @@ func (z *Zipper) Info(ctx context.Context, logger *zap.Logger, target string) (m
 
 	if len(responses) == 0 {
 		stats.InfoErrors++
-		return nil, stats, errNoResponses
+		return nil, stats, errors.New(errNoResponses)
 	}
 
 	infos := z.infoUnpackPB(responses, stats)
@@ -774,7 +762,7 @@ func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]
 		responses := z.multiGet(ctx, logger, backends, rewrite.RequestURI(), stats)
 
 		if len(responses) == 0 {
-			return nil, stats, errNoResponses
+			return nil, stats, errors.New(errNoResponses)
 		}
 
 		m, paths := z.findUnpackPB(responses, stats)
