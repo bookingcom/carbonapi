@@ -3,7 +3,6 @@ package zipper
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -20,6 +19,7 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -144,8 +144,11 @@ type ServerResponse struct {
 	err      error
 }
 
-var errNoResponses = fmt.Errorf("No responses fetched from upstream")
-var errNoMetricsFetched = fmt.Errorf("No metrics in the response")
+var (
+	errNoResponses      = "No responses fetched from upstream"
+	errNoMetricsFetched = "No metrics in the response"
+	errBadResponseCode  = "Bad response code"
+)
 
 func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.MultiFetchResponse) {
 	logger := z.logger.With(zap.String("function", "mergeResponses"))
@@ -429,8 +432,6 @@ func (z *Zipper) probeTlds() {
 	}
 }
 
-var errBadResponseCode = errors.New("bad response code")
-
 func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server string, ch chan<- ServerResponse) {
 	logger = logger.With(zap.String("handler", "singleGet"))
 
@@ -443,19 +444,17 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			)
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Error parsing URI")}
 		return
 	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "failed to create new request"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Failed to create new request")}
 		return
 	}
 	req = util.MarshalCtx(ctx, req)
@@ -463,40 +462,15 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 	logger = logger.With(zap.String("query", server+"/"+uri))
 
 	z.limiter.Enter(server)
-	defer z.limiter.Leave(server)
-
-	var resp *http.Response
-	done := make(chan struct{})
-	go func() {
-		resp, err = z.storageClient.Do(req.WithContext(ctx))
-		done <- struct{}{}
-	}()
-
-WAIT:
-	for {
-		select {
-		case <-done:
-			break WAIT
-
-		case <-ctx.Done():
-			logger.Warn("Request timed out")
-			ch <- ServerResponse{
-				server:   server,
-				response: nil,
-				err:      fmt.Errorf("Timeout"),
-			}
-			return
-		}
-	}
+	resp, err := z.storageClient.Do(req.WithContext(ctx))
+	z.limiter.Leave(server)
 
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "query error"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s errored", server)}
 		return
 	}
 	defer resp.Body.Close()
@@ -510,24 +484,20 @@ WAIT:
 
 	if resp.StatusCode != http.StatusOK {
 		if ce := logger.Check(zap.DebugLevel, "bad response code"); ce != nil {
-			ce.Write(
-				zap.Int("response_code", resp.StatusCode),
-			)
+			ce.Write(zap.Int("response_code", resp.StatusCode))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: errBadResponseCode}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Errorf("Request to %s error: Bad response code %d", server, resp.StatusCode)}
 		return
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		if ce := logger.Check(zap.DebugLevel, "error reading body"); ce != nil {
-			ce.Write(
-				zap.Error(err),
-			)
+			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: err}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s error: Error reading body")}
 		return
 	}
 
@@ -545,76 +515,108 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 
 	// buffered channel so the goroutines don't block on send
 	ch := make(chan ServerResponse, len(servers))
-
 	for _, server := range servers {
 		go z.singleGet(ctx, logger, uri, server, ch)
 	}
 
-	var response []ServerResponse
-
-	var responses int
-
-	erroredServerList := make(map[string][]string)
-
+	responses := make([]ServerResponse, 0, len(servers))
 GATHER:
 	for {
 		select {
 		case r := <-ch:
-			responses++
-			if r.response != nil {
-				response = append(response, r)
-			} else {
-				if r.err != nil {
-					list := erroredServerList[r.err.Error()]
-					list = append(list, r.server)
-					erroredServerList[r.err.Error()] = list
-				}
-			}
-
-			if responses == len(servers) {
+			responses = append(responses, r)
+			if len(responses) == len(servers) {
 				break GATHER
 			}
 
 		case <-ctx.Done():
-			var servs []string
-			for _, r := range response {
-				servs = append(servs, r.server)
-			}
-
-			var timeoutedServs []string
-			for i := range servers {
-				found := false
-				for j := range servs {
-					if servers[i] == servs[j] {
-						found = true
-						break
-					}
-				}
-				if !found {
-					timeoutedServs = append(timeoutedServs, servers[i])
-				}
-			}
-
-			logger.Warn("timeout waiting for more responses",
-				zap.String("uri", uri),
-				zap.Strings("timeouted_servers", timeoutedServs),
-				zap.Strings("answers_from_servers", servs),
-			)
-			stats.Timeouts++
 			break GATHER
 		}
 	}
 
-	if len(erroredServerList) != 0 {
-		if ce := logger.Check(zap.DebugLevel, "non fatal errors happened while querying servers"); ce != nil {
-			ce.Write(
-				zap.Int("", len(erroredServerList)),
-				zap.Any("list_of_errors", erroredServerList),
-			)
+	if ctx.Err() != nil {
+		stats.Timeouts++
+	}
+
+	respOK := make([]ServerResponse, 0, len(servers))
+	errs := make(map[string][]string)
+
+	for _, r := range responses {
+		switch t := errors.Cause(r.err).(type) {
+		case nil:
+			respOK = append(respOK, r)
+
+		case *net.OpError:
+			msg := netOpErrorMessage(t)
+			errs[msg] = append(errs[msg], r.server)
+
+		case *url.Error:
+			var msg string
+			switch s := t.Err.(type) {
+			case *net.OpError:
+				msg = netOpErrorMessage(s)
+			default:
+				msg = s.Error()
+			}
+			errs[msg] = append(errs[msg], r.server)
+
+		default:
+			errs[t.Error()] = append(errs[t.Error()], r.server)
 		}
 	}
 
-	return response
+	if len(errs) > 0 {
+		err := ctx.Err()
+		extra := 2
+		if err != nil {
+			extra = 3
+		}
+
+		es := make([]zap.Field, 0, len(errs)+extra)
+
+		es = append(es,
+			zap.String("uri", uri),
+			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		)
+
+		if err != nil {
+			es = append(es, zap.String("timeout_cause", err.Error()))
+		}
+
+		for e, servers := range errs {
+			es = append(es, zap.Strings(e, servers))
+		}
+
+		logger.Warn("Errors in responses", es...)
+	}
+
+	return respOK
+}
+
+func netOpErrorMessage(err *net.OpError) string {
+	if err.Timeout() {
+		return "timeout"
+	}
+
+	switch s := err.Err.(type) {
+	case *net.ParseError:
+		return fmt.Sprintf("net/ParseError")
+
+	case *net.AddrError:
+		return fmt.Sprintf("net/AddrError")
+
+	case *net.UnknownNetworkError:
+		return fmt.Sprintf("net/UnknownNetworkError")
+
+	case *net.InvalidAddrError:
+		return fmt.Sprintf("net/InvalidAddrError")
+
+	case *net.DNSError:
+		return s.Err
+
+	default:
+		return s.Error()
+	}
 }
 
 func (z *Zipper) fetchCarbonsearchResponse(ctx context.Context, logger *zap.Logger, url string, stats *Stats) []string {
@@ -697,13 +699,13 @@ func (z *Zipper) Render(ctx context.Context, logger *zap.Logger, target string, 
 	}
 
 	if len(responses) == 0 {
-		return nil, stats, errNoResponses
+		return nil, stats, errors.New(errNoResponses)
 	}
 
 	servers, metrics := z.mergeResponses(responses, stats)
 
 	if metrics == nil {
-		return nil, stats, errNoMetricsFetched
+		return nil, stats, errors.New(errNoMetricsFetched)
 	}
 
 	z.pathCache.Set(target, servers)
@@ -736,7 +738,7 @@ func (z *Zipper) Info(ctx context.Context, logger *zap.Logger, target string) (m
 
 	if len(responses) == 0 {
 		stats.InfoErrors++
-		return nil, stats, errNoResponses
+		return nil, stats, errors.New(errNoResponses)
 	}
 
 	infos := z.infoUnpackPB(responses, stats)
@@ -805,7 +807,7 @@ func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]
 		responses := z.multiGet(ctx, logger, backends, rewrite.RequestURI(), stats)
 
 		if len(responses) == 0 {
-			return nil, stats, errNoResponses
+			return nil, stats, errors.New(errNoResponses)
 		}
 
 		m, paths := z.findUnpackPB(responses, stats)
