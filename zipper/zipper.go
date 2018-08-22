@@ -160,9 +160,10 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 		var d pb3.MultiFetchResponse
 		err := d.Unmarshal(r.response)
 		if err != nil {
+			err = errors.WithStack(err)
 			logger.Error("error decoding protobuf response",
 				zap.String("server", r.server),
-				zap.Error(err),
+				zap.String("error", fmt.Sprintf("%+v", err)),
 			)
 
 			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
@@ -229,6 +230,12 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
 	logger := z.logger.With(zap.String("function", "mergeValues"))
 
+	// TODO(gmagnusson): The way this is written, turning
+	// responseLengthMismatch = true has the same effect as returning early
+	// from the function. That also seems to assume that all entries in decoded
+	// > other also have different resolution than the metric we're merging
+	// into. Is that true? Should we maybe s/break/continue/ below?
+
 	var responseLengthMismatch bool
 	for i := range metric.Values {
 		if !metric.IsAbsent[i] || responseLengthMismatch {
@@ -277,9 +284,10 @@ func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[stri
 		var d pb3.InfoResponse
 		err := d.Unmarshal(r.response)
 		if err != nil {
+			err = errors.WithStack(err)
 			logger.Error("error decoding protobuf response",
 				zap.String("server", r.server),
-				zap.Error(err),
+				zap.String("error", fmt.Sprintf("%+v", err)),
 			)
 
 			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
@@ -295,9 +303,10 @@ func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[stri
 			var d pb3.ZipperInfoResponse
 			err := d.Unmarshal(r.response)
 			if err != nil {
+				err = errors.WithStack(err)
 				logger.Error("error decoding protobuf response",
 					zap.String("server", r.server),
-					zap.Error(err),
+					zap.String("error", fmt.Sprintf("%+v", err)),
 				)
 
 				if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
@@ -340,9 +349,10 @@ func (z *Zipper) findUnpackPB(responses []ServerResponse, stats *Stats) ([]pb3.G
 		var metric pb3.GlobResponse
 		err := metric.Unmarshal(r.response)
 		if err != nil {
+			err = errors.WithStack(err)
 			logger.Error("error decoding protobuf response",
 				zap.String("server", r.server),
-				zap.Error(err),
+				zap.String("error", fmt.Sprintf("%+v", err)),
 			)
 
 			if ce := logger.Check(zap.DebugLevel, "response hexdump"); ce != nil {
