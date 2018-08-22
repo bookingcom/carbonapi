@@ -22,6 +22,8 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	"github.com/go-graphite/carbonapi/zipper"
 
+	"sort"
+
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
@@ -150,6 +152,15 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	metrics, stats, err := config.zipper.Find(ctx, logger, originalQuery)
+	sort.Slice(metrics, func(i, j int) bool {
+		if metrics[i].Path < metrics[j].Path {
+			return true
+		}
+		if metrics[i].Path > metrics[j].Path {
+			return false
+		}
+		return metrics[i].Path < metrics[j].Path
+	})
 	sendStats(stats)
 	if err != nil {
 		accessLogger.Error("find failed",
