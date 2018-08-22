@@ -520,58 +520,103 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 	}
 
 	responses := make([]ServerResponse, 0, len(servers))
-
 GATHER:
 	for {
 		select {
 		case r := <-ch:
-			if r.err != nil {
-				logger.Error("multiGet error",
-					zap.String("error", fmt.Sprintf("%+v", r.err)),
-					zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-				)
-				continue
-			}
-
 			responses = append(responses, r)
-
 			if len(responses) == len(servers) {
 				break GATHER
 			}
 
 		case <-ctx.Done():
-			stats.Timeouts++
-
-			var servs []string
-			for _, r := range responses {
-				servs = append(servs, r.server)
-			}
-
-			var timeoutedServs []string
-			for i := range servers {
-				found := false
-				for j := range servs {
-					if servers[i] == servs[j] {
-						found = true
-						break
-					}
-				}
-				if !found {
-					timeoutedServs = append(timeoutedServs, servers[i])
-				}
-			}
-
-			logger.Warn("timeout waiting for more responses",
-				zap.String("uri", uri),
-				zap.Strings("timeouted_servers", timeoutedServs),
-				zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-			)
-
 			break GATHER
 		}
 	}
 
-	return responses
+	if ctx.Err() != nil {
+		stats.Timeouts++
+	}
+
+	respOK := make([]ServerResponse, 0, len(servers))
+	errs := make(map[string][]string)
+
+	for _, r := range responses {
+		switch t := errors.Cause(r.err).(type) {
+		case nil:
+			respOK = append(respOK, r)
+
+		case *net.OpError:
+			msg := netOpErrorMessage(t)
+			errs[msg] = append(errs[msg], r.server)
+
+		case *url.Error:
+			var msg string
+			switch s := t.Err.(type) {
+			case *net.OpError:
+				msg = netOpErrorMessage(s)
+			default:
+				msg = s.Error()
+			}
+			errs[msg] = append(errs[msg], r.server)
+
+		default:
+			errs[t.Error()] = append(errs[t.Error()], r.server)
+		}
+	}
+
+	if len(errs) > 0 {
+		err := ctx.Err()
+		extra := 2
+		if err != nil {
+			extra = 3
+		}
+
+		es := make([]zap.Field, 0, len(errs)+extra)
+
+		es = append(es,
+			zap.String("uri", uri),
+			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		)
+
+		if err != nil {
+			es = append(es, zap.String("timeout_cause", err.Error()))
+		}
+
+		for e, servers := range errs {
+			es = append(es, zap.Strings(e, servers))
+		}
+
+		logger.Warn("Errors in responses", es...)
+	}
+
+	return respOK
+}
+
+func netOpErrorMessage(err *net.OpError) string {
+	if err.Timeout() {
+		return "timeout"
+	}
+
+	switch s := err.Err.(type) {
+	case *net.ParseError:
+		return fmt.Sprintf("net/ParseError")
+
+	case *net.AddrError:
+		return fmt.Sprintf("net/AddrError")
+
+	case *net.UnknownNetworkError:
+		return fmt.Sprintf("net/UnknownNetworkError")
+
+	case *net.InvalidAddrError:
+		return fmt.Sprintf("net/InvalidAddrError")
+
+	case *net.DNSError:
+		return s.Err
+
+	default:
+		return s.Error()
+	}
 }
 
 func (z *Zipper) fetchCarbonsearchResponse(ctx context.Context, logger *zap.Logger, url string, stats *Stats) []string {
