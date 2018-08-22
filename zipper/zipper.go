@@ -470,7 +470,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s errored", server)}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Request error")}
 		return
 	}
 	defer resp.Body.Close()
@@ -487,7 +487,11 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Int("response_code", resp.StatusCode))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: errors.Errorf("Request to %s error: Bad response code %d", server, resp.StatusCode)}
+		ch <- ServerResponse{
+			server:   server,
+			response: nil,
+			err:      errors.Errorf("Bad response code %d", resp.StatusCode),
+		}
 		return
 	}
 
@@ -497,7 +501,7 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 			ce.Write(zap.Error(err))
 		}
 
-		ch <- ServerResponse{server: server, response: nil, err: errors.Wrapf(err, "Request to %s error: Error reading body")}
+		ch <- ServerResponse{server: server, response: nil, err: errors.Wrap(err, "Error reading body")}
 		return
 	}
 
