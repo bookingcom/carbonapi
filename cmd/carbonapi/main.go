@@ -680,11 +680,16 @@ func main() {
 	prometheus.MustRegister(prometheusMetrics.Responses)
 	prometheus.MustRegister(prometheusMetrics.Durations)
 
+	writeTimeout := config.Timeouts.Global
+	if writeTimeout < 31*time.Second {
+		writeTimeout = 31 * time.Second
+	}
+
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: config.Timeouts.Global,
+		WriteTimeout: writeTimeout,
 	})
 
 	if err != nil {
