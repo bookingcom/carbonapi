@@ -9,6 +9,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -150,6 +151,18 @@ var (
 	errBadResponseCode  = "Bad response code"
 )
 
+type byStepTime []pb3.FetchResponse
+
+func (s byStepTime) Len() int { return len(s) }
+
+func (s byStepTime) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byStepTime) Less(i, j int) bool {
+	return s[i].GetStepTime() < s[j].GetStepTime()
+}
+
 func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.MultiFetchResponse) {
 	logger := z.logger.With(zap.String("function", "mergeResponses"))
 
@@ -181,12 +194,11 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 		servers = append(servers, r.server)
 	}
 
-	var multi pb3.MultiFetchResponse
-
 	if len(metrics) == 0 {
 		return servers, nil
 	}
 
+	var multi pb3.MultiFetchResponse
 	for name, decoded := range metrics {
 		if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
 			ce.Write(
@@ -208,14 +220,7 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 		}
 
 		// Use the metric with the highest resolution as our base
-		var highest int
-		for i, d := range decoded {
-			if d.GetStepTime() < decoded[highest].GetStepTime() {
-				highest = i
-			}
-		}
-		decoded[0], decoded[highest] = decoded[highest], decoded[0]
-
+		sort.Sort(byStepTime(decoded))
 		metric := decoded[0]
 
 		z.mergeValues(&metric, decoded, stats)
@@ -228,39 +233,16 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 }
 
 func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
-	logger := z.logger.With(zap.String("function", "mergeValues"))
-
-	// TODO(gmagnusson): The way this is written, turning
-	// responseLengthMismatch = true has the same effect as returning early
-	// from the function. That also seems to assume that all entries in decoded
-	// > other also have different resolution than the metric we're merging
-	// into. Is that true? Should we maybe s/break/continue/ below?
-
-	var responseLengthMismatch bool
 	for i := range metric.Values {
-		if !metric.IsAbsent[i] || responseLengthMismatch {
+		if !metric.IsAbsent[i] {
 			continue
 		}
 
-		// found a missing value, find a replacement
-		for other := 1; other < len(decoded); other++ {
-
-			m := decoded[other]
+		// found a missing value, look a replacement
+		for j := 1; j < len(decoded); j++ {
+			m := decoded[j]
 
 			if len(m.Values) != len(metric.Values) {
-				logger.Error("unable to merge ovalues",
-					zap.Int("metric_values", len(metric.Values)),
-					zap.Int("response_values", len(m.Values)),
-				)
-				// TODO(dgryski): we should remove
-				// decoded[other] from the list of responses to
-				// consider but this assumes that decoded[0] is
-				// the 'highest resolution' response and thus
-				// the one we want to keep, instead of the one
-				// we want to discard
-
-				stats.RenderErrors++
-				responseLengthMismatch = true
 				break
 			}
 
