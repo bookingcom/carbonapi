@@ -104,6 +104,8 @@ var Metrics = struct {
 	SearchCacheItems  expvar.Func
 	SearchCacheMisses *expvar.Int
 	SearchCacheHits   *expvar.Int
+
+	Corruption *expvar.Float
 }{
 	Requests:  expvar.NewInt("requests"),
 	Responses: expvar.NewInt("responses"),
@@ -126,6 +128,8 @@ var Metrics = struct {
 	CacheMisses:       expvar.NewInt("cache_misses"),
 	SearchCacheHits:   expvar.NewInt("search_cache_hits"),
 	SearchCacheMisses: expvar.NewInt("search_cache_misses"),
+
+	Corruption: expvar.NewFloat("corruption"),
 }
 
 // BuildVersion is defined at build and reported at startup and as expvar
@@ -764,6 +768,7 @@ func main() {
 		graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
 
 		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
+		graphite.Register(fmt.Sprintf("%s.corruption", pattern), Metrics.Corruption)
 
 		for i := 0; i <= config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
@@ -894,4 +899,5 @@ func sendStats(stats *zipper.Stats) {
 	Metrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
 	Metrics.CacheMisses.Add(stats.CacheMisses)
 	Metrics.CacheHits.Add(stats.CacheHits)
+	Metrics.Corruption.Add(stats.Corruption)
 }

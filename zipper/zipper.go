@@ -76,6 +76,8 @@ type Stats struct {
 
 	CacheMisses int64
 	CacheHits   int64
+
+	Corruption float64
 }
 
 type nameLeaf struct {
@@ -233,6 +235,7 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 }
 
 func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
+	healed := 0
 	for i := range metric.Values {
 		if !metric.IsAbsent[i] {
 			continue
@@ -250,9 +253,12 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchRespo
 			if !m.IsAbsent[i] {
 				metric.IsAbsent[i] = false
 				metric.Values[i] = m.Values[i]
+				healed++
 			}
 		}
 	}
+
+	stats.Corruption += float64(healed) / float64(len(metric.Values))
 }
 
 func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoResponse {
