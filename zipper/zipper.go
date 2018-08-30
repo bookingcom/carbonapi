@@ -519,11 +519,15 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 }
 
 func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []string, uri string, stats *Stats) []ServerResponse {
-	logger = logger.With(zap.String("handler", "multiGet"))
+	logger = logger.With(
+		zap.String("handler", "multiGet"),
+		zap.String("uri", uri),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+	)
+
 	if ce := logger.Check(zap.DebugLevel, "querying servers"); ce != nil {
 		ce.Write(
 			zap.Strings("servers", servers),
-			zap.String("uri", uri),
 		)
 	}
 
@@ -580,28 +584,13 @@ GATHER:
 	}
 
 	if len(errs) > 0 {
-		err := ctx.Err()
-		extra := 2
-		if err != nil {
-			extra = 3
-		}
-
-		es := make([]zap.Field, 0, len(errs)+extra)
-
-		es = append(es,
-			zap.String("uri", uri),
-			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		)
-
-		if err != nil {
-			es = append(es, zap.String("timeout_cause", err.Error()))
-		}
-
+		es := make([]zap.Field, 0, len(errs)+1)
+		es = append(es, zap.Namespace("errors"))
 		for e, servers := range errs {
 			es = append(es, zap.Strings(e, servers))
 		}
 
-		logger.Warn("Errors in responses", es...)
+		logger.With(es...).Warn("Errors in responses")
 	}
 
 	return respOK
