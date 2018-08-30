@@ -161,6 +161,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		Host:          r.Host,
 		Referer:       r.Referer(),
 		Uri:           r.RequestURI,
+		HttpCode:      http.StatusOK,
 	}
 
 	logAsError := false
@@ -370,6 +371,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		var newTargets []string
 		rewritten, newTargets, err = expr.RewriteExpr(exp, from32, until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
+			// TODO(gmagnusson): Set access logger HTTP code to != 200
 			errors[target] = err.Error()
 			accessLogDetails.Reason = err.Error()
 			logAsError = true
@@ -449,6 +451,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				zap.Duration("runtime", time.Since(t0)),
 			)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			accessLogDetails.HttpCode = http.StatusInternalServerError
 			logAsError = true
 			return
 		}
