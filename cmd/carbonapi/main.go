@@ -37,8 +37,36 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
+
+var prometheusMetrics = struct {
+	Requests  prometheus.Counter
+	Responses *prometheus.CounterVec
+	Durations prometheus.Histogram
+}{
+	Requests: prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "api_http_requests_total",
+			Help: "Count of HTTP requests",
+		},
+	),
+	Responses: prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "api_http_responses_total",
+			Help: "Count of HTTP responses, partitioned by return code and handler",
+		},
+		[]string{"code", "handler"},
+	),
+	Durations: prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "api_http_request_duration_seconds",
+			Help:    "The duration of HTTP requests",
+			Buckets: prometheus.ExponentialBuckets(50.0, 2.0, 10),
+		},
+	),
+}
 
 var apiMetrics = struct {
 	// Total counts across all request types
@@ -172,6 +200,7 @@ func deferredAccessLogging(accessLogger *zap.Logger, accessLogDetails *carbonapi
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
 		apiMetrics.Responses.Add(1)
 	}
+	prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", accessLogDetails.HttpCode), accessLogDetails.Handler).Inc()
 }
 
 type treejson struct {
@@ -600,6 +629,8 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
+	prometheusMetrics.Durations.Observe(t.Seconds())
+
 	// This seems slow enough to count as a slow request
 	if bucket >= config.Buckets {
 		logger.Warn("Slow Request",
@@ -644,6 +675,10 @@ func main() {
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
+
+	prometheus.MustRegister(prometheusMetrics.Requests)
+	prometheus.MustRegister(prometheusMetrics.Responses)
+	prometheus.MustRegister(prometheusMetrics.Durations)
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,

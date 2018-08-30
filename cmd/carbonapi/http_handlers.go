@@ -25,6 +25,7 @@ import (
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -63,6 +64,8 @@ func initHandlers() http.Handler {
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
 
 	r.HandleFunc("/debug/version", debugVersionHandler)
+
+	r.Handle("/metrics", promhttp.Handler())
 
 	return r
 }
@@ -153,6 +156,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	size := 0
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 
 	err := r.ParseForm()
 	if err != nil {
@@ -533,6 +537,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	username, _, _ := r.BasicAuth()
 
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
@@ -719,6 +724,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	format := r.FormValue("format")
 
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 
 	if format == "" {
 		format = jsonFormat
@@ -791,8 +797,10 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogger := zapwriter.Logger("access")
 
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
+		prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
 	}()
 
 	w.Write([]byte("Ok\n"))
@@ -818,8 +826,10 @@ func versionHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogger := zapwriter.Logger("access")
 
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
+		prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
 	}()
 
 	if config.GraphiteWeb09Compatibility {
@@ -851,6 +861,7 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 
 	accessLogger := zapwriter.Logger("access")
 	var accessLogDetails = carbonapipb.AccessLogDetails{
@@ -979,8 +990,10 @@ supported requests:
 
 func usageHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
+		prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
 	}()
 
 	w.Write(usageMsg)
@@ -988,8 +1001,10 @@ func usageHandler(w http.ResponseWriter, r *http.Request) {
 
 func debugVersionHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
+		prometheusMetrics.Responses.WithLabelValues("200", "debugversion").Inc()
 	}()
 
 	fmt.Fprintf(w, "GIT_TAG: %s\n", BuildVersion)

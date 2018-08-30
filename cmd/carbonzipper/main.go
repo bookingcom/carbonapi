@@ -31,8 +31,37 @@ import (
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
+
+var prometheusMetrics = struct {
+	Requests  prometheus.Counter
+	Responses *prometheus.CounterVec
+	Durations prometheus.Histogram
+}{
+	Requests: prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "zipper_http_request_total",
+			Help: "Count of HTTP requests",
+		},
+	),
+	Responses: prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "zipper_http_response_total",
+			Help: "Count of HTTP responses, partitioned by return code and handler",
+		},
+		[]string{"code", "handler"},
+	),
+	Durations: prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "zipper_http_request_duration_seconds",
+			Help:    "The duration of HTTP requests",
+			Buckets: prometheus.ExponentialBuckets(50.0, 2.0, 10),
+		},
+	),
+}
 
 // config contains necessary information for global
 var config = struct {
@@ -142,6 +171,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	format := req.FormValue("format")
 
 	Metrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	Metrics.FindRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -170,6 +200,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
 		return
 	}
 
@@ -183,6 +214,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
 		return
 	}
 	accessLogger.Info("request served",
@@ -191,6 +223,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
+	prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
 }
 
 func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []pb3.GlobMatch) error {
@@ -263,6 +296,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	Metrics.RenderRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -280,6 +314,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -300,6 +335,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -313,6 +349,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -325,6 +362,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -339,6 +377,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
 		return
 	}
 
@@ -373,6 +412,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
 		return
 	}
 
@@ -383,6 +423,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
+	prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
 }
 
 func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) []map[string]interface{} {
@@ -432,6 +473,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -447,6 +489,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -466,6 +509,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -479,6 +523,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -511,6 +556,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
 		return
 	}
 	accessLogger.Info("request served",
@@ -519,6 +565,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
+	prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
 }
 
 func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -533,6 +580,7 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
 
 	/* #nosec */
 	fmt.Fprintf(w, "Ok\n")
@@ -541,6 +589,7 @@ func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 	Metrics.Responses.Add(1)
+	prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
 }
 
 func main() {
@@ -667,6 +716,8 @@ func main() {
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
 
+	r.Handle("/metrics", promhttp.Handler())
+
 	handler := util.UUIDHandler(r)
 
 	// nothing in the config? check the environment
@@ -751,6 +802,10 @@ func main() {
 		}
 	}
 
+	prometheus.MustRegister(prometheusMetrics.Requests)
+	prometheus.MustRegister(prometheusMetrics.Responses)
+	prometheus.MustRegister(prometheusMetrics.Durations)
+
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
@@ -812,6 +867,8 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucket := util.Bucket(ms, config.Buckets)
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
+
+	prometheusMetrics.Durations.Observe(t.Seconds())
 
 	// This seems slow enough to count as a slow request
 	if bucket >= config.Buckets {
