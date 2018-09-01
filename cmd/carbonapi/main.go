@@ -676,20 +676,35 @@ func main() {
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
 
-	prometheus.MustRegister(prometheusMetrics.Requests)
-	prometheus.MustRegister(prometheusMetrics.Responses)
-	prometheus.MustRegister(prometheusMetrics.Durations)
+	go func() {
+		prometheus.MustRegister(prometheusMetrics.Requests)
+		prometheus.MustRegister(prometheusMetrics.Responses)
+		prometheus.MustRegister(prometheusMetrics.Durations)
 
-	writeTimeout := config.Timeouts.Global
-	if writeTimeout < 31*time.Second {
-		writeTimeout = 31 * time.Second
-	}
+		writeTimeout := config.Timeouts.Global
+		if writeTimeout < 30*time.Second {
+			writeTimeout = time.Minute
+		}
+
+		s := &http.Server{
+			Addr:         config.ListenInternal,
+			Handler:      initHandlersInternal(),
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: writeTimeout,
+		}
+
+		if err := s.ListenAndServe(); err != nil {
+			logger.Fatal("Internal handle server failed",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: writeTimeout,
+		WriteTimeout: config.Timeouts.Global,
 	})
 
 	if err != nil {

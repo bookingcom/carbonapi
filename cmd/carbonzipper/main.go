@@ -720,8 +720,6 @@ func main() {
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
 
-	r.Handle("/metrics", promhttp.Handler())
-
 	handler := util.UUIDHandler(r)
 
 	// nothing in the config? check the environment
@@ -807,20 +805,38 @@ func main() {
 		}
 	}
 
-	prometheus.MustRegister(prometheusMetrics.Requests)
-	prometheus.MustRegister(prometheusMetrics.Responses)
-	prometheus.MustRegister(prometheusMetrics.Durations)
+	go func() {
+		prometheus.MustRegister(prometheusMetrics.Requests)
+		prometheus.MustRegister(prometheusMetrics.Responses)
+		prometheus.MustRegister(prometheusMetrics.Durations)
 
-	writeTimeout := config.Timeouts.Global
-	if writeTimeout < 31*time.Second {
-		writeTimeout = 31 * time.Second
-	}
+		writeTimeout := config.Timeouts.Global
+		if writeTimeout < 30*time.Second {
+			writeTimeout = time.Minute
+		}
+
+		r := http.DefaultServeMux
+		r.Handle("/metrics", promhttp.Handler())
+
+		s := &http.Server{
+			Addr:         config.ListenInternal,
+			Handler:      r,
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: writeTimeout,
+		}
+
+		if err := s.ListenAndServe(); err != nil {
+			logger.Fatal("Internal handle server failed",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: writeTimeout,
+		WriteTimeout: config.Timeouts.Global,
 	})
 
 	if err != nil {

@@ -49,6 +49,22 @@ type RuleConfig struct {
 	Rules []Rule
 }
 
+func initHandlersInternal() http.Handler {
+	r := http.DefaultServeMux
+
+	r.HandleFunc("/block-headers/", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
+	r.HandleFunc("/block-headers", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
+
+	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
+	r.HandleFunc("/unblock-headers", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
+
+	r.HandleFunc("/debug/version", debugVersionHandler)
+
+	r.Handle("/metrics", promhttp.Handler())
+
+	return r
+}
+
 func initHandlers() http.Handler {
 	r := http.DefaultServeMux
 
@@ -69,17 +85,7 @@ func initHandlers() http.Handler {
 	r.HandleFunc("/functions", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
 	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
 
-	r.HandleFunc("/block-headers/", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
-	r.HandleFunc("/block-headers", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
-
-	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
-	r.HandleFunc("/unblock-headers", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
-
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
-
-	r.HandleFunc("/debug/version", debugVersionHandler)
-
-	r.Handle("/metrics", promhttp.Handler())
 
 	return r
 }
