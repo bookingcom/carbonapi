@@ -39,6 +39,42 @@ func TestMergeResponsesBasic(t *testing.T) {
 	doTest(t, input, expected)
 }
 
+func TestMergeResponsesPreferFirstPresent(t *testing.T) {
+	input := []pb3.MultiFetchResponse{
+		pb3.MultiFetchResponse{
+			Metrics: []pb3.FetchResponse{
+				pb3.FetchResponse{
+					Name:     "metric",
+					Values:   []float64{0},
+					IsAbsent: []bool{true},
+				},
+				pb3.FetchResponse{
+					Name:     "metric",
+					Values:   []float64{1},
+					IsAbsent: []bool{false},
+				},
+				pb3.FetchResponse{
+					Name:     "metric",
+					Values:   []float64{2},
+					IsAbsent: []bool{false},
+				},
+			},
+		},
+	}
+
+	expected := pb3.MultiFetchResponse{
+		Metrics: []pb3.FetchResponse{
+			pb3.FetchResponse{
+				Name:     "metric",
+				Values:   []float64{1},
+				IsAbsent: []bool{false},
+			},
+		},
+	}
+
+	doTest(t, input, expected)
+}
+
 func TestMergeResponsesDifferingStepTimes1(t *testing.T) {
 	// lower resolution metric first
 	input := []pb3.MultiFetchResponse{
