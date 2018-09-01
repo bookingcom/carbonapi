@@ -202,36 +202,42 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 
 	var multi pb3.MultiFetchResponse
 	for name, decoded := range metrics {
-		if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
-			ce.Write(
-				zap.String("name", name),
-				zap.Any("decoded", decoded),
-			)
-		}
-
-		if len(decoded) == 1 {
-			if ce := logger.Check(zap.DebugLevel, "only one decoded response to merge"); ce != nil {
-				ce.Write(
-					zap.String("name", name),
-				)
-			}
-
-			m := decoded[0]
-			multi.Metrics = append(multi.Metrics, m)
-			continue
-		}
-
-		// Use the metric with the highest resolution as our base
-		sort.Sort(byStepTime(decoded))
-		metric := decoded[0]
-
-		z.mergeValues(&metric, decoded, stats)
-		multi.Metrics = append(multi.Metrics, metric)
+		m := z.mergeMetrics(name, decoded, stats)
+		multi.Metrics = append(multi.Metrics, m)
 	}
 
 	stats.MemoryUsage += int64(multi.Size())
 
 	return servers, &multi
+}
+
+func (z *Zipper) mergeMetrics(name string, decoded []pb3.FetchResponse, stats *Stats) pb3.FetchResponse {
+	logger := z.logger.With(zap.String("function", "mergeResponses"))
+
+	if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
+		ce.Write(
+			zap.String("name", name),
+			zap.Any("decoded", decoded),
+		)
+	}
+
+	if len(decoded) == 1 {
+		if ce := logger.Check(zap.DebugLevel, "only one decoded response to merge"); ce != nil {
+			ce.Write(
+				zap.String("name", name),
+			)
+		}
+
+		return decoded[0]
+	}
+
+	// Use the metric with the highest resolution as our base
+	sort.Sort(byStepTime(decoded))
+	metric := decoded[0]
+
+	z.mergeValues(&metric, decoded, stats)
+
+	return metric
 }
 
 func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
