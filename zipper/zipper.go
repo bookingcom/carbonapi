@@ -241,7 +241,7 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchRespo
 			continue
 		}
 
-		// found a missing value, look a replacement
+		// found a missing value, look for a replacement
 		for j := 1; j < len(decoded); j++ {
 			m := decoded[j]
 
@@ -251,9 +251,10 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchRespo
 
 			// found one
 			if !m.IsAbsent[i] {
-				metric.IsAbsent[i] = false
+				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
 				healed++
+				break
 			}
 		}
 	}
