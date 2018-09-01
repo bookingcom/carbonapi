@@ -235,12 +235,12 @@ func (z *Zipper) mergeMetrics(name string, decoded []pb3.FetchResponse, stats *S
 	sort.Sort(byStepTime(decoded))
 	metric := decoded[0]
 
-	z.mergeValues(&metric, decoded, stats)
+	z.mergeValues(&metric, decoded[1:], stats)
 
 	return metric
 }
 
-func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
+func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchResponse, stats *Stats) {
 	healed := 0
 	for i := range metric.Values {
 		if !metric.IsAbsent[i] {
@@ -248,8 +248,8 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchRespo
 		}
 
 		// found a missing value, look for a replacement
-		for j := 1; j < len(decoded); j++ {
-			m := decoded[j]
+		for j := 0; j < len(others); j++ {
+			m := others[j]
 
 			if len(m.Values) != len(metric.Values) {
 				break
@@ -265,7 +265,8 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchRespo
 		}
 	}
 
-	stats.Corruption += float64(healed) / float64(len(metric.Values))
+	c := float64(healed) / float64(len(metric.Values))
+	stats.Corruption += c
 }
 
 func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoResponse {
