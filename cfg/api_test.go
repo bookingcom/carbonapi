@@ -7,6 +7,8 @@ import (
 )
 
 func TestParseAPIConfig(t *testing.T) {
+	DEBUG = true
+
 	var input = `
 listen: ":8081"
 backends:
@@ -118,6 +120,8 @@ logger:
 }
 
 func TestParseUpstreamAPIConfig(t *testing.T) {
+	DEBUG = true
+
 	var input = `
 listen: ":8081"
 concurency: 1024

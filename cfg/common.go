@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var DEBUG bool = false
+
 type GraphiteConfig struct {
 	Pattern  string
 	Host     string
@@ -17,7 +19,7 @@ type GraphiteConfig struct {
 
 func ParseCommon(r io.Reader) (Common, error) {
 	d := yaml.NewDecoder(r)
-	d.SetStrict(true)
+	d.SetStrict(DEBUG)
 
 	c := DefaultConfig
 	err := d.Decode(&c)
