@@ -8,7 +8,7 @@ import (
 
 func ParseAPIConfig(r io.Reader) (API, error) {
 	d := yaml.NewDecoder(r)
-	d.SetStrict(true)
+	d.SetStrict(DEBUG)
 
 	pre := preAPI{
 		API:       DefaultAPIConfig,
