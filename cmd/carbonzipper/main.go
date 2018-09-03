@@ -104,6 +104,8 @@ var Metrics = struct {
 	SearchCacheItems  expvar.Func
 	SearchCacheMisses *expvar.Int
 	SearchCacheHits   *expvar.Int
+
+	Corruption *expvar.Float
 }{
 	Requests:  expvar.NewInt("requests"),
 	Responses: expvar.NewInt("responses"),
@@ -126,6 +128,8 @@ var Metrics = struct {
 	CacheMisses:       expvar.NewInt("cache_misses"),
 	SearchCacheHits:   expvar.NewInt("search_cache_hits"),
 	SearchCacheMisses: expvar.NewInt("search_cache_misses"),
+
+	Corruption: expvar.NewFloat("corruption"),
 }
 
 // BuildVersion is defined at build and reported at startup and as expvar
@@ -716,8 +720,6 @@ func main() {
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
 
-	r.Handle("/metrics", promhttp.Handler())
-
 	handler := util.UUIDHandler(r)
 
 	// nothing in the config? check the environment
@@ -764,6 +766,7 @@ func main() {
 		graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
 
 		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
+		graphite.Register(fmt.Sprintf("%s.corruption", pattern), Metrics.Corruption)
 
 		for i := 0; i <= config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
@@ -802,9 +805,32 @@ func main() {
 		}
 	}
 
-	prometheus.MustRegister(prometheusMetrics.Requests)
-	prometheus.MustRegister(prometheusMetrics.Responses)
-	prometheus.MustRegister(prometheusMetrics.Durations)
+	go func() {
+		prometheus.MustRegister(prometheusMetrics.Requests)
+		prometheus.MustRegister(prometheusMetrics.Responses)
+		prometheus.MustRegister(prometheusMetrics.Durations)
+
+		writeTimeout := config.Timeouts.Global
+		if writeTimeout < 30*time.Second {
+			writeTimeout = time.Minute
+		}
+
+		r := http.DefaultServeMux
+		r.Handle("/metrics", promhttp.Handler())
+
+		s := &http.Server{
+			Addr:         config.ListenInternal,
+			Handler:      r,
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: writeTimeout,
+		}
+
+		if err := s.ListenAndServe(); err != nil {
+			logger.Fatal("Internal handle server failed",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
@@ -889,4 +915,5 @@ func sendStats(stats *zipper.Stats) {
 	Metrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
 	Metrics.CacheMisses.Add(stats.CacheMisses)
 	Metrics.CacheHits.Add(stats.CacheHits)
+	Metrics.Corruption.Add(stats.Corruption)
 }
