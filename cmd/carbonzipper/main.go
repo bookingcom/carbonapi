@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -104,6 +104,8 @@ var Metrics = struct {
 	SearchCacheItems  expvar.Func
 	SearchCacheMisses *expvar.Int
 	SearchCacheHits   *expvar.Int
+
+	Corruption *expvar.Float
 }{
 	Requests:  expvar.NewInt("requests"),
 	Responses: expvar.NewInt("responses"),
@@ -126,6 +128,8 @@ var Metrics = struct {
 	CacheMisses:       expvar.NewInt("cache_misses"),
 	SearchCacheHits:   expvar.NewInt("search_cache_hits"),
 	SearchCacheMisses: expvar.NewInt("search_cache_misses"),
+
+	Corruption: expvar.NewFloat("corruption"),
 }
 
 // BuildVersion is defined at build and reported at startup and as expvar
@@ -709,14 +713,12 @@ func main() {
 	})
 	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
 
-	r := http.DefaultServeMux
+	r := http.NewServeMux()
 
 	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
 	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
-
-	r.Handle("/metrics", promhttp.Handler())
 
 	handler := util.UUIDHandler(r)
 
@@ -764,6 +766,7 @@ func main() {
 		graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
 
 		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
+		graphite.Register(fmt.Sprintf("%s.corruption", pattern), Metrics.Corruption)
 
 		for i := 0; i <= config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
@@ -802,9 +805,38 @@ func main() {
 		}
 	}
 
-	prometheus.MustRegister(prometheusMetrics.Requests)
-	prometheus.MustRegister(prometheusMetrics.Responses)
-	prometheus.MustRegister(prometheusMetrics.Durations)
+	go func() {
+		prometheus.MustRegister(prometheusMetrics.Requests)
+		prometheus.MustRegister(prometheusMetrics.Responses)
+		prometheus.MustRegister(prometheusMetrics.Durations)
+
+		writeTimeout := config.Timeouts.Global
+		if writeTimeout < 30*time.Second {
+			writeTimeout = time.Minute
+		}
+
+		r := http.NewServeMux()
+		r.Handle("/metrics", promhttp.Handler())
+
+		http.HandleFunc("/debug/pprof/", pprof.Index)
+		http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+		s := &http.Server{
+			Addr:         config.ListenInternal,
+			Handler:      r,
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: writeTimeout,
+		}
+
+		if err := s.ListenAndServe(); err != nil {
+			logger.Fatal("Internal handle server failed",
+				zap.Error(err),
+			)
+		}
+	}()
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
@@ -889,4 +921,5 @@ func sendStats(stats *zipper.Stats) {
 	Metrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
 	Metrics.CacheMisses.Add(stats.CacheMisses)
 	Metrics.CacheHits.Add(stats.CacheHits)
+	Metrics.Corruption.Add(stats.Corruption)
 }

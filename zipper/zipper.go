@@ -9,6 +9,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -75,6 +76,8 @@ type Stats struct {
 
 	CacheMisses int64
 	CacheHits   int64
+
+	Corruption float64
 }
 
 type nameLeaf struct {
@@ -150,6 +153,18 @@ var (
 	errBadResponseCode  = "Bad response code"
 )
 
+type byStepTime []pb3.FetchResponse
+
+func (s byStepTime) Len() int { return len(s) }
+
+func (s byStepTime) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byStepTime) Less(i, j int) bool {
+	return s[i].GetStepTime() < s[j].GetStepTime()
+}
+
 func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.MultiFetchResponse) {
 	logger := z.logger.With(zap.String("function", "mergeResponses"))
 
@@ -181,45 +196,14 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 		servers = append(servers, r.server)
 	}
 
-	var multi pb3.MultiFetchResponse
-
 	if len(metrics) == 0 {
 		return servers, nil
 	}
 
+	var multi pb3.MultiFetchResponse
 	for name, decoded := range metrics {
-		if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
-			ce.Write(
-				zap.String("name", name),
-				zap.Any("decoded", decoded),
-			)
-		}
-
-		if len(decoded) == 1 {
-			if ce := logger.Check(zap.DebugLevel, "only one decoded response to merge"); ce != nil {
-				ce.Write(
-					zap.String("name", name),
-				)
-			}
-
-			m := decoded[0]
-			multi.Metrics = append(multi.Metrics, m)
-			continue
-		}
-
-		// Use the metric with the highest resolution as our base
-		var highest int
-		for i, d := range decoded {
-			if d.GetStepTime() < decoded[highest].GetStepTime() {
-				highest = i
-			}
-		}
-		decoded[0], decoded[highest] = decoded[highest], decoded[0]
-
-		metric := decoded[0]
-
-		z.mergeValues(&metric, decoded, stats)
-		multi.Metrics = append(multi.Metrics, metric)
+		m := z.mergeMetrics(name, decoded, stats)
+		multi.Metrics = append(multi.Metrics, m)
 	}
 
 	stats.MemoryUsage += int64(multi.Size())
@@ -227,50 +211,62 @@ func (z *Zipper) mergeResponses(responses []ServerResponse, stats *Stats) ([]str
 	return servers, &multi
 }
 
-func (z *Zipper) mergeValues(metric *pb3.FetchResponse, decoded []pb3.FetchResponse, stats *Stats) {
-	logger := z.logger.With(zap.String("function", "mergeValues"))
+func (z *Zipper) mergeMetrics(name string, decoded []pb3.FetchResponse, stats *Stats) pb3.FetchResponse {
+	logger := z.logger.With(zap.String("function", "mergeResponses"))
 
-	// TODO(gmagnusson): The way this is written, turning
-	// responseLengthMismatch = true has the same effect as returning early
-	// from the function. That also seems to assume that all entries in decoded
-	// > other also have different resolution than the metric we're merging
-	// into. Is that true? Should we maybe s/break/continue/ below?
+	if ce := logger.Check(zap.DebugLevel, "decoded response"); ce != nil {
+		ce.Write(
+			zap.String("name", name),
+			zap.Any("decoded", decoded),
+		)
+	}
 
-	var responseLengthMismatch bool
+	if len(decoded) == 1 {
+		if ce := logger.Check(zap.DebugLevel, "only one decoded response to merge"); ce != nil {
+			ce.Write(
+				zap.String("name", name),
+			)
+		}
+
+		return decoded[0]
+	}
+
+	// Use the metric with the highest resolution as our base
+	sort.Sort(byStepTime(decoded))
+	metric := decoded[0]
+
+	z.mergeValues(&metric, decoded[1:], stats)
+
+	return metric
+}
+
+func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchResponse, stats *Stats) {
+	healed := 0
 	for i := range metric.Values {
-		if !metric.IsAbsent[i] || responseLengthMismatch {
+		if !metric.IsAbsent[i] {
 			continue
 		}
 
-		// found a missing value, find a replacement
-		for other := 1; other < len(decoded); other++ {
-
-			m := decoded[other]
+		// found a missing value, look for a replacement
+		for j := 0; j < len(others); j++ {
+			m := others[j]
 
 			if len(m.Values) != len(metric.Values) {
-				logger.Error("unable to merge ovalues",
-					zap.Int("metric_values", len(metric.Values)),
-					zap.Int("response_values", len(m.Values)),
-				)
-				// TODO(dgryski): we should remove
-				// decoded[other] from the list of responses to
-				// consider but this assumes that decoded[0] is
-				// the 'highest resolution' response and thus
-				// the one we want to keep, instead of the one
-				// we want to discard
-
-				stats.RenderErrors++
-				responseLengthMismatch = true
 				break
 			}
 
 			// found one
 			if !m.IsAbsent[i] {
-				metric.IsAbsent[i] = false
+				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
+				healed++
+				break
 			}
 		}
 	}
+
+	c := float64(healed) / float64(len(metric.Values))
+	stats.Corruption += c
 }
 
 func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoResponse {
@@ -519,11 +515,15 @@ func (z *Zipper) singleGet(ctx context.Context, logger *zap.Logger, uri, server 
 }
 
 func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []string, uri string, stats *Stats) []ServerResponse {
-	logger = logger.With(zap.String("handler", "multiGet"))
+	logger = logger.With(
+		zap.String("handler", "multiGet"),
+		zap.String("uri", uri),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+	)
+
 	if ce := logger.Check(zap.DebugLevel, "querying servers"); ce != nil {
 		ce.Write(
 			zap.Strings("servers", servers),
-			zap.String("uri", uri),
 		)
 	}
 
@@ -580,28 +580,13 @@ GATHER:
 	}
 
 	if len(errs) > 0 {
-		err := ctx.Err()
-		extra := 2
-		if err != nil {
-			extra = 3
-		}
-
-		es := make([]zap.Field, 0, len(errs)+extra)
-
-		es = append(es,
-			zap.String("uri", uri),
-			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		)
-
-		if err != nil {
-			es = append(es, zap.String("timeout_cause", err.Error()))
-		}
-
+		es := make([]zap.Field, 0, len(errs)+1)
+		es = append(es, zap.Namespace("errors"))
 		for e, servers := range errs {
 			es = append(es, zap.Strings(e, servers))
 		}
 
-		logger.Warn("Errors in responses", es...)
+		logger.With(es...).Warn("Errors in responses")
 	}
 
 	return respOK

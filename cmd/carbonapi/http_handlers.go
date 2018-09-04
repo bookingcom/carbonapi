@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/http/pprof"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,6 +30,7 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -41,8 +45,35 @@ const (
 	pickleFormat    = "pickle"
 )
 
+type Rule map[string]string
+type RuleConfig struct {
+	Rules []Rule
+}
+
+func initHandlersInternal() http.Handler {
+	r := http.NewServeMux()
+
+	r.HandleFunc("/block-headers/", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
+	r.HandleFunc("/block-headers", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
+
+	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
+	r.HandleFunc("/unblock-headers", httputil.TimeHandler(unblockHeaders, bucketRequestTimes))
+
+	r.HandleFunc("/debug/version", debugVersionHandler)
+
+	http.HandleFunc("/debug/pprof/", pprof.Index)
+	http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	r.Handle("/metrics", promhttp.Handler())
+
+	return r
+}
+
 func initHandlers() http.Handler {
-	r := http.DefaultServeMux
+	r := http.NewServeMux()
 
 	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
 	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))
@@ -62,10 +93,6 @@ func initHandlers() http.Handler {
 	r.HandleFunc("/functions/", httputil.TimeHandler(functionsHandler, bucketRequestTimes))
 
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, bucketRequestTimes))
-
-	r.HandleFunc("/debug/version", debugVersionHandler)
-
-	r.Handle("/metrics", promhttp.Handler())
 
 	return r
 }
@@ -147,6 +174,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		Host:          r.Host,
 		Referer:       r.Referer(),
 		Uri:           r.RequestURI,
+		HttpCode:      http.StatusOK,
 	}
 
 	logAsError := false
@@ -165,6 +193,20 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		accessLogDetails.Reason = err.Error()
 		logAsError = true
 		return
+	}
+	if config.BlockHeaderFile != "" {
+		blockHeaderFile, err := ioutil.ReadFile(config.BlockHeaderFile)
+		if err == nil {
+			var ruleConfig RuleConfig
+			err = yaml.Unmarshal(blockHeaderFile, &ruleConfig)
+			if err == nil {
+				for _, rule := range ruleConfig.Rules {
+					if shouldBlockRequest(r, rule) {
+						return
+					}
+				}
+			}
+		}
 	}
 
 	targets := r.Form["target"]
@@ -342,6 +384,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		var newTargets []string
 		rewritten, newTargets, err = expr.RewriteExpr(exp, from32, until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
+			// TODO(gmagnusson): Set access logger HTTP code to != 200
 			errors[target] = err.Error()
 			accessLogDetails.Reason = err.Error()
 			logAsError = true
@@ -421,6 +464,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				zap.Duration("runtime", time.Since(t0)),
 			)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			accessLogDetails.HttpCode = http.StatusInternalServerError
 			logAsError = true
 			return
 		}
@@ -978,6 +1022,120 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogDetails.HttpCode = http.StatusOK
 
 	accessLogger.Info("request served", zap.Any("data", accessLogDetails))
+}
+
+func blockHeaders(w http.ResponseWriter, r *http.Request) {
+	t0 := time.Now()
+	username, _, _ := r.BasicAuth()
+	logger := zapwriter.Logger("logger")
+
+	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
+
+	apiMetrics.Requests.Add(1)
+
+	accessLogger := zapwriter.Logger("access")
+	var accessLogDetails = carbonapipb.AccessLogDetails{
+		Handler:  "blockDashboardIp",
+		Username: username,
+		Url:      r.URL.RequestURI(),
+		PeerIp:   srcIP,
+		PeerPort: srcPort,
+		Host:     r.Host,
+		Referer:  r.Referer(),
+		Uri:      r.RequestURI,
+	}
+
+	logAsError := false
+	defer func() {
+		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+	}()
+
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
+		accessLogDetails.HttpCode = http.StatusBadRequest
+		accessLogDetails.Reason = err.Error()
+		logAsError = true
+		return
+	}
+	queryParams := r.URL.Query()
+
+	m := make(Rule)
+	for k, v := range queryParams {
+		m[k] = v[0]
+	}
+	var ruleConfig RuleConfig
+
+	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
+
+	var err1 error
+	var output []byte
+	if err == nil {
+		err = yaml.Unmarshal(fileData, &ruleConfig)
+		if err != nil {
+			logger.Error("couldn't unmarshal file data")
+		}
+		ruleConfig.Rules = append(ruleConfig.Rules, m)
+		output, err1 = yaml.Marshal(ruleConfig)
+		logger.Info("updating file", zap.String("data", string(output[:])))
+		err = ioutil.WriteFile(config.BlockHeaderFile, output, 0644)
+	} else {
+		ruleConfig.Rules = append(ruleConfig.Rules, m)
+		output, err1 = yaml.Marshal(ruleConfig)
+		if err1 != nil {
+			logger.Error("couldn't marshal rule config", zap.Any("ruleconfig", ruleConfig))
+		} else {
+			err = ioutil.WriteFile(config.BlockHeaderFile, output, 0644)
+		}
+	}
+
+	if err != nil && err1 != nil {
+		w.Write([]byte(`{"success":"false"}`))
+		return
+	}
+	w.Write([]byte(`{"success":"true"}`))
+}
+
+func unblockHeaders(w http.ResponseWriter, r *http.Request) {
+	t0 := time.Now()
+	username, _, _ := r.BasicAuth()
+
+	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
+
+	apiMetrics.Requests.Add(1)
+
+	accessLogger := zapwriter.Logger("access")
+	var accessLogDetails = carbonapipb.AccessLogDetails{
+		Handler:  "unblockHeaders",
+		Username: username,
+		Url:      r.URL.RequestURI(),
+		PeerIp:   srcIP,
+		PeerPort: srcPort,
+		Host:     r.Host,
+		Referer:  r.Referer(),
+		Uri:      r.RequestURI,
+	}
+
+	logAsError := false
+	defer func() {
+		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+	}()
+
+	err := os.Remove(config.BlockHeaderFile)
+	if err != nil {
+		w.Write([]byte(`{"success":"false"}`))
+		return
+	}
+	w.Write([]byte(`{"success":"true"}`))
+}
+
+func shouldBlockRequest(r *http.Request, rule Rule) bool {
+	for k, v := range rule {
+		if r.Header.Get(k) != v {
+			return false
+		}
+	}
+	return true
 }
 
 var usageMsg = []byte(`

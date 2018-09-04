@@ -28,8 +28,9 @@ func ParseCommon(r io.Reader) (Common, error) {
 }
 
 type Common struct {
-	Listen   string   `yaml:"listen"`
-	Backends []string `yaml:"backends"`
+	Listen         string   `yaml:"listen"`
+	ListenInternal string   `yaml:"listenInternal"`
+	Backends       []string `yaml:"backends"`
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
@@ -58,7 +59,8 @@ type CarbonSearch struct {
 }
 
 var DefaultConfig = Common{
-	Listen: ":8080",
+	Listen:         ":8080",
+	ListenInternal: ":7080",
 
 	MaxProcs: 1,
 	Timeouts: Timeouts{

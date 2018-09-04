@@ -88,6 +88,7 @@ type API struct {
 	Cache                 CacheConfig `yaml:"cache"`
 	TimezoneString        string      `yaml:"tz"`
 	PidFile               string      `yaml:"pidFile"`
+	BlockHeaderFile       string      `yaml:"blockHeaderFile"`
 
 	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`
 	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`
