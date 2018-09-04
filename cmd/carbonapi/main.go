@@ -189,8 +189,9 @@ func buildParseErrorString(target, e string, err error) string {
 	return msg
 }
 
-func deferredAccessLogging(accessLogger *zap.Logger, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
+func deferredAccessLogging(r *http.Request, accessLogger *zap.Logger, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
 	accessLogDetails.Runtime = time.Since(t).Seconds()
+	accessLogDetails.RequestMethod = r.Method
 	if logAsError {
 		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
 		apiMetrics.Errors.Add(1)
