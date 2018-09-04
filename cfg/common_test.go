@@ -7,6 +7,8 @@ import (
 )
 
 func TestParseCommon(t *testing.T) {
+	DEBUG = true
+
 	var input = `
 listen: ":8000"
 maxProcs: 32
