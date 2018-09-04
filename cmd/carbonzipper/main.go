@@ -818,11 +818,11 @@ func main() {
 		r := http.NewServeMux()
 		r.Handle("/metrics", promhttp.Handler())
 
-		http.HandleFunc("/debug/pprof/", pprof.Index)
-		http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		http.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 		s := &http.Server{
 			Addr:         config.ListenInternal,
