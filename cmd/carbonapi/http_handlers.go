@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ type RuleConfig struct {
 }
 
 func initHandlersInternal() http.Handler {
-	r := http.DefaultServeMux
+	r := http.NewServeMux()
 
 	r.HandleFunc("/block-headers/", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
 	r.HandleFunc("/block-headers", httputil.TimeHandler(blockHeaders, bucketRequestTimes))
@@ -60,13 +61,19 @@ func initHandlersInternal() http.Handler {
 
 	r.HandleFunc("/debug/version", debugVersionHandler)
 
+	http.HandleFunc("/debug/pprof/", pprof.Index)
+	http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	http.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
 	r.Handle("/metrics", promhttp.Handler())
 
 	return r
 }
 
 func initHandlers() http.Handler {
-	r := http.DefaultServeMux
+	r := http.NewServeMux()
 
 	r.HandleFunc("/render/", httputil.TimeHandler(renderHandler, bucketRequestTimes))
 	r.HandleFunc("/render", httputil.TimeHandler(renderHandler, bucketRequestTimes))

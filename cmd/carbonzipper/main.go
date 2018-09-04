@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -713,7 +713,7 @@ func main() {
 	})
 	expvar.Publish("limiter_use_max", Metrics.LimiterUseMax)
 
-	r := http.DefaultServeMux
+	r := http.NewServeMux()
 
 	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
 	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
@@ -815,8 +815,14 @@ func main() {
 			writeTimeout = time.Minute
 		}
 
-		r := http.DefaultServeMux
+		r := http.NewServeMux()
 		r.Handle("/metrics", promhttp.Handler())
+
+		http.HandleFunc("/debug/pprof/", pprof.Index)
+		http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		http.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 		s := &http.Server{
 			Addr:         config.ListenInternal,
