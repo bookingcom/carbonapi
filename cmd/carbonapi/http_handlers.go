@@ -164,10 +164,15 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
 	accessLogger := zapwriter.Logger("access")
+	headerData := make(map[string]string)
+	for _, headerToLog := range config.HeadersToLog {
+		headerData[headerToLog] = r.Header.Get(headerToLog)
+	}
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "render",
 		Username:      username,
 		CarbonapiUuid: util.GetUUID(ctx),
+		HeadersData:   headerData,
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -179,7 +184,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	size := 0
@@ -202,6 +207,8 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				for _, rule := range ruleConfig.Rules {
 					if shouldBlockRequest(r, rule) {
+						logAsError = true
+						accessLogDetails.HttpCode = 403
 						return
 					}
 				}
@@ -604,7 +611,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	if format == "completer" {
@@ -790,7 +797,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	var data map[string]pb.InfoResponse
@@ -921,7 +928,7 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
@@ -1047,7 +1054,7 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
@@ -1118,7 +1125,7 @@ func unblockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
 	err := os.Remove(config.BlockHeaderFile)

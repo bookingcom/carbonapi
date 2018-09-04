@@ -89,6 +89,7 @@ type API struct {
 	TimezoneString        string      `yaml:"tz"`
 	PidFile               string      `yaml:"pidFile"`
 	BlockHeaderFile       string      `yaml:"blockHeaderFile"`
+	HeadersToLog          []string    `yaml:"headersToLog"`
 
 	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`
 	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`
