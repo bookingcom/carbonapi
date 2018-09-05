@@ -1033,6 +1033,11 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogger.Info("request served", zap.Any("data", accessLogDetails))
 }
 
+// Add block rules on the basis of headers to block certain requests
+// To be used to block read abusers
+// The rules are added(appended) in the block headers config file
+// Returns failure if handler is invoked and config entry is missing
+// Otherwise, it creates the config file with the rule
 func blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	username, _, _ := r.BasicAuth()
@@ -1044,7 +1049,7 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	accessLogger := zapwriter.Logger("access")
 	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "blockDashboardIp",
+		Handler:  "blockHeaders",
 		Username: username,
 		Url:      r.URL.RequestURI(),
 		PeerIp:   srcIP,
@@ -1059,14 +1064,6 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
-	err := r.ParseForm()
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = err.Error()
-		logAsError = true
-		return
-	}
 	queryParams := r.URL.Query()
 
 	m := make(Rule)
@@ -1075,6 +1072,11 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 	}
 	var ruleConfig RuleConfig
 
+	failResponse := []byte(`{"success":"false"}`)
+	if config.BlockHeaderFile == "" {
+		w.Write(failResponse)
+		return
+	}
 	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
 
 	var err1 error
@@ -1099,12 +1101,15 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil && err1 != nil {
-		w.Write([]byte(`{"success":"false"}`))
+		w.Write(failResponse)
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
 }
 
+// It deletes the block headers config file
+// Use it to remove all blocking rules, or to restart adding rules
+// from scratch
 func unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	username, _, _ := r.BasicAuth()
