@@ -168,7 +168,10 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogger := zapwriter.Logger("access")
 	headerData := make(map[string]string)
 	for _, headerToLog := range config.HeadersToLog {
-		headerData[headerToLog] = r.Header.Get(headerToLog)
+		headerValue := r.Header.Get(headerToLog)
+		if headerValue != "" {
+			headerData[headerToLog] = headerValue
+		}
 	}
 	var accessLogDetails = carbonapipb.AccessLogDetails{
 		Handler:       "render",
