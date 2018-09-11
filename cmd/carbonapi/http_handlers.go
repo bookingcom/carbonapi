@@ -213,6 +213,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 				for _, rule := range ruleConfig.Rules {
 					if shouldBlockRequest(r, rule) {
 						logAsError = true
+						w.WriteHeader(http.StatusForbidden)
 						accessLogDetails.HttpCode = 403
 						return
 					}
