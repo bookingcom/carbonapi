@@ -1,5 +1,12 @@
 package carbonapipb
 
+import (
+	"net/http"
+	"net/url"
+
+	"github.com/go-graphite/carbonapi/util"
+)
+
 type AccessLogDetails struct {
 	Handler                       string            `json:"handler,omitempty"`
 	CarbonapiUuid                 string            `json:"carbonapi_uuid,omitempty"`
@@ -31,4 +38,31 @@ type AccessLogDetails struct {
 	Uri                           string            `json:"uri,omitempty"`
 	FromCache                     bool              `json:"from_cache"`
 	ZipperRequests                int64             `json:"zipper_requests,omitempty"`
+}
+
+func splitAddr(addr string) (string, string) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return "unknown", "unknown"
+	}
+
+	return u.Hostname(), u.Port()
+}
+
+func NewAccessLogDetails(r *http.Request, handler string) AccessLogDetails {
+	username, _, _ := r.BasicAuth()
+	srcIP, srcPort := splitAddr(r.RemoteAddr)
+
+	return AccessLogDetails{
+		Handler:       handler,
+		Username:      username,
+		CarbonapiUuid: util.GetUUID(r.Context()),
+		Url:           r.URL.RequestURI(),
+		PeerIp:        srcIP,
+		PeerPort:      srcPort,
+		Host:          r.Host,
+		Referer:       r.Referer(),
+		Uri:           r.RequestURI,
+		HttpCode:      http.StatusOK,
+	}
 }

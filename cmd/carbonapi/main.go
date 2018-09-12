@@ -164,18 +164,6 @@ var BuildVersion = "(development build)"
 // for testing
 var timeNow = time.Now
 
-func splitRemoteAddr(addr string) (string, string) {
-	tmp := strings.Split(addr, ":")
-	if len(tmp) < 1 {
-		return "unknown", "unknown"
-	}
-	if len(tmp) == 1 {
-		return tmp[0], ""
-	}
-
-	return tmp[0], tmp[1]
-}
-
 func buildParseErrorString(target, e string, err error) string {
 	msg := fmt.Sprintf("%s\n\n%-20s: %s\n", http.StatusText(http.StatusBadRequest), "Target", target)
 	if err != nil {
@@ -189,7 +177,9 @@ func buildParseErrorString(target, e string, err error) string {
 	return msg
 }
 
-func deferredAccessLogging(r *http.Request, accessLogger *zap.Logger, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
+func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
+	accessLogger := zapwriter.Logger("access")
+
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
 	if logAsError {

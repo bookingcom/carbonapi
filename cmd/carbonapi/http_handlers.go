@@ -156,16 +156,12 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
 	defer cancel()
 
-	username, _, _ := r.BasicAuth()
-
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render")
 	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		zap.String("username", username),
+		zap.String("username", accessLogDetails.Username),
 	)
 
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
-
-	accessLogger := zapwriter.Logger("access")
 	headerData := make(map[string]string)
 	for _, headerToLog := range config.HeadersToLog {
 		headerValue := r.Header.Get(headerToLog)
@@ -173,23 +169,11 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 			headerData[headerToLog] = headerValue
 		}
 	}
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:       "render",
-		Username:      username,
-		CarbonapiUuid: util.GetUUID(ctx),
-		HeadersData:   headerData,
-		Url:           r.URL.RequestURI(),
-		PeerIp:        srcIP,
-		PeerPort:      srcPort,
-		Host:          r.Host,
-		Referer:       r.Referer(),
-		Uri:           r.RequestURI,
-		HttpCode:      http.StatusOK,
-	}
+	accessLogDetails.HeadersData = headerData
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	size := 0
@@ -502,11 +486,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
 
-	gotErrors := false
-	if len(errors) > 0 {
-		gotErrors = true
-	}
-	accessLogDetails.HaveNonFatalErrors = gotErrors
+	accessLogDetails.HaveNonFatalErrors = len(errors) > 0
 }
 
 func sendGlobs(glob pb.GlobResponse) bool {
@@ -591,33 +571,18 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
 	defer cancel()
 
-	username, _, _ := r.BasicAuth()
-
 	apiMetrics.Requests.Add(1)
 	prometheusMetrics.Requests.Inc()
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
-
 	query := r.FormValue("query")
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
-	accessLogger := zapwriter.Logger("access")
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:       "find",
-		Username:      username,
-		CarbonapiUuid: util.GetUUID(ctx),
-		Url:           r.URL.RequestURI(),
-		PeerIp:        srcIP,
-		PeerPort:      srcPort,
-		Host:          r.Host,
-		Referer:       r.Referer(),
-		Uri:           r.RequestURI,
-	}
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "find")
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	if format == "completer" {
@@ -776,8 +741,6 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), config.Timeouts.Global)
 	defer cancel()
 
-	username, _, _ := r.BasicAuth()
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 	format := r.FormValue("format")
 
 	apiMetrics.Requests.Add(1)
@@ -787,23 +750,12 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		format = jsonFormat
 	}
 
-	accessLogger := zapwriter.Logger("access")
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:       "info",
-		Username:      username,
-		CarbonapiUuid: util.GetUUID(ctx),
-		Url:           r.URL.RequestURI(),
-		PeerIp:        srcIP,
-		PeerPort:      srcPort,
-		Host:          r.Host,
-		Referer:       r.Referer(),
-		Format:        format,
-		Uri:           r.RequestURI,
-	}
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "info")
+	accessLogDetails.Format = format
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	var data map[string]pb.InfoResponse
@@ -851,7 +803,6 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 
 func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	accessLogger := zapwriter.Logger("access")
 
 	apiMetrics.Requests.Add(1)
 	prometheusMetrics.Requests.Inc()
@@ -862,25 +813,13 @@ func lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Ok\n"))
 
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
-
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "lbcheck",
-		Url:      r.URL.RequestURI(),
-		PeerIp:   srcIP,
-		PeerPort: srcPort,
-		Host:     r.Host,
-		Referer:  r.Referer(),
-		Runtime:  time.Since(t0).Seconds(),
-		HttpCode: http.StatusOK,
-		Uri:      r.RequestURI,
-	}
-	accessLogger.Info("request served", zap.Any("data", accessLogDetails))
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "lbcheck")
+	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
 func versionHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	accessLogger := zapwriter.Logger("access")
 
 	apiMetrics.Requests.Add(1)
 	prometheusMetrics.Requests.Inc()
@@ -895,46 +834,23 @@ func versionHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1.0.0\n"))
 	}
 
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "version",
-		Url:      r.URL.RequestURI(),
-		PeerIp:   srcIP,
-		PeerPort: srcPort,
-		Host:     r.Host,
-		Referer:  r.Referer(),
-		Runtime:  time.Since(t0).Seconds(),
-		HttpCode: http.StatusOK,
-		Uri:      r.RequestURI,
-	}
-	accessLogger.Info("request served", zap.Any("data", accessLogDetails))
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "version")
+	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
 func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
-	username, _, _ := r.BasicAuth()
-
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
 	apiMetrics.Requests.Add(1)
 	prometheusMetrics.Requests.Inc()
 
-	accessLogger := zapwriter.Logger("access")
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "functions",
-		Username: username,
-		Url:      r.URL.RequestURI(),
-		PeerIp:   srcIP,
-		PeerPort: srcPort,
-		Host:     r.Host,
-		Referer:  r.Referer(),
-		Uri:      r.RequestURI,
-	}
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "functions")
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
@@ -1033,8 +949,6 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
 	accessLogDetails.HttpCode = http.StatusOK
-
-	accessLogger.Info("request served", zap.Any("data", accessLogDetails))
 }
 
 // Add block rules on the basis of headers to block certain requests
@@ -1044,28 +958,15 @@ func functionsHandler(w http.ResponseWriter, r *http.Request) {
 // Otherwise, it creates the config file with the rule
 func blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	username, _, _ := r.BasicAuth()
 	logger := zapwriter.Logger("logger")
-
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
 
 	apiMetrics.Requests.Add(1)
 
-	accessLogger := zapwriter.Logger("access")
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "blockHeaders",
-		Username: username,
-		Url:      r.URL.RequestURI(),
-		PeerIp:   srcIP,
-		PeerPort: srcPort,
-		Host:     r.Host,
-		Referer:  r.Referer(),
-		Uri:      r.RequestURI,
-	}
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "blockHeaders")
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	queryParams := r.URL.Query()
@@ -1119,27 +1020,12 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 // from scratch
 func unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	username, _, _ := r.BasicAuth()
-
-	srcIP, srcPort := splitRemoteAddr(r.RemoteAddr)
-
 	apiMetrics.Requests.Add(1)
-
-	accessLogger := zapwriter.Logger("access")
-	var accessLogDetails = carbonapipb.AccessLogDetails{
-		Handler:  "unblockHeaders",
-		Username: username,
-		Url:      r.URL.RequestURI(),
-		PeerIp:   srcIP,
-		PeerPort: srcPort,
-		Host:     r.Host,
-		Referer:  r.Referer(),
-		Uri:      r.RequestURI,
-	}
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "unblockHeaders")
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
+		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
