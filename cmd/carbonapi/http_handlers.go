@@ -1075,10 +1075,12 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		m[k] = v[0]
 	}
 	var ruleConfig RuleConfig
+	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
 	if config.BlockHeaderFile == "" {
 		w.Write(failResponse)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
@@ -1106,6 +1108,7 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil && err1 != nil {
 		w.Write(failResponse)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
@@ -1139,8 +1142,10 @@ func unblockHeaders(w http.ResponseWriter, r *http.Request) {
 		deferredAccessLogging(r, accessLogger, &accessLogDetails, t0, logAsError)
 	}()
 
+	w.Header().Set("Content-Type", contentTypeJSON)
 	err := os.Remove(config.BlockHeaderFile)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"success":"false"}`))
 		return
 	}
