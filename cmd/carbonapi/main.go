@@ -41,9 +41,10 @@ import (
 )
 
 var prometheusMetrics = struct {
-	Requests  prometheus.Counter
-	Responses *prometheus.CounterVec
-	Durations prometheus.Histogram
+	Requests     prometheus.Counter
+	Responses    *prometheus.CounterVec
+	DurationsExp prometheus.Histogram
+	DurationsLin prometheus.Histogram
 }{
 	Requests: prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -58,11 +59,18 @@ var prometheusMetrics = struct {
 		},
 		[]string{"code", "handler"},
 	),
-	Durations: prometheus.NewHistogram(
+	DurationsExp: prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "api_http_request_duration_seconds",
-			Help:    "The duration of HTTP requests",
-			Buckets: prometheus.ExponentialBuckets(50.0, 2.0, 10),
+			Name:    "api_http_request_duration_seconds_exp",
+			Help:    "The duration of HTTP requests (exponential)",
+			Buckets: prometheus.ExponentialBuckets(0.05, 2.0, 20),
+		},
+	),
+	DurationsLin: prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "api_http_request_duration_seconds_lin",
+			Help:    "The duration of HTTP requests (linear)",
+			Buckets: prometheus.LinearBuckets(0.0, 50, 40), // Up to 2 seconds
 		},
 	),
 }
@@ -619,7 +627,8 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
-	prometheusMetrics.Durations.Observe(t.Seconds())
+	prometheusMetrics.DurationsExp.Observe(t.Seconds())
+	prometheusMetrics.DurationsLin.Observe(t.Seconds())
 
 	// This seems slow enough to count as a slow request
 	if bucket >= config.Buckets {
@@ -669,7 +678,8 @@ func main() {
 	go func() {
 		prometheus.MustRegister(prometheusMetrics.Requests)
 		prometheus.MustRegister(prometheusMetrics.Responses)
-		prometheus.MustRegister(prometheusMetrics.Durations)
+		prometheus.MustRegister(prometheusMetrics.DurationsExp)
+		prometheus.MustRegister(prometheusMetrics.DurationsLin)
 
 		writeTimeout := config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
