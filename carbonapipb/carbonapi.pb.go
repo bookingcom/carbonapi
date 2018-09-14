@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/util"
 )
 
@@ -49,7 +50,7 @@ func splitAddr(addr string) (string, string) {
 	return u.Hostname(), u.Port()
 }
 
-func NewAccessLogDetails(r *http.Request, handler string) AccessLogDetails {
+func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) AccessLogDetails {
 	username, _, _ := r.BasicAuth()
 	srcIP, srcPort := splitAddr(r.RemoteAddr)
 
@@ -57,6 +58,7 @@ func NewAccessLogDetails(r *http.Request, handler string) AccessLogDetails {
 		Handler:       handler,
 		Username:      username,
 		CarbonapiUuid: util.GetUUID(r.Context()),
+		HeadersData:   getHeadersData(r, config.HeadersToLog),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
@@ -65,4 +67,15 @@ func NewAccessLogDetails(r *http.Request, handler string) AccessLogDetails {
 		Uri:           r.RequestURI,
 		HttpCode:      http.StatusOK,
 	}
+}
+
+func getHeadersData(r *http.Request, headersToLog []string) map[string]string {
+	headerData := make(map[string]string)
+	for _, headerToLog := range headersToLog {
+		headerValue := r.Header.Get(headerToLog)
+		if headerValue != "" {
+			headerData[headerToLog] = headerValue
+		}
+	}
+	return headerData
 }
