@@ -48,29 +48,29 @@ var prometheusMetrics = struct {
 }{
 	Requests: prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "api_http_requests_total",
+			Name: "http_requests_total",
 			Help: "Count of HTTP requests",
 		},
 	),
 	Responses: prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "api_http_responses_total",
+			Name: "http_responses_total",
 			Help: "Count of HTTP responses, partitioned by return code and handler",
 		},
 		[]string{"code", "handler"},
 	),
 	DurationsExp: prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "api_http_request_duration_seconds_exp",
+			Name:    "http_request_duration_seconds_exp",
 			Help:    "The duration of HTTP requests (exponential)",
-			Buckets: prometheus.ExponentialBuckets(0.05, 2.0, 20),
+			Buckets: prometheus.ExponentialBuckets((50 * time.Millisecond).Seconds(), 2.0, 20),
 		},
 	),
 	DurationsLin: prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "api_http_request_duration_seconds_lin",
+			Name:    "http_request_duration_seconds_lin",
 			Help:    "The duration of HTTP requests (linear)",
-			Buckets: prometheus.LinearBuckets(0.0, 50, 40), // Up to 2 seconds
+			Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
 		},
 	),
 }
