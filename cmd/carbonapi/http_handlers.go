@@ -1038,7 +1038,7 @@ func isBlockingHeaderRule(r *http.Request, rule Rule) bool {
 }
 
 func shouldBlockRequest(r *http.Request) bool {
-	if config.BlockHeaderFile != "" {
+	if len(config.blockHeaderRules.Rules) > 0 {
 		blockHeaderFile, err := ioutil.ReadFile(config.BlockHeaderFile)
 		if err == nil {
 			var ruleConfig RuleConfig
