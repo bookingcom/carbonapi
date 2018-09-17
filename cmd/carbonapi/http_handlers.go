@@ -188,23 +188,6 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		logAsError = true
 		return
 	}
-	if config.BlockHeaderFile != "" {
-		blockHeaderFile, err := ioutil.ReadFile(config.BlockHeaderFile)
-		if err == nil {
-			var ruleConfig RuleConfig
-			err = yaml.Unmarshal(blockHeaderFile, &ruleConfig)
-			if err == nil {
-				for _, rule := range ruleConfig.Rules {
-					if shouldBlockRequest(r, rule) {
-						logAsError = true
-						w.WriteHeader(http.StatusForbidden)
-						accessLogDetails.HttpCode = 403
-						return
-					}
-				}
-			}
-		}
-	}
 
 	targets := r.Form["target"]
 	from := r.FormValue("from")
