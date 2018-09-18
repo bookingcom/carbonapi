@@ -136,12 +136,10 @@ func (b Backend) enter(ctx context.Context) error {
 	}
 
 	select {
-	case _, ok := <-ctx.Done():
-		if !ok {
-			return ctx.Err()
-		}
+	case <-ctx.Done():
+		return ctx.Err()
 
-	case <-b.limiter:
+	case b.limiter <- struct{}{}:
 		// fallthrough
 	}
 
@@ -154,7 +152,7 @@ func (b Backend) leave() error {
 	}
 
 	select {
-	case b.limiter <- struct{}{}:
+	case <-b.limiter:
 		// fallthrough
 	default:
 		// this should never happen, but let's not block forever if it does
