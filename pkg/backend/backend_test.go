@@ -12,6 +12,63 @@ import (
 	"time"
 )
 
+func TestCall(t *testing.T) {
+	exp := []byte("OK")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(exp)
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+	})
+
+	resp, err := b.Call(context.Background(), "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	got := resp.Body
+	if !bytes.Equal(got, exp) {
+		t.Errorf("Bad response body\nExp %v\nGot %v", exp, got)
+	}
+}
+
+func TestCallServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Bad", 500)
+	}))
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+	})
+
+	_, err := b.Call(context.Background(), "render", nil)
+	if err == nil {
+		t.Error("Expected error")
+	}
+}
+
+func TestCallTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+		Timeout: time.Nanosecond,
+	})
+
+	_, err := b.Call(context.Background(), "render", nil)
+	if err == nil {
+		t.Error("Expected error")
+	}
+}
+
 func TestDoLimiterTimeout(t *testing.T) {
 	b := New(Config{
 		Address: "localhost",
