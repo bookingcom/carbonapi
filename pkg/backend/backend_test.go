@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+func TestRequest(t *testing.T) {
+	b := New(Config{Address: "localhost"})
+
+	_, err := b.request(context.Background(), "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestEnterNilLimiter(t *testing.T) {
 	b := New(Config{})
 
