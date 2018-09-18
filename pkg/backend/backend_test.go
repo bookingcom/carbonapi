@@ -1,10 +1,129 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestDoLimiterTimeout(t *testing.T) {
+	b := New(Config{
+		Address: "localhost",
+		Limit:   1,
+	})
+
+	if err := b.enter(context.Background()); err != nil {
+		t.Error("Expected to enter limiter")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+
+	req, err := b.request(ctx, "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = b.do(ctx, req)
+	if err == nil {
+		t.Error("Expected to time out")
+	}
+}
+
+func TestDo(t *testing.T) {
+	exp := []byte("OK")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(exp)
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+	})
+
+	req, err := b.request(context.Background(), "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	resp, err := b.do(context.Background(), req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	got, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	resp.Body.Close()
+
+	if !bytes.Equal(got, exp) {
+		t.Errorf("Bad response body\nExp %v\nGot %v", exp, resp.Body)
+	}
+}
+
+func TestDoHTTPTimeout(t *testing.T) {
+	d := time.Nanosecond
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(10 * d)
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+
+	req, err := b.request(ctx, "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	resp, err := b.do(ctx, req)
+	if err == nil {
+		t.Errorf("Expected error, got status code %d", resp.StatusCode)
+	}
+}
+func TestDoHTTPError(t *testing.T) {
+	exp := 500
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Bad", exp)
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+	})
+
+	req, err := b.request(context.Background(), "render", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	resp, err := b.do(context.Background(), req)
+	if err == nil {
+		t.Errorf("Expected error, got status code %d", resp.StatusCode)
+	}
+
+	if got := resp.StatusCode; got != exp {
+		t.Errorf("Expected status code %d, got %d", exp, got)
+	}
+}
 
 func TestRequest(t *testing.T) {
 	b := New(Config{Address: "localhost"})

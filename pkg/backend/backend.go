@@ -183,6 +183,10 @@ func (b Backend) do(ctx context.Context, req *http.Request) (*http.Response, err
 		)
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		return resp, errors.Errorf("Bad response code %d", resp.StatusCode)
+	}
+
 	return resp, nil
 }
 
