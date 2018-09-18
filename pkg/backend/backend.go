@@ -28,8 +28,6 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
-	"net/url"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -74,7 +72,7 @@ type Response struct {
 // New creates a new backend from the given configuration.
 func New(cfg Config) Backend {
 	b := Backend{
-		address: "http://" + cfg.Address,
+		address: cfg.Address,
 	}
 
 	if cfg.Timeout > 0 {
@@ -102,13 +100,12 @@ func New(cfg Config) Backend {
 	return b
 }
 
-func (b Backend) url(endpoint string) (string, error) {
-	u, err := url.Parse(path.Join(b.address, endpoint))
-	if err != nil {
-		return "", err
+func (b Backend) url(endpoint string) string {
+	if strings.IndexByte(endpoint, '/') == 0 {
+		return "http://" + b.address + endpoint
 	}
 
-	return u.String(), nil
+	return "http://" + b.address + "/" + endpoint
 }
 
 func (b Backend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -120,14 +117,9 @@ func (b Backend) setTimeout(ctx context.Context) (context.Context, context.Cance
 }
 
 func (b Backend) request(ctx context.Context, endpoint string, payload []byte) (*http.Request, error) {
-	u, err := b.url(endpoint)
-	if err != nil {
-		return nil, err
-	}
-
 	// Weird that http.NewRequests takes an io.Reader body but all the Marshal
 	// methods I know of return []byte.
-	req, err := http.NewRequest("GET", u, bytes.NewReader(payload))
+	req, err := http.NewRequest("GET", b.url(endpoint), bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
