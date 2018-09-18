@@ -251,10 +251,10 @@ func ScatterGather(ctx context.Context, backends []Backend, endpoint string, pay
 	wg := sync.WaitGroup{}
 	for i, backend := range backends {
 		wg.Add(1)
-		go func() {
-			resps[i], errs[i] = backend.Call(ctx, endpoint, payload)
+		go func(j int, b Backend) {
+			resps[j], errs[j] = b.Call(ctx, endpoint, payload)
 			wg.Done()
-		}()
+		}(i, backend)
 	}
 	wg.Wait()
 
