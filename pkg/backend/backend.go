@@ -26,8 +26,10 @@ package backend
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -100,12 +102,12 @@ func New(cfg Config) Backend {
 	return b
 }
 
-func (b Backend) url(endpoint string) string {
-	if strings.IndexByte(endpoint, '/') == 0 {
-		return "http://" + b.address + endpoint
+func (b Backend) url(path string) url.URL {
+	return url.URL{
+		Scheme: "http",
+		Host:   b.address,
+		Path:   path,
 	}
-
-	return "http://" + b.address + "/" + endpoint
 }
 
 func (b Backend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -116,13 +118,12 @@ func (b Backend) setTimeout(ctx context.Context) (context.Context, context.Cance
 	return context.WithCancel(ctx)
 }
 
-func (b Backend) request(ctx context.Context, endpoint string, payload []byte) (*http.Request, error) {
-	// Weird that http.NewRequests takes an io.Reader body but all the Marshal
-	// methods I know of return []byte.
-	req, err := http.NewRequest("GET", b.url(endpoint), bytes.NewReader(payload))
+func (b Backend) request(ctx context.Context, u url.URL, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest("GET", "", body)
 	if err != nil {
 		return nil, err
 	}
+	req.URL = u
 
 	req = req.WithContext(ctx)
 	req = util.MarshalCtx(ctx, req)
@@ -194,11 +195,11 @@ func (b Backend) do(ctx context.Context, req *http.Request) (*http.Response, err
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) Call(ctx context.Context, endpoint string, payload []byte) (Response, error) {
+func (b Backend) Call(ctx context.Context, url net.URL, body io.Reader) (Response, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
-	req, err := b.request(ctx, endpoint, payload)
+	req, err := b.request(ctx, url, body)
 	if err != nil {
 		return Response{}, err
 	}
@@ -240,7 +241,7 @@ func combineErrors(errs []error) error {
 // ScatterGather makes concurrent Calls to multiple backends.
 // A request is considered to have been successful if a single backend returned
 // a successful request.
-func ScatterGather(ctx context.Context, backends []Backend, endpoint string, payload []byte) ([]Response, error) {
+func ScatterGather(ctx context.Context, backends []Backend, u url.URL, body io.Reader) ([]Response, error) {
 	if len(backends) == 0 {
 		return []Response{}, nil
 	}
@@ -252,7 +253,7 @@ func ScatterGather(ctx context.Context, backends []Backend, endpoint string, pay
 	for i, backend := range backends {
 		wg.Add(1)
 		go func(j int, b Backend) {
-			resps[j], errs[j] = b.Call(ctx, endpoint, payload)
+			resps[j], errs[j] = b.Call(ctx, u, body)
 			wg.Done()
 		}(i, backend)
 	}

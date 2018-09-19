@@ -326,7 +326,9 @@ func TestRequest(t *testing.T) {
 func TestEnterNilLimiter(t *testing.T) {
 	b := New(Config{})
 
-	ctx, _ := context.WithTimeout(context.Background(), 0)
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+
 	if got := b.enter(ctx); got != nil {
 		t.Error("Expected to enter limiter")
 	}
