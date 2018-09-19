@@ -4,3 +4,6 @@
 
 # Booking.com internals
 .deploy
+
+*.out
+TODO
