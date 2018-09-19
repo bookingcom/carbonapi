@@ -24,7 +24,6 @@ different protocols, or different transports, this may need to change.
 package backend
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"io/ioutil"
@@ -102,8 +101,8 @@ func New(cfg Config) Backend {
 	return b
 }
 
-func (b Backend) url(path string) url.URL {
-	return url.URL{
+func (b Backend) url(path string) *url.URL {
+	return &url.URL{
 		Scheme: "http",
 		Host:   b.address,
 		Path:   path,
@@ -118,7 +117,7 @@ func (b Backend) setTimeout(ctx context.Context) (context.Context, context.Cance
 	return context.WithCancel(ctx)
 }
 
-func (b Backend) request(ctx context.Context, u url.URL, body io.Reader) (*http.Request, error) {
+func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest("GET", "", body)
 	if err != nil {
 		return nil, err
@@ -195,11 +194,11 @@ func (b Backend) do(ctx context.Context, req *http.Request) (*http.Response, err
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) Call(ctx context.Context, url net.URL, body io.Reader) (Response, error) {
+func (b Backend) Call(ctx context.Context, u *url.URL, body io.Reader) (Response, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
-	req, err := b.request(ctx, url, body)
+	req, err := b.request(ctx, u, body)
 	if err != nil {
 		return Response{}, err
 	}
@@ -210,13 +209,13 @@ func (b Backend) Call(ctx context.Context, url net.URL, body io.Reader) (Respons
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return Response{HTTP: resp}, err
 	}
 
 	return Response{
-		Body: body,
+		Body: respBody,
 		HTTP: resp,
 	}, nil
 }
@@ -241,7 +240,7 @@ func combineErrors(errs []error) error {
 // ScatterGather makes concurrent Calls to multiple backends.
 // A request is considered to have been successful if a single backend returned
 // a successful request.
-func ScatterGather(ctx context.Context, backends []Backend, u url.URL, body io.Reader) ([]Response, error) {
+func ScatterGather(ctx context.Context, backends []Backend, u *url.URL, body io.Reader) ([]Response, error) {
 	if len(backends) == 0 {
 		return []Response{}, nil
 	}
@@ -252,10 +251,17 @@ func ScatterGather(ctx context.Context, backends []Backend, u url.URL, body io.R
 	wg := sync.WaitGroup{}
 	for i, backend := range backends {
 		wg.Add(1)
-		go func(j int, b Backend) {
-			resps[j], errs[j] = b.Call(ctx, u, body)
+
+		// yikes
+		v := backend.url(u.Path)
+		v.Opaque = u.Opaque
+		v.User = u.User
+		v.RawQuery = u.RawQuery
+
+		go func(j int, b Backend, w *url.URL) {
+			resps[j], errs[j] = b.Call(ctx, w, body)
 			wg.Done()
-		}(i, backend)
+		}(i, backend, v)
 	}
 	wg.Wait()
 

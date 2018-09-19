@@ -35,7 +35,7 @@ vet:
 	go vet -composites=false ./...
 
 test:
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) test -tags cairo ./... -race
+	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) test -tags cairo ./... -race -coverprofile cover.out
 
 clean:
 	rm -f carbonapi carbonzipper

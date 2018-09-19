@@ -7,13 +7,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestScatterGatherEmpty(t *testing.T) {
-	resp, err := ScatterGather(context.Background(), nil, "foo", nil)
+	resp, err := ScatterGather(context.Background(), nil, nil, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -35,7 +36,7 @@ func TestScatterGather(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	resps, err := ScatterGather(context.Background(), []Backend{b}, "render", nil)
+	resps, err := ScatterGather(context.Background(), []Backend{b}, b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -62,7 +63,7 @@ func TestScatterGatherTimeout(t *testing.T) {
 		Timeout: time.Nanosecond,
 	})
 
-	_, err := ScatterGather(context.Background(), []Backend{b}, "render", nil)
+	_, err := ScatterGather(context.Background(), []Backend{b}, b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected an error")
 	}
@@ -89,7 +90,8 @@ func TestScatterGatherHammer(t *testing.T) {
 		backends[i] = b
 	}
 
-	resps, err := ScatterGather(context.Background(), backends, "render", nil)
+	u := backends[0].url("/render")
+	resps, err := ScatterGather(context.Background(), backends, u, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -134,7 +136,8 @@ func TestScatterGatherHammerOneTimeout(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	resps, err := ScatterGather(context.Background(), backends, "render", nil)
+	u := backends[0].url("/render")
+	resps, err := ScatterGather(context.Background(), backends, u, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -157,7 +160,7 @@ func TestCall(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	resp, err := b.Call(context.Background(), "render", nil)
+	resp, err := b.Call(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -179,7 +182,7 @@ func TestCallServerError(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	_, err := b.Call(context.Background(), "render", nil)
+	_, err := b.Call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -195,7 +198,7 @@ func TestCallTimeout(t *testing.T) {
 		Timeout: time.Nanosecond,
 	})
 
-	_, err := b.Call(context.Background(), "render", nil)
+	_, err := b.Call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -214,7 +217,7 @@ func TestDoLimiterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	req, err := b.request(ctx, "render", nil)
+	req, err := b.request(ctx, b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -238,7 +241,7 @@ func TestDo(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	req, err := b.request(context.Background(), "render", nil)
+	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,7 +278,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 
-	req, err := b.request(ctx, "render", nil)
+	req, err := b.request(ctx, b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -299,7 +302,7 @@ func TestDoHTTPError(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	req, err := b.request(context.Background(), "render", nil)
+	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -317,7 +320,7 @@ func TestDoHTTPError(t *testing.T) {
 func TestRequest(t *testing.T) {
 	b := New(Config{Address: "localhost"})
 
-	_, err := b.request(context.Background(), "render", nil)
+	_, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -390,39 +393,27 @@ func TestURL(t *testing.T) {
 
 	type setup struct {
 		endpoint string
-		expected string
+		expected *url.URL
 	}
 
 	setups := []setup{
 		setup{
-			endpoint: "render",
-			expected: "http://localhost:8080/render",
-		},
-		setup{
 			endpoint: "/render",
-			expected: "http://localhost:8080/render",
-		},
-		setup{
-			endpoint: "render/",
-			expected: "http://localhost:8080/render/",
-		},
-		setup{
-			endpoint: "/render/",
-			expected: "http://localhost:8080/render/",
-		},
-		setup{
-			endpoint: "/render?target=foo",
-			expected: "http://localhost:8080/render?target=foo",
-		},
-		setup{
-			endpoint: "/render/?target=foo",
-			expected: "http://localhost:8080/render/?target=foo",
+			expected: &url.URL{
+				Scheme: "http",
+				Host:   "localhost:8080",
+				Path:   "/render",
+			},
 		},
 	}
 
 	for i, s := range setups {
 		t.Run(fmt.Sprintf("%d: %s", i, s.endpoint), func(t *testing.T) {
-			if got := b.url(s.endpoint); got != s.expected {
+			got := b.url(s.endpoint)
+
+			if got.Scheme != s.expected.Scheme ||
+				got.Host != s.expected.Host ||
+				got.Path != s.expected.Path {
 				t.Errorf("Bad url\nGot %s\nExp %s", got, s.expected)
 			}
 		})
