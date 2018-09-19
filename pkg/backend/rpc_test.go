@@ -23,7 +23,7 @@ func TestCarbonapiv2RenderEncoder(t *testing.T) {
 		t.Errorf("Expected from=100, got %v", got)
 	}
 
-	if got := vals["until"]; len(got) != 2 || got[0] != "200" {
+	if got := vals["until"]; len(got) != 1 || got[0] != "200" {
 		t.Errorf("Expected until=200, got %v", got)
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
 )
 
+// Timeseries represents a part of a time series.
 type Timeseries struct {
 	Name      string
 	StartTime int32
@@ -80,6 +81,7 @@ func carbonapiV2RenderDecoder(blob []byte) ([]Timeseries, error) {
 	return nil, nil
 }
 
+// Info contains metadata about a metric in Graphite.
 type Info struct {
 	Name              string
 	AggregationMethod string
@@ -88,12 +90,13 @@ type Info struct {
 	Retentions        []Retention
 }
 
+// Retention is the Graphite retention schema for a metric archive.
 type Retention struct {
 	SecondsPerPoint int32
 	NumberOfPoints  int32
 }
 
-// Info fetches detailed information about a metric from a backend.
+// Info fetches metadata about a metric from a backend.
 func (b Backend) Info(ctx context.Context, metric string) (Info, error) {
 	// TODO(gmagnusson): Needs to return []Info or map[string]Info
 	u := b.url("/info")
@@ -140,6 +143,7 @@ func carbonapiV2InfoDecoder(blob []byte) (Info, error) {
 	return info, nil
 }
 
+// Match describes a glob match from a Graphite store.
 type Match struct {
 	Path   string
 	IsLeaf bool

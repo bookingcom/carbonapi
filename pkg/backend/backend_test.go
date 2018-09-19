@@ -72,7 +72,6 @@ func TestScatterGatherTimeout(t *testing.T) {
 func TestScatterGatherHammer(t *testing.T) {
 	N := 10
 
-	servers := make([]*httptest.Server, N)
 	backends := make([]Backend, N)
 	for i := 0; i < N; i++ {
 		j := i
@@ -80,7 +79,6 @@ func TestScatterGatherHammer(t *testing.T) {
 			fmt.Fprintf(w, "%d", j)
 		}))
 		defer s.Close()
-		servers[i] = s
 
 		addr := strings.TrimPrefix(s.URL, "http://")
 		b := New(Config{
@@ -112,15 +110,12 @@ func TestScatterGatherHammer(t *testing.T) {
 func TestScatterGatherHammerOneTimeout(t *testing.T) {
 	N := 10
 
-	servers := make([]*httptest.Server, 0, N)
 	backends := make([]Backend, 0, N)
 	for i := 0; i < N; i++ {
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(time.Millisecond)
 		}))
 		defer s.Close()
-
-		servers = append(servers, s)
 
 		addr := strings.TrimPrefix(s.URL, "http://")
 		cfg := Config{
