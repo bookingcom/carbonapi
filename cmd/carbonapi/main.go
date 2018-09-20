@@ -724,16 +724,24 @@ func main() {
 func loadBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger) {
 	var ruleConfig RuleConfig
 	for range ticker.C {
-		fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
+		fileData, err := loadBlockRuleConfig()
 
 		if err == nil {
 			err = yaml.Unmarshal(fileData, &ruleConfig)
 			if err != nil {
-				logger.Error("couldn't unmarshal file data")
+				logger.Error("couldn't unmarshal block rule file data")
+			} else {
+				config.blockHeaderRules = ruleConfig
 			}
-			config.blockHeaderRules = ruleConfig
 		} else {
 			config.blockHeaderRules = RuleConfig{}
 		}
 	}
+}
+
+func loadBlockRuleConfig() ([]byte, error) {
+	fileLock.Lock()
+	defer fileLock.Unlock()
+	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
+	return fileData, err
 }

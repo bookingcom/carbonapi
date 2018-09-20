@@ -25,6 +25,8 @@ import (
 	"github.com/go-graphite/carbonapi/util"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"sync"
+
 	"github.com/dgryski/httputil"
 	"github.com/go-graphite/carbonapi/expr/metadata"
 	pickle "github.com/lomik/og-rek"
@@ -50,6 +52,8 @@ type Rule map[string]string
 type RuleConfig struct {
 	Rules []Rule
 }
+
+var fileLock sync.Mutex
 
 func validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
@@ -963,6 +967,9 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	m := make(Rule)
 	for k, v := range queryParams {
+		if k == "" || v[0] == "" {
+			continue
+		}
 		m[k] = v[0]
 	}
 	var ruleConfig RuleConfig
@@ -974,35 +981,43 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
 
-	var err1 error
+	var err, err1 error
 	var output []byte
-	if err == nil {
-		err = yaml.Unmarshal(fileData, &ruleConfig)
-		if err != nil {
-			logger.Error("couldn't unmarshal file data")
-		}
-		ruleConfig.Rules = append(ruleConfig.Rules, m)
-		output, err1 = yaml.Marshal(ruleConfig)
-		logger.Info("updating file", zap.String("data", string(output[:])))
-		err = ioutil.WriteFile(config.BlockHeaderFile, output, 0644)
+	if len(m) == 0 {
+		logger.Error("couldn't create a rule from params")
 	} else {
-		ruleConfig.Rules = append(ruleConfig.Rules, m)
-		output, err1 = yaml.Marshal(ruleConfig)
-		if err1 != nil {
-			logger.Error("couldn't marshal rule config", zap.Any("ruleconfig", ruleConfig))
+		fileData, err := loadBlockRuleConfig()
+		if err != nil {
+			err = yaml.Unmarshal(fileData, &ruleConfig)
+			if err != nil {
+				logger.Error("couldn't unmarshal file data")
+			} else {
+				ruleConfig.Rules = append(ruleConfig.Rules, m)
+				output, err1 = yaml.Marshal(ruleConfig)
+				if err1 != nil {
+					logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
+					err = writeBlockRuleToFile(output)
+				}
+			}
 		} else {
-			err = ioutil.WriteFile(config.BlockHeaderFile, output, 0644)
+			logger.Error("couldn't load block config file")
 		}
 	}
 
-	if err != nil && err1 != nil {
-		w.Write(failResponse)
+	if len(m) == 0 || err != nil || err1 != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write(failResponse)
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
+}
+
+func writeBlockRuleToFile(output []byte) error {
+	fileLock.Lock()
+	defer fileLock.Unlock()
+	err := ioutil.WriteFile(config.BlockHeaderFile, output, 0644)
+	return err
 }
 
 // It deletes the block headers config file
@@ -1038,18 +1053,10 @@ func isBlockingHeaderRule(r *http.Request, rule Rule) bool {
 }
 
 func shouldBlockRequest(r *http.Request) bool {
-	if len(config.blockHeaderRules.Rules) > 0 {
-		blockHeaderFile, err := ioutil.ReadFile(config.BlockHeaderFile)
-		if err == nil {
-			var ruleConfig RuleConfig
-			err = yaml.Unmarshal(blockHeaderFile, &ruleConfig)
-			if err == nil {
-				for _, rule := range ruleConfig.Rules {
-					if isBlockingHeaderRule(r, rule) {
-						return true
-					}
-				}
-			}
+	rules := config.blockHeaderRules.Rules
+	for _, rule := range rules {
+		if isBlockingHeaderRule(r, rule) {
+			return true
 		}
 	}
 	return false

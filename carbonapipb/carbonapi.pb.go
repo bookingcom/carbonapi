@@ -2,7 +2,7 @@ package carbonapipb
 
 import (
 	"net/http"
-	"net/url"
+	"strings"
 
 	"github.com/go-graphite/carbonapi/cfg"
 	"github.com/go-graphite/carbonapi/util"
@@ -42,12 +42,14 @@ type AccessLogDetails struct {
 }
 
 func splitAddr(addr string) (string, string) {
-	u, err := url.Parse(addr)
-	if err != nil {
+	tmp := strings.Split(addr, ":")
+	if len(tmp) < 1 {
 		return "unknown", "unknown"
 	}
-
-	return u.Hostname(), u.Port()
+	if len(tmp) == 1 {
+		return tmp[0], ""
+	}
+	return tmp[0], tmp[1]
 }
 
 func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) AccessLogDetails {
