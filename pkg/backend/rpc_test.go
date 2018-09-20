@@ -3,7 +3,129 @@ package backend
 import (
 	"net/url"
 	"testing"
+
+	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
 )
+
+func TestCarbonapiv2FindDecoder(t *testing.T) {
+	input := carbonapi_v2.Matches{
+		Matches: []carbonapi_v2.Match{
+			carbonapi_v2.Match{
+				Path:   "foo/bar",
+				IsLeaf: true,
+			},
+		},
+	}
+
+	blob, err := input.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	got, err := carbonapiV2FindDecoder(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != 1 {
+		t.Errorf("Expected 1 response, got %d", len(got))
+		return
+	}
+
+	if got[0].Path != "foo/bar" || !got[0].IsLeaf {
+		t.Error("Invalid match")
+	}
+}
+
+func TestCarbonapiv2InfoDecoder(t *testing.T) {
+	input := carbonapi_v2.Infos{
+		Hosts: []string{"foo"},
+		Infos: []*carbonapi_v2.Info{
+			&carbonapi_v2.Info{
+				Name: "A",
+				Retentions: []carbonapi_v2.Retention{
+					carbonapi_v2.Retention{
+						SecondsPerPoint: 1,
+						NumberOfPoints:  10,
+					},
+				},
+			},
+		},
+	}
+
+	blob, err := input.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	got, err := carbonapiV2InfoDecoder(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != 1 {
+		t.Errorf("Expected 1 response, got %d", len(got))
+		return
+	}
+
+	if got[0].Host != "foo" || got[0].Name != "A" {
+		t.Error("Invalid info")
+	}
+
+	if len(got[0].Retentions) != 1 {
+		t.Error("Invalid retention")
+	}
+}
+
+func TestCarbonapiv2RenderDecoder(t *testing.T) {
+	input := carbonapi_v2.Metrics{
+		Metrics: []carbonapi_v2.Metric{
+			carbonapi_v2.Metric{
+				Name:      "A",
+				StartTime: 1,
+				StopTime:  2,
+				StepTime:  3,
+				Values:    []float64{0, 1},
+				IsAbsent:  []bool{true, false},
+			},
+		},
+	}
+
+	blob, err := input.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	got, err := carbonapiV2RenderDecoder(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+		return
+	}
+
+	exp := types.Metric{
+		Name:      "A",
+		StartTime: 1,
+		StopTime:  2,
+		StepTime:  3,
+		Values:    []float64{0, 1},
+		IsAbsent:  []bool{true, false},
+	}
+
+	if !types.MetricsEqual(exp, got[0]) {
+		t.Error("Metrics not equal")
+	}
+}
 
 func TestCarbonapiv2RenderEncoder(t *testing.T) {
 	u := &url.URL{}
