@@ -41,6 +41,6 @@ message Retention {
 }
 
 message Infos {
-    // Can't use tag 1 unless it's the same type as in go-graphite/protocol/carbonapi_v2_pb
-	repeated Info infos = 2; // 2 [sic]
+	repeated string names = 1;
+    repeated Info infos = 2;
 }

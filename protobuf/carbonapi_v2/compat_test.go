@@ -37,7 +37,11 @@ func TestInfos(t *testing.T) {
 
 	infos := Infos{}
 	if err := infos.Unmarshal(blob); err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	}
+
+	if len(infos.Names) != len(infos.Infos) {
+		t.Error("Amount of names and infos differ")
 	}
 
 	if len(infos.Infos) != 1 {
@@ -45,6 +49,10 @@ func TestInfos(t *testing.T) {
 	}
 
 	info := infos.Infos[0]
+
+	if infos.Names[0] != "server" {
+		t.Error("Invalid server")
+	}
 
 	if info.Name != "name" {
 		t.Error("Invalid name")
