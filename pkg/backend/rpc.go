@@ -22,7 +22,7 @@ import (
 
 // Render fetches raw metrics from a backend.
 func Render(ctx context.Context, b Backend, from int32, until int32, targets []string) ([]types.Metric, error) {
-	u := b.url("/render")
+	u := b.URL("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
 	resp, err := b.Call(ctx, u, body)
@@ -30,7 +30,7 @@ func Render(ctx context.Context, b Backend, from int32, until int32, targets []s
 		return nil, err
 	}
 
-	ts, err := carbonapiV2RenderDecoder(resp.Body)
+	ts, err := carbonapiV2RenderDecoder(resp)
 
 	return ts, err
 }
@@ -65,7 +65,7 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 		}
 	}
 
-	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
 		return nil, err
 	}
 
@@ -119,7 +119,7 @@ func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
 
 // Info fetches metadata about a metric from a backend.
 func Info(ctx context.Context, b Backend, metric string) ([]types.Info, error) {
-	u := b.url("/info")
+	u := b.URL("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
 	resp, err := b.Call(ctx, u, body)
@@ -127,7 +127,7 @@ func Info(ctx context.Context, b Backend, metric string) ([]types.Info, error) {
 		return nil, err
 	}
 
-	infos, err := carbonapiV2InfoDecoder(resp.Body)
+	infos, err := carbonapiV2InfoDecoder(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 		}
 	}
 
-	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +211,7 @@ func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
 
 // Find resolves globs and finds metrics in a backend.
 func Find(ctx context.Context, b Backend, query string) ([]types.Match, error) {
-	u := b.url("/metrics/find")
+	u := b.URL("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
 	resp, err := b.Call(ctx, u, body)
@@ -219,7 +219,7 @@ func Find(ctx context.Context, b Backend, query string) ([]types.Match, error) {
 		return nil, err
 	}
 
-	find, err := carbonapiV2FindDecoder(resp.Body)
+	find, err := carbonapiV2FindDecoder(resp)
 
 	return find, err
 }
@@ -254,7 +254,7 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 		}
 	}
 
-	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
 		return nil, err
 	}
 
