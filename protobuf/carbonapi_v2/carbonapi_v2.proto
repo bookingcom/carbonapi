@@ -1,5 +1,5 @@
 syntax = "proto3";
-package carbonapi_v2_pb;
+package carbonapi_v2;
 
 // Regenerate with  protoc --gogo_out=. carbonapi_v2_pb.proto
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";

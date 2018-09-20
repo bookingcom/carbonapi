@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2_pb"
+	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
 )
 
 // Metric represents a part of a time series.
@@ -53,7 +53,7 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, metrics []str
 }
 
 func carbonapiV2RenderDecoder(blob []byte) ([]Metric, error) {
-	resp := &carbonapi_v2_pb.Metrics{}
+	resp := &carbonapi_v2.Metrics{}
 	if err := resp.Unmarshal(blob); err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 }
 
 func carbonapiV2InfoDecoder(blob []byte) ([]Info, error) {
-	s := &carbonapi_v2_pb.Infos{}
+	s := &carbonapi_v2.Infos{}
 	if err := s.Unmarshal(blob); err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
 }
 
 func carbonapiV2FindDecoder(blob []byte) ([]Match, error) {
-	f := &carbonapi_v2_pb.Matches{}
+	f := &carbonapi_v2.Matches{}
 
 	if err := f.Unmarshal(blob); err != nil {
 		return nil, err
