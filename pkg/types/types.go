@@ -16,6 +16,10 @@ type Metric struct {
 	IsAbsent  []bool
 }
 
+func MergeMetrics(metrics [][]Metric) []Metric {
+	return nil
+}
+
 // Info contains metadata about a metric in Graphite.
 type Info struct {
 	Name              string
@@ -23,6 +27,15 @@ type Info struct {
 	MaxRetention      int32
 	XFilesFactor      float32
 	Retentions        []Retention
+}
+
+func MergeInfos(infos [][]Info) []Info {
+	merged := make([]Info, 0, len(infos))
+	for _, info := range infos {
+		merged = append(merged, info...)
+	}
+
+	return merged
 }
 
 // Retention is the Graphite retention schema for a metric archive.
@@ -35,4 +48,13 @@ type Retention struct {
 type Match struct {
 	Path   string
 	IsLeaf bool
+}
+
+func MergeMatches(matches [][]Match) []Match {
+	merged := make([]Match, 0, len(matches))
+	for _, match := range matches {
+		merged = append(merged, match...)
+	}
+
+	return merged
 }
