@@ -28,19 +28,19 @@ message Matches {
 }
 
 message Info {
-	string name = 1;
-	string aggregationMethod = 2;
-	int32 maxRetention = 3;
-	float xFilesFactor = 4;
-	repeated Retention retentions = 5 [(gogoproto.nullable) = false];
+    string name = 1;
+    string aggregationMethod = 2;
+    int32 maxRetention = 3;
+    float xFilesFactor = 4;
+    repeated Retention retentions = 5 [(gogoproto.nullable) = false];
 }
 
 message Retention {
-	int32 secondsPerPoint = 1;
-	int32 numberOfPoints = 2;
+    int32 secondsPerPoint = 1;
+    int32 numberOfPoints = 2;
 }
 
 message Infos {
-	repeated string hosts = 1;
+    repeated string hosts = 1;
     repeated Info infos = 2;
 }
