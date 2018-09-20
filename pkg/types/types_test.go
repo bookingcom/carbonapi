@@ -1,10 +1,110 @@
 package types
 
 import (
+	"sort"
 	"testing"
 )
 
-func TestMergeResponsesBasic(t *testing.T) {
+func TestMergeInfos(t *testing.T) {
+	infos := [][]Info{
+		[]Info{Info{}},
+		[]Info{Info{}},
+	}
+
+	got := MergeInfos(infos)
+	if len(got) != 2 {
+		t.Errorf("Expected 2 elements, got %d", len(got))
+	}
+}
+
+func TestMergeMatches(t *testing.T) {
+	matches := [][]Match{
+		[]Match{Match{}},
+		[]Match{Match{}},
+	}
+
+	got := MergeMatches(matches)
+	if len(got) != 2 {
+		t.Errorf("Expected 2 elements, got %d", len(got))
+	}
+}
+
+func TestSortMetrics(t *testing.T) {
+	metrics := []Metric{
+		Metric{
+			StepTime: 2,
+		},
+		Metric{
+			StepTime: 1,
+		},
+	}
+
+	sort.Sort(byStepTime(metrics))
+
+	if metrics[0].StepTime != 1 {
+		t.Error("Didn't sort metrics")
+	}
+}
+
+func TestMergeMetricsBasic(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{0},
+				IsAbsent: []bool{true},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{1},
+				IsAbsent: []bool{false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{1},
+		IsAbsent: []bool{false},
+	}
+
+	got := MergeMetrics(input)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !metricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+}
+
+func TestMergeMetricsDifferent(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric1",
+				Values:   []float64{0},
+				IsAbsent: []bool{true},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric2",
+				Values:   []float64{1},
+				IsAbsent: []bool{false},
+			},
+		},
+	}
+
+	got := MergeMetrics(input)
+	if len(got) != 2 {
+		t.Errorf("Expected 2 metrics, got %d", len(got))
+	}
+}
+
+func TestmergeMetricsBasic(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -27,7 +127,7 @@ func TestMergeResponsesBasic(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesMismatched(t *testing.T) {
+func TestmergeMetricsMismatched(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -53,14 +153,14 @@ func TestMergeResponsesMismatched(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesEmpty(t *testing.T) {
+func TestmergeMetricsEmpty(t *testing.T) {
 	input := []Metric{}
 	expected := Metric{}
 
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesPreferFirstPresent(t *testing.T) {
+func TestmergeMetricsPreferFirstPresent(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -88,7 +188,7 @@ func TestMergeResponsesPreferFirstPresent(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes1(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes1(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
 		Metric{
@@ -121,7 +221,7 @@ func TestMergeResponsesDifferingStepTimes1(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes2(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes2(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
 		Metric{
@@ -154,7 +254,7 @@ func TestMergeResponsesDifferingStepTimes2(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes3(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes3(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
 		Metric{
@@ -187,7 +287,7 @@ func TestMergeResponsesDifferingStepTimes3(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes4(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes4(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
 		Metric{
@@ -220,7 +320,7 @@ func TestMergeResponsesDifferingStepTimes4(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes5(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes5(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
 		Metric{
@@ -253,7 +353,7 @@ func TestMergeResponsesDifferingStepTimes5(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestMergeResponsesDifferingStepTimes6(t *testing.T) {
+func TestmergeMetricsDifferingStepTimes6(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
 		Metric{
@@ -290,7 +390,7 @@ func doTest(t *testing.T, input []Metric, expected Metric) {
 	got := mergeMetrics(input)
 
 	if !metricsEqual(got, expected) {
-		t.Errorf("Response mismatch\nExp: %+v\nGot: %+v\n", expected, got)
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got)
 	}
 }
 
