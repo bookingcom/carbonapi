@@ -32,7 +32,6 @@ func MergeMetrics(metrics [][]Metric) []Metric {
 
 	merged := make([]Metric, 0)
 	for _, ms := range names {
-		sort.Sort(byStepTime(ms))
 		merged = append(merged, mergeMetrics(ms))
 	}
 
@@ -56,7 +55,9 @@ func mergeMetrics(metrics []Metric) Metric {
 		return Metric{}
 	}
 
-	// We assume metrics[0] has the highest resolution of metrics
+	sort.Sort(byStepTime(metrics))
+
+	// metrics[0] has the highest resolution of metrics
 	metric := metrics[0]
 	for i := range metric.Values {
 		if !metric.IsAbsent[i] {
@@ -67,7 +68,7 @@ func mergeMetrics(metrics []Metric) Metric {
 		for j := 1; j < len(metrics); j++ {
 			m := metrics[j]
 
-			if len(m.Values) != len(metric.Values) {
+			if m.StepTime != metric.StepTime || len(m.Values) != len(metric.Values) {
 				break
 			}
 
