@@ -46,7 +46,7 @@ func TestSortMetrics(t *testing.T) {
 	}
 }
 
-func TestMergeMetricsBasic(t *testing.T) {
+func TestMergeManyMetricsBasic(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
 			Metric{
@@ -75,12 +75,12 @@ func TestMergeMetricsBasic(t *testing.T) {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
 
-	if !metricsEqual(got[0], expected) {
+	if !MetricsEqual(got[0], expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 }
 
-func TestMergeMetricsDifferent(t *testing.T) {
+func TestMergeManyMetricsDifferent(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
 			Metric{
@@ -104,7 +104,7 @@ func TestMergeMetricsDifferent(t *testing.T) {
 	}
 }
 
-func TestmergeMetricsBasic(t *testing.T) {
+func TestMergeMetricsBasic(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -127,7 +127,7 @@ func TestmergeMetricsBasic(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsMismatched(t *testing.T) {
+func TestMergeMetricsMismatched(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -153,14 +153,14 @@ func TestmergeMetricsMismatched(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsEmpty(t *testing.T) {
+func TestMergeMetricsEmpty(t *testing.T) {
 	input := []Metric{}
 	expected := Metric{}
 
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsPreferFirstPresent(t *testing.T) {
+func TestMergeMetricsPreferFirstPresent(t *testing.T) {
 	input := []Metric{
 		Metric{
 			Name:     "metric",
@@ -188,7 +188,7 @@ func TestmergeMetricsPreferFirstPresent(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes1(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes1(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
 		Metric{
@@ -221,7 +221,7 @@ func TestmergeMetricsDifferingStepTimes1(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes2(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes2(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
 		Metric{
@@ -254,7 +254,7 @@ func TestmergeMetricsDifferingStepTimes2(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes3(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes3(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
 		Metric{
@@ -287,7 +287,7 @@ func TestmergeMetricsDifferingStepTimes3(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes4(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes4(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
 		Metric{
@@ -320,7 +320,7 @@ func TestmergeMetricsDifferingStepTimes4(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes5(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes5(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
 		Metric{
@@ -353,7 +353,7 @@ func TestmergeMetricsDifferingStepTimes5(t *testing.T) {
 	doTest(t, input, expected)
 }
 
-func TestmergeMetricsDifferingStepTimes6(t *testing.T) {
+func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
 		Metric{
@@ -389,27 +389,7 @@ func TestmergeMetricsDifferingStepTimes6(t *testing.T) {
 func doTest(t *testing.T, input []Metric, expected Metric) {
 	got := mergeMetrics(input)
 
-	if !metricsEqual(got, expected) {
+	if !MetricsEqual(got, expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got)
 	}
-}
-
-func metricsEqual(a, b Metric) bool {
-	if a.Name != b.Name ||
-		a.StartTime != b.StartTime ||
-		a.StopTime != b.StopTime ||
-		a.StepTime != b.StepTime ||
-		len(a.Values) != len(b.Values) ||
-		len(a.IsAbsent) != len(b.IsAbsent) ||
-		len(a.Values) != len(a.IsAbsent) {
-		return false
-	}
-
-	for i := 0; i < len(a.Values); i++ {
-		if a.Values[i] != b.Values[i] || a.IsAbsent[i] != b.IsAbsent[i] {
-			return false
-		}
-	}
-
-	return true
 }

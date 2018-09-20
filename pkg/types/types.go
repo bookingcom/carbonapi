@@ -125,3 +125,23 @@ func MergeMatches(matches [][]Match) []Match {
 
 	return merged
 }
+
+func MetricsEqual(a, b Metric) bool {
+	if a.Name != b.Name ||
+		a.StartTime != b.StartTime ||
+		a.StopTime != b.StopTime ||
+		a.StepTime != b.StepTime ||
+		len(a.Values) != len(b.Values) ||
+		len(a.IsAbsent) != len(b.IsAbsent) ||
+		len(a.Values) != len(a.IsAbsent) {
+		return false
+	}
+
+	for i := 0; i < len(a.Values); i++ {
+		if a.Values[i] != b.Values[i] || a.IsAbsent[i] != b.IsAbsent[i] {
+			return false
+		}
+	}
+
+	return true
+}
