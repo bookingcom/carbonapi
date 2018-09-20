@@ -17,9 +17,9 @@ import (
 // worrying about those levels of performance in the first place.
 
 // Render fetches raw metrics from a backend.
-func (b Backend) Render(ctx context.Context, from int32, until int32, metrics []string) ([]types.Metric, error) {
+func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {
 	u := b.url("/render")
-	u, body := carbonapiV2RenderEncoder(u, from, until, metrics)
+	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
 	resp, err := b.Call(ctx, u, body)
 	if err != nil {
@@ -31,12 +31,57 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, metrics []
 	return ts, err
 }
 
-func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, metrics []string) (*url.URL, io.Reader) {
+// Renders makes Render calls to multiple backends.
+func Renders(ctx context.Context, backends []Backend, from int32, until int32, targets []string) ([]types.Metric, error) {
+	if len(backends) == 0 {
+		return nil, nil
+	}
+
+	msgCh := make(chan []types.Metric, len(backends))
+	errCh := make(chan error, len(backends))
+	for _, backend := range backends {
+		go func(b Backend) {
+			msg, err := b.Render(ctx, from, until, targets)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
+
+	metrics := make([][]types.Metric, 0, len(targets))
+	errs := make([]error, 0, len(targets))
+	for i := 0; i < len(backends); i++ {
+		select {
+		case msg := <-msgCh:
+			metrics = append(metrics, ms)
+		case err := <-errCh:
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		if len(errs) == len(backends) {
+			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
+		}
+
+		// steal a logger
+		backends[0].logger.Warn("Some requests failed",
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(combineErrors(errs)),
+		)
+	}
+
+	return types.MergeMetrics(metrics), nil
+}
+
+func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
 	vals := url.Values{}
 	vals.Set("from", fmt.Sprintf("%d", from))
 	vals.Set("until", fmt.Sprintf("%d", until))
-	for _, name := range metrics {
-		vals.Add("target", name)
+	for _, target := range targets {
+		vals.Add("target", target)
 	}
 	u.RawQuery = vals.Encode()
 
@@ -78,7 +123,6 @@ func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
 
 // Info fetches metadata about a metric from a backend.
 func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
-	// TODO(gmagnusson): Needs to return []Info or map[string]Info
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
