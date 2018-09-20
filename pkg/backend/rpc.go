@@ -65,16 +65,8 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 		}
 	}
 
-	if len(errs) > 0 {
-		if len(errs) == len(backends) {
-			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
-		}
-
-		// steal a logger
-		backends[0].logger.Warn("Some requests failed",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(combineErrors(errs)),
-		)
+	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+		return nil, err
 	}
 
 	return types.MergeMetrics(msgs), nil
@@ -173,16 +165,8 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 		}
 	}
 
-	if len(errs) > 0 {
-		if len(errs) == len(backends) {
-			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
-		}
-
-		// steal a logger
-		backends[0].logger.Warn("Some requests failed",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(combineErrors(errs)),
-		)
+	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+		return nil, err
 	}
 
 	return types.MergeInfos(msgs), nil
@@ -269,16 +253,8 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 		}
 	}
 
-	if len(errs) > 0 {
-		if len(errs) == len(backends) {
-			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
-		}
-
-		// steal a logger
-		backends[0].logger.Warn("Some requests failed",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(combineErrors(errs)),
-		)
+	if err := checkErrs(ctx, errs, len(backends), backends[0].logger); err != nil {
+		return nil, err
 	}
 
 	return types.MergeMatches(msgs), nil
@@ -308,4 +284,21 @@ func carbonapiV2FindDecoder(blob []byte) ([]types.Match, error) {
 	}
 
 	return matches, nil
+}
+
+func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	if len(errs) == limit {
+		return errors.WithMessage(combineErrors(errs), "All backend requests failed")
+	}
+
+	logger.Warn("Some requests failed",
+		zap.String("uuid", util.GetUUID(ctx)),
+		zap.Error(combineErrors(errs)),
+	)
+
+	return nil
 }

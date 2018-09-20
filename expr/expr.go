@@ -29,7 +29,12 @@ func EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest]
 	if e.IsName() {
 		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
 	} else if e.IsConst() {
-		p := types.MetricData{FetchResponse: pb.FetchResponse{Name: e.Target(), Values: []float64{e.FloatValue()}}}
+		p := types.MetricData{
+			FetchResponse: pb.FetchResponse{
+				Name:   e.Target(),
+				Values: []float64{e.FloatValue()},
+			},
+		}
 		return []*types.MetricData{&p}, nil
 	}
 	// evaluate the function
