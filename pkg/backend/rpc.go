@@ -8,6 +8,10 @@ import (
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
+	"github.com/go-graphite/carbonapi/util"
+
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
@@ -50,12 +54,12 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 		}(backend)
 	}
 
-	metrics := make([][]types.Metric, 0, len(targets))
-	errs := make([]error, 0, len(targets))
+	msgs := make([][]types.Metric, 0, len(backends))
+	errs := make([]error, 0, len(backends))
 	for i := 0; i < len(backends); i++ {
 		select {
 		case msg := <-msgCh:
-			metrics = append(metrics, ms)
+			msgs = append(msgs, msg)
 		case err := <-errCh:
 			errs = append(errs, err)
 		}
@@ -73,7 +77,7 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 		)
 	}
 
-	return types.MergeMetrics(metrics), nil
+	return types.MergeMetrics(msgs), nil
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
@@ -139,6 +143,51 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 	return infos, nil
 }
 
+// Infos makes Info calls to multiple backends.
+func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info, error) {
+	if len(backends) == 0 {
+		return nil, nil
+	}
+
+	msgCh := make(chan []types.Info, len(backends))
+	errCh := make(chan error, len(backends))
+	for _, backend := range backends {
+		go func(b Backend) {
+			msg, err := b.Info(ctx, metric)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
+
+	msgs := make([][]types.Info, 0, len(backends))
+	errs := make([]error, 0, len(backends))
+	for i := 0; i < len(backends); i++ {
+		select {
+		case msg := <-msgCh:
+			msgs = append(msgs, msg)
+		case err := <-errCh:
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		if len(errs) == len(backends) {
+			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
+		}
+
+		// steal a logger
+		backends[0].logger.Warn("Some requests failed",
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(combineErrors(errs)),
+		)
+	}
+
+	return types.MergeInfos(msgs), nil
+}
+
 func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 	vals := url.Values{}
 	vals.Set("target", metric)
@@ -188,6 +237,51 @@ func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) 
 	find, err := carbonapiV2FindDecoder(resp.Body)
 
 	return find, err
+}
+
+// Finds makes Find calls to multiple backends.
+func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match, error) {
+	if len(backends) == 0 {
+		return nil, nil
+	}
+
+	msgCh := make(chan []types.Match, len(backends))
+	errCh := make(chan error, len(backends))
+	for _, backend := range backends {
+		go func(b Backend) {
+			msg, err := b.Find(ctx, query)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
+
+	msgs := make([][]types.Match, 0, len(backends))
+	errs := make([]error, 0, len(backends))
+	for i := 0; i < len(backends); i++ {
+		select {
+		case msg := <-msgCh:
+			msgs = append(msgs, msg)
+		case err := <-errCh:
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		if len(errs) == len(backends) {
+			return nil, errors.WithMessage(combineErrors(errs), "All backend requests failed")
+		}
+
+		// steal a logger
+		backends[0].logger.Warn("Some requests failed",
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(combineErrors(errs)),
+		)
+	}
+
+	return types.MergeMatches(msgs), nil
 }
 
 func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
