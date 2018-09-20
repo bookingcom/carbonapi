@@ -292,7 +292,7 @@ func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger)
 		return nil
 	}
 
-	if len(errs) == limit {
+	if len(errs) >= limit {
 		return errors.WithMessage(combineErrors(errs), "All backend requests failed")
 	}
 

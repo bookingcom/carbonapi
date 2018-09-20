@@ -1,11 +1,15 @@
 package backend
 
 import (
+	"context"
+	"errors"
 	"net/url"
 	"testing"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
+
+	"go.uber.org/zap"
 )
 
 func TestCarbonapiv2FindDecoder(t *testing.T) {
@@ -185,4 +189,25 @@ func TestCarbonapiv2FindEncoder(t *testing.T) {
 		t.Errorf("Bad target: got %v", got)
 	}
 
+}
+
+func TestCheckErrs(t *testing.T) {
+	ctx := context.Background()
+	logger := zap.New(nil)
+
+	if err := checkErrs(ctx, nil, 0, logger); err != nil {
+		t.Error("Expected no error")
+	}
+
+	if err := checkErrs(ctx, []error{errors.New("no")}, 1, logger); err == nil {
+		t.Error("Expected error")
+	}
+
+	if err := checkErrs(ctx, []error{errors.New("no")}, 0, logger); err == nil {
+		t.Error("Expected error")
+	}
+
+	if err := checkErrs(ctx, []error{errors.New("no")}, 2, logger); err != nil {
+		t.Error("Expected no error")
+	}
 }
