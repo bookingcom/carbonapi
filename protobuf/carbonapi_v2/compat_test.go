@@ -40,7 +40,7 @@ func TestInfos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(infos.Names) != len(infos.Infos) {
+	if len(infos.Hosts) != len(infos.Infos) {
 		t.Error("Amount of names and infos differ")
 	}
 
@@ -50,7 +50,7 @@ func TestInfos(t *testing.T) {
 
 	info := infos.Infos[0]
 
-	if infos.Names[0] != "server" {
+	if infos.Hosts[0] != "server" {
 		t.Error("Invalid server")
 	}
 

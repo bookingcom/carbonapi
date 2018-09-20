@@ -189,6 +189,7 @@ func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
 	infos := make([]types.Info, len(s.Infos))
 	for i, sInfo := range s.Infos {
 		info := types.Info{
+			Host:              s.Hosts[i],
 			Name:              sInfo.Name,
 			AggregationMethod: sInfo.AggregationMethod,
 			MaxRetention:      sInfo.MaxRetention,

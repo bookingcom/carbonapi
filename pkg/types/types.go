@@ -22,6 +22,7 @@ func MergeMetrics(metrics [][]Metric) []Metric {
 
 // Info contains metadata about a metric in Graphite.
 type Info struct {
+	Host              string
 	Name              string
 	AggregationMethod string
 	MaxRetention      int32

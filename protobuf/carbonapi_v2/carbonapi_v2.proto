@@ -41,6 +41,6 @@ message Retention {
 }
 
 message Infos {
-	repeated string names = 1;
+	repeated string hosts = 1;
     repeated Info infos = 2;
 }
