@@ -3,14 +3,13 @@ package backend
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"io"
+	"net/url"
 	"testing"
-	"time"
 
-	httpBackend "github.com/go-graphite/carbonapi/pkg/backend/net"
+	"github.com/go-graphite/carbonapi/pkg/backend/mock"
 )
 
 func TestScatterGatherEmpty(t *testing.T) {
@@ -25,16 +24,11 @@ func TestScatterGatherEmpty(t *testing.T) {
 }
 
 func TestScatterGather(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "yo")
-	}))
-	defer server.Close()
-
-	addr := strings.TrimPrefix(server.URL, "http://")
-	b := httpBackend.New(httpBackend.Config{
-		Address: addr,
-		Client:  server.Client(),
-	})
+	mCall := func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+		return []byte("yo"), nil
+	}
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	b := mock.New(mCall, mURL)
 
 	resps, err := ScatterGather(context.Background(), []Backend{b}, b.URL("/render"), nil)
 	if err != nil {
@@ -50,42 +44,17 @@ func TestScatterGather(t *testing.T) {
 	}
 }
 
-func TestScatterGatherTimeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Millisecond)
-	}))
-	defer server.Close()
-
-	addr := strings.TrimPrefix(server.URL, "http://")
-	b := httpBackend.New(httpBackend.Config{
-		Address: addr,
-		Client:  server.Client(),
-		Timeout: time.Nanosecond,
-	})
-
-	_, err := ScatterGather(context.Background(), []Backend{b}, b.URL("/render"), nil)
-	if err == nil {
-		t.Error("Expected an error")
-	}
-}
-
 func TestScatterGatherHammer(t *testing.T) {
 	N := 10
 
 	backends := make([]Backend, N)
 	for i := 0; i < N; i++ {
 		j := i
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "%d", j)
-		}))
-		defer s.Close()
-
-		addr := strings.TrimPrefix(s.URL, "http://")
-		b := httpBackend.New(httpBackend.Config{
-			Address: addr,
-			Client:  s.Client(),
-		})
-		backends[i] = b
+		mCall := func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+			return []byte(fmt.Sprintf("%d", j)), nil
+		}
+		mURL := func(path string) *url.URL { return new(url.URL) }
+		backends[i] = mock.New(mCall, mURL)
 	}
 
 	u := backends[0].URL("/render")
@@ -111,24 +80,19 @@ func TestScatterGatherHammerOneTimeout(t *testing.T) {
 	N := 10
 
 	backends := make([]Backend, 0, N)
+	mURL := func(path string) *url.URL { return new(url.URL) }
 	for i := 0; i < N; i++ {
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(time.Millisecond)
-		}))
-		defer s.Close()
-
-		addr := strings.TrimPrefix(s.URL, "http://")
-		cfg := httpBackend.Config{
-			Address: addr,
-			Client:  s.Client(),
-		}
-
+		var mCall func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error)
 		if i == 0 {
-			cfg.Timeout = time.Nanosecond
+			mCall = func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+				return nil, errors.New("no")
+			}
+		} else {
+			mCall = func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+				return nil, nil
+			}
 		}
-
-		b := httpBackend.New(cfg)
-		backends = append(backends, b)
+		backends = append(backends, mock.New(mCall, mURL))
 	}
 
 	u := backends[0].URL("/render")
