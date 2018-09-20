@@ -23,6 +23,7 @@ message Match {
 }
 
 message Matches {
+    // Can't use tag 1 unless it's the same type as in go-graphite/protocol/carbonapi_v2_pb
     repeated Match matches = 2 [(gogoproto.nullable) = false]; // 2 [sic]
 }
 
@@ -40,5 +41,6 @@ message Retention {
 }
 
 message Infos {
+    // Can't use tag 1 unless it's the same type as in go-graphite/protocol/carbonapi_v2_pb
 	repeated Info infos = 2; // 2 [sic]
 }

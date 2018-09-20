@@ -7,6 +7,13 @@ import (
 )
 
 func TestInfos(t *testing.T) {
+	// This works because of how protobuf decodes repeated non-packed fields.
+	// The wire protocol gives us (key, byte_blob) pairs and since we know we
+	// want an array of those, we create one and append to it whenever we see
+	// one of those pairs. Thus having an encoder that only knows about single
+	// InfoResponse types encode that and send it to us, who decode it
+	// expecting multiple ones of a compatible type, is fine.
+
 	oldInfo := old.ServerInfoResponse{
 		Server: "server",
 		Info: &old.InfoResponse{
