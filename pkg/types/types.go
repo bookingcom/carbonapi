@@ -6,6 +6,10 @@ The definitions correspond to the types of responses to the /render, /info, and
 */
 package types
 
+import (
+	"sort"
+)
+
 // Metric represents a part of a time series.
 type Metric struct {
 	Name      string
@@ -16,8 +20,67 @@ type Metric struct {
 	IsAbsent  []bool
 }
 
+// MergeMetrics merges metrics by name.
 func MergeMetrics(metrics [][]Metric) []Metric {
-	return nil
+	names := make(map[string][]Metric)
+
+	for _, ms := range metrics {
+		for _, m := range ms {
+			names[m.Name] = append(names[m.Name], m)
+		}
+	}
+
+	merged := make([]Metric, 0)
+	for _, ms := range names {
+		sort.Sort(byStepTime(ms))
+		merged = append(merged, mergeMetrics(ms))
+	}
+
+	return merged
+}
+
+type byStepTime []Metric
+
+func (s byStepTime) Len() int { return len(s) }
+
+func (s byStepTime) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byStepTime) Less(i, j int) bool {
+	return s[i].StepTime < s[j].StepTime
+}
+
+func mergeMetrics(metrics []Metric) Metric {
+	if len(metrics) == 0 {
+		return Metric{}
+	}
+
+	// We assume metrics[0] has the highest resolution of metrics
+	metric := metrics[0]
+	for i := range metric.Values {
+		if !metric.IsAbsent[i] {
+			continue
+		}
+
+		// found a missing value, look for a replacement
+		for j := 1; j < len(metrics); j++ {
+			m := metrics[j]
+
+			if len(m.Values) != len(metric.Values) {
+				break
+			}
+
+			// found one
+			if !m.IsAbsent[i] {
+				metric.IsAbsent[i] = m.IsAbsent[i]
+				metric.Values[i] = m.Values[i]
+				break
+			}
+		}
+	}
+
+	return metric
 }
 
 // Info contains metadata about a metric in Graphite.
@@ -30,6 +93,7 @@ type Info struct {
 	Retentions        []Retention
 }
 
+// MergeInfos merges Info structures.
 func MergeInfos(infos [][]Info) []Info {
 	merged := make([]Info, 0, len(infos))
 	for _, info := range infos {
@@ -51,6 +115,7 @@ type Match struct {
 	IsLeaf bool
 }
 
+// MergeMatches merges Match structures.
 func MergeMatches(matches [][]Match) []Match {
 	merged := make([]Match, 0, len(matches))
 	for _, match := range matches {
