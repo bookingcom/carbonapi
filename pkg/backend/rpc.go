@@ -6,11 +6,11 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2_pb"
 )
 
-// Timeseries represents a part of a time series.
-type Timeseries struct {
+// Metric represents a part of a time series.
+type Metric struct {
 	Name      string
 	StartTime int32
 	StopTime  int32
@@ -19,10 +19,14 @@ type Timeseries struct {
 	IsAbsent  []bool
 }
 
-// TODO(gmagnusson): ^ Remove IsAbsent
+// TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
+// Doing math on NaN is expensive, but assuming that all functions will treat a
+// default value of 0 intelligently is wrong (see multiplication). Thus math
+// needs an if IsAbsent[i] check anyway, which is also expensive if we're
+// worrying about those levels of performance in the first place.
 
 // Render fetches raw metrics from a backend.
-func (b Backend) Render(ctx context.Context, from int32, until int32, metrics []string) ([]Timeseries, error) {
+func (b Backend) Render(ctx context.Context, from int32, until int32, metrics []string) ([]Metric, error) {
 	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, metrics)
 
@@ -48,21 +52,21 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, metrics []str
 	return u, nil
 }
 
-func carbonapiV2RenderDecoder(blob []byte) ([]Timeseries, error) {
-	mfr := &carbonapi_v2_pb.MultiFetchResponse{}
-	if err := mfr.Unmarshal(blob); err != nil {
+func carbonapiV2RenderDecoder(blob []byte) ([]Metric, error) {
+	resp := &carbonapi_v2_pb.Metrics{}
+	if err := resp.Unmarshal(blob); err != nil {
 		return nil, err
 	}
 
-	ts := make([]Timeseries, len(mfr.Metrics))
-	for i, metric := range mfr.Metrics {
-		t := Timeseries{
-			Name:      metric.Name,
-			StartTime: metric.StartTime,
-			StopTime:  metric.StopTime,
-			StepTime:  metric.StepTime,
-			Values:    metric.Values,
-			IsAbsent:  metric.IsAbsent,
+	metrics := make([]Metric, len(resp.Metrics))
+	for i, m := range resp.Metrics {
+		metric := Metric{
+			Name:      m.Name,
+			StartTime: m.StartTime,
+			StopTime:  m.StopTime,
+			StepTime:  m.StepTime,
+			Values:    m.Values,
+			IsAbsent:  m.IsAbsent,
 		}
 
 		/*
@@ -72,10 +76,10 @@ func carbonapiV2RenderDecoder(blob []byte) ([]Timeseries, error) {
 					t.Values[i] = math.NaN
 				}
 			}
-			and then remove Timeseries.IsAbsent
+			and then remove Metric.IsAbsent
 		*/
 
-		ts[i] = t
+		metrics[i] = metric
 	}
 
 	return nil, nil
@@ -97,19 +101,22 @@ type Retention struct {
 }
 
 // Info fetches metadata about a metric from a backend.
-func (b Backend) Info(ctx context.Context, metric string) (Info, error) {
+func (b Backend) Info(ctx context.Context, metric string) ([]Info, error) {
 	// TODO(gmagnusson): Needs to return []Info or map[string]Info
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
 	resp, err := b.Call(ctx, u, body)
 	if err != nil {
-		return Info{}, err
+		return nil, err
 	}
 
-	info, err := carbonapiV2InfoDecoder(resp.Body)
+	infos, err := carbonapiV2InfoDecoder(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	return info, err
+	return infos, nil
 }
 
 func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
@@ -120,27 +127,32 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 	return u, nil
 }
 
-func carbonapiV2InfoDecoder(blob []byte) (Info, error) {
-	s := &carbonapi_v2_pb.ServerInfoResponse{}
+func carbonapiV2InfoDecoder(blob []byte) ([]Info, error) {
+	s := &carbonapi_v2_pb.Infos{}
 	if err := s.Unmarshal(blob); err != nil {
-		return Info{}, err
+		return nil, err
 	}
 
-	info := Info{
-		Name:              s.Info.Name,
-		AggregationMethod: s.Info.AggregationMethod,
-		MaxRetention:      s.Info.MaxRetention,
-		XFilesFactor:      s.Info.XFilesFactor,
-		Retentions:        make([]Retention, len(s.Info.Retentions)),
-	}
-	for i, inf := range s.Info.Retentions {
-		info.Retentions[i] = Retention{
-			SecondsPerPoint: inf.SecondsPerPoint,
-			NumberOfPoints:  inf.NumberOfPoints,
+	infos := make([]Info, len(s.Infos))
+	for i, sInfo := range s.Infos {
+		info := Info{
+			Name:              sInfo.Name,
+			AggregationMethod: sInfo.AggregationMethod,
+			MaxRetention:      sInfo.MaxRetention,
+			XFilesFactor:      sInfo.XFilesFactor,
+			Retentions:        make([]Retention, len(sInfo.Retentions)),
 		}
+		for j, inf := range sInfo.Retentions {
+			info.Retentions[j] = Retention{
+				SecondsPerPoint: inf.SecondsPerPoint,
+				NumberOfPoints:  inf.NumberOfPoints,
+			}
+		}
+
+		infos[i] = info
 	}
 
-	return info, nil
+	return infos, nil
 }
 
 // Match describes a glob match from a Graphite store.
@@ -173,7 +185,7 @@ func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
 }
 
 func carbonapiV2FindDecoder(blob []byte) ([]Match, error) {
-	f := &carbonapi_v2_pb.GlobResponse{}
+	f := &carbonapi_v2_pb.Matches{}
 
 	if err := f.Unmarshal(blob); err != nil {
 		return nil, err
