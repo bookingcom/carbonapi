@@ -3,14 +3,136 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/url"
 	"testing"
 
+	"github.com/go-graphite/carbonapi/pkg/backend/mock"
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
 
 	"go.uber.org/zap"
 )
+
+func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	backends := []Backend{
+		mock.New(func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+			infos := carbonapi_v2.Infos{
+				Hosts: []string{"host_A"},
+				Infos: []*carbonapi_v2.Info{
+					&carbonapi_v2.Info{
+						Name:              "metric",
+						AggregationMethod: "sum",
+					},
+				},
+			}
+
+			return infos.Marshal()
+		}, mURL),
+		mock.New(func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+			infos := carbonapi_v2.Infos{
+				Hosts: []string{"host_B"},
+				Infos: []*carbonapi_v2.Info{
+					&carbonapi_v2.Info{
+						Name:              "metric",
+						AggregationMethod: "average",
+					},
+				},
+			}
+
+			return infos.Marshal()
+		}, mURL),
+	}
+
+	got, err := Infos(context.Background(), backends, "metric")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != len(backends) {
+		t.Errorf("Expected %d responses, got %d", len(backends), len(got))
+		return
+	}
+
+	if got[0].AggregationMethod == got[1].AggregationMethod {
+		t.Error("Expected different aggregation methods")
+	}
+}
+
+func TestCarbonapiv2Infos(t *testing.T) {
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	var mCall func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error)
+
+	N := 10
+	backends := make([]Backend, 0)
+	for i := 0; i < 10; i++ {
+		j := i
+		mCall = func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+			infos := carbonapi_v2.Infos{
+				Hosts: []string{fmt.Sprintf("host_%d", j)},
+				Infos: []*carbonapi_v2.Info{
+					&carbonapi_v2.Info{
+						Name: fmt.Sprintf("foo/%d", j),
+					},
+				},
+			}
+
+			return infos.Marshal()
+		}
+		b := mock.New(mCall, mURL)
+		backends = append(backends, b)
+	}
+
+	got, err := Infos(context.Background(), backends, "foo")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != N {
+		t.Errorf("Expected %d responses, got %d", N, len(got))
+		return
+	}
+}
+
+func TestCarbonapiv2Finds(t *testing.T) {
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	var mCall func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error)
+
+	N := 10
+	backends := make([]Backend, 0)
+	for i := 0; i < 10; i++ {
+		j := i
+		mCall = func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+			matches := carbonapi_v2.Matches{
+				Matches: []carbonapi_v2.Match{
+					carbonapi_v2.Match{
+						Path:   fmt.Sprintf("foo/%d", j),
+						IsLeaf: true,
+					},
+				},
+			}
+
+			return matches.Marshal()
+		}
+		b := mock.New(mCall, mURL)
+		backends = append(backends, b)
+	}
+
+	got, err := Finds(context.Background(), backends, "foo")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(got) != N {
+		t.Errorf("Expected %d responses, got %d", N, len(got))
+		return
+	}
+}
 
 func TestCarbonapiv2FindDecoder(t *testing.T) {
 	input := carbonapi_v2.Matches{
