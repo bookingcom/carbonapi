@@ -42,5 +42,5 @@ message Retention {
 
 message Infos {
     repeated string hosts = 1;
-    repeated Info infos = 2;
+    repeated Info infos = 2 [(gogoproto.nullable) = false];
 }

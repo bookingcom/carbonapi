@@ -105,8 +105,8 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		mock.New(func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
 			infos := carbonapi_v2.Infos{
 				Hosts: []string{"host_A"},
-				Infos: []*carbonapi_v2.Info{
-					&carbonapi_v2.Info{
+				Infos: []carbonapi_v2.Info{
+					carbonapi_v2.Info{
 						Name:              "metric",
 						AggregationMethod: "sum",
 					},
@@ -118,8 +118,8 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		mock.New(func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
 			infos := carbonapi_v2.Infos{
 				Hosts: []string{"host_B"},
-				Infos: []*carbonapi_v2.Info{
-					&carbonapi_v2.Info{
+				Infos: []carbonapi_v2.Info{
+					carbonapi_v2.Info{
 						Name:              "metric",
 						AggregationMethod: "average",
 					},
@@ -171,8 +171,8 @@ func TestCarbonapiv2Infos(t *testing.T) {
 		mCall = func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
 			infos := carbonapi_v2.Infos{
 				Hosts: []string{fmt.Sprintf("host_%d", j)},
-				Infos: []*carbonapi_v2.Info{
-					&carbonapi_v2.Info{
+				Infos: []carbonapi_v2.Info{
+					carbonapi_v2.Info{
 						Name: fmt.Sprintf("foo/%d", j),
 					},
 				},
@@ -281,8 +281,8 @@ func TestCarbonapiv2FindDecoder(t *testing.T) {
 func TestCarbonapiv2InfoDecoder(t *testing.T) {
 	input := carbonapi_v2.Infos{
 		Hosts: []string{"foo"},
-		Infos: []*carbonapi_v2.Info{
-			&carbonapi_v2.Info{
+		Infos: []carbonapi_v2.Info{
+			carbonapi_v2.Info{
 				Name: "A",
 				Retentions: []carbonapi_v2.Retention{
 					carbonapi_v2.Retention{
