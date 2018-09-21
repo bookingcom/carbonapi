@@ -1,3 +1,5 @@
+// Package net implements a backend that communicates over a network.
+// It uses HTTP and protocol buffers for communication.
 package net
 
 import (
@@ -7,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
@@ -24,6 +28,9 @@ type Backend struct {
 	timeout time.Duration
 	limiter chan struct{}
 	logger  *zap.Logger
+
+	tlds  map[string]struct{}
+	mutex *sync.Mutex
 }
 
 // Config configures an HTTP backend.
@@ -47,6 +54,7 @@ var fmtProto = []string{"protobuf"}
 func New(cfg Config) Backend {
 	b := Backend{
 		address: cfg.Address,
+		mutex:   new(sync.Mutex),
 	}
 
 	if cfg.Timeout > 0 {
@@ -189,7 +197,40 @@ func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, 
 	return b.do(ctx, req)
 }
 
-func (b Backend) Probe() {}
+// Probe performs a single update of the backend's top-level domains.
+func (b *Backend) Probe() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	matches, err := b.Find(ctx, "*")
+	if err != nil {
+		return
+	}
+
+	tlds := make(map[string]struct{})
+	for _, match := range matches {
+		tlds[match.Path] = struct{}{}
+	}
+
+	b.mutex.Lock()
+	b.tlds = tlds
+	b.mutex.Unlock()
+}
+
+// Contains reports whether the backend contains any of the given targets.
+func (b Backend) Contains(targets []string) bool {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	for _, target := range targets {
+		parts := strings.SplitN(target, ".", 2)
+		if _, ok := b.tlds[parts[0]]; ok {
+			return true
+		}
+	}
+
+	return false
+}
 
 // Render fetches raw metrics from a backend.
 func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {

@@ -76,3 +76,8 @@ func New(cfg Config) Backend {
 
 	return b
 }
+
+// A mock backend contains all targets.
+func (b Backend) Contains([]string) bool {
+	return true
+}

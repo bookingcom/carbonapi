@@ -15,6 +15,29 @@ import (
 	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
 )
 
+func TestContains(t *testing.T) {
+	b := New(Config{})
+	b.tlds = map[string]struct{}{
+		"foo": struct{}{},
+	}
+
+	if ok := b.Contains([]string{"foo"}); !ok {
+		t.Error("Expected true")
+	}
+
+	if ok := b.Contains([]string{"foo.bar"}); !ok {
+		t.Error("Expected true")
+	}
+
+	if ok := b.Contains([]string{"bar"}); ok {
+		t.Error("Expected false")
+	}
+
+	if ok := b.Contains([]string{"bar", "foo"}); !ok {
+		t.Error("Expected true")
+	}
+}
+
 func TestCall(t *testing.T) {
 	exp := []byte("OK")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -26,13 +26,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// Backend codifies the RPC calls a Graphite backend responds to.
 type Backend interface {
 	Find(context.Context, string) ([]types.Match, error)
 	Info(context.Context, string) ([]types.Info, error)
 	Render(context.Context, int32, int32, []string) ([]types.Metric, error)
 
-	Logger() *zap.Logger
-	Probe()
+	Contains([]string) bool // Reports whether a backend contains any of the given targets.
+	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
+	Probe()                 // Probe updates internal state of the backend.
 }
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
