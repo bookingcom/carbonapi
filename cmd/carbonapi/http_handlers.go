@@ -998,6 +998,9 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 				if err1 != nil {
 					logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
 					err = writeBlockRuleToFile(output)
+					if err != nil {
+						logger.Error("couldn't write rule to file")
+					}
 				}
 			}
 		} else {
