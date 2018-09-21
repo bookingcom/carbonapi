@@ -988,7 +988,7 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		logger.Error("couldn't create a rule from params")
 	} else {
 		fileData, err := loadBlockRuleConfig()
-		if err != nil {
+		if err == nil {
 			err = yaml.Unmarshal(fileData, &ruleConfig)
 			if err != nil {
 				logger.Error("couldn't unmarshal file data")
