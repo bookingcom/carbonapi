@@ -972,7 +972,6 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		}
 		m[k] = v[0]
 	}
-	var ruleConfig RuleConfig
 	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
@@ -982,38 +981,37 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err, err1 error
-	var output []byte
+	var ruleConfig RuleConfig
+	var err1 error
 	if len(m) == 0 {
 		logger.Error("couldn't create a rule from params")
 	} else {
 		fileData, err := loadBlockRuleConfig()
 		if err == nil {
-			err = yaml.Unmarshal(fileData, &ruleConfig)
-			if err != nil {
-				logger.Error("couldn't unmarshal file data")
-			} else {
-				ruleConfig.Rules = append(ruleConfig.Rules, m)
-				output, err1 = yaml.Marshal(ruleConfig)
-				if err1 != nil {
-					logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
-					err = writeBlockRuleToFile(output)
-					if err != nil {
-						logger.Error("couldn't write rule to file")
-					}
-				}
-			}
-		} else {
-			logger.Error("couldn't load block config file")
+			yaml.Unmarshal(fileData, &ruleConfig)
 		}
+		err1 = appendRuleToConfig(ruleConfig, m, logger)
 	}
 
-	if len(m) == 0 || err != nil || err1 != nil {
+	if len(m) == 0 || err1 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(failResponse)
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
+}
+
+func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger) error {
+	ruleConfig.Rules = append(ruleConfig.Rules, m)
+	output, err := yaml.Marshal(ruleConfig)
+	if err == nil {
+		logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
+		err = writeBlockRuleToFile(output)
+		if err != nil {
+			logger.Error("couldn't write rule to file")
+		}
+	}
+	return err
 }
 
 func writeBlockRuleToFile(output []byte) error {
