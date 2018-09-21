@@ -6,8 +6,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
+	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
 	"github.com/go-graphite/carbonapi/util"
 
 	"github.com/pkg/errors"
@@ -37,6 +40,8 @@ type Config struct {
 	Limit   int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	Logger  *zap.Logger   // Logger to use. Defaults to a no-op logger.
 }
+
+var fmtProto = []string{"protobuf"}
 
 // New creates a new backend from the given configuration.
 func New(cfg Config) Backend {
@@ -185,3 +190,163 @@ func (b Backend) Call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, 
 }
 
 func (b Backend) Probe() {}
+
+// Render fetches raw metrics from a backend.
+func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {
+	u := b.URL("/render")
+	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
+
+	resp, err := b.Call(ctx, u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := carbonapiV2RenderDecoder(resp)
+
+	return ts, err
+}
+
+func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
+	vals := url.Values{
+		"target": targets,
+		"format": fmtProto,
+		"from":   []string{strconv.Itoa(int(from))},
+		"until":  []string{strconv.Itoa(int(until))},
+	}
+	u.RawQuery = vals.Encode()
+
+	return u, nil
+}
+
+func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
+	resp := &carbonapi_v2.Metrics{}
+	if err := resp.Unmarshal(blob); err != nil {
+		return nil, err
+	}
+
+	metrics := make([]types.Metric, len(resp.Metrics))
+	for i, m := range resp.Metrics {
+		metric := types.Metric{
+			Name:      m.Name,
+			StartTime: m.StartTime,
+			StopTime:  m.StopTime,
+			StepTime:  m.StepTime,
+			Values:    m.Values,
+			IsAbsent:  m.IsAbsent,
+		}
+
+		/*
+			TODO(gmagnusson):
+			for j, absent := range metric.IsAbsent {
+				if absent {
+					t.Values[i] = math.NaN
+				}
+			}
+			and then remove Metric.IsAbsent
+		*/
+
+		metrics[i] = metric
+	}
+
+	return metrics, nil
+}
+
+// Info fetches metadata about a metric from a backend.
+func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
+	u := b.URL("/info")
+	u, body := carbonapiV2InfoEncoder(u, metric)
+
+	resp, err := b.Call(ctx, u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	infos, err := carbonapiV2InfoDecoder(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return infos, nil
+}
+
+func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
+	vals := url.Values{
+		"target": []string{metric},
+		"format": fmtProto,
+	}
+	u.RawQuery = vals.Encode()
+
+	return u, nil
+}
+
+func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
+	s := &carbonapi_v2.Infos{}
+	if err := s.Unmarshal(blob); err != nil {
+		return nil, err
+	}
+
+	infos := make([]types.Info, len(s.Infos))
+	for i, sInfo := range s.Infos {
+		info := types.Info{
+			Host:              s.Hosts[i],
+			Name:              sInfo.Name,
+			AggregationMethod: sInfo.AggregationMethod,
+			MaxRetention:      sInfo.MaxRetention,
+			XFilesFactor:      sInfo.XFilesFactor,
+			Retentions:        make([]types.Retention, len(sInfo.Retentions)),
+		}
+		for j, inf := range sInfo.Retentions {
+			info.Retentions[j] = types.Retention{
+				SecondsPerPoint: inf.SecondsPerPoint,
+				NumberOfPoints:  inf.NumberOfPoints,
+			}
+		}
+
+		infos[i] = info
+	}
+
+	return infos, nil
+}
+
+// Find resolves globs and finds metrics in a backend.
+func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
+	u := b.URL("/metrics/find")
+	u, body := carbonapiV2FindEncoder(u, query)
+
+	resp, err := b.Call(ctx, u, body)
+	if err != nil {
+		return nil, err
+	}
+
+	find, err := carbonapiV2FindDecoder(resp)
+
+	return find, err
+}
+
+func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
+	vals := url.Values{
+		"query":  []string{query},
+		"format": fmtProto,
+	}
+	u.RawQuery = vals.Encode()
+
+	return u, nil
+}
+
+func carbonapiV2FindDecoder(blob []byte) ([]types.Match, error) {
+	f := &carbonapi_v2.Matches{}
+
+	if err := f.Unmarshal(blob); err != nil {
+		return nil, err
+	}
+
+	matches := make([]types.Match, len(f.Matches))
+	for i, match := range f.Matches {
+		matches[i] = types.Match{
+			Path:   match.Path,
+			IsLeaf: match.IsLeaf,
+		}
+	}
+
+	return matches, nil
+}

@@ -17,19 +17,21 @@ package backend
 
 import (
 	"context"
-	"io"
-	"net/url"
 	"strings"
+
+	"github.com/go-graphite/carbonapi/pkg/types"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
 type Backend interface {
-	Call(context.Context, *url.URL, io.Reader) ([]byte, error)
+	Find(context.Context, string) ([]types.Match, error)
+	Info(context.Context, string) ([]types.Info, error)
+	Render(context.Context, int32, int32, []string) ([]types.Metric, error)
+
 	Logger() *zap.Logger
 	Probe()
-	URL(string) *url.URL
 }
 
 func combineErrors(errs []error) error {
