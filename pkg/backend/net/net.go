@@ -183,3 +183,5 @@ func (b Backend) Call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, 
 
 	return b.do(ctx, req)
 }
+
+func (b Backend) Probe() {}

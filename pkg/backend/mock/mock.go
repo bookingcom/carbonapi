@@ -27,6 +27,8 @@ func (b Backend) Logger() *zap.Logger {
 	return noLog
 }
 
+func (b Backend) Probe() {}
+
 func New(call func(context.Context, *url.URL, io.Reader) ([]byte, error), url func(string) *url.URL) Backend {
 	return Backend{
 		call: call,
