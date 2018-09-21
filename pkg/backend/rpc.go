@@ -154,6 +154,18 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 	return types.MergeMatches(msgs), nil
 }
 
+// Filter filters the given backends by whether they Contain() the given targets.
+func Filter(backends []Backend, targets []string) []Backend {
+	bs := make([]Backend, 0)
+	for _, b := range backends {
+		if b.Contains(targets) {
+			bs = append(bs, b)
+		}
+	}
+
+	return bs
+}
+
 func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
 	if len(errs) == 0 {
 		return nil

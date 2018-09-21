@@ -12,6 +12,22 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestFilter(t *testing.T) {
+	backends := []Backend{
+		mock.New(mock.Config{
+			Contains: func([]string) bool { return true },
+		}),
+		mock.New(mock.Config{
+			Contains: func([]string) bool { return false },
+		}),
+	}
+
+	got := Filter(backends, nil)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 backend, got %d", len(got))
+	}
+}
+
 func TestCarbonapiv2InfosEmpty(t *testing.T) {
 	got, err := Infos(context.Background(), []Backend{}, "foo")
 	if err != nil {

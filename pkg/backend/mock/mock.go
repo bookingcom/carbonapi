@@ -11,25 +11,29 @@ import (
 
 // Backend is a mock backend.
 type Backend struct {
-	find   func(context.Context, string) ([]types.Match, error)
-	info   func(context.Context, string) ([]types.Info, error)
-	render func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	find     func(context.Context, string) ([]types.Match, error)
+	info     func(context.Context, string) ([]types.Info, error)
+	render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	contains func([]string) bool
 }
 
 // Config configures a mock Backend. Define ad-hoc functions to return
 // expected values depending on input. If a function is not defined,
 // default to one that returns an empty response and nil error.
+// A mock backend contains all targets by default.
 type Config struct {
-	Find   func(context.Context, string) ([]types.Match, error)
-	Info   func(context.Context, string) ([]types.Info, error)
-	Render func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	Find     func(context.Context, string) ([]types.Match, error)
+	Info     func(context.Context, string) ([]types.Info, error)
+	Render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	Contains func([]string) bool
 }
 
 var (
-	noLog    *zap.Logger                                                           = zap.New(nil)
-	noFind   func(context.Context, string) ([]types.Match, error)                  = func(context.Context, string) ([]types.Match, error) { return nil, nil }
-	noInfo   func(context.Context, string) ([]types.Info, error)                   = func(context.Context, string) ([]types.Info, error) { return nil, nil }
-	noRender func(context.Context, int32, int32, []string) ([]types.Metric, error) = func(context.Context, int32, int32, []string) ([]types.Metric, error) { return nil, nil }
+	noLog      *zap.Logger                                                           = zap.New(nil)
+	noFind     func(context.Context, string) ([]types.Match, error)                  = func(context.Context, string) ([]types.Match, error) { return nil, nil }
+	noInfo     func(context.Context, string) ([]types.Info, error)                   = func(context.Context, string) ([]types.Info, error) { return nil, nil }
+	noRender   func(context.Context, int32, int32, []string) ([]types.Metric, error) = func(context.Context, int32, int32, []string) ([]types.Metric, error) { return nil, nil }
+	noContains func([]string) bool                                                   = func([]string) bool { return true }
 )
 
 func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
@@ -74,10 +78,15 @@ func New(cfg Config) Backend {
 		b.render = noRender
 	}
 
+	if cfg.Contains != nil {
+		b.contains = cfg.Contains
+	} else {
+		b.contains = noContains
+	}
+
 	return b
 }
 
-// A mock backend contains all targets.
-func (b Backend) Contains([]string) bool {
-	return true
+func (b Backend) Contains(targets []string) bool {
+	return b.contains(targets)
 }
