@@ -62,6 +62,20 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 	}
 }
 
+func TestCarbonapiv2InfosError(t *testing.T) {
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	mCall := func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+		return nil, errors.New("No")
+	}
+
+	backends := []Backend{mock.New(mCall, mURL)}
+
+	_, err := Infos(context.Background(), backends, "foo")
+	if err == nil {
+		t.Error("Expected error")
+	}
+}
+
 func TestCarbonapiv2Infos(t *testing.T) {
 	mURL := func(path string) *url.URL { return new(url.URL) }
 	var mCall func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error)
@@ -95,6 +109,20 @@ func TestCarbonapiv2Infos(t *testing.T) {
 	if len(got) != N {
 		t.Errorf("Expected %d responses, got %d", N, len(got))
 		return
+	}
+}
+
+func TestCarbonapiv2FindsError(t *testing.T) {
+	mURL := func(path string) *url.URL { return new(url.URL) }
+	mCall := func(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+		return nil, errors.New("No")
+	}
+
+	backends := []Backend{mock.New(mCall, mURL)}
+
+	_, err := Finds(context.Background(), backends, "foo")
+	if err == nil {
+		t.Error("Expected error")
 	}
 }
 
