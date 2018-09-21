@@ -10,6 +10,32 @@ import (
 	"sort"
 )
 
+/* NOTE(gmagnusson):
+If it turns out that converting generated protobuf structs to and from this
+type is too expensive, it could change to be an interface
+
+	type Metric interface {
+		Values() []float64
+		// etc
+	}
+
+with an implementation
+
+	type metric struct {
+		v2 *carbonapi_v2.Metric
+		// other types
+	}
+
+	func (m metric) Values() []float64 {
+		if m.v2 != nil {
+			return m.v2.Values
+		}
+		// etc
+	}
+
+The interface would probably need to have a Merge(other) method as well.
+*/
+
 // Metric represents a part of a time series.
 type Metric struct {
 	Name      string
