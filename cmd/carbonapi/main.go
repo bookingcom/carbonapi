@@ -31,6 +31,8 @@ import (
 	realZipper "github.com/go-graphite/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
+	"io/ioutil"
+
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
 	"github.com/gorilla/handlers"
@@ -38,6 +40,7 @@ import (
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 var prometheusMetrics = struct {
@@ -263,8 +266,9 @@ func findTreejson(globs pb.GlobResponse) ([]byte, error) {
 var config = struct {
 	cfg.API
 
-	queryCache cache.BytesCache
-	findCache  cache.BytesCache
+	queryCache       cache.BytesCache
+	findCache        cache.BytesCache
+	blockHeaderRules RuleConfig
 
 	defaultTimeZone *time.Location
 
@@ -700,6 +704,9 @@ func main() {
 		}
 	}()
 
+	ticker := time.NewTicker(time.Duration(config.LoadBlockRuleHeaderConfig) * time.Second)
+	go loadBlockRuleHeaderConfig(ticker, logger)
+
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
@@ -712,4 +719,29 @@ func main() {
 			zap.Error(err),
 		)
 	}
+}
+
+func loadBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger) {
+	var ruleConfig RuleConfig
+	for range ticker.C {
+		fileData, err := loadBlockRuleConfig()
+
+		if err == nil {
+			err = yaml.Unmarshal(fileData, &ruleConfig)
+			if err != nil {
+				logger.Error("couldn't unmarshal block rule file data")
+			} else {
+				config.blockHeaderRules = ruleConfig
+			}
+		} else {
+			config.blockHeaderRules = RuleConfig{}
+		}
+	}
+}
+
+func loadBlockRuleConfig() ([]byte, error) {
+	fileLock.Lock()
+	defer fileLock.Unlock()
+	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
+	return fileData, err
 }
