@@ -2,9 +2,9 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
@@ -13,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+var fmtProto = []string{"protobuf"}
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
 // Doing math on NaN is expensive, but assuming that all functions will treat a
@@ -73,11 +75,11 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
-	vals := url.Values{}
-	vals.Set("from", fmt.Sprintf("%d", from))
-	vals.Set("until", fmt.Sprintf("%d", until))
-	for _, target := range targets {
-		vals.Add("target", target)
+	vals := url.Values{
+		"target": targets,
+		"format": fmtProto,
+		"from":   []string{strconv.Itoa(int(from))},
+		"until":  []string{strconv.Itoa(int(until))},
 	}
 	u.RawQuery = vals.Encode()
 
@@ -173,8 +175,10 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 }
 
 func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
-	vals := url.Values{}
-	vals.Set("target", metric)
+	vals := url.Values{
+		"target": []string{metric},
+		"format": fmtProto,
+	}
 	u.RawQuery = vals.Encode()
 
 	return u, nil
@@ -262,8 +266,10 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 }
 
 func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
-	vals := url.Values{}
-	vals.Set("query", query)
+	vals := url.Values{
+		"query":  []string{query},
+		"format": fmtProto,
+	}
 	u.RawQuery = vals.Encode()
 
 	return u, nil
