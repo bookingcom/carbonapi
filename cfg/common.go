@@ -41,6 +41,7 @@ type Common struct {
 	CarbonSearch               CarbonSearch `yaml:"carbonsearch"`
 	ExpireDelaySec             int32        `yaml:"expireDelaySec"`
 	GraphiteWeb09Compatibility bool         `yaml:"graphite09compat"`
+	CorruptionThreshold        float64      `yaml:"corruptionThreshold"`
 
 	Buckets  int                `yaml:"buckets"`
 	Graphite GraphiteConfig     `yaml:"graphite"`

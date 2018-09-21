@@ -18,7 +18,6 @@ import (
 	"github.com/go-graphite/carbonapi/pathcache"
 	"github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
-
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -47,6 +46,7 @@ type Zipper struct {
 	backends                  []string
 	concurrencyLimitPerServer int
 	maxIdleConnsPerHost       int
+	corruptionThreshold       float64
 
 	sendStats func(*Stats)
 
@@ -107,6 +107,7 @@ func NewZipper(sender func(*Stats), config cfg.Zipper, logger *zap.Logger) *Zipp
 		timeoutAfterAllStarted:    config.Timeouts.AfterStarted,
 		timeout:                   config.Timeouts.Global,
 		timeoutConnect:            config.Timeouts.Connect,
+		corruptionThreshold:       config.CorruptionThreshold,
 
 		logger: logger,
 	}
@@ -233,13 +234,12 @@ func (z *Zipper) mergeMetrics(name string, decoded []pb3.FetchResponse, stats *S
 	// Use the metric with the highest resolution as our base
 	sort.Sort(byStepTime(decoded))
 	metric := decoded[0]
-
-	z.mergeValues(&metric, decoded[1:], stats)
+	z.mergeValues(&metric, decoded[1:], stats, logger)
 
 	return metric
 }
 
-func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchResponse, stats *Stats) {
+func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchResponse, stats *Stats, logger *zap.Logger) {
 	healed := 0
 	for i := range metric.Values {
 		if !metric.IsAbsent[i] {
@@ -265,6 +265,10 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchRespon
 	}
 
 	c := float64(healed) / float64(len(metric.Values))
+
+	if c > z.corruptionThreshold {
+		logger.With(zap.Float64("corruption", c)).Error("metric corruption spotted", zap.String("metric_name", metric.Name))
+	}
 	stats.Corruption += c
 }
 
