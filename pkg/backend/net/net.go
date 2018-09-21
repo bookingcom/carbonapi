@@ -74,7 +74,7 @@ func New(cfg Config) Backend {
 	return b
 }
 
-func (b Backend) URL(path string) *url.URL {
+func (b Backend) url(path string) *url.URL {
 	return &url.URL{
 		Scheme: "http",
 		Host:   b.address,
@@ -177,7 +177,7 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) Call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
@@ -193,10 +193,10 @@ func (b Backend) Probe() {}
 
 // Render fetches raw metrics from a backend.
 func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {
-	u := b.URL("/render")
+	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
-	resp, err := b.Call(ctx, u, body)
+	resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +253,10 @@ func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
 
 // Info fetches metadata about a metric from a backend.
 func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
-	u := b.URL("/info")
+	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
-	resp, err := b.Call(ctx, u, body)
+	resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return nil, err
 	}
@@ -310,10 +310,10 @@ func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
 
 // Find resolves globs and finds metrics in a backend.
 func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
-	u := b.URL("/metrics/find")
+	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
-	resp, err := b.Call(ctx, u, body)
+	resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return nil, err
 	}

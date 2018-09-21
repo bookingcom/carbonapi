@@ -28,7 +28,7 @@ func TestCall(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	got, err := b.Call(context.Background(), b.URL("/render"), nil)
+	got, err := b.call(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -49,7 +49,7 @@ func TestCallServerError(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	_, err := b.Call(context.Background(), b.URL("/render"), nil)
+	_, err := b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -65,7 +65,7 @@ func TestCallTimeout(t *testing.T) {
 		Timeout: time.Nanosecond,
 	})
 
-	_, err := b.Call(context.Background(), b.URL("/render"), nil)
+	_, err := b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -84,7 +84,7 @@ func TestDoLimiterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	req, err := b.request(ctx, b.URL("/render"), nil)
+	req, err := b.request(ctx, b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,7 +108,7 @@ func TestDo(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	req, err := b.request(context.Background(), b.URL("/render"), nil)
+	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -139,7 +139,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 
-	req, err := b.request(ctx, b.URL("/render"), nil)
+	req, err := b.request(ctx, b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -161,7 +161,7 @@ func TestDoHTTPError(t *testing.T) {
 		Client:  server.Client(),
 	})
 
-	req, err := b.request(context.Background(), b.URL("/render"), nil)
+	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -175,7 +175,7 @@ func TestDoHTTPError(t *testing.T) {
 func TestRequest(t *testing.T) {
 	b := New(Config{Address: "localhost"})
 
-	_, err := b.request(context.Background(), b.URL("/render"), nil)
+	_, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -264,7 +264,7 @@ func TestURL(t *testing.T) {
 
 	for i, s := range setups {
 		t.Run(fmt.Sprintf("%d: %s", i, s.endpoint), func(t *testing.T) {
-			got := b.URL(s.endpoint)
+			got := b.url(s.endpoint)
 
 			if got.Scheme != s.expected.Scheme ||
 				got.Host != s.expected.Host ||
