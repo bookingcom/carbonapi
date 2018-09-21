@@ -1,4 +1,15 @@
-// Package mock defines a mock backend for testing.
+/*
+Package mock defines a mock backend for testing.
+
+Example use:
+
+	b := New(Config{
+		Info: func(context.Context, string) ([]types.Info, error) {
+			return nil, errors.New("Oh no")
+		}
+	})
+	got, err := b.Info(ctx, "foo")
+*/
 package mock
 
 import (
