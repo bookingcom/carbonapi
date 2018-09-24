@@ -67,8 +67,6 @@ type Stats struct {
 
 	CacheMisses int64
 	CacheHits   int64
-
-	Corruption float64
 }
 
 type nameLeaf struct {
@@ -250,11 +248,9 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchRespon
 	}
 
 	c := float64(healed) / float64(len(metric.Values))
-
 	if c > z.corruptionThreshold {
 		logger.With(zap.Float64("corruption", c)).Error("metric corruption spotted", zap.String("metric_name", metric.Name))
 	}
-	stats.Corruption += c
 }
 
 func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoResponse {
