@@ -22,9 +22,6 @@ timeouts:
 concurrencyLimit: 1024
 keepAliveInterval: "30s"
 maxIdleConnsPerHost: 512
-carbonsearch:
-    backend: "http://127.0.0.1:8070"
-    prefix: "virt.v1.*."
 expireDelaySec: 0
 
 buckets: 10
@@ -78,10 +75,6 @@ logger:
 				KeepAliveInterval:         30 * time.Second,
 				MaxIdleConnsPerHost:       512,
 
-				CarbonSearch: CarbonSearch{
-					Backend: "http://127.0.0.1:8070",
-					Prefix:  "virt.v1.*.",
-				},
 				ExpireDelaySec:             0,
 				GraphiteWeb09Compatibility: false,
 
@@ -155,9 +148,6 @@ upstreams:
     maxIdleConnsPerHost: 1024
     backends:
         - "http://localhost:8000"
-    carbonsearch:
-        backend: "http://127.0.0.1:8070"
-        prefix: "virt.v1.*."
 expireDelaySec: 0
 logger:
     - logger: ""
@@ -190,10 +180,6 @@ logger:
 				KeepAliveInterval:         30 * time.Second,
 				MaxIdleConnsPerHost:       1024,
 
-				CarbonSearch: CarbonSearch{
-					Backend: "http://127.0.0.1:8070",
-					Prefix:  "virt.v1.*.",
-				},
 				ExpireDelaySec:             0,
 				GraphiteWeb09Compatibility: false,
 

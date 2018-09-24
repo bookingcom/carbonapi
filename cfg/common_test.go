@@ -14,9 +14,6 @@ listen: ":8000"
 maxProcs: 32
 concurrencyLimit: 2048
 maxIdleConnsPerHost: 1024
-carbonsearch:
-    backend: "http://127.0.0.1:8070"
-    prefix: "virt.v1.*."
 timeouts:
     global: "20s"
     afterStarted: "15s"
@@ -55,11 +52,7 @@ logger:
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       1024,
 
-		ExpireDelaySec: 600,
-		CarbonSearch: CarbonSearch{
-			Backend: "http://127.0.0.1:8070",
-			Prefix:  "virt.v1.*.",
-		},
+		ExpireDelaySec:             600,
 		GraphiteWeb09Compatibility: true,
 
 		Buckets: 10,
@@ -83,7 +76,6 @@ type comparableCommon struct {
 	ConcurrencyLimitPerServer  int
 	KeepAliveInterval          time.Duration
 	MaxIdleConnsPerHost        int
-	CarbonSearch               CarbonSearch
 	ExpireDelaySec             int32
 	GraphiteWeb09Compatibility bool
 	Buckets                    int
@@ -98,7 +90,6 @@ func toComparableCommon(a Common) comparableCommon {
 		ConcurrencyLimitPerServer:  a.ConcurrencyLimitPerServer,
 		KeepAliveInterval:          a.KeepAliveInterval,
 		MaxIdleConnsPerHost:        a.MaxIdleConnsPerHost,
-		CarbonSearch:               a.CarbonSearch,
 		ExpireDelaySec:             a.ExpireDelaySec,
 		GraphiteWeb09Compatibility: a.GraphiteWeb09Compatibility,
 		Buckets:                    a.Buckets,

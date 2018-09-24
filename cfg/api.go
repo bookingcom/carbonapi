@@ -44,10 +44,6 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 		api.Timeouts = pre.Upstreams.Timeouts
 	}
 
-	if pre.Upstreams.CarbonSearch != DefaultConfig.CarbonSearch {
-		api.CarbonSearch = pre.Upstreams.CarbonSearch
-	}
-
 	if len(pre.Upstreams.Backends) >= 1 {
 		api.Backends = pre.Upstreams.Backends
 	}

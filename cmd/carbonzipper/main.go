@@ -94,8 +94,6 @@ var Metrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
 
-	SearchRequests *expvar.Int
-
 	RenderRequests *expvar.Int
 	RenderErrors   *expvar.Int
 
@@ -104,14 +102,10 @@ var Metrics = struct {
 
 	Timeouts *expvar.Int
 
-	CacheSize         expvar.Func
-	CacheItems        expvar.Func
-	CacheMisses       *expvar.Int
-	CacheHits         *expvar.Int
-	SearchCacheSize   expvar.Func
-	SearchCacheItems  expvar.Func
-	SearchCacheMisses *expvar.Int
-	SearchCacheHits   *expvar.Int
+	CacheSize   expvar.Func
+	CacheItems  expvar.Func
+	CacheMisses *expvar.Int
+	CacheHits   *expvar.Int
 
 	Corruption *expvar.Float
 }{
@@ -122,8 +116,6 @@ var Metrics = struct {
 	FindRequests: expvar.NewInt("find_requests"),
 	FindErrors:   expvar.NewInt("find_errors"),
 
-	SearchRequests: expvar.NewInt("search_requests"),
-
 	RenderRequests: expvar.NewInt("render_requests"),
 	RenderErrors:   expvar.NewInt("render_errors"),
 
@@ -132,19 +124,14 @@ var Metrics = struct {
 
 	Timeouts: expvar.NewInt("timeouts"),
 
-	CacheHits:         expvar.NewInt("cache_hits"),
-	CacheMisses:       expvar.NewInt("cache_misses"),
-	SearchCacheHits:   expvar.NewInt("search_cache_hits"),
-	SearchCacheMisses: expvar.NewInt("search_cache_misses"),
+	CacheHits:   expvar.NewInt("cache_hits"),
+	CacheMisses: expvar.NewInt("cache_misses"),
 
 	Corruption: expvar.NewFloat("corruption"),
 }
 
 // BuildVersion is defined at build and reported at startup and as expvar
 var BuildVersion = "(development version)"
-
-// set during startup, read-only after that
-var searchConfigured = false
 
 const (
 	contentTypeJSON     = "application/json"
@@ -661,12 +648,9 @@ func main() {
 		}
 	}()
 
-	searchConfigured = len(config.CarbonSearch.Prefix) > 0 && len(config.CarbonSearch.Backend) > 0
-
 	logger = zapwriter.Logger("main")
 	logger.Info("starting carbonzipper",
 		zap.String("build_version", BuildVersion),
-		zap.Bool("carbonsearch_configured", searchConfigured),
 		zap.Any("config", config),
 	)
 
@@ -702,12 +686,6 @@ func main() {
 
 	Metrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", Metrics.CacheItems)
-
-	Metrics.SearchCacheSize = expvar.Func(func() interface{} { return config.SearchCache.ECSize() })
-	expvar.Publish("searchCacheSize", Metrics.SearchCacheSize)
-
-	Metrics.SearchCacheItems = expvar.Func(func() interface{} { return config.SearchCache.ECItems() })
-	expvar.Publish("searchCacheItems", Metrics.SearchCacheItems)
 
 	config.zipper = zipper.NewZipper(sendStats, config.Zipper, zapwriter.Logger("zipper"))
 
@@ -785,14 +763,8 @@ func main() {
 		graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
 		graphite.Register(fmt.Sprintf("%s.cache_items", pattern), Metrics.CacheItems)
 
-		graphite.Register(fmt.Sprintf("%s.search_cache_size", pattern), Metrics.SearchCacheSize)
-		graphite.Register(fmt.Sprintf("%s.search_cache_items", pattern), Metrics.SearchCacheItems)
-
 		graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
 		graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
-
-		graphite.Register(fmt.Sprintf("%s.search_cache_hits", pattern), Metrics.SearchCacheHits)
-		graphite.Register(fmt.Sprintf("%s.search_cache_misses", pattern), Metrics.SearchCacheMisses)
 
 		go mstats.Start(config.Graphite.Interval)
 
@@ -927,9 +899,6 @@ func sendStats(stats *zipper.Stats) {
 	Metrics.FindErrors.Add(stats.FindErrors)
 	Metrics.RenderErrors.Add(stats.RenderErrors)
 	Metrics.InfoErrors.Add(stats.InfoErrors)
-	Metrics.SearchRequests.Add(stats.SearchRequests)
-	Metrics.SearchCacheHits.Add(stats.SearchCacheHits)
-	Metrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
 	Metrics.CacheMisses.Add(stats.CacheMisses)
 	Metrics.CacheHits.Add(stats.CacheHits)
 	Metrics.Corruption.Add(stats.Corruption)

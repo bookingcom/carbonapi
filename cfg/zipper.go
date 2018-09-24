@@ -7,9 +7,8 @@ import (
 )
 
 type Zipper struct {
-	Common      `yaml:",inline"`
-	PathCache   pathcache.PathCache
-	SearchCache pathcache.PathCache
+	Common    `yaml:",inline"`
+	PathCache pathcache.PathCache
 }
 
 func ParseZipperConfig(r io.Reader) (Zipper, error) {
@@ -24,9 +23,8 @@ func ParseZipperConfig(r io.Reader) (Zipper, error) {
 
 func fromCommon(c Common) Zipper {
 	return Zipper{
-		Common:      c,
-		PathCache:   pathcache.NewPathCache(c.ExpireDelaySec),
-		SearchCache: pathcache.NewPathCache(c.ExpireDelaySec),
+		Common:    c,
+		PathCache: pathcache.NewPathCache(c.ExpireDelaySec),
 	}
 }
 
