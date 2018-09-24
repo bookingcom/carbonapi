@@ -51,8 +51,8 @@ type Config struct {
 var fmtProto = []string{"protobuf"}
 
 // New creates a new backend from the given configuration.
-func New(cfg Config) Backend {
-	b := Backend{
+func New(cfg Config) *Backend {
+	b := &Backend{
 		address: cfg.Address,
 		mutex:   new(sync.Mutex),
 	}

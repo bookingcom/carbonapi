@@ -8,7 +8,19 @@ package types
 
 import (
 	"sort"
+
+	"go.uber.org/zap"
 )
+
+var (
+	corruptionThreshold = 1.0
+	corruptionLogger    = zap.New(nil)
+)
+
+func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
+	corruptionThreshold = threshold
+	corruptionLogger = logger
+}
 
 /* NOTE(gmagnusson):
 If it turns out that converting generated protobuf structs to and from this
@@ -82,6 +94,7 @@ func mergeMetrics(metrics []Metric) Metric {
 	}
 
 	sort.Sort(byStepTime(metrics))
+	healed := 0
 
 	// metrics[0] has the highest resolution of metrics
 	metric := metrics[0]
@@ -102,9 +115,18 @@ func mergeMetrics(metrics []Metric) Metric {
 			if !m.IsAbsent[i] {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
+				healed++
 				break
 			}
 		}
+	}
+
+	if c := float64(healed) / float64(len(metric.Values)); c > corruptionThreshold {
+		corruptionLogger.Warn("metric corruption",
+			zap.String("metric", metric.Name),
+			zap.Float64("corruption", c),
+			zap.Float64("threshold", corruptionThreshold),
+		)
 	}
 
 	return metric
