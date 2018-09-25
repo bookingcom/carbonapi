@@ -25,7 +25,7 @@ func newMockCarbonZipper() *mockCarbonZipper {
 }
 
 func (z mockCarbonZipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error) {
-	return getGlobResponse(), nil
+	return getMetricGlobResponse(metric), nil
 }
 
 func (z mockCarbonZipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResponse, error) {
@@ -41,15 +41,24 @@ func (z mockCarbonZipper) Render(ctx context.Context, metric string, from, until
 	return result, nil
 }
 
-func getGlobResponse() pb.GlobResponse {
-	globMtach := pb.GlobMatch{Path: "foo.bar", IsLeaf: true}
+func getMetricGlobResponse(metric string) pb.GlobResponse {
+
+	globResponses := make(map[string]pb.GlobResponse)
+
+	globMatch := pb.GlobMatch{Path: metric, IsLeaf: true}
 	var matches []pb.GlobMatch
-	matches = append(matches, globMtach)
+	matches = append(matches, globMatch)
 	globResponse := pb.GlobResponse{
 		Name:    "foo.bar",
 		Matches: matches,
 	}
-	return globResponse
+	globResponses["foo.bar*"] = globResponse
+	globResponses["foo.bar"] = globResponse
+	globResponses["foo.b*"] = pb.GlobResponse{
+		Name:    "foo.b",
+		Matches: append(matches, pb.GlobMatch{Path: "foo.bat", IsLeaf: true}),
+	}
+	return globResponses[metric]
 }
 
 func getMultiFetchResponse() pb.MultiFetchResponse {
@@ -128,14 +137,32 @@ func TestFindHandler(t *testing.T) {
 	findHandler(rr, req)
 
 	body := rr.Body.String()
-	expected := `[{"allowChildren":0,"expandable":0,"leaf":1,"id":"foo.bar","text":"bar","context":{}}]` + "\n"
+	expected, _ := findTreejson(getMetricGlobResponse("foo.bar"))
 	r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
 	if !r {
 		t.Error("HttpStatusCode should be 200 OK.")
 	}
-	r = assert.Equal(t, expected, body, "Http response should be same.")
+	r = assert.Equal(t, string(expected), body, "Http response should be same.")
 	if !r {
 		t.Error("Http response should be same.")
+	}
+}
+
+func TestFindHandlerCompleter(t *testing.T) {
+	testMetrics := []string{"foo.b/", "foo.bar"}
+	for _, testMetric := range testMetrics {
+		req, rr := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
+		findHandler(rr, req)
+		body := rr.Body.String()
+		expectedValue, _ := findCompleter(getMetricGlobResponse(getCompleterQuery(testMetric)))
+		r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
+		if !r {
+			t.Error("HttpStatusCode should be 200 OK.")
+		}
+		r = assert.Equal(t, string(expectedValue), body, "Http response should be same.")
+		if !r {
+			t.Error("Http response should be same.")
+		}
 	}
 }
 
