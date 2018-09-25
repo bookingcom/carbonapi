@@ -242,9 +242,7 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, targets []
 		return nil, err
 	}
 
-	ts, err := carbonapiV2RenderDecoder(resp)
-
-	return ts, err
+	return carbonapi_v2.Response.Render.Unmarshal(resp)
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
@@ -259,39 +257,6 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 	return u, nil
 }
 
-func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
-	resp := &carbonapi_v2.Metrics{}
-	if err := resp.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	metrics := make([]types.Metric, len(resp.Metrics))
-	for i, m := range resp.Metrics {
-		metric := types.Metric{
-			Name:      m.Name,
-			StartTime: m.StartTime,
-			StopTime:  m.StopTime,
-			StepTime:  m.StepTime,
-			Values:    m.Values,
-			IsAbsent:  m.IsAbsent,
-		}
-
-		/*
-			TODO(gmagnusson):
-			for j, absent := range metric.IsAbsent {
-				if absent {
-					t.Values[i] = math.NaN
-				}
-			}
-			and then remove Metric.IsAbsent
-		*/
-
-		metrics[i] = metric
-	}
-
-	return metrics, nil
-}
-
 // Info fetches metadata about a metric from a backend.
 func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
 	u := b.url("/info")
@@ -302,7 +267,7 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 		return nil, err
 	}
 
-	infos, err := carbonapiV2InfoDecoder(resp)
+	infos, err := carbonapi_v2.Response.Info.Unmarshal(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -320,35 +285,6 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 	return u, nil
 }
 
-func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
-	s := &carbonapi_v2.Infos{}
-	if err := s.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	infos := make([]types.Info, len(s.Infos))
-	for i, sInfo := range s.Infos {
-		info := types.Info{
-			Host:              s.Hosts[i],
-			Name:              sInfo.Name,
-			AggregationMethod: sInfo.AggregationMethod,
-			MaxRetention:      sInfo.MaxRetention,
-			XFilesFactor:      sInfo.XFilesFactor,
-			Retentions:        make([]types.Retention, len(sInfo.Retentions)),
-		}
-		for j, inf := range sInfo.Retentions {
-			info.Retentions[j] = types.Retention{
-				SecondsPerPoint: inf.SecondsPerPoint,
-				NumberOfPoints:  inf.NumberOfPoints,
-			}
-		}
-
-		infos[i] = info
-	}
-
-	return infos, nil
-}
-
 // Find resolves globs and finds metrics in a backend.
 func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
 	u := b.url("/metrics/find")
@@ -359,7 +295,7 @@ func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) 
 		return nil, err
 	}
 
-	find, err := carbonapiV2FindDecoder(resp)
+	find, err := carbonapi_v2.Response.Find.Unmarshal(resp)
 
 	return find, err
 }
@@ -372,22 +308,4 @@ func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
 	u.RawQuery = vals.Encode()
 
 	return u, nil
-}
-
-func carbonapiV2FindDecoder(blob []byte) ([]types.Match, error) {
-	f := &carbonapi_v2.Matches{}
-
-	if err := f.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	matches := make([]types.Match, len(f.Matches))
-	for i, match := range f.Matches {
-		matches[i] = types.Match{
-			Path:   match.Path,
-			IsLeaf: match.IsLeaf,
-		}
-	}
-
-	return matches, nil
 }
