@@ -580,14 +580,7 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if format == "completer" {
-		var replacer = strings.NewReplacer("/", ".")
-		query = replacer.Replace(query)
-
-		if query == "" || query == "/" || query == "." {
-			query = ".*"
-		} else {
-			query += "*"
-		}
+		query = getCompleterQuery(query)
 	}
 
 	if query == "" {
@@ -665,6 +658,17 @@ func findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeResponse(w, b, format, jsonp)
+}
+
+func getCompleterQuery(query string) string {
+	var replacer = strings.NewReplacer("/", ".")
+	query = replacer.Replace(query)
+	if query == "" || query == "/" || query == "." {
+		query = ".*"
+	} else {
+		query += "*"
+	}
+	return query
 }
 
 type completer struct {
