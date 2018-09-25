@@ -93,6 +93,10 @@ func mergeMetrics(metrics []Metric) Metric {
 		return Metric{}
 	}
 
+	if len(metrics) == 1 {
+		return metrics[0]
+	}
+
 	sort.Sort(byStepTime(metrics))
 	healed := 0
 
