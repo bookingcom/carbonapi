@@ -243,10 +243,15 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, targets []
 
 	resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
-	return carbonapi_v2.RenderDecoder(resp)
+	metrics, err := carbonapi_v2.RenderDecoder(resp)
+	if err != nil {
+		return metrics, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	return metrics, nil
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
@@ -268,12 +273,12 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 
 	resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
 	infos, err := carbonapi_v2.InfoDecoder(resp)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
 	}
 
 	return infos, nil
@@ -296,12 +301,15 @@ func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) 
 
 	resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return types.Matches{}, err
+		return types.Matches{}, errors.Wrap(err, "HTTP call failed")
 	}
 
 	find, err := carbonapi_v2.FindDecoder(resp)
+	if err != nil {
+		return find, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
 
-	return find, err
+	return find, nil
 }
 
 func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {

@@ -175,8 +175,8 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		accessLogger.Error("find failed",
 			zap.Int("http_code", http.StatusInternalServerError),
-			zap.String("reason", err.Error()),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(err),
 		)
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
@@ -275,6 +275,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.String("reason", "failed to parse arguments"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
@@ -296,6 +297,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.String("reason", "from is not a integer"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
@@ -310,6 +312,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.String("reason", "until is not a integer"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
@@ -335,7 +338,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
 		accessLogger.Error("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
-			zap.String("reason", err.Error()),
+			zap.Error(err),
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
@@ -419,6 +422,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.String("reason", "failed to parse arguments"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
@@ -450,7 +454,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
-			zap.String("reason", err.Error()),
+			zap.Error(err),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
