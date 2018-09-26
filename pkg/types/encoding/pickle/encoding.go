@@ -24,13 +24,13 @@ import (
 
 // FindEncoderV0_9 encodes a Find response in a format that graphite-web 0.9.x
 // can understand.
-func FindEncoderV0_9(matches []types.Match) ([]byte, error) {
+func FindEncoderV0_9(matches types.Matches) ([]byte, error) {
 	// Used to live in cmd/carbonapi/main.go
 	var result []map[string]interface{}
-	for _, match := range matches {
+	for _, m := range matches.Matches {
 		mm := map[string]interface{}{
-			"metric_path": match.Path,
-			"isLeaf":      match.IsLeaf,
+			"metric_path": m.Path,
+			"isLeaf":      m.IsLeaf,
 		}
 		result = append(result, mm)
 	}
@@ -44,16 +44,16 @@ func FindEncoderV0_9(matches []types.Match) ([]byte, error) {
 
 // FindEncoderV1_0 encodes a Find response in a format that graphite-web 0.1
 // can understand.
-func FindEncoderV1_0(matches []types.Match) ([]byte, error) {
+func FindEncoderV1_0(matches types.Matches) ([]byte, error) {
 	// Used to live in cmd/carbonapi/main.go
 	now := int32(time.Now().Unix() + 60)
 	interval := &intervalset.IntervalSet{Start: 0, End: now}
 
 	var result []map[string]interface{}
-	for _, match := range matches {
+	for _, m := range matches.Matches {
 		mm := map[string]interface{}{
-			"is_leaf":   match.IsLeaf,
-			"path":      match.Path,
+			"is_leaf":   m.IsLeaf,
+			"path":      m.Path,
 			"intervals": interval,
 		}
 		result = append(result, mm)

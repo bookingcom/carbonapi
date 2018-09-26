@@ -162,17 +162,26 @@ type Retention struct {
 	NumberOfPoints  int32
 }
 
-// Match describes a glob match from a Graphite store.
+// Matches describes a glob match from a Graphite store.
+type Matches struct {
+	Name    string
+	Matches []Match
+}
+
 type Match struct {
 	Path   string
 	IsLeaf bool
 }
 
 // MergeMatches merges Match structures.
-func MergeMatches(matches [][]Match) []Match {
-	merged := make([]Match, 0, len(matches))
+func MergeMatches(matches []Matches) Matches {
+	merged := Matches{}
 	for _, match := range matches {
-		merged = append(merged, match...)
+		if merged.Name == "" {
+			merged.Name = match.Name
+		}
+
+		merged.Matches = append(merged.Matches, match.Matches...)
 	}
 
 	return merged

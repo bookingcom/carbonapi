@@ -208,8 +208,8 @@ func (b *Backend) Probe() {
 	}
 
 	tlds := make(map[string]struct{})
-	for _, match := range matches {
-		tlds[match.Path] = struct{}{}
+	for _, m := range matches.Matches {
+		tlds[m.Path] = struct{}{}
 	}
 
 	b.mutex.Lock()
@@ -290,13 +290,13 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 }
 
 // Find resolves globs and finds metrics in a backend.
-func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
+func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) {
 	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
 	resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return types.Matches{}, err
 	}
 
 	find, err := carbonapi_v2.FindDecoder(resp)

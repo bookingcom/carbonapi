@@ -22,7 +22,7 @@ import (
 
 // Backend is a mock backend.
 type Backend struct {
-	find     func(context.Context, string) ([]types.Match, error)
+	find     func(context.Context, string) (types.Matches, error)
 	info     func(context.Context, string) ([]types.Info, error)
 	render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
 	contains func([]string) bool
@@ -33,7 +33,7 @@ type Backend struct {
 // default to one that returns an empty response and nil error.
 // A mock backend contains all targets by default.
 type Config struct {
-	Find     func(context.Context, string) ([]types.Match, error)
+	Find     func(context.Context, string) (types.Matches, error)
 	Info     func(context.Context, string) ([]types.Info, error)
 	Render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
 	Contains func([]string) bool
@@ -41,13 +41,13 @@ type Config struct {
 
 var (
 	noLog      *zap.Logger                                                           = zap.New(nil)
-	noFind     func(context.Context, string) ([]types.Match, error)                  = func(context.Context, string) ([]types.Match, error) { return nil, nil }
+	noFind     func(context.Context, string) (types.Matches, error)                  = func(context.Context, string) (types.Matches, error) { return types.Matches{}, nil }
 	noInfo     func(context.Context, string) ([]types.Info, error)                   = func(context.Context, string) ([]types.Info, error) { return nil, nil }
 	noRender   func(context.Context, int32, int32, []string) ([]types.Metric, error) = func(context.Context, int32, int32, []string) ([]types.Metric, error) { return nil, nil }
 	noContains func([]string) bool                                                   = func([]string) bool { return true }
 )
 
-func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
+func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) {
 	return b.find(ctx, query)
 }
 

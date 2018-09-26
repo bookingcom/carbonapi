@@ -11,12 +11,13 @@ import (
 	"github.com/go-graphite/carbonapi/pkg/types"
 )
 
-func FindEncoder(matches []types.Match) ([]byte, error) {
+func FindEncoder(matches types.Matches) ([]byte, error) {
 	out := Matches{
-		Matches: make([]Match, len(matches)),
+		Name:    matches.Name,
+		Matches: make([]Match, len(matches.Matches)),
 	}
 
-	for i, match := range matches {
+	for i, match := range matches.Matches {
 		out.Matches[i] = Match{
 			Path:   match.Path,
 			IsLeaf: match.IsLeaf,
@@ -26,16 +27,19 @@ func FindEncoder(matches []types.Match) ([]byte, error) {
 	return out.Marshal()
 }
 
-func FindDecoder(blob []byte) ([]types.Match, error) {
+func FindDecoder(blob []byte) (types.Matches, error) {
 	f := Matches{}
-
 	if err := f.Unmarshal(blob); err != nil {
-		return nil, err
+		return types.Matches{}, err
 	}
 
-	matches := make([]types.Match, len(f.Matches))
+	matches := types.Matches{
+		Name:    f.Name,
+		Matches: make([]types.Match, len(f.Matches)),
+	}
+
 	for i, match := range f.Matches {
-		matches[i] = types.Match{
+		matches.Matches[i] = types.Match{
 			Path:   match.Path,
 			IsLeaf: match.IsLeaf,
 		}

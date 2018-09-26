@@ -185,13 +185,13 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	sort.Slice(metrics, func(i, j int) bool {
-		if metrics[i].Path < metrics[j].Path {
+		if metrics.Matches[i].Path < metrics.Matches[j].Path {
 			return true
 		}
-		if metrics[i].Path > metrics[j].Path {
+		if metrics.Matches[i].Path > metrics.Matches[j].Path {
 			return false
 		}
-		return metrics[i].Path < metrics[j].Path
+		return metrics.Matches[i].Path < metrics.Matches[j].Path
 	})
 
 	var contentType string

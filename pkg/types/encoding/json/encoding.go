@@ -8,31 +8,75 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 )
 
-func FindEncoder(matches []types.Match) ([]byte, error) {
-	return json.Marshal(matches)
+type jsonMatch struct {
+	AllowChildren int            `json:"allowChildren"`
+	Context       map[string]int `json:"context"`
+	Expandable    int            `json:"expandable"`
+	ID            string         `json:"id"`
+	Leaf          int            `json:"leaf"`
+	Text          string         `json:"text"`
 }
 
-func FindDecoder(blob []byte) ([]types.Match, error) {
-	matches := make([]types.Match, 0)
-	err := json.Unmarshal(blob, &matches)
+func FindEncoder(matches types.Matches) ([]byte, error) {
+	jms := make([]jsonMatch, 0, len(matches.Matches))
 
-	return matches, err
+	var basepath string
+	if i := strings.LastIndex(matches.Name, "."); i != -1 {
+		basepath = matches.Name[:i+1]
+	}
+
+	for _, m := range matches.Matches {
+		name := m.Path
+		if i := strings.LastIndex(name, "."); i != -1 {
+			name = name[i+1:]
+		}
+
+		jm := jsonMatch{
+			Text: name,
+			ID:   basepath + name,
+		}
+
+		if m.IsLeaf {
+			jm.Leaf = 1
+		} else {
+			jm.AllowChildren = 1
+		}
+
+		if !m.IsLeaf || strings.ContainsRune(jm.ID, '*') {
+			jm.Expandable = 1
+		}
+
+		// jm.Context not set on purpose; seems to always be empty map?
+
+		jms = append(jms, jm)
+	}
+
+	return json.Marshal(jms)
 }
+
+/*
+NOTE(gmagnusson): Not implemented because I'm not sure we can decode a JSON
+blob in such a way that the roundtrip 'matches -> decode(encode(matches))' is
+the identity map, or that the iteration at least stabilizes.
+
+func FindDecoder(blob []byte) ([]types.Match, error) { }
+*/
 
 type jsonInfo struct {
-	Name              string
-	AggregationMethod string
-	MaxRetention      int32
-	Retentions        []jsonRet
+	Name              string    `json:"name"`
+	AggregationMethod string    `json:"aggregationMethod"`
+	MaxRetention      int32     `json:"maxRetention"`
+	Retentions        []jsonRet `json:"retentions"`
 }
 
 type jsonRet struct {
-	SecondsPerPoint int32
-	NumberOfPoints  int32
+	SecondsPerPoint int32 `json:"secondsPerPoint"`
+	NumberOfPoints  int32 `json:"numberOfPoints"`
 }
 
 func InfoEncoder(infos []types.Info) ([]byte, error) {
@@ -89,8 +133,8 @@ func InfoDecoder(blob []byte) ([]types.Info, error) {
 }
 
 type jsonMetric struct {
-	Name       string
-	Datapoints [][]string
+	Name       string     `json:"name"`
+	Datapoints [][]string `json:"datapoints"`
 }
 
 func RenderEncoder(metrics []types.Metric) ([]byte, error) {

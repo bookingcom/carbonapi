@@ -28,12 +28,12 @@ func TestResponseFindUnmarshal(t *testing.T) {
 		return
 	}
 
-	if len(got) != 1 {
-		t.Errorf("Expected 1 response, got %d", len(got))
+	if len(got.Matches) != 1 {
+		t.Errorf("Expected 1 response, got %d", len(got.Matches))
 		return
 	}
 
-	if got[0].Path != "foo/bar" || !got[0].IsLeaf {
+	if got.Matches[0].Path != "foo/bar" || !got.Matches[0].IsLeaf {
 		t.Error("Invalid match")
 	}
 }

@@ -18,14 +18,18 @@ func TestMergeInfos(t *testing.T) {
 }
 
 func TestMergeMatches(t *testing.T) {
-	matches := [][]Match{
-		[]Match{Match{}},
-		[]Match{Match{}},
+	matches := []Matches{
+		Matches{
+			Matches: []Match{Match{}},
+		},
+		Matches{
+			Matches: []Match{Match{}},
+		},
 	}
 
 	got := MergeMatches(matches)
-	if len(got) != 2 {
-		t.Errorf("Expected 2 elements, got %d", len(got))
+	if len(got.Matches) != 2 {
+		t.Errorf("Expected 2 elements, got %d", len(got.Matches))
 	}
 }
 

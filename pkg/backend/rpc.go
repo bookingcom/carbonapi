@@ -28,7 +28,7 @@ import (
 
 // Backend codifies the RPC calls a Graphite backend responds to.
 type Backend interface {
-	Find(context.Context, string) ([]types.Match, error)
+	Find(context.Context, string) (types.Matches, error)
 	Info(context.Context, string) ([]types.Info, error)
 	Render(context.Context, int32, int32, []string) ([]types.Metric, error)
 
@@ -118,12 +118,12 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 }
 
 // Finds makes Find calls to multiple backends.
-func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match, error) {
+func Finds(ctx context.Context, backends []Backend, query string) (types.Matches, error) {
 	if len(backends) == 0 {
-		return nil, nil
+		return types.Matches{}, nil
 	}
 
-	msgCh := make(chan []types.Match, len(backends))
+	msgCh := make(chan types.Matches, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		go func(b Backend) {
@@ -136,7 +136,7 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 		}(backend)
 	}
 
-	msgs := make([][]types.Match, 0, len(backends))
+	msgs := make([]types.Matches, 0, len(backends))
 	errs := make([]error, 0, len(backends))
 	for i := 0; i < len(backends); i++ {
 		select {
@@ -148,7 +148,7 @@ func Finds(ctx context.Context, backends []Backend, query string) ([]types.Match
 	}
 
 	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
-		return nil, err
+		return types.Matches{}, err
 	}
 
 	return types.MergeMatches(msgs), nil

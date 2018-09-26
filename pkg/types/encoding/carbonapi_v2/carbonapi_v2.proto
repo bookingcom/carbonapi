@@ -23,8 +23,8 @@ message Match {
 }
 
 message Matches {
-    // Can't use tag 1 unless it's the same type as in go-graphite/protocol/carbonapi_v2_pb
-    repeated Match matches = 2 [(gogoproto.nullable) = false]; // 2 [sic]
+    string name = 1;
+    repeated Match matches = 2 [(gogoproto.nullable) = false];
 }
 
 message Info {
