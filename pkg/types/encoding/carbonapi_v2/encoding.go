@@ -1,46 +1,17 @@
+/*
+Package carbonapi_v2 defines encoding and decoding methods for Find, Info and
+Render responses.
+
+It uses a modified version 2 of the carbonapi protocol buffer schema that is
+compatible with the original one.
+*/
 package carbonapi_v2
 
 import (
 	"github.com/go-graphite/carbonapi/pkg/types"
 )
 
-var Response = response{
-	Find: find{
-		Marshal:   marshalMatches,
-		Unmarshal: unmarshalMatches,
-	},
-	Info: info{
-		Marshal:   marshalInfos,
-		Unmarshal: unmarshalInfos,
-	},
-	Render: render{
-		Marshal:   marshalMetrics,
-		Unmarshal: unmarshalMetrics,
-	},
-}
-
-type response struct {
-	Find   find
-	Info   info
-	Render render
-}
-
-type find struct {
-	Marshal   func([]types.Match) ([]byte, error)
-	Unmarshal func([]byte) ([]types.Match, error)
-}
-
-type info struct {
-	Marshal   func([]types.Info) ([]byte, error)
-	Unmarshal func([]byte) ([]types.Info, error)
-}
-
-type render struct {
-	Marshal   func([]types.Metric) ([]byte, error)
-	Unmarshal func([]byte) ([]types.Metric, error)
-}
-
-func marshalMatches(matches []types.Match) ([]byte, error) {
+func FindEncoder(matches []types.Match) ([]byte, error) {
 	out := Matches{
 		Matches: make([]Match, len(matches)),
 	}
@@ -55,7 +26,7 @@ func marshalMatches(matches []types.Match) ([]byte, error) {
 	return out.Marshal()
 }
 
-func unmarshalMatches(blob []byte) ([]types.Match, error) {
+func FindDecoder(blob []byte) ([]types.Match, error) {
 	f := Matches{}
 
 	if err := f.Unmarshal(blob); err != nil {
@@ -73,7 +44,7 @@ func unmarshalMatches(blob []byte) ([]types.Match, error) {
 	return matches, nil
 }
 
-func marshalInfos(infos []types.Info) ([]byte, error) {
+func InfoEncoder(infos []types.Info) ([]byte, error) {
 	out := Infos{
 		Hosts: make([]string, 0, len(infos)),
 		Infos: make([]Info, 0, len(infos)),
@@ -101,7 +72,7 @@ func marshalInfos(infos []types.Info) ([]byte, error) {
 	return out.Marshal()
 }
 
-func unmarshalInfos(blob []byte) ([]types.Info, error) {
+func InfoDecoder(blob []byte) ([]types.Info, error) {
 	s := Infos{}
 	if err := s.Unmarshal(blob); err != nil {
 		return nil, err
@@ -130,7 +101,7 @@ func unmarshalInfos(blob []byte) ([]types.Info, error) {
 	return infos, nil
 }
 
-func marshalMetrics(metrics []types.Metric) ([]byte, error) {
+func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 	out := Metrics{
 		Metrics: make([]Metric, len(metrics)),
 	}
@@ -151,7 +122,7 @@ func marshalMetrics(metrics []types.Metric) ([]byte, error) {
 	return out.Marshal()
 }
 
-func unmarshalMetrics(blob []byte) ([]types.Metric, error) {
+func RenderDecoder(blob []byte) ([]types.Metric, error) {
 	resp := Metrics{}
 	if err := resp.Unmarshal(blob); err != nil {
 		return nil, err

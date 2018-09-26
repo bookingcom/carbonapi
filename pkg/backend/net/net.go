@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
-	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
+	"github.com/go-graphite/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/go-graphite/carbonapi/util"
 
 	"github.com/pkg/errors"
@@ -242,7 +242,7 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, targets []
 		return nil, err
 	}
 
-	return carbonapi_v2.Response.Render.Unmarshal(resp)
+	return carbonapi_v2.RenderDecoder(resp)
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
@@ -267,7 +267,7 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 		return nil, err
 	}
 
-	infos, err := carbonapi_v2.Response.Info.Unmarshal(resp)
+	infos, err := carbonapi_v2.InfoDecoder(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) 
 		return nil, err
 	}
 
-	find, err := carbonapi_v2.Response.Find.Unmarshal(resp)
+	find, err := carbonapi_v2.FindDecoder(resp)
 
 	return find, err
 }

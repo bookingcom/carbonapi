@@ -22,7 +22,7 @@ func TestResponseFindUnmarshal(t *testing.T) {
 		return
 	}
 
-	got, err := Response.Find.Unmarshal(blob)
+	got, err := FindDecoder(blob)
 	if err != nil {
 		t.Error(err)
 		return
@@ -60,7 +60,7 @@ func TestResponseInfoUnmarshal(t *testing.T) {
 		return
 	}
 
-	got, err := Response.Info.Unmarshal(blob)
+	got, err := InfoDecoder(blob)
 	if err != nil {
 		t.Error(err)
 		return
@@ -100,7 +100,7 @@ func TestResponseRenderUnmarshal(t *testing.T) {
 		return
 	}
 
-	got, err := Response.Render.Unmarshal(blob)
+	got, err := RenderDecoder(blob)
 	if err != nil {
 		t.Error(err)
 		return
