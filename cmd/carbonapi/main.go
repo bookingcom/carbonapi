@@ -678,8 +678,10 @@ func main() {
 		}
 	}()
 
-	ticker := time.NewTicker(time.Duration(config.LoadBlockRuleHeaderConfig) * time.Second)
-	go loadBlockRuleHeaderConfig(ticker, logger)
+	if config.BlockHeaderUpdatePeriod > 0 {
+		ticker := time.NewTicker(config.BlockHeaderUpdatePeriod)
+		go loadBlockRuleHeaderConfig(ticker, logger)
+	}
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
