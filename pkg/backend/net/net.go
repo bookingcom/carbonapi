@@ -222,6 +222,10 @@ func (b Backend) Contains(targets []string) bool {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
+	if len(b.tlds) == 0 {
+		return true
+	}
+
 	for _, target := range targets {
 		parts := strings.SplitN(target, ".", 2)
 		if _, ok := b.tlds[parts[0]]; ok {
