@@ -163,6 +163,10 @@ func Filter(backends []Backend, targets []string) []Backend {
 		}
 	}
 
+	if len(bs) == 0 {
+		return backends
+	}
+
 	return bs
 }
 
