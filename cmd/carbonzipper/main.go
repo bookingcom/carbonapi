@@ -84,10 +84,8 @@ var Metrics = struct {
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
-	Goroutines    expvar.Func
-	Uptime        expvar.Func
-	LimiterUse    expvar.Func
-	LimiterUseMax expvar.Func
+	Goroutines expvar.Func
+	Uptime     expvar.Func
 
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -722,7 +720,6 @@ func main() {
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
-		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), Metrics.LimiterUseMax)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
