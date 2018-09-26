@@ -7,10 +7,11 @@ package json
 import (
 	"encoding/json"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
+
+	"github.com/pkg/errors"
 )
 
 type jsonMatch struct {
@@ -133,8 +134,8 @@ func InfoDecoder(blob []byte) ([]types.Info, error) {
 }
 
 type jsonMetric struct {
-	Name       string     `json:"name"`
-	Datapoints [][]string `json:"datapoints"`
+	Name       string          `json:"name"`
+	Datapoints [][]interface{} `json:"datapoints"`
 }
 
 func RenderEncoder(metrics []types.Metric) ([]byte, error) {
@@ -145,18 +146,21 @@ func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 
 		jm := jsonMetric{
 			Name:       metric.Name,
-			Datapoints: make([][]string, len(metric.Values)),
+			Datapoints: make([][]interface{}, len(metric.Values)),
 		}
 
 		for i := range metric.Values {
-			epoch := strconv.FormatInt(int64(t), 10)
-			var val string
+			data := make([]interface{}, 2)
+
 			if metric.IsAbsent[i] || math.IsInf(metric.Values[i], 0) || math.IsNaN(metric.Values[i]) {
-				val = "null"
+				data[0] = nil
 			} else {
-				val = strconv.FormatFloat(metric.Values[i], 'f', -1, 64)
+				data[0] = metric.Values[i]
 			}
-			jm.Datapoints[i] = []string{val, epoch}
+
+			data[1] = t
+
+			jm.Datapoints[i] = data
 		}
 
 		jms = append(jms, jm)
@@ -182,28 +186,34 @@ func RenderDecoder(blob []byte) ([]types.Metric, error) {
 
 		for i, pair := range jm.Datapoints {
 			if i == 0 {
-				epoch, err := strconv.ParseInt(pair[1], 10, 32)
-				if err != nil {
-					return metrics, err
+				epoch, ok := pair[1].(int32)
+				if !ok {
+					return metrics, errors.Errorf("Expected integer epoch, got '%v'", pair[1])
 				}
-				metric.StartTime = int32(epoch)
+				metric.StartTime = epoch
 			} else if i == len(jm.Datapoints)-1 {
-				epoch, err := strconv.ParseInt(pair[1], 10, 32)
-				if err != nil {
-					return metrics, err
+				epoch, ok := pair[1].(int32)
+				if !ok {
+					return metrics, errors.Errorf("Expected integer epoch, got '%v'", pair[1])
 				}
-				metric.StopTime = int32(epoch)
+				metric.StopTime = epoch
 			}
 
-			if pair[0] == "null" {
-				metric.IsAbsent[i] = true
-			} else {
-				value, err := strconv.ParseFloat(pair[0], 64)
-				if err != nil {
-					return metrics, err
+			str, ok := pair[0].(string)
+			if ok {
+				if str == "null" {
+					metric.IsAbsent[i] = true
+					continue
+				} else {
+					return metrics, errors.Errorf("Invalid string value '%s' in JSON", str)
 				}
-				metric.Values[i] = value
 			}
+
+			value, ok := pair[0].(float64)
+			if !ok {
+				return metrics, errors.Errorf("Expected float64 in metric, got '%v'", pair[0])
+			}
+			metric.Values[i] = value
 		}
 
 		if len(metric.Values) > 0 {
