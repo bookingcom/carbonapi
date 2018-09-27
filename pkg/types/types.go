@@ -176,12 +176,21 @@ type Match struct {
 // MergeMatches merges Match structures.
 func MergeMatches(matches []Matches) Matches {
 	merged := Matches{}
+
+	set := make(map[Match]struct{})
 	for _, match := range matches {
 		if merged.Name == "" {
 			merged.Name = match.Name
 		}
 
-		merged.Matches = append(merged.Matches, match.Matches...)
+		for _, m := range match.Matches {
+			set[m] = struct{}{}
+		}
+	}
+
+	merged.Matches = make([]Match, 0, len(set))
+	for match := range set {
+		merged.Matches = append(merged.Matches, match)
 	}
 
 	return merged
