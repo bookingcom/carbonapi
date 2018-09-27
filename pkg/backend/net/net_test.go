@@ -75,6 +75,10 @@ func TestContains(t *testing.T) {
 		t.Error("Expected true")
 	}
 
+	if ok := b.Contains([]string{"*"}); !ok {
+		t.Error("Expected true")
+	}
+
 	b.tlds = nil
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")

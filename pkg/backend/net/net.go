@@ -249,7 +249,20 @@ func (b Backend) Contains(targets []string) bool {
 
 	for _, target := range targets {
 		parts := strings.SplitN(target, ".", 2)
-		if _, ok := b.tlds[parts[0]]; ok {
+		part := parts[0]
+
+		if strings.ContainsAny(part, "*{}[]") {
+			// NOTE(gmagnusson): Just assume we contain whatever this is if it
+			// has wildcards and let the stores figure it out.
+			//
+			// If we want to be more clever about this, we have to start
+			// worrying about first expanding {} pairs and then (mostly, kind
+			// of) regex matching the rest, and it just sounds like we're so
+			// far into diminishing returns by then that we shouldn't bother.
+			return true
+		}
+
+		if _, ok := b.tlds[part]; ok {
 			return true
 		}
 	}
