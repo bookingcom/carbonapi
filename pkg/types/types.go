@@ -60,6 +60,14 @@ type Metric struct {
 
 // MergeMetrics merges metrics by name.
 func MergeMetrics(metrics [][]Metric) []Metric {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	if len(metrics) == 1 {
+		return metrics[0]
+	}
+
 	names := make(map[string][]Metric)
 
 	for _, ms := range metrics {
@@ -148,6 +156,14 @@ type Info struct {
 
 // MergeInfos merges Info structures.
 func MergeInfos(infos [][]Info) []Info {
+	if len(infos) == 0 {
+		return nil
+	}
+
+	if len(infos) == 1 {
+		return infos[0]
+	}
+
 	merged := make([]Info, 0, len(infos))
 	for _, info := range infos {
 		merged = append(merged, info...)
@@ -175,6 +191,14 @@ type Match struct {
 
 // MergeMatches merges Match structures.
 func MergeMatches(matches []Matches) Matches {
+	if len(matches) == 0 {
+		return Matches{}
+	}
+
+	if len(matches) == 1 {
+		return matches[0]
+	}
+
 	merged := Matches{}
 
 	set := make(map[Match]struct{})
