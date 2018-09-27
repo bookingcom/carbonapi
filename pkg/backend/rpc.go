@@ -17,7 +17,7 @@ package backend
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/util"
@@ -188,18 +188,16 @@ func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger)
 }
 
 func combineErrors(errs []error) error {
-	msgs := make([]string, 0, len(errs))
+	msgs := make(map[string]int)
 	for _, err := range errs {
 		if err != nil {
-			msgs = append(msgs, err.Error())
+			msgs[err.Error()]++
 		}
 	}
 
 	if len(msgs) == 0 {
 		return nil
-	} else if len(msgs) == 1 {
-		return errors.New(msgs[0])
 	}
 
-	return errors.Errorf("Multiple errors:\n%s", strings.Join(msgs, "\n"))
+	return fmt.Errorf("%+v", msgs)
 }
