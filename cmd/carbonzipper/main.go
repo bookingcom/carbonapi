@@ -584,13 +584,21 @@ func main() {
 
 	backends = make([]backend.Backend, 0, len(config.Backends))
 	for _, host := range config.Backends {
-		b := bnet.New(bnet.Config{
+		b, err := bnet.New(bnet.Config{
 			Address: host,
 			Client:  client,
 			Timeout: config.Timeouts.Global,
 			Limit:   config.ConcurrencyLimitPerServer,
 			Logger:  logger,
 		})
+
+		if err != nil {
+			logger.Fatal("Failed to create backend",
+				zap.String("host", host),
+				zap.Error(err),
+			)
+		}
+
 		backends = append(backends, b)
 	}
 

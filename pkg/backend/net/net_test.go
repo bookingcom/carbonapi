@@ -12,8 +12,49 @@ import (
 	"time"
 )
 
+func TestAddress(t *testing.T) {
+	b, err := New(Config{
+		Address: "localhost:8080",
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	exp := "localhost:8080"
+
+	if b.address.Host != "localhost:8080" {
+		t.Errorf("Expected %s, got '%s'", exp, b.address)
+	}
+
+	if b.address.Scheme != "http" {
+		t.Errorf("Expected http scheme, got '%s'", b.address.Scheme)
+	}
+
+	b, err = New(Config{
+		Address: "https://localhost:8080",
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if b.address.Host != "localhost:8080" {
+		t.Errorf("Expected %s, got '%s'", exp, b.address)
+	}
+
+	if b.address.Scheme != "https" {
+		t.Errorf("Expected http scheme, got '%s'", b.address.Scheme)
+	}
+}
+
 func TestContains(t *testing.T) {
-	b := New(Config{})
+	b, err := New(Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
 	b.tlds = map[string]struct{}{
 		"foo": struct{}{},
 	}
@@ -47,11 +88,14 @@ func TestCall(t *testing.T) {
 	}))
 	defer server.Close()
 
-	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
-		Address: addr,
+	b, err := New(Config{
+		Address: server.URL,
 		Client:  server.Client(),
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	got, err := b.call(context.Background(), b.url("/render"), nil)
 	if err != nil {
@@ -69,12 +113,16 @@ func TestCallServerError(t *testing.T) {
 	}))
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
+	b, err := New(Config{
 		Address: addr,
 		Client:  server.Client(),
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	_, err := b.call(context.Background(), b.url("/render"), nil)
+	_, err = b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -83,24 +131,31 @@ func TestCallServerError(t *testing.T) {
 func TestCallTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
-	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
-		Address: addr,
+	b, err := New(Config{
+		Address: server.URL,
 		Client:  server.Client(),
 		Timeout: time.Nanosecond,
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	_, err := b.call(context.Background(), b.url("/render"), nil)
+	_, err = b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
 }
 
 func TestDoLimiterTimeout(t *testing.T) {
-	b := New(Config{
+	b, err := New(Config{
 		Address: "localhost",
 		Limit:   1,
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if err := b.enter(context.Background()); err != nil {
 		t.Error("Expected to enter limiter")
@@ -128,10 +183,14 @@ func TestDo(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
+	b, err := New(Config{
 		Address: addr,
 		Client:  server.Client(),
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
@@ -156,10 +215,14 @@ func TestDoHTTPTimeout(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
+	b, err := New(Config{
 		Address: addr,
 		Client:  server.Client(),
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
@@ -181,10 +244,14 @@ func TestDoHTTPError(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	b := New(Config{
+	b, err := New(Config{
 		Address: addr,
 		Client:  server.Client(),
 	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	req, err := b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
@@ -198,16 +265,24 @@ func TestDoHTTPError(t *testing.T) {
 }
 
 func TestRequest(t *testing.T) {
-	b := New(Config{Address: "localhost"})
+	b, err := New(Config{Address: "localhost"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	_, err := b.request(context.Background(), b.url("/render"), nil)
+	_, err = b.request(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
 }
 
 func TestEnterNilLimiter(t *testing.T) {
-	b := New(Config{})
+	b, err := New(Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
@@ -218,7 +293,11 @@ func TestEnterNilLimiter(t *testing.T) {
 }
 
 func TestEnterLimiter(t *testing.T) {
-	b := New(Config{Limit: 1})
+	b, err := New(Config{Limit: 1})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if got := b.enter(context.Background()); got != nil {
 		t.Error("Expected to enter limiter")
@@ -226,7 +305,11 @@ func TestEnterLimiter(t *testing.T) {
 }
 
 func TestEnterLimiterTimeout(t *testing.T) {
-	b := New(Config{Limit: 1})
+	b, err := New(Config{Limit: 1})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if err := b.enter(context.Background()); err != nil {
 		t.Error("Expected to enter limiter")
@@ -241,7 +324,11 @@ func TestEnterLimiterTimeout(t *testing.T) {
 }
 
 func TestExitNilLimiter(t *testing.T) {
-	b := New(Config{})
+	b, err := New(Config{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if err := b.leave(); err != nil {
 		t.Error("Expected to leave limiter")
@@ -249,7 +336,11 @@ func TestExitNilLimiter(t *testing.T) {
 }
 
 func TestEnterExitLimiter(t *testing.T) {
-	b := New(Config{Limit: 1})
+	b, err := New(Config{Limit: 1})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if err := b.enter(context.Background()); err != nil {
 		t.Error("Expected to enter limiter")
@@ -261,7 +352,11 @@ func TestEnterExitLimiter(t *testing.T) {
 }
 
 func TestEnterExitLimiterError(t *testing.T) {
-	b := New(Config{Limit: 1})
+	b, err := New(Config{Limit: 1})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if err := b.leave(); err == nil {
 		t.Error("Expected to get error")
@@ -269,7 +364,11 @@ func TestEnterExitLimiterError(t *testing.T) {
 }
 
 func TestURL(t *testing.T) {
-	b := New(Config{Address: "localhost:8080"})
+	b, err := New(Config{Address: "localhost:8080"})
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	type setup struct {
 		endpoint string
