@@ -587,7 +587,7 @@ func main() {
 		b, err := bnet.New(bnet.Config{
 			Address: host,
 			Client:  client,
-			Timeout: config.Timeouts.Global,
+			Timeout: config.Timeouts.AfterStarted,
 			Limit:   config.ConcurrencyLimitPerServer,
 			Logger:  logger,
 		})

@@ -23,12 +23,12 @@ func TestAddress(t *testing.T) {
 
 	exp := "localhost:8080"
 
-	if b.address.Host != "localhost:8080" {
+	if b.address != "localhost:8080" {
 		t.Errorf("Expected %s, got '%s'", exp, b.address)
 	}
 
-	if b.address.Scheme != "http" {
-		t.Errorf("Expected http scheme, got '%s'", b.address.Scheme)
+	if b.scheme != "http" {
+		t.Errorf("Expected http scheme, got '%s'", b.scheme)
 	}
 
 	b, err = New(Config{
@@ -39,12 +39,12 @@ func TestAddress(t *testing.T) {
 		return
 	}
 
-	if b.address.Host != "localhost:8080" {
+	if b.address != "localhost:8080" {
 		t.Errorf("Expected %s, got '%s'", exp, b.address)
 	}
 
-	if b.address.Scheme != "https" {
-		t.Errorf("Expected http scheme, got '%s'", b.address.Scheme)
+	if b.scheme != "https" {
+		t.Errorf("Expected http scheme, got '%s'", b.scheme)
 	}
 }
 

@@ -23,7 +23,8 @@ import (
 
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
-	address *url.URL
+	address string
+	scheme  string
 	client  *http.Client
 	timeout time.Duration
 	limiter chan struct{}
@@ -56,12 +57,13 @@ func New(cfg Config) (*Backend, error) {
 		mutex: new(sync.Mutex),
 	}
 
-	address, err := parseAddress(cfg.Address)
+	address, scheme, err := parseAddress(cfg.Address)
 	if err != nil {
 		return nil, err
 	}
 
 	b.address = address
+	b.scheme = scheme
 
 	if cfg.Timeout > 0 {
 		b.timeout = cfg.Timeout
@@ -88,19 +90,25 @@ func New(cfg Config) (*Backend, error) {
 	return b, nil
 }
 
-func parseAddress(address string) (*url.URL, error) {
-	if strings.Contains(address, "://") {
-		return url.Parse(address)
+func parseAddress(address string) (string, string, error) {
+	if !strings.Contains(address, "://") {
+		address = "http://" + address
 	}
 
-	return url.Parse("http://" + address)
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", "", err
+	}
+
+	return u.Host, u.Scheme, nil
 }
 
 func (b Backend) url(path string) *url.URL {
-	u := *b.address
-	u.Path = path
-
-	return &u
+	return &url.URL{
+		Scheme: b.scheme,
+		Host:   b.address,
+		Path:   path,
+	}
 }
 
 func (b Backend) Logger() *zap.Logger {
@@ -175,7 +183,7 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 
 	if err := b.leave(); err != nil {
 		b.logger.Error("Backend limiter full",
-			zap.String("host", b.address.Hostname()),
+			zap.String("host", b.address),
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
 		)
@@ -296,7 +304,7 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 
 	var infos []types.Info
 	if single {
-		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address.Hostname())
+		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address)
 	} else {
 		infos, err = carbonapi_v2.MultiInfoDecoder(resp)
 	}
