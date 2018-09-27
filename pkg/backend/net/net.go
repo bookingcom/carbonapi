@@ -276,7 +276,18 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
-	infos, err := carbonapi_v2.InfoDecoder(resp)
+	single, err := carbonapi_v2.IsInfoResponse(resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	var infos []types.Info
+	if single {
+		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address)
+	} else {
+		infos, err = carbonapi_v2.MultiInfoDecoder(resp)
+	}
+
 	if err != nil {
 		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
 	}

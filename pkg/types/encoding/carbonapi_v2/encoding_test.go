@@ -4,12 +4,87 @@ import (
 	"testing"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
+
+	"github.com/go-graphite/protocol/carbonapi_v2_pb"
 )
 
+func TestIsInfoResponse(t *testing.T) {
+	var blob []byte
+	var ok bool
+	var err error
+
+	info := carbonapi_v2_pb.InfoResponse{
+		Name:              "foo",
+		AggregationMethod: "bar",
+		MaxRetention:      10,
+		XFilesFactor:      1.0,
+	}
+	blob, err = info.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ok, err = IsInfoResponse(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if !ok {
+		t.Error("Expected single response")
+		return
+	}
+
+	sInfo := carbonapi_v2_pb.ServerInfoResponse{
+		Server: "localhost",
+		Info:   &info,
+	}
+
+	blob, err = sInfo.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ok, err = IsInfoResponse(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if ok {
+		t.Error("Expected multiple responses")
+		return
+	}
+
+	zInfo := carbonapi_v2_pb.ZipperInfoResponse{
+		Responses: []carbonapi_v2_pb.ServerInfoResponse{
+			sInfo,
+		},
+	}
+	blob, err = zInfo.Marshal()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ok, err = IsInfoResponse(blob)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if ok {
+		t.Error("Expected multiple responses")
+		return
+	}
+}
+
 func TestResponseFindUnmarshal(t *testing.T) {
-	input := Matches{
-		Matches: []Match{
-			Match{
+	input := carbonapi_v2_pb.GlobResponse{
+		Matches: []carbonapi_v2_pb.GlobMatch{
+			carbonapi_v2_pb.GlobMatch{
 				Path:   "foo/bar",
 				IsLeaf: true,
 			},
@@ -39,15 +114,17 @@ func TestResponseFindUnmarshal(t *testing.T) {
 }
 
 func TestResponseInfoUnmarshal(t *testing.T) {
-	input := Infos{
-		Hosts: []string{"foo"},
-		Infos: []Info{
-			Info{
-				Name: "A",
-				Retentions: []Retention{
-					Retention{
-						SecondsPerPoint: 1,
-						NumberOfPoints:  10,
+	input := carbonapi_v2_pb.ZipperInfoResponse{
+		Responses: []carbonapi_v2_pb.ServerInfoResponse{
+			carbonapi_v2_pb.ServerInfoResponse{
+				Server: "foo",
+				Info: &carbonapi_v2_pb.InfoResponse{
+					Name: "A",
+					Retentions: []carbonapi_v2_pb.Retention{
+						carbonapi_v2_pb.Retention{
+							SecondsPerPoint: 1,
+							NumberOfPoints:  10,
+						},
 					},
 				},
 			},
@@ -60,7 +137,7 @@ func TestResponseInfoUnmarshal(t *testing.T) {
 		return
 	}
 
-	got, err := InfoDecoder(blob)
+	got, err := MultiInfoDecoder(blob)
 	if err != nil {
 		t.Error(err)
 		return
@@ -81,9 +158,9 @@ func TestResponseInfoUnmarshal(t *testing.T) {
 }
 
 func TestResponseRenderUnmarshal(t *testing.T) {
-	input := Metrics{
-		Metrics: []Metric{
-			Metric{
+	input := carbonapi_v2_pb.MultiFetchResponse{
+		Metrics: []carbonapi_v2_pb.FetchResponse{
+			carbonapi_v2_pb.FetchResponse{
 				Name:      "A",
 				StartTime: 1,
 				StopTime:  2,
