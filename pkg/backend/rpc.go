@@ -18,6 +18,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
 	"github.com/go-graphite/carbonapi/util"
@@ -199,5 +200,10 @@ func combineErrors(errs []error) error {
 		return nil
 	}
 
-	return fmt.Errorf("%+v", msgs)
+	ms := make([]string, 0, len(msgs))
+	for m, c := range msgs {
+		ms = append(ms, fmt.Sprintf("%s: %d backends", m, c))
+	}
+
+	return fmt.Errorf("%s", strings.Join(ms, "\n"))
 }
