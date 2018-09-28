@@ -24,6 +24,12 @@ type jsonMatch struct {
 }
 
 func FindEncoder(matches types.Matches) ([]byte, error) {
+	jms := matchesToJSONMatches(matches)
+
+	return json.Marshal(jms)
+}
+
+func matchesToJSONMatches(matches types.Matches) []jsonMatch {
 	jms := make([]jsonMatch, 0, len(matches.Matches))
 
 	var basepath string
@@ -57,7 +63,7 @@ func FindEncoder(matches types.Matches) ([]byte, error) {
 		jms = append(jms, jm)
 	}
 
-	return json.Marshal(jms)
+	return jms
 }
 
 /*
