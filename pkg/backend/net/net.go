@@ -168,9 +168,9 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 	return req, nil
 }
 
-func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
+func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, error) {
 	if err := b.enter(ctx); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	resp, err := b.client.Do(req)
@@ -178,7 +178,7 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
-		return nil, err
+		return "", nil, err
 	}
 
 	if err := b.leave(); err != nil {
@@ -192,27 +192,27 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return body, errors.Errorf("Bad response code %d", resp.StatusCode)
+		return "", body, errors.Errorf("Bad response code %d", resp.StatusCode)
 	}
 
-	return body, nil
+	return resp.Header.Get("Content-Type"), body, nil
 }
 
 // Call makes a call to a backend.
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
 	req, err := b.request(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	return b.do(ctx, req)
@@ -275,14 +275,35 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, targets []
 	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
-	resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
-	metrics, err := carbonapi_v2.RenderDecoder(resp)
+	var metrics []types.Metric
+
+	switch contentType {
+	case "application/x-protobuf":
+		metrics, err = carbonapi_v2.RenderDecoder(resp)
+
+	case "application/json":
+		// TODO(gmagnusson)
+
+	case "application/pickle":
+		// TODO(gmagnusson)
+
+	case "application/x-msgpack":
+		// TODO(gmagnusson)
+
+	case "application/x-carbonapi-v3-pb":
+		// TODO(gmagnusson)
+
+	default:
+		return nil, errors.Errorf("Unknown content type '%s'", contentType)
+	}
+
 	if err != nil {
-		return metrics, errors.Wrap(err, "Protobuf unmarshal failed")
+		return metrics, errors.Wrap(err, "Unmarshal failed")
 	}
 
 	return metrics, nil
@@ -305,7 +326,7 @@ func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) 
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
-	resp, err := b.call(ctx, u, body)
+	_, resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
@@ -344,17 +365,38 @@ func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) 
 	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
-	resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, u, body)
 	if err != nil {
 		return types.Matches{}, errors.Wrap(err, "HTTP call failed")
 	}
 
-	find, err := carbonapi_v2.FindDecoder(resp)
-	if err != nil {
-		return find, errors.Wrap(err, "Protobuf unmarshal failed")
+	var matches types.Matches
+
+	switch contentType {
+	case "application/x-protobuf":
+		matches, err = carbonapi_v2.FindDecoder(resp)
+
+	case "application/json":
+		// TODO(gmagnusson)
+
+	case "application/pickle":
+		// TODO(gmagnusson)
+
+	case "application/x-msgpack":
+		// TODO(gmagnusson)
+
+	case "application/x-carbonapi-v3-pb":
+		// TODO(gmagnusson)
+
+	default:
+		return types.Matches{}, errors.Errorf("Unknown content type '%s'", contentType)
 	}
 
-	return find, nil
+	if err != nil {
+		return matches, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	return matches, nil
 }
 
 func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {

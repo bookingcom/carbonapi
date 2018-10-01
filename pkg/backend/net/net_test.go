@@ -101,7 +101,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	got, err := b.call(context.Background(), b.url("/render"), nil)
+	_, got, err := b.call(context.Background(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -126,7 +126,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -145,7 +145,7 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -173,7 +173,7 @@ func TestDoLimiterTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = b.do(ctx, req)
+	_, _, err = b.do(ctx, req)
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -201,7 +201,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	got, err := b.do(context.Background(), req)
+	_, got, err := b.do(context.Background(), req)
 	if err != nil {
 		t.Error(err)
 	}
@@ -236,7 +236,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = b.do(ctx, req)
+	_, _, err = b.do(ctx, req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -262,7 +262,7 @@ func TestDoHTTPError(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, err = b.do(context.Background(), req)
+	_, _, err = b.do(context.Background(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
