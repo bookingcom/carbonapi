@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-graphite/carbonapi/expr/interfaces"
-	"github.com/go-graphite/carbonapi/expr/metadata"
-	"github.com/go-graphite/carbonapi/expr/rewrite/applyByNode"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
+	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/bookingcom/carbonapi/expr/rewrite/applyByNode"
 )
 
 type initFunc struct {

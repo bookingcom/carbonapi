@@ -16,8 +16,8 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/go-graphite/carbonapi/intervalset"
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/intervalset"
+	"github.com/bookingcom/carbonapi/pkg/types"
 
 	pickle "github.com/lomik/og-rek"
 )

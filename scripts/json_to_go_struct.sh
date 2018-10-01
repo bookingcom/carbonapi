@@ -10,7 +10,7 @@ usage() {
 	echo "${0} func_list_output.json function_dir code_path"
 	echo
 	echo "Main idea of this file is to get graphite-web's json and autogenerate description as a Go-struct."
-	echo "Example: ./${0} ./func.json below ~/go/gopath_third_party/src/github.com/go-graphite/carbonapi"
+	echo "Example: ./${0} ./func.json below ~/go/gopath_third_party/src/github.com/bookingcom/carbonapi"
 }
 
 JSON_FILE=${1}
@@ -26,7 +26,7 @@ if [[ -z ${FUNCTION_FILE} ]]; then
 fi
 
 shift
-# ~/go/gopath_third_party/src/github.com/go-graphite/carbonapi
+# ~/go/gopath_third_party/src/github.com/bookingcom/carbonapi
 CODE_PATH="${1}"
 if [[ -z ${CODE_PATH} ]]; then
 	usage

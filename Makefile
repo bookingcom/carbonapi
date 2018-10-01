@@ -13,8 +13,8 @@ GO ?= go
 
 SOURCES=$(shell find . -name '*.go')
 
-PKG_CARBONAPI=github.com/go-graphite/carbonapi/cmd/carbonapi
-PKG_CARBONZIPPER=github.com/go-graphite/carbonapi/cmd/carbonzipper
+PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
+PKG_CARBONZIPPER=github.com/bookingcom/carbonapi/cmd/carbonzipper
 
 carbonapi: $(SOURCES)
 	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -tags cairo -ldflags '-X main.BuildVersion=$(VERSION)' $(PKG_CARBONAPI)

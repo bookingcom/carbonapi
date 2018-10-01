@@ -3,7 +3,7 @@ package cfg
 import (
 	"io"
 
-	"github.com/go-graphite/carbonapi/pathcache"
+	"github.com/bookingcom/carbonapi/pathcache"
 )
 
 type Zipper struct {

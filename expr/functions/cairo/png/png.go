@@ -3,8 +3,8 @@
 package png
 
 import (
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
 	"net/http"
 )
 

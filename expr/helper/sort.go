@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/go-graphite/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/expr/types"
 )
 
 // ByVals sorts by values

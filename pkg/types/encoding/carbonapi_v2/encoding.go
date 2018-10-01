@@ -12,7 +12,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types"
 
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
 )

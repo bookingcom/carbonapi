@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/parser"
 )
 
 var errBadTime = errors.New("bad time")

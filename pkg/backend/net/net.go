@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-graphite/carbonapi/pkg/types"
-	"github.com/go-graphite/carbonapi/pkg/types/encoding/carbonapi_v2"
-	"github.com/go-graphite/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
+	"github.com/bookingcom/carbonapi/util"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"

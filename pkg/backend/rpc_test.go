@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-graphite/carbonapi/pkg/backend/mock"
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/backend/mock"
+	"github.com/bookingcom/carbonapi/pkg/types"
 
 	"go.uber.org/zap"
 )

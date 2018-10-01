@@ -9,7 +9,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types"
 
 	"github.com/pkg/errors"
 )

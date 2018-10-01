@@ -40,10 +40,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-graphite/carbonapi/expr/interfaces"
-	"github.com/go-graphite/carbonapi/expr/metadata"`)
+	"github.com/bookingcom/carbonapi/expr/interfaces"
+	"github.com/bookingcom/carbonapi/expr/metadata"`)
 	for _, m := range funcs {
-		fmt.Fprintf(writer, "	\"github.com/go-graphite/carbonapi/expr/rewrite/%s\"\n", m)
+		fmt.Fprintf(writer, "	\"github.com/bookingcom/carbonapi/expr/rewrite/%s\"\n", m)
 	}
 	fmt.Fprintf(writer, `)
 

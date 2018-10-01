@@ -15,7 +15,7 @@ package mock
 import (
 	"context"
 
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types"
 
 	"go.uber.org/zap"
 )

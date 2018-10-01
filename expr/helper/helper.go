@@ -9,9 +9,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/go-graphite/carbonapi/expr/interfaces"
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
 
 	"github.com/wangjohn/quickselect"
 	"gonum.org/v1/gonum/mat"

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-graphite/carbonapi/expr/metadata"
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
-	th "github.com/go-graphite/carbonapi/tests"
+	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	th "github.com/bookingcom/carbonapi/tests"
 )
 
 func init() {

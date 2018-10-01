@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-graphite/carbonapi/cfg"
-	"github.com/go-graphite/carbonapi/expr/types"
-	realZipper "github.com/go-graphite/carbonapi/zipper"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/expr/types"
+	realZipper "github.com/bookingcom/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
 	"go.uber.org/zap"

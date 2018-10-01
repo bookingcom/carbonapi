@@ -8,12 +8,12 @@ import (
 
 	"fmt"
 
-	"github.com/go-graphite/carbonapi/expr/functions"
-	"github.com/go-graphite/carbonapi/expr/helper"
-	"github.com/go-graphite/carbonapi/expr/rewrite"
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
-	th "github.com/go-graphite/carbonapi/tests"
+	"github.com/bookingcom/carbonapi/expr/functions"
+	"github.com/bookingcom/carbonapi/expr/helper"
+	"github.com/bookingcom/carbonapi/expr/rewrite"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	th "github.com/bookingcom/carbonapi/tests"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 )
 

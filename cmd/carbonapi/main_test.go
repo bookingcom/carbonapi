@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-graphite/carbonapi/cfg"
-	"github.com/go-graphite/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/expr/types"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
 	"github.com/lomik/zapwriter"

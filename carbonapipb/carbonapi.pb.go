@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-graphite/carbonapi/cfg"
-	"github.com/go-graphite/carbonapi/util"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/util"
 )
 
 type AccessLogDetails struct {

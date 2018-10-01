@@ -1,8 +1,8 @@
 package interfaces
 
 import (
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
 )
 
 // FunctionBase is a set of base methods that partly satisfy Function interface and most probably nobody will modify

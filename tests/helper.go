@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-graphite/carbonapi/expr/interfaces"
-	"github.com/go-graphite/carbonapi/expr/metadata"
-	"github.com/go-graphite/carbonapi/expr/types"
-	"github.com/go-graphite/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
+	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/parser"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 )
 

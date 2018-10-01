@@ -3,7 +3,7 @@ package json
 import (
 	"testing"
 
-	"github.com/go-graphite/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types"
 )
 
 func TestExpandable(t *testing.T) {
