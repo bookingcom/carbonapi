@@ -39,3 +39,6 @@ test:
 
 clean:
 	rm -f carbonapi carbonzipper
+
+authors:
+	git log --format="%an" | sort | uniq > AUTHORS.txt

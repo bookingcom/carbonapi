@@ -38,10 +38,9 @@ type Common struct {
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
 
-	CarbonSearch               CarbonSearch `yaml:"carbonsearch"`
-	ExpireDelaySec             int32        `yaml:"expireDelaySec"`
-	GraphiteWeb09Compatibility bool         `yaml:"graphite09compat"`
-	CorruptionThreshold        float64      `yaml:"corruptionThreshold"`
+	ExpireDelaySec             int32   `yaml:"expireDelaySec"`
+	GraphiteWeb09Compatibility bool    `yaml:"graphite09compat"`
+	CorruptionThreshold        float64 `yaml:"corruptionThreshold"`
 
 	Buckets  int                `yaml:"buckets"`
 	Graphite GraphiteConfig     `yaml:"graphite"`
@@ -52,11 +51,6 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
-}
-
-type CarbonSearch struct {
-	Backend string `yaml:"backend"`
-	Prefix  string `yaml:"prefix"`
 }
 
 var DefaultConfig = Common{

@@ -126,8 +126,6 @@ var zipperMetrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
 
-	SearchRequests *expvar.Int
-
 	RenderRequests *expvar.Int
 	RenderErrors   *expvar.Int
 
@@ -136,20 +134,14 @@ var zipperMetrics = struct {
 
 	Timeouts *expvar.Int
 
-	CacheSize        expvar.Func
-	CacheItems       expvar.Func
-	SearchCacheSize  expvar.Func
-	SearchCacheItems expvar.Func
+	CacheSize  expvar.Func
+	CacheItems expvar.Func
 
-	CacheMisses       *expvar.Int
-	CacheHits         *expvar.Int
-	SearchCacheMisses *expvar.Int
-	SearchCacheHits   *expvar.Int
+	CacheMisses *expvar.Int
+	CacheHits   *expvar.Int
 }{
 	FindRequests: expvar.NewInt("zipper_find_requests"),
 	FindErrors:   expvar.NewInt("zipper_find_errors"),
-
-	SearchRequests: expvar.NewInt("zipper_search_requests"),
 
 	RenderRequests: expvar.NewInt("zipper_render_requests"),
 	RenderErrors:   expvar.NewInt("zipper_render_errors"),
@@ -159,10 +151,8 @@ var zipperMetrics = struct {
 
 	Timeouts: expvar.NewInt("zipper_timeouts"),
 
-	CacheHits:         expvar.NewInt("zipper_cache_hits"),
-	CacheMisses:       expvar.NewInt("zipper_cache_misses"),
-	SearchCacheHits:   expvar.NewInt("zipper_search_cache_hits"),
-	SearchCacheMisses: expvar.NewInt("zipper_search_cache_misses"),
+	CacheHits:   expvar.NewInt("zipper_cache_hits"),
+	CacheMisses: expvar.NewInt("zipper_cache_misses"),
 }
 
 const (
@@ -292,9 +282,6 @@ func zipperStats(stats *realZipper.Stats) {
 	zipperMetrics.RenderErrors.Add(stats.RenderErrors)
 	zipperMetrics.InfoErrors.Add(stats.InfoErrors)
 
-	zipperMetrics.SearchRequests.Add(stats.SearchRequests)
-	zipperMetrics.SearchCacheHits.Add(stats.SearchCacheHits)
-	zipperMetrics.SearchCacheMisses.Add(stats.SearchCacheMisses)
 	zipperMetrics.CacheMisses.Add(stats.CacheMisses)
 	zipperMetrics.CacheHits.Add(stats.CacheHits)
 }
@@ -522,14 +509,8 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_size", pattern), zipperMetrics.CacheSize)
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_items", pattern), zipperMetrics.CacheItems)
 
-		graphite.Register(fmt.Sprintf("%s.zipper.search_cache_size", pattern), zipperMetrics.SearchCacheSize)
-		graphite.Register(fmt.Sprintf("%s.zipper.search_cache_items", pattern), zipperMetrics.SearchCacheItems)
-
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_hits", pattern), zipperMetrics.CacheHits)
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_misses", pattern), zipperMetrics.CacheMisses)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.search_cache_hits", pattern), zipperMetrics.SearchCacheHits)
-		graphite.Register(fmt.Sprintf("%s.zipper.search_cache_misses", pattern), zipperMetrics.SearchCacheMisses)
 
 		go mstats.Start(config.Graphite.Interval)
 
@@ -568,19 +549,12 @@ func setUpConfigUpstreams(logger *zap.Logger) {
 
 	// Setup in-memory path cache for carbonzipper requests
 	config.PathCache = pathcache.NewPathCache(config.ExpireDelaySec)
-	config.SearchCache = pathcache.NewPathCache(config.ExpireDelaySec)
 
 	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return config.PathCache.ECSize() })
 	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
 
 	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
-
-	zipperMetrics.SearchCacheSize = expvar.Func(func() interface{} { return config.SearchCache.ECSize() })
-	expvar.Publish("searchCacheSize", zipperMetrics.SearchCacheSize)
-
-	zipperMetrics.SearchCacheItems = expvar.Func(func() interface{} { return config.SearchCache.ECItems() })
-	expvar.Publish("searchCacheItems", zipperMetrics.SearchCacheItems)
 }
 
 var timeBuckets []int64
@@ -704,8 +678,10 @@ func main() {
 		}
 	}()
 
-	ticker := time.NewTicker(time.Duration(config.LoadBlockRuleHeaderConfig) * time.Second)
-	go loadBlockRuleHeaderConfig(ticker, logger)
+	if config.BlockHeaderUpdatePeriod > 0 {
+		ticker := time.NewTicker(config.BlockHeaderUpdatePeriod)
+		go loadBlockRuleHeaderConfig(ticker, logger)
+	}
 
 	err = gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,

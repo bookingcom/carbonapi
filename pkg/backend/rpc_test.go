@@ -28,6 +28,19 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+func TestFilterNoneContains(t *testing.T) {
+	backends := []Backend{
+		mock.New(mock.Config{
+			Contains: func([]string) bool { return false },
+		}),
+	}
+
+	got := Filter(backends, nil)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 backend, got %d", len(got))
+	}
+}
+
 func TestCarbonapiv2InfosEmpty(t *testing.T) {
 	got, err := Infos(context.Background(), []Backend{}, "foo")
 	if err != nil {
@@ -47,8 +60,8 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 		return
 	}
 
-	if got != nil {
-		t.Error("Expected nil response")
+	if len(got.Matches) != 0 {
+		t.Error("Expected emtpy response")
 	}
 }
 
@@ -191,8 +204,8 @@ func TestCarbonapiv2Infos(t *testing.T) {
 }
 
 func TestCarbonapiv2FindsError(t *testing.T) {
-	find := func(context.Context, string) ([]types.Match, error) {
-		return nil, errors.New("No")
+	find := func(context.Context, string) (types.Matches, error) {
+		return types.Matches{}, errors.New("No")
 	}
 
 	backends := []Backend{mock.New(mock.Config{Find: find})}
@@ -209,11 +222,14 @@ func TestCarbonapiv2Finds(t *testing.T) {
 	backends := make([]Backend, 0)
 	for i := 0; i < 10; i++ {
 		j := i
-		find := func(context.Context, string) ([]types.Match, error) {
-			return []types.Match{
-				types.Match{
-					Path:   fmt.Sprintf("foo/%d", j),
-					IsLeaf: true,
+		find := func(context.Context, string) (types.Matches, error) {
+			return types.Matches{
+				Name: "foo",
+				Matches: []types.Match{
+					types.Match{
+						Path:   fmt.Sprintf("foo/%d", j),
+						IsLeaf: true,
+					},
 				},
 			}, nil
 		}
@@ -227,8 +243,8 @@ func TestCarbonapiv2Finds(t *testing.T) {
 		return
 	}
 
-	if len(got) != N {
-		t.Errorf("Expected %d responses, got %d", N, len(got))
+	if len(got.Matches) != N {
+		t.Errorf("Expected %d responses, got %d", N, len(got.Matches))
 		return
 	}
 }

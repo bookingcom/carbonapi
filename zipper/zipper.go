@@ -36,12 +36,7 @@ type Zipper struct {
 	timeoutConnect         time.Duration
 	keepAliveInterval      time.Duration
 
-	searchBackend    string
-	searchConfigured bool
-	searchPrefix     string
-
-	pathCache   pathcache.PathCache
-	searchCache pathcache.PathCache
+	pathCache pathcache.PathCache
 
 	backends                  []string
 	concurrencyLimitPerServer int
@@ -63,20 +58,15 @@ func (z Zipper) MaxLimiterUse() float64 {
 
 // Stats provides zipper-related statistics
 type Stats struct {
-	Timeouts          int64
-	FindErrors        int64
-	RenderErrors      int64
-	InfoErrors        int64
-	SearchRequests    int64
-	SearchCacheHits   int64
-	SearchCacheMisses int64
+	Timeouts     int64
+	FindErrors   int64
+	RenderErrors int64
+	InfoErrors   int64
 
 	MemoryUsage int64
 
 	CacheMisses int64
 	CacheHits   int64
-
-	Corruption float64
 }
 
 type nameLeaf struct {
@@ -93,14 +83,10 @@ func NewZipper(sender func(*Stats), config cfg.Zipper, logger *zap.Logger) *Zipp
 
 		sendStats: sender,
 
-		pathCache:   config.PathCache,
-		searchCache: config.SearchCache,
+		pathCache: config.PathCache,
 
 		storageClient:             &http.Client{},
 		backends:                  config.Common.Backends,
-		searchBackend:             config.CarbonSearch.Backend,
-		searchPrefix:              config.CarbonSearch.Prefix,
-		searchConfigured:          len(config.CarbonSearch.Prefix) > 0 && len(config.CarbonSearch.Backend) > 0,
 		concurrencyLimitPerServer: config.ConcurrencyLimitPerServer,
 		maxIdleConnsPerHost:       config.MaxIdleConnsPerHost,
 		keepAliveInterval:         config.KeepAliveInterval,
@@ -118,9 +104,6 @@ func NewZipper(sender func(*Stats), config cfg.Zipper, logger *zap.Logger) *Zipp
 
 	if z.concurrencyLimitPerServer != 0 {
 		limiterServers := z.backends
-		if z.searchConfigured {
-			limiterServers = append(limiterServers, z.searchBackend)
-		}
 		z.limiter = limiter.NewServerLimiter(limiterServers, z.concurrencyLimitPerServer)
 	}
 
@@ -265,11 +248,9 @@ func (z *Zipper) mergeValues(metric *pb3.FetchResponse, others []pb3.FetchRespon
 	}
 
 	c := float64(healed) / float64(len(metric.Values))
-
 	if c > z.corruptionThreshold {
 		logger.With(zap.Float64("corruption", c)).Error("metric corruption spotted", zap.String("metric_name", metric.Name))
 	}
-	stats.Corruption += c
 }
 
 func (z *Zipper) infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoResponse {
@@ -621,18 +602,6 @@ func netOpErrorMessage(err *net.OpError) string {
 	}
 }
 
-func (z *Zipper) fetchCarbonsearchResponse(ctx context.Context, logger *zap.Logger, url string, stats *Stats) []string {
-	// Send query to SearchBackend. The result is []queries for StorageBackends
-	searchResponse := z.multiGet(ctx, logger, []string{z.searchBackend}, url, stats)
-	m, _ := z.findUnpackPB(searchResponse, stats)
-
-	queries := make([]string, 0, len(m))
-	for _, v := range m {
-		queries = append(queries, v.Path)
-	}
-	return queries
-}
-
 func (z *Zipper) Render(ctx context.Context, logger *zap.Logger, target string, from, until int32) (*pb3.MultiFetchResponse, *Stats, error) {
 	stats := &Stats{}
 
@@ -649,52 +618,18 @@ func (z *Zipper) Render(ctx context.Context, logger *zap.Logger, target string, 
 	var serverList []string
 	var ok bool
 	var responses []ServerResponse
-	if z.searchConfigured && strings.HasPrefix(target, z.searchPrefix) {
-		stats.SearchRequests++
 
-		var metrics []string
-		if metrics, ok = z.searchCache.Get(target); !ok || metrics == nil || len(metrics) == 0 {
-			stats.SearchCacheMisses++
-			findURL := &url.URL{Path: "/metrics/find/"}
-			findValues := url.Values{}
-			findValues.Set("format", "protobuf")
-			findValues.Set("query", target)
-			findURL.RawQuery = findValues.Encode()
+	rewrite.RawQuery = v.Encode()
 
-			metrics = z.fetchCarbonsearchResponse(ctx, logger, findURL.RequestURI(), stats)
-			z.searchCache.Set(target, metrics)
-		} else {
-			stats.SearchCacheHits++
-		}
-
-		for _, target := range metrics {
-			v.Set("target", target)
-			rewrite.RawQuery = v.Encode()
-
-			// lookup the server list for this metric, or use all the servers if it's unknown
-			if serverList, ok = z.pathCache.Get(target); !ok || serverList == nil || len(serverList) == 0 {
-				stats.CacheMisses++
-				serverList = z.backends
-			} else {
-				stats.CacheHits++
-			}
-
-			newResponses := z.multiGet(ctx, logger, serverList, rewrite.RequestURI(), stats)
-			responses = append(responses, newResponses...)
-		}
+	// lookup the server list for this metric, or use all the servers if it's unknown
+	if serverList, ok = z.pathCache.Get(target); !ok || serverList == nil || len(serverList) == 0 {
+		stats.CacheMisses++
+		serverList = z.backends
 	} else {
-		rewrite.RawQuery = v.Encode()
-
-		// lookup the server list for this metric, or use all the servers if it's unknown
-		if serverList, ok = z.pathCache.Get(target); !ok || serverList == nil || len(serverList) == 0 {
-			stats.CacheMisses++
-			serverList = z.backends
-		} else {
-			stats.CacheHits++
-		}
-
-		responses = z.multiGet(ctx, logger, serverList, rewrite.RequestURI(), stats)
+		stats.CacheHits++
 	}
+
+	responses = z.multiGet(ctx, logger, serverList, rewrite.RequestURI(), stats)
 
 	for i := range responses {
 		stats.MemoryUsage += int64(len(responses[i].response))
@@ -758,28 +693,6 @@ func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]
 		"format": []string{"protobuf"},
 	}
 	rewrite.RawQuery = v.Encode()
-
-	if z.searchConfigured && strings.HasPrefix(query, z.searchPrefix) {
-		stats.SearchRequests++
-		// 'completer' requests are translated into standard Find requests with
-		// a trailing '*' by graphite-web
-		if strings.HasSuffix(query, "*") {
-			searchCompleterResponse := z.multiGet(ctx, logger, []string{z.searchBackend}, rewrite.RequestURI(), stats)
-			matches, _ := z.findUnpackPB(searchCompleterResponse, stats)
-			// this is a completer request, and so we should return the set of
-			// virtual metrics returned by carbonsearch verbatim, rather than trying
-			// to find them on the stores
-			return matches, stats, nil
-		}
-		var ok bool
-		if queries, ok = z.searchCache.Get(query); !ok || queries == nil || len(queries) == 0 {
-			stats.SearchCacheMisses++
-			queries = z.fetchCarbonsearchResponse(ctx, logger, rewrite.RequestURI(), stats)
-			z.searchCache.Set(query, queries)
-		} else {
-			stats.SearchCacheHits++
-		}
-	}
 
 	var metrics []pb3.GlobMatch
 	// TODO(nnuss): Rewrite the result queries to a series of brace expansions based on TLD?

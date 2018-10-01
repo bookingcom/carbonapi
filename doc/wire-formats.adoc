@@ -1,0 +1,50 @@
+= Graphite wire formats
+
+Graphite-web uses pickle and msgpack for transport of `/render` responses. In
+both cases, they expect metrics in the form:
+
+----
+syntax = "proto3";
+
+message Metric {
+    string name = 1;
+    optional string pathExpression = 2;
+    fixed64 start = 3;
+    fixed64 end = 4;
+    int32 step = 5;
+    repeated double values = 6;
+}
+
+type metric struct {
+    Name string
+    PathExpression string
+    Start uint64
+    End uint64
+    Step uint
+    Values []float64
+}
+----
+
+If `pathExpression` is missing, it is set to `name`. `step` is in seconds, so
+it should be fine to use a 32-bit integer for that (2 billion seconds = 63
+years). The responses graphite-web expects are `repeated Metric`.
+
+If the HTTP response contains the Content-Type header 'application/x-msgpack',
+then the message is serialized with msgpack, otherwise with pickle. This is
+also true for `/metrics/find` responses.
+
+For `/metrics/find` responses, graphite-web expects messages of the form:
+
+----
+type Match struct {
+    path        string          // metric_path in v0.9.x
+    is_leaf     bool            // isLeaf in v0.9.x
+    intervals   [][2]int64{}
+}
+----
+
+This message definition is for version '1.x'. Intervals are converted to an
+`IntervalSet`. They reduce intersecting intervals to non-intersecting ones.
+The responses for a find request are again `repeated Match`.
+
+We ignore the intervals. What are they for?

@@ -8,7 +8,19 @@ package types
 
 import (
 	"sort"
+
+	"go.uber.org/zap"
 )
+
+var (
+	corruptionThreshold = 1.0
+	corruptionLogger    = zap.New(nil)
+)
+
+func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
+	corruptionThreshold = threshold
+	corruptionLogger = logger
+}
 
 /* NOTE(gmagnusson):
 If it turns out that converting generated protobuf structs to and from this
@@ -48,6 +60,14 @@ type Metric struct {
 
 // MergeMetrics merges metrics by name.
 func MergeMetrics(metrics [][]Metric) []Metric {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	if len(metrics) == 1 {
+		return metrics[0]
+	}
+
 	names := make(map[string][]Metric)
 
 	for _, ms := range metrics {
@@ -81,7 +101,12 @@ func mergeMetrics(metrics []Metric) Metric {
 		return Metric{}
 	}
 
+	if len(metrics) == 1 {
+		return metrics[0]
+	}
+
 	sort.Sort(byStepTime(metrics))
+	healed := 0
 
 	// metrics[0] has the highest resolution of metrics
 	metric := metrics[0]
@@ -102,9 +127,18 @@ func mergeMetrics(metrics []Metric) Metric {
 			if !m.IsAbsent[i] {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
+				healed++
 				break
 			}
 		}
+	}
+
+	if c := float64(healed) / float64(len(metric.Values)); c > corruptionThreshold {
+		corruptionLogger.Warn("metric corruption",
+			zap.String("metric", metric.Name),
+			zap.Float64("corruption", c),
+			zap.Float64("threshold", corruptionThreshold),
+		)
 	}
 
 	return metric
@@ -122,6 +156,14 @@ type Info struct {
 
 // MergeInfos merges Info structures.
 func MergeInfos(infos [][]Info) []Info {
+	if len(infos) == 0 {
+		return nil
+	}
+
+	if len(infos) == 1 {
+		return infos[0]
+	}
+
 	merged := make([]Info, 0, len(infos))
 	for _, info := range infos {
 		merged = append(merged, info...)
@@ -136,17 +178,43 @@ type Retention struct {
 	NumberOfPoints  int32
 }
 
-// Match describes a glob match from a Graphite store.
+// Matches describes a glob match from a Graphite store.
+type Matches struct {
+	Name    string
+	Matches []Match
+}
+
 type Match struct {
 	Path   string
 	IsLeaf bool
 }
 
 // MergeMatches merges Match structures.
-func MergeMatches(matches [][]Match) []Match {
-	merged := make([]Match, 0, len(matches))
+func MergeMatches(matches []Matches) Matches {
+	if len(matches) == 0 {
+		return Matches{}
+	}
+
+	if len(matches) == 1 {
+		return matches[0]
+	}
+
+	merged := Matches{}
+
+	set := make(map[Match]struct{})
 	for _, match := range matches {
-		merged = append(merged, match...)
+		if merged.Name == "" {
+			merged.Name = match.Name
+		}
+
+		for _, m := range match.Matches {
+			set[m] = struct{}{}
+		}
+	}
+
+	merged.Matches = make([]Match, 0, len(set))
+	for match := range set {
+		merged.Matches = append(merged.Matches, match)
 	}
 
 	return merged

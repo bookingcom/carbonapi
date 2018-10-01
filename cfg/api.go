@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"io"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -44,10 +45,6 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 		api.Timeouts = pre.Upstreams.Timeouts
 	}
 
-	if pre.Upstreams.CarbonSearch != DefaultConfig.CarbonSearch {
-		api.CarbonSearch = pre.Upstreams.CarbonSearch
-	}
-
 	if len(pre.Upstreams.Backends) >= 1 {
 		api.Backends = pre.Upstreams.Backends
 	}
@@ -81,16 +78,16 @@ func defaultAPIConfig() API {
 type API struct {
 	Zipper `yaml:",inline"`
 
-	ExtrapolateExperiment     bool        `yaml:"extrapolateExperiment"`
-	SendGlobsAsIs             bool        `yaml:"sendGlobsAsIs"`
-	AlwaysSendGlobsAsIs       bool        `yaml:"alwaysSendGlobsAsIs"`
-	MaxBatchSize              int         `yaml:"maxBatchSize"`
-	Cache                     CacheConfig `yaml:"cache"`
-	TimezoneString            string      `yaml:"tz"`
-	PidFile                   string      `yaml:"pidFile"`
-	BlockHeaderFile           string      `yaml:"blockHeaderFile"`
-	LoadBlockRuleHeaderConfig int         `yaml:"loadBlockRuleHeaderConfig"`
-	HeadersToLog              []string    `yaml:"headersToLog"`
+	ExtrapolateExperiment   bool          `yaml:"extrapolateExperiment"`
+	SendGlobsAsIs           bool          `yaml:"sendGlobsAsIs"`
+	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
+	MaxBatchSize            int           `yaml:"maxBatchSize"`
+	Cache                   CacheConfig   `yaml:"cache"`
+	TimezoneString          string        `yaml:"tz"`
+	PidFile                 string        `yaml:"pidFile"`
+	BlockHeaderFile         string        `yaml:"blockHeaderFile"`
+	BlockHeaderUpdatePeriod time.Duration `yaml:"blockHeaderUpdatePeriod"`
+	HeadersToLog            []string      `yaml:"headersToLog"`
 
 	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`
 	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`

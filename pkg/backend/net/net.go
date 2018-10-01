@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/go-graphite/carbonapi/pkg/types"
-	"github.com/go-graphite/carbonapi/protobuf/carbonapi_v2"
+	"github.com/go-graphite/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/go-graphite/carbonapi/util"
 
 	"github.com/pkg/errors"
@@ -24,6 +24,7 @@ import (
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
 	address string
+	scheme  string
 	client  *http.Client
 	timeout time.Duration
 	limiter chan struct{}
@@ -51,11 +52,18 @@ type Config struct {
 var fmtProto = []string{"protobuf"}
 
 // New creates a new backend from the given configuration.
-func New(cfg Config) Backend {
-	b := Backend{
-		address: cfg.Address,
-		mutex:   new(sync.Mutex),
+func New(cfg Config) (*Backend, error) {
+	b := &Backend{
+		mutex: new(sync.Mutex),
 	}
+
+	address, scheme, err := parseAddress(cfg.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	b.address = address
+	b.scheme = scheme
 
 	if cfg.Timeout > 0 {
 		b.timeout = cfg.Timeout
@@ -79,12 +87,25 @@ func New(cfg Config) Backend {
 		b.logger = zap.New(nil)
 	}
 
-	return b
+	return b, nil
+}
+
+func parseAddress(address string) (string, string, error) {
+	if !strings.Contains(address, "://") {
+		address = "http://" + address
+	}
+
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", "", err
+	}
+
+	return u.Host, u.Scheme, nil
 }
 
 func (b Backend) url(path string) *url.URL {
 	return &url.URL{
-		Scheme: "http",
+		Scheme: b.scheme,
 		Host:   b.address,
 		Path:   path,
 	}
@@ -147,9 +168,9 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 	return req, nil
 }
 
-func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
+func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, error) {
 	if err := b.enter(ctx); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	resp, err := b.client.Do(req)
@@ -157,7 +178,7 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
-		return nil, err
+		return "", nil, err
 	}
 
 	if err := b.leave(); err != nil {
@@ -171,27 +192,27 @@ func (b Backend) do(ctx context.Context, req *http.Request) ([]byte, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return body, errors.Errorf("Bad response code %d", resp.StatusCode)
+		return "", body, errors.Errorf("Bad response code %d", resp.StatusCode)
 	}
 
-	return body, nil
+	return resp.Header.Get("Content-Type"), body, nil
 }
 
 // Call makes a call to a backend.
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) ([]byte, error) {
+func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
 	req, err := b.request(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	return b.do(ctx, req)
@@ -208,8 +229,8 @@ func (b *Backend) Probe() {
 	}
 
 	tlds := make(map[string]struct{})
-	for _, match := range matches {
-		tlds[match.Path] = struct{}{}
+	for _, m := range matches.Matches {
+		tlds[m.Path] = struct{}{}
 	}
 
 	b.mutex.Lock()
@@ -222,9 +243,26 @@ func (b Backend) Contains(targets []string) bool {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
+	if len(b.tlds) == 0 {
+		return true
+	}
+
 	for _, target := range targets {
 		parts := strings.SplitN(target, ".", 2)
-		if _, ok := b.tlds[parts[0]]; ok {
+		part := parts[0]
+
+		if strings.ContainsAny(part, "*{}[]") {
+			// NOTE(gmagnusson): Just assume we contain whatever this is if it
+			// has wildcards and let the stores figure it out.
+			//
+			// If we want to be more clever about this, we have to start
+			// worrying about first expanding {} pairs and then (mostly, kind
+			// of) regex matching the rest, and it just sounds like we're so
+			// far into diminishing returns by then that we shouldn't bother.
+			return true
+		}
+
+		if _, ok := b.tlds[part]; ok {
 			return true
 		}
 	}
@@ -237,14 +275,38 @@ func (b Backend) Render(ctx context.Context, from int32, until int32, targets []
 	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
-	resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
-	ts, err := carbonapiV2RenderDecoder(resp)
+	var metrics []types.Metric
 
-	return ts, err
+	switch contentType {
+	case "application/x-protobuf":
+		metrics, err = carbonapi_v2.RenderDecoder(resp)
+
+	case "application/json":
+		// TODO(gmagnusson)
+
+	case "application/pickle":
+		// TODO(gmagnusson)
+
+	case "application/x-msgpack":
+		// TODO(gmagnusson)
+
+	case "application/x-carbonapi-v3-pb":
+		// TODO(gmagnusson)
+
+	default:
+		return nil, errors.Errorf("Unknown content type '%s'", contentType)
+	}
+
+	if err != nil {
+		return metrics, errors.Wrap(err, "Unmarshal failed")
+	}
+
+	return metrics, nil
 }
 
 func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
@@ -259,52 +321,30 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 	return u, nil
 }
 
-func carbonapiV2RenderDecoder(blob []byte) ([]types.Metric, error) {
-	resp := &carbonapi_v2.Metrics{}
-	if err := resp.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	metrics := make([]types.Metric, len(resp.Metrics))
-	for i, m := range resp.Metrics {
-		metric := types.Metric{
-			Name:      m.Name,
-			StartTime: m.StartTime,
-			StopTime:  m.StopTime,
-			StepTime:  m.StepTime,
-			Values:    m.Values,
-			IsAbsent:  m.IsAbsent,
-		}
-
-		/*
-			TODO(gmagnusson):
-			for j, absent := range metric.IsAbsent {
-				if absent {
-					t.Values[i] = math.NaN
-				}
-			}
-			and then remove Metric.IsAbsent
-		*/
-
-		metrics[i] = metric
-	}
-
-	return metrics, nil
-}
-
 // Info fetches metadata about a metric from a backend.
 func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
-	resp, err := b.call(ctx, u, body)
+	_, resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
-	infos, err := carbonapiV2InfoDecoder(resp)
+	single, err := carbonapi_v2.IsInfoResponse(resp)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	var infos []types.Info
+	if single {
+		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address)
+	} else {
+		infos, err = carbonapi_v2.MultiInfoDecoder(resp)
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
 	}
 
 	return infos, nil
@@ -320,48 +360,43 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 	return u, nil
 }
 
-func carbonapiV2InfoDecoder(blob []byte) ([]types.Info, error) {
-	s := &carbonapi_v2.Infos{}
-	if err := s.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	infos := make([]types.Info, len(s.Infos))
-	for i, sInfo := range s.Infos {
-		info := types.Info{
-			Host:              s.Hosts[i],
-			Name:              sInfo.Name,
-			AggregationMethod: sInfo.AggregationMethod,
-			MaxRetention:      sInfo.MaxRetention,
-			XFilesFactor:      sInfo.XFilesFactor,
-			Retentions:        make([]types.Retention, len(sInfo.Retentions)),
-		}
-		for j, inf := range sInfo.Retentions {
-			info.Retentions[j] = types.Retention{
-				SecondsPerPoint: inf.SecondsPerPoint,
-				NumberOfPoints:  inf.NumberOfPoints,
-			}
-		}
-
-		infos[i] = info
-	}
-
-	return infos, nil
-}
-
 // Find resolves globs and finds metrics in a backend.
-func (b Backend) Find(ctx context.Context, query string) ([]types.Match, error) {
+func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) {
 	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
-	resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, u, body)
 	if err != nil {
-		return nil, err
+		return types.Matches{}, errors.Wrap(err, "HTTP call failed")
 	}
 
-	find, err := carbonapiV2FindDecoder(resp)
+	var matches types.Matches
 
-	return find, err
+	switch contentType {
+	case "application/x-protobuf":
+		matches, err = carbonapi_v2.FindDecoder(resp)
+
+	case "application/json":
+		// TODO(gmagnusson)
+
+	case "application/pickle":
+		// TODO(gmagnusson)
+
+	case "application/x-msgpack":
+		// TODO(gmagnusson)
+
+	case "application/x-carbonapi-v3-pb":
+		// TODO(gmagnusson)
+
+	default:
+		return types.Matches{}, errors.Errorf("Unknown content type '%s'", contentType)
+	}
+
+	if err != nil {
+		return matches, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	return matches, nil
 }
 
 func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
@@ -372,22 +407,4 @@ func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
 	u.RawQuery = vals.Encode()
 
 	return u, nil
-}
-
-func carbonapiV2FindDecoder(blob []byte) ([]types.Match, error) {
-	f := &carbonapi_v2.Matches{}
-
-	if err := f.Unmarshal(blob); err != nil {
-		return nil, err
-	}
-
-	matches := make([]types.Match, len(f.Matches))
-	for i, match := range f.Matches {
-		matches[i] = types.Match{
-			Path:   match.Path,
-			IsLeaf: match.IsLeaf,
-		}
-	}
-
-	return matches, nil
 }
