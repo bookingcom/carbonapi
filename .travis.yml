@@ -3,23 +3,15 @@ dist: trusty
 
 sudo: required
 
-services:
-  - docker
-
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install libcairo2-dev mercurial pkg-config wget -y
-  - make test
-  - wget "https://raw.githubusercontent.com/go-graphite/helper-scripts/master/travis-docker-build.sh" && chmod +x ./travis-docker-build.sh && ./travis-docker-build.sh carbonapi
+  - sudo apt-get install libcairo2-dev -y
 
-git:
-  depth: 200
+script: make all test vet
 
 matrix:
   include:
-    - go: 1.x
-      env:
-        - BUILD_PACKAGES=true
     - go: 1.9.x
     - go: 1.10.x
+    - go: 1.11.x
     - go: master
