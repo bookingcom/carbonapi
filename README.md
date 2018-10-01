@@ -1,5 +1,6 @@
 # Carbonapi
 
+[![Build Status](https://travis-ci.com/bookingcom/carbonapi.svg?branch=master)](https://travis-ci.com/bookingcom/carbonapi)
 
 Carbonapi is a Go-based Graphite frontend. It provides two binaries,
 `carbonapi` and `carbonzipper`, that unify responses from multiple Graphite
@@ -34,8 +35,10 @@ interested in those.
 
 ## Requirements
 
-At least version 1.8 of Go. Booking.com builds its binaries with the latest
-stable release of Go at any time.
+We recommend using at least version 1.10 of Go. Booking.com builds its binaries
+with the latest stable release of Go at any time. The binaries likely compile
+on older versions of Go (at least 1.9), but we don't test the build against
+them because of problems with computing test coverage of the whole project.
 
 At the moment, we only guarantee that Carbonapi can talk to the
 [go-carbon](https://github.com/go-graphite/go-carbon)
