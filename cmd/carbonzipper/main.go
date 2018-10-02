@@ -170,8 +170,8 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	backends := backend.Filter(backends, []string{originalQuery})
-	metrics, err := backend.Finds(ctx, backends, originalQuery)
+	bs := backend.Filter(backends, []string{originalQuery})
+	metrics, err := backend.Finds(ctx, bs, originalQuery)
 	if err != nil {
 		accessLogger.Error("find failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -332,8 +332,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	backends := backend.Filter(backends, []string{target})
-	metrics, err := backend.Renders(ctx, backends, int32(from), int32(until), []string{target})
+	bs := backend.Filter(backends, []string{target})
+	metrics, err := backend.Renders(ctx, bs, int32(from), int32(until), []string{target})
 	if err != nil {
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
 		accessLogger.Error("request failed",
@@ -449,8 +449,8 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	backends := backend.Filter(backends, []string{target})
-	infos, err := backend.Infos(ctx, backends, target)
+	bs := backend.Filter(backends, []string{target})
+	infos, err := backend.Infos(ctx, bs, target)
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -572,35 +572,14 @@ func main() {
 		)
 	}
 
-	client := &http.Client{}
-	client.Transport = &http.Transport{
-		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
-		DialContext: (&net.Dialer{
-			Timeout:   config.Timeouts.Connect,
-			KeepAlive: config.KeepAliveInterval,
-			DualStack: true,
-		}).DialContext,
+	bs, err := initBackends(config, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize backends",
+			zap.Error(err),
+		)
 	}
 
-	backends = make([]backend.Backend, 0, len(config.Backends))
-	for _, host := range config.Backends {
-		b, err := bnet.New(bnet.Config{
-			Address: host,
-			Client:  client,
-			Timeout: config.Timeouts.AfterStarted,
-			Limit:   config.ConcurrencyLimitPerServer,
-			Logger:  logger,
-		})
-
-		if err != nil {
-			logger.Fatal("Failed to create backend",
-				zap.String("host", host),
-				zap.Error(err),
-			)
-		}
-
-		backends = append(backends, b)
-	}
+	backends = bs
 
 	go func() {
 		probeTicker := time.NewTicker(5 * time.Minute)
@@ -843,4 +822,35 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 
 	prometheusMetrics.DurationsExp.Observe(t.Seconds())
 	prometheusMetrics.DurationsLin.Observe(t.Seconds())
+}
+
+func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, error) {
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeouts.Connect,
+			KeepAlive: config.KeepAliveInterval,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	backends := make([]backend.Backend, 0, len(config.Backends))
+	for _, host := range config.Backends {
+		b, err := bnet.New(bnet.Config{
+			Address: host,
+			Client:  client,
+			Timeout: config.Timeouts.AfterStarted,
+			Limit:   config.ConcurrencyLimitPerServer,
+			Logger:  logger,
+		})
+
+		if err != nil {
+			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
+		}
+
+		backends = append(backends, b)
+	}
+
+	return backends, nil
 }
