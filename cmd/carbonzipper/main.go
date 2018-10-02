@@ -171,7 +171,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	bs := backend.Filter(backends, []string{originalQuery})
-	metrics, err := backend.Finds(ctx, bs, originalQuery)
+	metrics, err := backend.Finds(ctx, bs, types.FindRequest{Query: originalQuery})
 	if err != nil {
 		accessLogger.Error("find failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -332,8 +332,13 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bs := backend.Filter(backends, []string{target})
-	metrics, err := backend.Renders(ctx, bs, int32(from), int32(until), []string{target})
+	request := types.RenderRequest{
+		Targets: []string{target},
+		From:    int32(from),
+		Until:   int32(until),
+	}
+	bs := backend.Filter(backends, request.Targets)
+	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
 		http.Error(w, "error fetching the data", http.StatusInternalServerError)
 		accessLogger.Error("request failed",
@@ -450,7 +455,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	bs := backend.Filter(backends, []string{target})
-	infos, err := backend.Infos(ctx, bs, target)
+	infos, err := backend.Infos(ctx, bs, types.InfoRequest{Target: target})
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),

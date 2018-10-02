@@ -22,6 +22,20 @@ func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
 	corruptionLogger = logger
 }
 
+type FindRequest struct {
+	Query string
+}
+
+type InfoRequest struct {
+	Target string
+}
+
+type RenderRequest struct {
+	Targets []string
+	From    int32
+	Until   int32
+}
+
 /* NOTE(gmagnusson):
 If it turns out that converting generated protobuf structs to and from this
 type is too expensive, it could change to be an interface

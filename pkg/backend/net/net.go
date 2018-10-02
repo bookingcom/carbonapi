@@ -225,7 +225,7 @@ func (b *Backend) Probe() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	matches, err := b.Find(ctx, "*")
+	matches, err := b.Find(ctx, types.FindRequest{Query: "*"})
 	if err != nil {
 		return
 	}
@@ -273,7 +273,11 @@ func (b Backend) Contains(targets []string) bool {
 }
 
 // Render fetches raw metrics from a backend.
-func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {
+func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	from := request.From
+	until := request.Until
+	targets := request.Targets
+
 	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 
@@ -324,7 +328,9 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 }
 
 // Info fetches metadata about a metric from a backend.
-func (b Backend) Info(ctx context.Context, metric string) ([]types.Info, error) {
+func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
+	metric := request.Target
+
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 
@@ -363,7 +369,9 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 }
 
 // Find resolves globs and finds metrics in a backend.
-func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) {
+func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
+	query := request.Query
+
 	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
 
