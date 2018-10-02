@@ -169,24 +169,12 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 }
 
 func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, error) {
-	if err := b.enter(ctx); err != nil {
-		return "", nil, err
-	}
-
 	resp, err := b.client.Do(req)
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
 		return "", nil, err
-	}
-
-	if err := b.leave(); err != nil {
-		b.logger.Error("Backend limiter full",
-			zap.String("host", b.address),
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(err),
-		)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -209,6 +197,20 @@ func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, err
 func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
+
+	if err := b.enter(ctx); err != nil {
+		return "", nil, err
+	}
+
+	defer func() {
+		if err := b.leave(); err != nil {
+			b.logger.Error("Backend limiter full",
+				zap.String("host", b.address),
+				zap.String("uuid", util.GetUUID(ctx)),
+				zap.Error(err),
+			)
+		}
+	}()
 
 	req, err := b.request(ctx, u, body)
 	if err != nil {
