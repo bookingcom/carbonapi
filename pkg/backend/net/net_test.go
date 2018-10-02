@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/types"
 )
 
 func TestAddress(t *testing.T) {
@@ -101,7 +103,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	_, got, err := b.call(context.Background(), b.url("/render"), nil)
+	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -126,7 +128,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -145,7 +147,7 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -168,7 +170,7 @@ func TestCallLimiterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, b.url("/render"), nil)
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -191,7 +193,7 @@ func TestCallTimeoutLeavesLimiter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, b.url("/render"), nil)
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -223,7 +225,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, got, err := b.do(context.Background(), req)
+	_, got, err := b.do(context.Background(), types.NewTrace(), req)
 	if err != nil {
 		t.Error(err)
 	}
@@ -258,7 +260,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(ctx, req)
+	_, _, err = b.do(ctx, types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -284,7 +286,7 @@ func TestDoHTTPError(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(context.Background(), req)
+	_, _, err = b.do(context.Background(), types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}

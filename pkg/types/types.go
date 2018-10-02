@@ -32,7 +32,7 @@ type FindRequest struct {
 func NewFindRequest(query string) FindRequest {
 	return FindRequest{
 		Query: query,
-		Trace: newTrace(),
+		Trace: NewTrace(),
 	}
 }
 
@@ -44,7 +44,7 @@ type InfoRequest struct {
 func NewInfoRequest(target string) InfoRequest {
 	return InfoRequest{
 		Target: target,
-		Trace:  newTrace(),
+		Trace:  NewTrace(),
 	}
 }
 
@@ -60,38 +60,72 @@ func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
 		Targets: targets,
 		From:    from,
 		Until:   until,
-		Trace:   newTrace(),
+		Trace:   NewTrace(),
 	}
 }
 
 type Trace struct {
+	callCount     *int64
 	inMarshalNS   *int64
 	inLimiterNS   *int64
 	inHTTPCallNS  *int64
+	inReadBodyNS  *int64
 	inUnmarshalNS *int64
 }
 
-func (t Trace) AddMarshal(d time.Duration) {
+func (t Trace) Report() []int64 {
+	n := int64(1)
+	c := *t.callCount
+	if c > 0 {
+		n = c
+	}
+
+	return []int64{
+		c,
+		*t.inMarshalNS / n,
+		*t.inLimiterNS / n,
+		*t.inHTTPCallNS / n,
+		*t.inReadBodyNS / n,
+		*t.inUnmarshalNS / n,
+	}
+}
+
+func (t Trace) IncCall() {
+	atomic.AddInt64(t.callCount, 1)
+}
+
+func (t Trace) AddMarshal(start time.Time) {
+	d := time.Since(start)
 	atomic.AddInt64(t.inMarshalNS, int64(d))
 }
 
-func (t Trace) AddLimiter(d time.Duration) {
+func (t Trace) AddLimiter(start time.Time) {
+	d := time.Since(start)
 	atomic.AddInt64(t.inLimiterNS, int64(d))
 }
 
-func (t Trace) AddHTTPCall(d time.Duration) {
+func (t Trace) AddHTTPCall(start time.Time) {
+	d := time.Since(start)
 	atomic.AddInt64(t.inHTTPCallNS, int64(d))
 }
 
-func (t Trace) AddUnmarshal(d time.Duration) {
+func (t Trace) AddReadBody(start time.Time) {
+	d := time.Since(start)
+	atomic.AddInt64(t.inReadBodyNS, int64(d))
+}
+
+func (t Trace) AddUnmarshal(start time.Time) {
+	d := time.Since(start)
 	atomic.AddInt64(t.inUnmarshalNS, int64(d))
 }
 
-func newTrace() Trace {
+func NewTrace() Trace {
 	return Trace{
+		callCount:     new(int64),
 		inMarshalNS:   new(int64),
 		inLimiterNS:   new(int64),
 		inHTTPCallNS:  new(int64),
+		inReadBodyNS:  new(int64),
 		inUnmarshalNS: new(int64),
 	}
 }

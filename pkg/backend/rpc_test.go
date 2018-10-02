@@ -42,7 +42,7 @@ func TestFilterNoneContains(t *testing.T) {
 }
 
 func TestCarbonapiv2InfosEmpty(t *testing.T) {
-	got, err := Infos(context.Background(), []Backend{}, types.InfoRequest{})
+	got, err := Infos(context.Background(), []Backend{}, types.NewInfoRequest(""))
 	if err != nil {
 		t.Error(err)
 		return
@@ -54,7 +54,7 @@ func TestCarbonapiv2InfosEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2FindsEmpty(t *testing.T) {
-	got, err := Finds(context.Background(), []Backend{}, types.FindRequest{})
+	got, err := Finds(context.Background(), []Backend{}, types.NewFindRequest(""))
 	if err != nil {
 		t.Error(err)
 		return
@@ -66,7 +66,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, err := Renders(context.Background(), []Backend{}, types.RenderRequest{})
+	got, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1))
 	if err != nil {
 		t.Error(err)
 		return
@@ -92,7 +92,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Renders(context.Background(), backends, types.RenderRequest{})
+	got, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
 	if err != nil {
 		t.Error(err)
 		return
@@ -111,7 +111,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, err := Renders(context.Background(), backends, types.RenderRequest{})
+	_, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -143,7 +143,7 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		}),
 	}
 
-	got, err := Infos(context.Background(), backends, types.InfoRequest{})
+	got, err := Infos(context.Background(), backends, types.NewInfoRequest(""))
 	if err != nil {
 		t.Error(err)
 		return
@@ -168,7 +168,7 @@ func TestCarbonapiv2InfosError(t *testing.T) {
 		}),
 	}
 
-	_, err := Infos(context.Background(), backends, types.InfoRequest{})
+	_, err := Infos(context.Background(), backends, types.NewInfoRequest(""))
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -191,7 +191,7 @@ func TestCarbonapiv2Infos(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Infos(context.Background(), backends, types.InfoRequest{})
+	got, err := Infos(context.Background(), backends, types.NewInfoRequest(""))
 	if err != nil {
 		t.Error(err)
 		return
@@ -210,7 +210,7 @@ func TestCarbonapiv2FindsError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Find: find})}
 
-	_, err := Finds(context.Background(), backends, types.FindRequest{})
+	_, err := Finds(context.Background(), backends, types.NewFindRequest(""))
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -237,7 +237,7 @@ func TestCarbonapiv2Finds(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Finds(context.Background(), backends, types.FindRequest{})
+	got, err := Finds(context.Background(), backends, types.NewFindRequest(""))
 	if err != nil {
 		t.Error(err)
 		return

@@ -53,6 +53,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 	msgCh := make(chan []types.Metric, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
 			msg, err := b.Render(ctx, request)
 			if err != nil {
@@ -90,6 +91,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 	msgCh := make(chan []types.Info, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
 			msg, err := b.Info(ctx, request)
 			if err != nil {
@@ -127,6 +129,7 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (
 	msgCh := make(chan types.Matches, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
 			msg, err := b.Find(ctx, request)
 			if err != nil {

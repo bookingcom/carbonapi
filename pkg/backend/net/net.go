@@ -168,8 +168,10 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 	return req, nil
 }
 
-func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, error) {
+func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
+	t0 := time.Now()
 	resp, err := b.client.Do(req)
+	trace.AddHTTPCall(t0)
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
@@ -177,8 +179,10 @@ func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, err
 		return "", nil, err
 	}
 
+	t1 := time.Now()
 	body, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
+	trace.AddReadBody(t1)
 	if err != nil {
 		return "", nil, err
 	}
@@ -194,11 +198,14 @@ func (b Backend) do(ctx context.Context, req *http.Request) (string, []byte, err
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) (string, []byte, error) {
+func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body io.Reader) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
-	if err := b.enter(ctx); err != nil {
+	t0 := time.Now()
+	err := b.enter(ctx)
+	trace.AddLimiter(t0)
+	if err != nil {
 		return "", nil, err
 	}
 
@@ -212,12 +219,14 @@ func (b Backend) call(ctx context.Context, u *url.URL, body io.Reader) (string, 
 		}
 	}()
 
+	t1 := time.Now()
 	req, err := b.request(ctx, u, body)
+	trace.AddMarshal(t1)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return b.do(ctx, req)
+	return b.do(ctx, trace, req)
 }
 
 // Probe performs a single update of the backend's top-level domains.
@@ -279,14 +288,20 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	until := request.Until
 	targets := request.Targets
 
+	t0 := time.Now()
 	u := b.url("/render")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
+	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
+	t1 := time.Now()
+	defer func() {
+		request.Trace.AddUnmarshal(t1)
+	}()
 	var metrics []types.Metric
 
 	switch contentType {
@@ -332,10 +347,12 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
 	metric := request.Target
 
+	t0 := time.Now()
 	u := b.url("/info")
 	u, body := carbonapiV2InfoEncoder(u, metric)
+	request.Trace.AddMarshal(t0)
 
-	_, resp, err := b.call(ctx, u, body)
+	_, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
@@ -345,6 +362,10 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
 	}
 
+	t1 := time.Now()
+	defer func() {
+		request.Trace.AddUnmarshal(t1)
+	}()
 	var infos []types.Info
 	if single {
 		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address)
@@ -373,14 +394,20 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
 func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	query := request.Query
 
+	t0 := time.Now()
 	u := b.url("/metrics/find")
 	u, body := carbonapiV2FindEncoder(u, query)
+	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, u, body)
+	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		return types.Matches{}, errors.Wrap(err, "HTTP call failed")
 	}
 
+	t1 := time.Now()
+	defer func() {
+		request.Trace.AddUnmarshal(t1)
+	}()
 	var matches types.Matches
 
 	switch contentType {

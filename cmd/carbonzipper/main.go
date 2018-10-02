@@ -343,6 +343,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
@@ -373,6 +374,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
+			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
@@ -386,6 +388,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
+		zap.Int64s("trace", request.Trace.Report()),
 	)
 
 	Metrics.Responses.Add(1)
