@@ -59,11 +59,19 @@ $ brew install cairo --with-x11
 ```
 
 
-## Acknowledgement
+## Acknowledgement and history
 
-This program was originally developed for Booking.com.  With approval
+This program was originally developed for Booking.com. With approval
 from Booking.com, the code was generalised and published as Open Source
 on GitHub, for which the author would like to express his gratitude.
+
+This is Booking.com's fork of
+[go-graphite/carbonapi](https://github.com/go-graphite/carbonapi).
+That project's current performance characteristics are not sufficient for our
+production needs, and we decided it had moved too far ahead for us to be able
+to improve them effectively. We thus reverted back to versions 0.9.2 of
+carbonapi and 0.74 of carbonzipper, and are moving more slowly in the same
+direction as the original project.
 
 
 ## License
