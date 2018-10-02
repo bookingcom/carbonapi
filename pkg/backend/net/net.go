@@ -225,7 +225,8 @@ func (b *Backend) Probe() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	matches, err := b.Find(ctx, types.FindRequest{Query: "*"})
+	request := types.NewFindRequest("*")
+	matches, err := b.Find(ctx, request)
 	if err != nil {
 		return
 	}

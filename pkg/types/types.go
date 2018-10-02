@@ -8,6 +8,8 @@ package types
 
 import (
 	"sort"
+	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -24,16 +26,74 @@ func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
 
 type FindRequest struct {
 	Query string
+	Trace
+}
+
+func NewFindRequest(query string) FindRequest {
+	return FindRequest{
+		Query: query,
+		Trace: newTrace(),
+	}
 }
 
 type InfoRequest struct {
 	Target string
+	Trace
+}
+
+func NewInfoRequest(target string) InfoRequest {
+	return InfoRequest{
+		Target: target,
+		Trace:  newTrace(),
+	}
 }
 
 type RenderRequest struct {
 	Targets []string
 	From    int32
 	Until   int32
+	Trace
+}
+
+func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
+	return RenderRequest{
+		Targets: targets,
+		From:    from,
+		Until:   until,
+		Trace:   newTrace(),
+	}
+}
+
+type Trace struct {
+	inMarshalNS   *int64
+	inLimiterNS   *int64
+	inHTTPCallNS  *int64
+	inUnmarshalNS *int64
+}
+
+func (t Trace) AddMarshal(d time.Duration) {
+	atomic.AddInt64(t.inMarshalNS, int64(d))
+}
+
+func (t Trace) AddLimiter(d time.Duration) {
+	atomic.AddInt64(t.inLimiterNS, int64(d))
+}
+
+func (t Trace) AddHTTPCall(d time.Duration) {
+	atomic.AddInt64(t.inHTTPCallNS, int64(d))
+}
+
+func (t Trace) AddUnmarshal(d time.Duration) {
+	atomic.AddInt64(t.inUnmarshalNS, int64(d))
+}
+
+func newTrace() Trace {
+	return Trace{
+		inMarshalNS:   new(int64),
+		inLimiterNS:   new(int64),
+		inHTTPCallNS:  new(int64),
+		inUnmarshalNS: new(int64),
+	}
 }
 
 /* NOTE(gmagnusson):

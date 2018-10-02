@@ -170,8 +170,9 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
+	request := types.NewFindRequest(originalQuery)
 	bs := backend.Filter(backends, []string{originalQuery})
-	metrics, err := backend.Finds(ctx, bs, types.FindRequest{Query: originalQuery})
+	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
 		accessLogger.Error("find failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -332,11 +333,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	request := types.RenderRequest{
-		Targets: []string{target},
-		From:    int32(from),
-		Until:   int32(until),
-	}
+	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	bs := backend.Filter(backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
@@ -454,8 +451,9 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	request := types.NewInfoRequest(target)
 	bs := backend.Filter(backends, []string{target})
-	infos, err := backend.Infos(ctx, bs, types.InfoRequest{Target: target})
+	infos, err := backend.Infos(ctx, bs, request)
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
