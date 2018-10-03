@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -485,4 +487,74 @@ func TestCarbonapiv2FindEncoder(t *testing.T) {
 		t.Errorf("Bad target: got %v", got)
 	}
 
+}
+
+func BenchmarkCall(b *testing.B) {
+	resp := make([]byte, 1<<10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(resp)
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: 100,
+		DialContext: (&net.Dialer{
+			Timeout:   100 * time.Millisecond,
+			KeepAlive: time.Second,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	bk, err := New(Config{
+		Address: server.URL,
+		Client:  client,
+	})
+	if err != nil {
+		b.Error(err)
+		return
+	}
+
+	ctx := context.Background()
+	trace := types.NewTrace()
+	u := bk.url("")
+	for i := 0; i < b.N; i++ {
+		bk.call(ctx, trace, u, nil)
+	}
+}
+
+func BenchmarkCallOld(b *testing.B) {
+	resp := make([]byte, 1<<10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(resp)
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: 100,
+		DialContext: (&net.Dialer{
+			Timeout:   100 * time.Millisecond,
+			KeepAlive: time.Second,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	for i := 0; i < b.N; i++ {
+		req, err := http.NewRequest("GET", server.URL, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		_, err = ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }
