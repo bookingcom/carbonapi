@@ -82,8 +82,8 @@ func TestContains(t *testing.T) {
 	}
 
 	b.paths = expirecache.New(0)
-	if ok := b.Contains([]string{"foo"}); !ok {
-		t.Error("Expected true")
+	if ok := b.Contains([]string{"foo"}); ok {
+		t.Error("Expected false")
 	}
 }
 

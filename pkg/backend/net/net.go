@@ -275,10 +275,6 @@ func (b *Backend) Probe() {
 
 // Contains reports whether the backend contains any of the given targets.
 func (b Backend) Contains(targets []string) bool {
-	if b.paths.Items() == 0 {
-		return true
-	}
-
 	for _, target := range targets {
 		if _, ok := b.paths.Get(target); ok {
 			return true
