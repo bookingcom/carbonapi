@@ -34,8 +34,8 @@
 [[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -116,7 +116,7 @@
   branch = "master"
   name = "github.com/go-graphite/protocol"
   packages = ["carbonapi_v2_pb"]
-  revision = "5ae324d480670ee5d15e22eff87e1cabab74069b"
+  revision = "ba004f8085ada03f57fc8ba189b638b675fece56"
 
 [[projects]]
   branch = "master"
@@ -127,7 +127,7 @@
     "protoc-gen-gogo/descriptor",
     "sortkeys"
   ]
-  revision = "baf2ea5cdb7ce2d399176f925052690c3dad1f56"
+  revision = "61dbc136cf5d2f08d68a011382652244990a53a9"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -142,7 +142,6 @@
   version = "v1.4.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/hashicorp/hcl"
   packages = [
     ".",
@@ -156,7 +155,8 @@
     "json/scanner",
     "json/token"
   ]
-  revision = "ef8a98b0bbce4a65b5aa4c368430a80ddc533168"
+  revision = "8cb6e5b959231cc1119e43259c4a608f9c51a241"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -168,7 +168,7 @@
   branch = "master"
   name = "github.com/lomik/zapwriter"
   packages = ["."]
-  revision = "16d2b21dab41b7573d6ff8f1edfea39b0eff7e48"
+  revision = "2ec2b9a616807f3fe930c075c48fcf32d1f2d250"
 
 [[projects]]
   name = "github.com/magiconair/properties"
@@ -183,10 +183,10 @@
   version = "v1.0.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "f15292f7a699fcc1a38a80977f80a046874ba8ac"
+  revision = "fe40af7a9c397fa3ddba203c38a5042c5d0475ad"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
@@ -255,7 +255,7 @@
     "nfs",
     "xfs"
   ]
-  revision = "05ee40e3a273f7245e8777337fc7b46e533a9a92"
+  revision = "418d78d0b9a7b7de3a6bbc8a23def624cc977bb2"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -269,8 +269,8 @@
     ".",
     "mem"
   ]
-  revision = "787d034dfe70e44075ccc060d346146ef53270ad"
-  version = "v1.1.1"
+  revision = "d40851caa0d747393da1ffb28f7f9d8b4eeffebd"
+  version = "v1.1.2"
 
 [[projects]]
   name = "github.com/spf13/cast"
@@ -279,22 +279,22 @@
   version = "v1.2.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/spf13/jwalterweatherman"
   packages = ["."]
-  revision = "7c0cea34c8ece3fbeb2b27ab9b59511d360fb394"
+  revision = "4a4406e478ca629068e7768fc33f3f044173c0a6"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
-  version = "v1.0.1"
+  revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
+  version = "v1.0.3"
 
 [[projects]]
   name = "github.com/spf13/viper"
   packages = ["."]
-  revision = "b5e8006cbee93ec955a89ab31e0e3ce3204f3736"
-  version = "v1.0.2"
+  revision = "2c12c60302a5a0e62ee102ca9bc996277c2f64f5"
+  version = "v1.2.1"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -330,14 +330,14 @@
     "internal/exit",
     "zapcore"
   ]
-  revision = "4d45f9617f7d90f7a663ff21c7a4321dbe78098b"
-  version = "v1.9.0"
+  revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
+  version = "v1.9.1"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "0ffbfd41fbef8ffcf9b62b0b0aa3a5873ed7a4fe"
+  revision = "af653ce8b74f808d092db8ca9741fbb63d2a469d"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -369,7 +369,7 @@
     "lapack/lapack64",
     "mat"
   ]
-  revision = "73ea1e732937f96d723d31dc5263d214a275d204"
+  revision = "a290f01ec470228a325b6e013e3caa635d5fc2f7"
 
 [[projects]]
   name = "gopkg.in/yaml.v2"
@@ -380,6 +380,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "209f2258cb5dc74ae3769ab4c1edf12987eac53253ea99bf9b8c9d547b8e9bac"
+  inputs-digest = "66866e475086cab78db092b7256aea5e7543920fefcd5abe1a3b1829b7fa2c67"
   solver-name = "gps-cdcl"
   solver-version = 1
