@@ -4,6 +4,7 @@ package net
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -20,6 +21,21 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+type ErrHTTPCode int
+
+func (e ErrHTTPCode) Error() string {
+	switch e / 100 {
+	case 4:
+		return fmt.Sprintf("HTTP client error %d", e)
+
+	case 5:
+		return fmt.Sprintf("HTTP server error %d", e)
+
+	default:
+		return fmt.Sprintf("HTTP unknown error %d", e)
+	}
+}
 
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
@@ -194,7 +210,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", body, errors.Errorf("Bad response code %d", resp.StatusCode)
+		return "", body, ErrHTTPCode(resp.StatusCode)
 	}
 
 	return resp.Header.Get("Content-Type"), body, nil
@@ -285,6 +301,10 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, errors.New("Request timed out")
+		}
+
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
@@ -373,6 +393,10 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	if len(infos) == 0 {
+		return nil, types.ErrInfoNotFound
 	}
 
 	return infos, nil

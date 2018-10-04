@@ -20,6 +20,8 @@ var (
 	corruptionLogger    = zap.New(nil)
 
 	ErrMetricsNotFound = errors.New("No metrics returned")
+	ErrMatchesNotFound = errors.New("No matches found")
+	ErrInfoNotFound    = errors.New("No information found")
 )
 
 func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
