@@ -11,7 +11,7 @@ import (
 type key int
 
 const (
-	ctxHeaderUUID = "X-CTX-Carbon-UUID"
+	ctxHeaderUUID = "X-CTX-CarbonAPI-UUID"
 
 	uuidKey key = 0
 )
