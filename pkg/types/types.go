@@ -7,6 +7,7 @@ The definitions correspond to the types of responses to the /render, /info, and
 package types
 
 import (
+	"errors"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,8 @@ import (
 var (
 	corruptionThreshold = 1.0
 	corruptionLogger    = zap.New(nil)
+
+	ErrMetricsNotFound = errors.New("No metrics returned")
 )
 
 func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {

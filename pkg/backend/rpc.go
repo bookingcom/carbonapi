@@ -158,17 +158,34 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (
 	return types.MergeMatches(msgs), nil
 }
 
+func getTLD(metric string) string {
+	return strings.SplitN(metric, ".", 2)[0]
+}
+
 // Filter filters the given backends by whether they Contain() the given targets.
 func Filter(backends []Backend, targets []string) []Backend {
+	if bs := filter(backends, targets); len(bs) > 0 {
+		return bs
+	}
+
+	tlds := make([]string, 0, len(targets))
+	for _, target := range targets {
+		tlds = append(tlds, getTLD(target))
+	}
+
+	if bs := filter(backends, tlds); len(bs) > 0 {
+		return bs
+	}
+
+	return backends
+}
+
+func filter(backends []Backend, targets []string) []Backend {
 	bs := make([]Backend, 0)
 	for _, b := range backends {
 		if b.Contains(targets) {
 			bs = append(bs, b)
 		}
-	}
-
-	if len(bs) == 0 {
-		return backends
 	}
 
 	return bs

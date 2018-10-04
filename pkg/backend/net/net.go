@@ -10,28 +10,27 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/util"
 
+	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
-	address string
-	scheme  string
-	client  *http.Client
-	timeout time.Duration
-	limiter chan struct{}
-	logger  *zap.Logger
-
-	tlds  map[string]struct{}
-	mutex *sync.Mutex
+	address       string
+	scheme        string
+	client        *http.Client
+	timeout       time.Duration
+	limiter       chan struct{}
+	logger        *zap.Logger
+	paths         *expirecache.Cache
+	pathExpirySec int32
 }
 
 // Config configures an HTTP backend.
@@ -43,10 +42,11 @@ type Config struct {
 	Address string // The backend address.
 
 	// Optional fields
-	Client  *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
-	Timeout time.Duration // Set request timeout. Defaults to no timeout.
-	Limit   int           // Set limit of concurrent requests to backend. Defaults to no limit.
-	Logger  *zap.Logger   // Logger to use. Defaults to a no-op logger.
+	Client             *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
+	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
+	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
+	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
+	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 }
 
 var fmtProto = []string{"protobuf"}
@@ -54,7 +54,13 @@ var fmtProto = []string{"protobuf"}
 // New creates a new backend from the given configuration.
 func New(cfg Config) (*Backend, error) {
 	b := &Backend{
-		mutex: new(sync.Mutex),
+		paths: expirecache.New(0),
+	}
+
+	if cfg.PathCacheExpirySec > 0 {
+		b.pathExpirySec = int32(cfg.PathCacheExpirySec)
+	} else {
+		b.pathExpirySec = int32(10 * time.Minute / time.Second)
 	}
 
 	address, scheme, err := parseAddress(cfg.Address)
@@ -240,41 +246,25 @@ func (b *Backend) Probe() {
 		return
 	}
 
-	tlds := make(map[string]struct{})
 	for _, m := range matches.Matches {
-		tlds[m.Path] = struct{}{}
+		b.paths.Set(m.Path, struct{}{}, 0, b.pathExpirySec)
 	}
-
-	b.mutex.Lock()
-	b.tlds = tlds
-	b.mutex.Unlock()
 }
+
+// TODO(gmagnusson): Should Contains become something different, where instead
+// of answering yes/no to whether the backend contains any of the given
+// targets, it returns a filtered list of targets that the backend contains?
+// Is it worth it to make the distinction? If go-carbon isn't too unhappy about
+// looking up metrics that it doesn't have, we maybe don't need to do this.
 
 // Contains reports whether the backend contains any of the given targets.
 func (b Backend) Contains(targets []string) bool {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	if len(b.tlds) == 0 {
+	if b.paths.Items() == 0 {
 		return true
 	}
 
 	for _, target := range targets {
-		parts := strings.SplitN(target, ".", 2)
-		part := parts[0]
-
-		if strings.ContainsAny(part, "*{}[]") {
-			// NOTE(gmagnusson): Just assume we contain whatever this is if it
-			// has wildcards and let the stores figure it out.
-			//
-			// If we want to be more clever about this, we have to start
-			// worrying about first expanding {} pairs and then (mostly, kind
-			// of) regex matching the rest, and it just sounds like we're so
-			// far into diminishing returns by then that we shouldn't bother.
-			return true
-		}
-
-		if _, ok := b.tlds[part]; ok {
+		if _, ok := b.paths.Get(target); ok {
 			return true
 		}
 	}
@@ -326,6 +316,14 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 
 	if err != nil {
 		return metrics, errors.Wrap(err, "Unmarshal failed")
+	}
+
+	if len(metrics) == 0 {
+		return nil, types.ErrMetricsNotFound
+	}
+
+	for _, metric := range metrics {
+		b.paths.Set(metric.Name, struct{}{}, 0, b.pathExpirySec)
 	}
 
 	return metrics, nil
@@ -432,6 +430,16 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 
 	if err != nil {
 		return matches, errors.Wrap(err, "Protobuf unmarshal failed")
+	}
+
+	if len(matches.Matches) == 0 {
+		return matches, types.ErrMatchesNotFound
+	}
+
+	for _, match := range matches.Matches {
+		if match.IsLeaf {
+			b.paths.Set(match.Path, struct{}{}, 0, b.pathExpirySec)
+		}
 	}
 
 	return matches, nil

@@ -67,7 +67,7 @@ var DefaultConfig = Common{
 	KeepAliveInterval:         30 * time.Second,
 	MaxIdleConnsPerHost:       100,
 
-	ExpireDelaySec: 10 * 60,
+	ExpireDelaySec: int32(10 * time.Minute / time.Second),
 
 	Buckets: 10,
 	Graphite: GraphiteConfig{

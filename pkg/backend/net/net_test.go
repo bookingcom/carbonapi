@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
+
+	"github.com/dgryski/go-expirecache"
 )
 
 func TestAddress(t *testing.T) {
@@ -57,16 +59,14 @@ func TestContains(t *testing.T) {
 		return
 	}
 
-	b.tlds = map[string]struct{}{
-		"foo": struct{}{},
-	}
+	b.paths.Set("foo", struct{}{}, 0, 30)
 
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")
 	}
 
-	if ok := b.Contains([]string{"foo.bar"}); !ok {
-		t.Error("Expected true")
+	if ok := b.Contains([]string{"foo.bar"}); ok {
+		t.Error("Expected false")
 	}
 
 	if ok := b.Contains([]string{"bar"}); ok {
@@ -77,11 +77,11 @@ func TestContains(t *testing.T) {
 		t.Error("Expected true")
 	}
 
-	if ok := b.Contains([]string{"*"}); !ok {
-		t.Error("Expected true")
+	if ok := b.Contains([]string{"*"}); ok {
+		t.Error("Expected false")
 	}
 
-	b.tlds = nil
+	b.paths = expirecache.New(0)
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")
 	}
