@@ -27,8 +27,8 @@ import (
 
 	"sync"
 
-	"github.com/dgryski/httputil"
 	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/dgryski/httputil"
 	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -358,7 +358,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 					metricMap[mfetch] = append(metricMap[mfetch], r)
 				}
 			}
-
+			accessLogDetails.CarbonzipperResponseSizeBytes += int64(size)
 			close(rch)
 
 			if len(errors) != 0 {
