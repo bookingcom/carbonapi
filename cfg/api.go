@@ -58,10 +58,9 @@ func defaultAPIConfig() API {
 	cfg := API{
 		Zipper: DefaultZipperConfig,
 
-		ExtrapolateExperiment: false,
-		SendGlobsAsIs:         false,
-		AlwaysSendGlobsAsIs:   false,
-		MaxBatchSize:          100,
+		SendGlobsAsIs:       false,
+		AlwaysSendGlobsAsIs: false,
+		MaxBatchSize:        100,
 		Cache: CacheConfig{
 			Type:              "mem",
 			DefaultTimeoutSec: 60,
@@ -78,7 +77,6 @@ func defaultAPIConfig() API {
 type API struct {
 	Zipper `yaml:",inline"`
 
-	ExtrapolateExperiment   bool          `yaml:"extrapolateExperiment"`
 	SendGlobsAsIs           bool          `yaml:"sendGlobsAsIs"`
 	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
 	MaxBatchSize            int           `yaml:"maxBatchSize"`

@@ -21,7 +21,6 @@ import (
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/mstats"
@@ -533,13 +532,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 				zap.Error(err),
 			)
 		}
-	}
-
-	helper.ExtrapolatePoints = config.ExtrapolateExperiment
-	if config.ExtrapolateExperiment {
-		logger.Warn("extraploation experiment is enabled",
-			zap.String("reason", "this feature is highly experimental and untested"),
-		)
 	}
 }
 
