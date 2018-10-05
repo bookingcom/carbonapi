@@ -644,7 +644,7 @@ func main() {
 	handler = handlers.CompressHandler(handler)
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
-	handler = util.UUIDHandler(handler)
+	handler = util.UUIDHandler(handler, util.API)
 
 	go func() {
 		prometheus.MustRegister(prometheusMetrics.Requests)

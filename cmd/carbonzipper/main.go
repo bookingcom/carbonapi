@@ -147,7 +147,8 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 
 	logger := zapwriter.Logger("find").With(
 		zap.String("handler", "find"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 
 	if ce := logger.Check(zap.DebugLevel, "got find request"); ce != nil {
@@ -167,7 +168,8 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("handler", "find"),
 		zap.String("format", format),
 		zap.String("target", originalQuery),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 
 	request := types.NewFindRequest(originalQuery)
@@ -250,7 +252,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	logger := zapwriter.Logger("render").With(
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.String("handler", "render"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 
 	if ce := logger.Check(zap.DebugLevel, "got render request"); ce != nil {
@@ -265,7 +268,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "render"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 
 	err := req.ParseForm()
@@ -403,7 +407,8 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 
 	logger := zapwriter.Logger("info").With(
 		zap.String("handler", "info"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 
 	if ce := logger.Check(zap.DebugLevel, "request"); ce != nil {
@@ -418,7 +423,8 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "info"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 	)
 	err := req.ParseForm()
 	if err != nil {
@@ -654,7 +660,7 @@ func main() {
 	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
 	r.HandleFunc("/lb_check", lbCheckHandler)
 
-	handler := util.UUIDHandler(r)
+	handler := util.UUIDHandler(r, util.Zipper)
 
 	// nothing in the config? check the environment
 	if config.Graphite.Host == "" {

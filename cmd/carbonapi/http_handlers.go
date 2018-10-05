@@ -178,7 +178,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render", &config.API)
 	logger := zapwriter.Logger("render").With(
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
 		zap.String("username", accessLogDetails.Username),
 	)
 

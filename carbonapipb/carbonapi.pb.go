@@ -59,7 +59,7 @@ func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) Acces
 	return AccessLogDetails{
 		Handler:       handler,
 		Username:      username,
-		CarbonapiUuid: util.GetUUID(r.Context()),
+		CarbonapiUuid: util.GetUUID(r.Context(), util.API),
 		HeadersData:   getHeadersData(r, config.HeadersToLog),
 		Url:           r.URL.RequestURI(),
 		PeerIp:        srcIP,

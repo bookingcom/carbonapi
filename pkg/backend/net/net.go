@@ -219,7 +219,6 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 // Call makes a call to a backend.
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
-// Call ensures that the outgoing request has a UUID set.
 func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body io.Reader) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
@@ -233,11 +232,19 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 
 	defer func() {
 		if err := b.leave(); err != nil {
-			b.logger.Error("Backend limiter full",
-				zap.String("host", b.address),
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(err),
-			)
+			fields := make([]zap.Field, 0, 4)
+			fields = append(fields, zap.String("host", b.address))
+
+			if id := util.GetUUID(ctx, util.API); id != "" {
+				fields = append(fields, zap.String("carbonapi_uuid", id))
+			}
+			if id := util.GetUUID(ctx, util.Zipper); id != "" {
+				fields = append(fields, zap.String("carbonzipper_uuid", id))
+			}
+
+			fields = append(fields, zap.Error(err))
+
+			b.logger.Error("Backend limiter full", fields...)
 		}
 	}()
 

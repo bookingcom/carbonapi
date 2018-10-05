@@ -200,10 +200,16 @@ func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger)
 		return errors.WithMessage(combineErrors(errs), "All backend requests failed")
 	}
 
-	logger.Warn("Some requests failed",
-		zap.String("uuid", util.GetUUID(ctx)),
-		zap.Error(combineErrors(errs)),
-	)
+	fields := make([]zap.Field, 0, 3)
+	if id := util.GetUUID(ctx, util.API); id != "" {
+		fields = append(fields, zap.String("carbonapi_uuid", id))
+	}
+	if id := util.GetUUID(ctx, util.Zipper); id != "" {
+		fields = append(fields, zap.String("carbonzipper_uuid", id))
+	}
+	fields = append(fields, zap.Error(combineErrors(errs)))
+
+	logger.Warn("Some requests failed", fields...)
 
 	return nil
 }

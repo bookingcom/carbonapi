@@ -387,7 +387,7 @@ func (z *Zipper) doProbe() {
 	}
 
 	logger.Info("TLD Probe run results",
-		zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
+		zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 		zap.Int("paths_count", len(paths)),
 		zap.Int("responses_received", len(responses)),
 		zap.Int("backends", len(z.backends)),
@@ -402,7 +402,7 @@ func (z *Zipper) doProbe() {
 			ce.Write(
 				zap.String("path", k),
 				zap.Strings("servers", v),
-				zap.String("carbonzipper_uuid", util.GetUUID(ctx)),
+				zap.String("carbonzipper_uuid", util.GetUUID(ctx, util.Zipper)),
 			)
 		}
 	}
@@ -502,7 +502,7 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 	logger = logger.With(
 		zap.String("handler", "multiGet"),
 		zap.String("uri", uri),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
 	)
 
 	if ce := logger.Check(zap.DebugLevel, "querying servers"); ce != nil {
