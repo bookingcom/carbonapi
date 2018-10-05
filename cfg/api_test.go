@@ -42,7 +42,6 @@ cache:
        - host2:1234
 tz: "UTC+1,3600"
 pidFile: "/var/run/carbonapi/carbonapi.pid"
-ignoreClientTimeout: true
 
 logger:
     - logger: ""
@@ -102,8 +101,6 @@ logger:
 		},
 		TimezoneString: "UTC+1,3600",
 		PidFile:        "/var/run/carbonapi/carbonapi.pid",
-
-		IgnoreClientTimeout: true,
 	}
 
 	if !eqCommon(got.Common, expected.Common) {
@@ -128,7 +125,6 @@ cpus: 16
 tz: "UTC+1,3600"
 sendGlobsAsIs: true
 maxBatchSize: 100
-ignoreClientTimeout: true
 graphite:
     host: "localhost:3002"
     interval: "60s"
@@ -206,8 +202,6 @@ logger:
 		},
 		TimezoneString: "UTC+1,3600",
 		PidFile:        "/var/run/carbonapi/carbonapi.pid",
-
-		IgnoreClientTimeout: true,
 	}
 
 	if !eqCommon(got.Common, expected.Common) {
@@ -225,7 +219,6 @@ func eqAPI(a, b API) bool {
 }
 
 type comparableAPI struct {
-	IgnoreClientTimeout   bool
 	SendGlobsAsIs       bool
 	AlwaysSendGlobsAsIs bool
 	MaxBatchSize        int
@@ -235,7 +228,6 @@ type comparableAPI struct {
 
 func toComparableAPI(a API) comparableAPI {
 	return comparableAPI{
-		IgnoreClientTimeout:   a.IgnoreClientTimeout,
 		SendGlobsAsIs:       a.SendGlobsAsIs,
 		AlwaysSendGlobsAsIs: a.AlwaysSendGlobsAsIs,
 		MaxBatchSize:        a.MaxBatchSize,
