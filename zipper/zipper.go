@@ -502,7 +502,6 @@ func (z *Zipper) multiGet(ctx context.Context, logger *zap.Logger, servers []str
 	logger = logger.With(
 		zap.String("handler", "multiGet"),
 		zap.String("uri", uri),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)),
 	)
 
 	if ce := logger.Check(zap.DebugLevel, "querying servers"); ce != nil {

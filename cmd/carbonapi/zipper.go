@@ -7,6 +7,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/util"
 	realZipper "github.com/bookingcom/carbonapi/zipper"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
@@ -42,7 +43,8 @@ func newZipper(sender func(*realZipper.Stats), config cfg.Zipper, logger *zap.Lo
 
 func (z zipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error) {
 	var pbresp pb.GlobResponse
-	res, stats, err := z.z.Find(ctx, z.logger, metric)
+	logger := z.logger.With(zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)))
+	res, stats, err := z.z.Find(ctx, logger, metric)
 	if err != nil {
 		return pbresp, err
 	}
@@ -56,7 +58,8 @@ func (z zipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error
 }
 
 func (z zipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResponse, error) {
-	resp, stats, err := z.z.Info(ctx, z.logger, metric)
+	logger := z.logger.With(zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)))
+	resp, stats, err := z.z.Info(ctx, logger, metric)
 	if err != nil {
 		return nil, fmt.Errorf("http.Get: %+v", err)
 	}
@@ -68,7 +71,9 @@ func (z zipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResp
 
 func (z zipper) Render(ctx context.Context, metric string, from, until int32) ([]*types.MetricData, error) {
 	var result []*types.MetricData
-	pbresp, stats, err := z.z.Render(ctx, z.logger, metric, from, until)
+
+	logger := z.logger.With(zap.String("carbonapi_uuid", util.GetUUID(ctx, util.API)))
+	pbresp, stats, err := z.z.Render(ctx, logger, metric, from, until)
 	if err != nil {
 		return result, err
 	}
