@@ -329,7 +329,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	config.zipper = zipper
 
 	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
-		return config.limiter.LimiterUse()
+		return config.limiter.LimiterUse()[localHostName]
 	})
 	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
 
@@ -517,6 +517,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
 		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), apiMetrics.LimiterUseMax)
+		graphite.Register(fmt.Sprintf("%s.limiter_use", pattern), apiMetrics.LimiterUse)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
