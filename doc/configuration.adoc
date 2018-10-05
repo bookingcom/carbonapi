@@ -1,0 +1,182 @@
+= Carbonapi configuration
+
+Configuration is defined in a YAML file. Example:
+....
+listen: :8081
+listenInternal: :7081
+
+backends:
+    - http://10.10.10.10:8000
+
+concurrencyLimit: 1000
+keepAliveInterval: 30s
+timeouts:
+    global: 2s
+    afterStarted: 500ms
+    connect: 100ms
+
+graphite:
+    host: 127.0.0.1:3002
+    interval: 10s
+    prefix: carbonapi
+    pattern: {prefix}.{fqnd}
+....
+
+== Common configuration options
+
+These are the configuration options that can be set in either carbonapi or
+carbonzipper.
+
+[horizontal]
+listen::
+The address to listen for requests on. Default: `:8080`.
+
+listenInternal::
+The address to listen for debug requests on. The `/debug/pprof`, and other
+internal handlers, are exposed here. Default: `:7080`.
+
+backends::
+A list of addresses with Graphite backends. This is required and defaults to
+the empty list. The address should be of the form `[scheme://]address:port`.
+The scheme is optional and is assumed to be `http` if missing.
+
+maxProcs::
+Passed to 
+link:https://golang.org/pkg/runtime/#GOMAXPROCS[runtime.GOMAXPROCS]. 
+Default: The number of machine CPU cores.
+
+timeouts::
+These three settings control the timeouts used for HTTP requests.
+
+global::: The total timeout setting for a request, including time it may spend
+    waiting in rate limiters. Default: 10 seconds.
+
+afterStarted::: The timeout for a request once it has been allowed through a
+    rate limiter. Default: 2 seconds.
+
+connect::: Passed to link:https://golang.org/pkg/net/#Dialer[net.Dialer]
+    for the common HTTP client used for all requests.
+    Default: 200 milliseconds.
+
+concurrencyLimit::
+The amount of concurrent requests we allow per backend at a time. A value of 0
+means no limit. Default: 20. 
+
+keepAliveInterval::
+Passed to 
+link:https://golang.org/pkg/net/#Dialer[net.Dialer]
+for the common HTTP client used for all requests.
+Defaults: 30 seconds.
+
+maxIdleConnsPerHost::
+Passed to
+link:https://golang.org/pkg/net/http/#Transport[http.Transport]
+for the common HTTP client used for all requests.
+Defaults: 100.
+
+expireDelaySec::
+How long an item will live in each backend's internal path cache. After
+completing a request, a backend will remember the metric names it saw for this
+long. This is used to filter the backends requests are sent to. Default: 10
+minutes.
+
+graphite09compat::
+Whether we return responses in Pickle format of the form graphite-web 0.9.x or
+1.x expects. Default: false.
+
+corruptionThreshold::
+Zipper attempts to merge different copies of the same metric. If it heals more
+than this ratio of points per metric, it will write a warning to the log.
+Default: 0.
+
+buckets::
+The number of 100-millisecond buckets used to collect request latency
+histograms for exporting to Graphite. Default: 10.
+
+graphite::
+Settings for the metrics we export to Graphite.
+
+interval:::
+How often metrics are exported. Default: 1 minute.
+
+Host:::
+The host and port of the Graphite backend. Default: `127.0.0.1:3002`.
+
+Prefix:::
+A prefix to write to every metric. Default: `carbon.zipper`.
+
+Pattern:::
+A prefix to write to every metric. Default: `carbon.zipper.$hostname`.
+
+logger::
+A list of loggers and their configurations to use. See
+link:https://github.com/lomik/zapwriter/blob/master/config.go[lomik/zapwriter]
+for the available configuration options. Default: standard output.
+
+
+== API specific options
+
+sendGlobsAsIs::
+If the number of metrics a glob will return is less than `maxBatchSize` below,
+send the glob instead of the list of metrics to the backends.
+Default: false.
+
+maxBatchSize::
+Controls `sendGlobsAsIs`.
+Default: 100.
+
+alwaysSendGlobsAsIs::
+Don't try anything clever around globs, but send them as they are every time.
+Default: false.
+
+cache::
+Configuration for a cache of API respones used to avoid repeat computations.
+
+type:::
+The type of cache to use. Valid options are `memcache`, `mem` and `null`, for
+memcache, in-memory, and no caching, respectively.
+Default: `mem`.
+
+size_mb:::
+Size limit of an in-memory cache in megabytes.
+Default: 0 (unlimited).
+
+memcachedServers:::
+A list of `ip:port` addresses of memcached servers to use.
+
+defaultTimeoutSec:::
+How long to keep items in the cache.
+Default: 60.
+
+tz::
+Timezone to use when converting `from` and `until` parameters to UNIX epoch.
+The format expected is the string `name,offset`, which will be passed to
+link:https://golang.org/pkg/time/#FixedZone[time.FixedZone].
+Default: local timezone.
+
+pidFile::
+PID file to write.
+Default: No file.
+
+blockHeaderFile::
+File to read rules for blocking requests based on HTTP headers from.
+Default: No file.
+
+blockHeaderUpdatePeriod::
+How often to read the block rule file from disk.
+Default: Never.
+
+headersToLog::
+A whitelist of requests HTTP headers to write to the access log.
+Default: No headers.
+
+unicodeRangeTables::
+link:https://golang.org/pkg/unicode/[Unicode] tables to use when reading metric names.
+Default: Latin.
+
+defaultColors::
+A map of color names to RGB or RGBA values to use instead of the default colors
+when rendering graphics.
+
+functionsConfig::
+?
