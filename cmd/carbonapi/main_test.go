@@ -77,18 +77,30 @@ func getMultiFetchResponse() pb.MultiFetchResponse {
 
 func getMockInfoResponse() map[string]pb.InfoResponse {
 	decoded := make(map[string]pb.InfoResponse)
-	r := pb.Retention{
-		SecondsPerPoint: 60,
-		NumberOfPoints:  43200,
+	r1 := pb.Retention{
+		SecondsPerPoint: 1,
+		NumberOfPoints:  60,
 	}
-	d := pb.InfoResponse{
+	r2 := pb.Retention{
+		SecondsPerPoint: 60,
+		NumberOfPoints:  300,
+	}
+	info1 := pb.InfoResponse{
 		Name:              "foo.bar",
 		AggregationMethod: "Average",
 		MaxRetention:      157680000,
 		XFilesFactor:      0.5,
-		Retentions:        []pb.Retention{r},
+		Retentions:        []pb.Retention{r1,r2},
 	}
-	decoded["http://127.0.0.1:8080"] = d
+	info2 := pb.InfoResponse{
+		Name:              "foo.bar",
+		AggregationMethod: "Average",
+		MaxRetention:      157680000,
+		XFilesFactor:      0.5,
+		Retentions:        []pb.Retention{r1},
+	}
+	decoded["http://127.0.0.1:8080"] = info1
+	decoded["http://127.0.0.1:8082"] = info2
 	return decoded
 }
 
