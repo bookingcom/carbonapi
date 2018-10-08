@@ -22,9 +22,9 @@ import (
 
 // Backend is a mock backend.
 type Backend struct {
-	find     func(context.Context, string) (types.Matches, error)
-	info     func(context.Context, string) ([]types.Info, error)
-	render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	find     func(context.Context, types.FindRequest) (types.Matches, error)
+	info     func(context.Context, types.InfoRequest) ([]types.Info, error)
+	render   func(context.Context, types.RenderRequest) ([]types.Metric, error)
 	contains func([]string) bool
 }
 
@@ -33,30 +33,30 @@ type Backend struct {
 // default to one that returns an empty response and nil error.
 // A mock backend contains all targets by default.
 type Config struct {
-	Find     func(context.Context, string) (types.Matches, error)
-	Info     func(context.Context, string) ([]types.Info, error)
-	Render   func(context.Context, int32, int32, []string) ([]types.Metric, error)
+	Find     func(context.Context, types.FindRequest) (types.Matches, error)
+	Info     func(context.Context, types.InfoRequest) ([]types.Info, error)
+	Render   func(context.Context, types.RenderRequest) ([]types.Metric, error)
 	Contains func([]string) bool
 }
 
 var (
-	noLog      *zap.Logger                                                           = zap.New(nil)
-	noFind     func(context.Context, string) (types.Matches, error)                  = func(context.Context, string) (types.Matches, error) { return types.Matches{}, nil }
-	noInfo     func(context.Context, string) ([]types.Info, error)                   = func(context.Context, string) ([]types.Info, error) { return nil, nil }
-	noRender   func(context.Context, int32, int32, []string) ([]types.Metric, error) = func(context.Context, int32, int32, []string) ([]types.Metric, error) { return nil, nil }
-	noContains func([]string) bool                                                   = func([]string) bool { return true }
+	noLog      *zap.Logger                                                        = zap.New(nil)
+	noFind     func(context.Context, types.FindRequest) (types.Matches, error)    = func(context.Context, types.FindRequest) (types.Matches, error) { return types.Matches{}, nil }
+	noInfo     func(context.Context, types.InfoRequest) ([]types.Info, error)     = func(context.Context, types.InfoRequest) ([]types.Info, error) { return nil, nil }
+	noRender   func(context.Context, types.RenderRequest) ([]types.Metric, error) = func(context.Context, types.RenderRequest) ([]types.Metric, error) { return nil, nil }
+	noContains func([]string) bool                                                = func([]string) bool { return true }
 )
 
-func (b Backend) Find(ctx context.Context, query string) (types.Matches, error) {
-	return b.find(ctx, query)
+func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
+	return b.find(ctx, request)
 }
 
-func (b Backend) Info(ctx context.Context, target string) ([]types.Info, error) {
-	return b.info(ctx, target)
+func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
+	return b.info(ctx, request)
 }
 
-func (b Backend) Render(ctx context.Context, from int32, until int32, targets []string) ([]types.Metric, error) {
-	return b.render(ctx, from, until, targets)
+func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	return b.render(ctx, request)
 }
 
 // Logger returns a no-op logger.

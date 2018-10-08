@@ -29,9 +29,9 @@ import (
 
 // Backend codifies the RPC calls a Graphite backend responds to.
 type Backend interface {
-	Find(context.Context, string) (types.Matches, error)
-	Info(context.Context, string) ([]types.Info, error)
-	Render(context.Context, int32, int32, []string) ([]types.Metric, error)
+	Find(context.Context, types.FindRequest) (types.Matches, error)
+	Info(context.Context, types.InfoRequest) ([]types.Info, error)
+	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
 
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
@@ -45,7 +45,7 @@ type Backend interface {
 // worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
-func Renders(ctx context.Context, backends []Backend, from int32, until int32, targets []string) ([]types.Metric, error) {
+func Renders(ctx context.Context, backends []Backend, request types.RenderRequest) ([]types.Metric, error) {
 	if len(backends) == 0 {
 		return nil, nil
 	}
@@ -53,8 +53,9 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 	msgCh := make(chan []types.Metric, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
-			msg, err := b.Render(ctx, from, until, targets)
+			msg, err := b.Render(ctx, request)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -82,7 +83,7 @@ func Renders(ctx context.Context, backends []Backend, from int32, until int32, t
 }
 
 // Infos makes Info calls to multiple backends.
-func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info, error) {
+func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) ([]types.Info, error) {
 	if len(backends) == 0 {
 		return nil, nil
 	}
@@ -90,8 +91,9 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 	msgCh := make(chan []types.Info, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
-			msg, err := b.Info(ctx, metric)
+			msg, err := b.Info(ctx, request)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -119,7 +121,7 @@ func Infos(ctx context.Context, backends []Backend, metric string) ([]types.Info
 }
 
 // Finds makes Find calls to multiple backends.
-func Finds(ctx context.Context, backends []Backend, query string) (types.Matches, error) {
+func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (types.Matches, error) {
 	if len(backends) == 0 {
 		return types.Matches{}, nil
 	}
@@ -127,8 +129,9 @@ func Finds(ctx context.Context, backends []Backend, query string) (types.Matches
 	msgCh := make(chan types.Matches, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
+		request.IncCall()
 		go func(b Backend) {
-			msg, err := b.Find(ctx, query)
+			msg, err := b.Find(ctx, request)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -155,17 +158,34 @@ func Finds(ctx context.Context, backends []Backend, query string) (types.Matches
 	return types.MergeMatches(msgs), nil
 }
 
+func getTLD(metric string) string {
+	return strings.SplitN(metric, ".", 2)[0]
+}
+
 // Filter filters the given backends by whether they Contain() the given targets.
 func Filter(backends []Backend, targets []string) []Backend {
+	if bs := filter(backends, targets); len(bs) > 0 {
+		return bs
+	}
+
+	tlds := make([]string, 0, len(targets))
+	for _, target := range targets {
+		tlds = append(tlds, getTLD(target))
+	}
+
+	if bs := filter(backends, tlds); len(bs) > 0 {
+		return bs
+	}
+
+	return backends
+}
+
+func filter(backends []Backend, targets []string) []Backend {
 	bs := make([]Backend, 0)
 	for _, b := range backends {
 		if b.Contains(targets) {
 			bs = append(bs, b)
 		}
-	}
-
-	if len(bs) == 0 {
-		return backends
 	}
 
 	return bs

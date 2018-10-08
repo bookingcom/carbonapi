@@ -10,6 +10,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/types"
+
+	"github.com/dgryski/go-expirecache"
 )
 
 func TestAddress(t *testing.T) {
@@ -55,16 +59,14 @@ func TestContains(t *testing.T) {
 		return
 	}
 
-	b.tlds = map[string]struct{}{
-		"foo": struct{}{},
-	}
+	b.paths.Set("foo", struct{}{}, 0, 30)
 
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")
 	}
 
-	if ok := b.Contains([]string{"foo.bar"}); !ok {
-		t.Error("Expected true")
+	if ok := b.Contains([]string{"foo.bar"}); ok {
+		t.Error("Expected false")
 	}
 
 	if ok := b.Contains([]string{"bar"}); ok {
@@ -75,13 +77,13 @@ func TestContains(t *testing.T) {
 		t.Error("Expected true")
 	}
 
-	if ok := b.Contains([]string{"*"}); !ok {
-		t.Error("Expected true")
+	if ok := b.Contains([]string{"*"}); ok {
+		t.Error("Expected false")
 	}
 
-	b.tlds = nil
-	if ok := b.Contains([]string{"foo"}); !ok {
-		t.Error("Expected true")
+	b.paths = expirecache.New(0)
+	if ok := b.Contains([]string{"foo"}); ok {
+		t.Error("Expected false")
 	}
 }
 
@@ -101,7 +103,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	_, got, err := b.call(context.Background(), b.url("/render"), nil)
+	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -126,7 +128,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -145,13 +147,13 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected error")
 	}
 }
 
-func TestDoLimiterTimeout(t *testing.T) {
+func TestCallLimiterTimeout(t *testing.T) {
 	b, err := New(Config{
 		Address: "localhost",
 		Limit:   1,
@@ -168,14 +170,36 @@ func TestDoLimiterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	req, err := b.request(ctx, b.url("/render"), nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	_, _, err = b.do(ctx, req)
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
 	if err == nil {
 		t.Error("Expected to time out")
+	}
+
+	if ctx.Err() == nil {
+		t.Error("Expected context error")
+	}
+}
+
+func TestCallTimeoutLeavesLimiter(t *testing.T) {
+	b, err := New(Config{
+		Address: "localhost",
+		Limit:   1,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
+	if err == nil {
+		t.Error("Expected to time out")
+	}
+
+	if len(b.limiter) != 0 {
+		t.Error("Expected limiter to be empty")
 	}
 }
 
@@ -201,7 +225,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, got, err := b.do(context.Background(), req)
+	_, got, err := b.do(context.Background(), types.NewTrace(), req)
 	if err != nil {
 		t.Error(err)
 	}
@@ -236,7 +260,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(ctx, req)
+	_, _, err = b.do(ctx, types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -262,7 +286,7 @@ func TestDoHTTPError(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(context.Background(), req)
+	_, _, err = b.do(context.Background(), types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}

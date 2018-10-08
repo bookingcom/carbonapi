@@ -375,7 +375,7 @@ func renderHandler(w http.ResponseWriter, r *http.Request) {
 		var newTargets []string
 		rewritten, newTargets, err = expr.RewriteExpr(exp, from32, until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
-			// TODO(gmagnusson): Set access logger HTTP code to != 200
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			errors[target] = err.Error()
 			accessLogDetails.Reason = err.Error()
 			logAsError = true
@@ -980,8 +980,8 @@ func blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	failResponse := []byte(`{"success":"false"}`)
 	if config.BlockHeaderFile == "" {
-		w.Write(failResponse)
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write(failResponse)
 		return
 	}
 
