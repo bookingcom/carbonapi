@@ -165,12 +165,12 @@ func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 			}
 
 			data[1] = t
-
 			jm.Datapoints[i] = data
+
+			t += metric.StepTime
 		}
 
 		jms = append(jms, jm)
-		t += metric.StepTime
 	}
 
 	return json.Marshal(jms)
