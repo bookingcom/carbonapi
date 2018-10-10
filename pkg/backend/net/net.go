@@ -311,7 +311,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	var metrics []types.Metric
 
 	switch contentType {
-	case "application/x-protobuf":
+	case "application/x-protobuf", "application/protobuf":
 		metrics, err = carbonapi_v2.RenderDecoder(resp)
 
 	case "application/json":
@@ -429,7 +429,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	var matches types.Matches
 
 	switch contentType {
-	case "application/x-protobuf":
+	case "application/x-protobuf", "application/protobuf":
 		matches, err = carbonapi_v2.FindDecoder(resp)
 
 	case "application/json":
