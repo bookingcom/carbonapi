@@ -291,7 +291,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	targets := request.Targets
 
 	t0 := time.Now()
-	u := b.url("/render")
+	u := b.url("/render/")
 	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
 	request.Trace.AddMarshal(t0)
 
@@ -362,7 +362,7 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 	metric := request.Target
 
 	t0 := time.Now()
-	u := b.url("/info")
+	u := b.url("/info/")
 	u, body := carbonapiV2InfoEncoder(u, metric)
 	request.Trace.AddMarshal(t0)
 
@@ -413,7 +413,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	query := request.Query
 
 	t0 := time.Now()
-	u := b.url("/metrics/find")
+	u := b.url("/metrics/find/")
 	u, body := carbonapiV2FindEncoder(u, query)
 	request.Trace.AddMarshal(t0)
 
