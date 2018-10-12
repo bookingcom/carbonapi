@@ -1,41 +1,47 @@
-all: carbonapi carbonzipper
-
-debug: debug_api debug_zipper
-
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-        EXTRA_PKG_CONFIG_PATH=/opt/X11/lib/pkgconfig
+	PKGCONF = PKG_CONFIG_PATH="/opt/X11/lib/pkgconfig"
+else
+	PKGCONF =
 endif
 
-VERSION ?= $(shell git describe --abbrev=4 --dirty --always --tags)
-
 GO ?= go
+VERSION ?= $(shell git rev-parse --short HEAD)
 
-SOURCES=$(shell find . -name '*.go')
+# List packages and source files
 
 PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
 PKG_CARBONZIPPER=github.com/bookingcom/carbonapi/cmd/carbonzipper
+SOURCES = $(shell find . -name '*.go')
 
-carbonapi: $(SOURCES)
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -tags cairo -ldflags '-X main.BuildVersion=$(VERSION)' $(PKG_CARBONAPI)
+# Set compile flags
 
-carbonzipper: $(SOURCES)
-	$(GO) build --ldflags '-X main.BuildVersion=$(VERSION)' $(PKG_CARBONZIPPER)
+GCFLAGS :=
+debug: GCFLAGS += -gcflags=all='-l -N'
 
-debug_api: $(SOURCES)
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -tags cairo -ldflags '-X main.BuildVersion=$(VERSION)' -gcflags=all='-l -N' $(PKG_CARBONAPI)
+LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
 
-debug_zipper: $(SOURCES)
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) build -ldflags '-X main.BuildVersion=$(VERSION)' -gcflags=all='-l -N' $(PKG_CARBONZIPPER)
+TAGS := -tags cairo
+nocairo: TAGS =
 
-nocairo: $(SOURCES)
-	$(GO) build -ldflags '-X main.BuildVersion=$(VERSION)'
+# Define targets
+
+all: $(SOURCES) build
+
+.PHONY: debug
+debug: build
+
+nocairo: $(SOURCES) build
+
+build:
+	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
+	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
 vet:
 	go vet -composites=false ./...
 
 test:
-	PKG_CONFIG_PATH="$(EXTRA_PKG_CONFIG_PATH)" $(GO) test -tags cairo ./... -race -coverprofile cover.out
+	$(PKGCONF) $(GO) test $(TAGS) ./... -race -coverprofile cover.out
 
 clean:
 	rm -f carbonapi carbonzipper
