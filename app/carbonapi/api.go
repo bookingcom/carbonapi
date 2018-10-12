@@ -190,9 +190,8 @@ func zipperStats(stats *realZipper.Stats) {
 }
 
 
-func StartCarbonapi(api cfg.API, fh *os.File, logger *zap.Logger, err error) {
+func StartCarbonapi(api cfg.API, logger *zap.Logger) {
 	config.API = api
-	fh.Close()
 	setUpConfigUpstreams(logger)
 	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
@@ -206,7 +205,7 @@ func StartCarbonapi(api cfg.API, fh *os.File, logger *zap.Logger, err error) {
 		ticker := time.NewTicker(config.BlockHeaderUpdatePeriod)
 		go loadBlockRuleHeaderConfig(ticker, logger)
 	}
-	err = gracehttp.Serve(&http.Server{
+	err := gracehttp.Serve(&http.Server{
 		Addr:         config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,

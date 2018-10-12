@@ -37,5 +37,6 @@ func main() {
 			zap.Error(err),
 		)
 	}
-	capi.StartCarbonapi(api, fh, logger, err)
+	fh.Close()
+	capi.StartCarbonapi(api, logger)
 }
