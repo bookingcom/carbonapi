@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"expvar"
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -18,18 +18,21 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/intervalset"
 	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
+	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/util"
-	"github.com/bookingcom/carbonapi/zipper"
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	pb3 "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -70,13 +73,10 @@ var prometheusMetrics = struct {
 	),
 }
 
-var config = struct {
-	cfg.Zipper
-	zipper *zipper.Zipper
-}{
-	cfg.DefaultZipperConfig,
-	nil,
-}
+var (
+	config   cfg.Zipper = cfg.DefaultZipperConfig
+	backends []backend.Backend
+)
 
 // Metrics contains grouped expvars for /debug/vars and graphite
 var Metrics = struct {
@@ -170,31 +170,63 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	metrics, stats, err := config.zipper.Find(ctx, logger, originalQuery)
-	sort.Slice(metrics, func(i, j int) bool {
-		if metrics[i].Path < metrics[j].Path {
-			return true
-		}
-		if metrics[i].Path > metrics[j].Path {
-			return false
-		}
-		return metrics[i].Path < metrics[j].Path
-	})
-	sendStats(stats)
-
+	request := types.NewFindRequest(originalQuery)
+	bs := backend.Filter(backends, []string{originalQuery})
+	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		accessLogger.Error("find failed",
-			zap.Int("http_code", http.StatusInternalServerError),
-			zap.Duration("runtime_seconds", time.Since(t0)),
-			zap.Error(err),
-		)
-		http.Error(w, "error fetching the data", http.StatusInternalServerError)
-		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
-		return
+		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+			// body to be happy with its life, so we can't 404 a /metrics/find
+			// request that finds nothing. We are however interested in knowing
+			// that we found nothing on the monitoring side, so we claim we
+			// returned a 404 code to Prometheus.
+			Metrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+		} else {
+			msg := "error fetching the data"
+			code := http.StatusInternalServerError
+			accessLogger.Error("find failed",
+				zap.Int("http_code", code),
+				zap.Duration("runtime_seconds", time.Since(t0)),
+				zap.Error(err),
+			)
+			http.Error(w, msg, code)
+			Metrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			return
+		}
 	}
 
-	err = encodeFindResponse(format, originalQuery, w, metrics)
+	sort.Slice(metrics.Matches, func(i, j int) bool {
+		if metrics.Matches[i].Path < metrics.Matches[j].Path {
+			return true
+		}
+		if metrics.Matches[i].Path > metrics.Matches[j].Path {
+			return false
+		}
+		return metrics.Matches[i].Path < metrics.Matches[j].Path
+	})
+
+	var contentType string
+	var blob []byte
+	switch format {
+	case formatTypeProtobuf, formatTypeProtobuf3:
+		contentType = contentTypeProtobuf
+		blob, err = carbonapi_v2.FindEncoder(metrics)
+	case formatTypeJSON:
+		contentType = contentTypeJSON
+		blob, err = json.FindEncoder(metrics)
+	case formatTypeEmpty, formatTypePickle:
+		contentType = contentTypePickle
+		if config.GraphiteWeb09Compatibility {
+			blob, err = pickle.FindEncoderV0_9(metrics)
+		} else {
+			blob, err = pickle.FindEncoderV1_0(metrics)
+		}
+	default:
+		err = errors.Errorf("Unknown format %s", format)
+	}
+
 	if err != nil {
 		http.Error(w, "error marshaling data", http.StatusInternalServerError)
 		accessLogger.Error("render failed",
@@ -208,6 +240,9 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", contentType)
+	w.Write(blob)
+
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
@@ -215,56 +250,6 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 
 	Metrics.Responses.Add(1)
 	prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
-}
-
-func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []pb3.GlobMatch) error {
-	var err error
-	var b []byte
-	switch format {
-	case formatTypeProtobuf, formatTypeProtobuf3:
-		w.Header().Set("Content-Type", contentTypeProtobuf)
-		var result pb3.GlobResponse
-		result.Name = query
-		result.Matches = metrics
-		b, err = result.Marshal()
-		/* #nosec */
-		_, _ = w.Write(b)
-	case formatTypeJSON:
-		w.Header().Set("Content-Type", contentTypeJSON)
-		jEnc := json.NewEncoder(w)
-		err = jEnc.Encode(metrics)
-	case formatTypeEmpty, formatTypePickle:
-		w.Header().Set("Content-Type", contentTypePickle)
-
-		var result []map[string]interface{}
-
-		now := int32(time.Now().Unix() + 60)
-		for _, metric := range metrics {
-			// Tell graphite-web that we have everything
-			var mm map[string]interface{}
-			if config.GraphiteWeb09Compatibility {
-				// graphite-web 0.9.x
-				mm = map[string]interface{}{
-					// graphite-web 0.9.x
-					"metric_path": metric.Path,
-					"isLeaf":      metric.IsLeaf,
-				}
-			} else {
-				// graphite-web 1.0
-				interval := &intervalset.IntervalSet{Start: 0, End: now}
-				mm = map[string]interface{}{
-					"is_leaf":   metric.IsLeaf,
-					"path":      metric.Path,
-					"intervals": interval,
-				}
-			}
-			result = append(result, mm)
-		}
-
-		pEnc := pickle.NewEncoder(w)
-		err = pEnc.Encode(result)
-	}
-	return err
 }
 
 func renderHandler(w http.ResponseWriter, req *http.Request) {
@@ -360,40 +345,45 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	metrics, stats, err := config.zipper.Render(ctx, logger, target, int32(from), int32(until))
-	sendStats(stats)
+	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
+	bs := backend.Filter(backends, request.Targets)
+	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
-		http.Error(w, "error fetching the data", http.StatusInternalServerError)
+		msg := "error fetching the data"
+		code := http.StatusInternalServerError
+		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+			msg = "not found"
+			code = http.StatusNotFound
+		}
+
+		http.Error(w, msg, code)
 		accessLogger.Error("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
-			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Int("http_code", code),
 			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Int64s("trace", request.Trace.Report()),
 		)
+
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "render").Inc()
 		return
 	}
 
-	var b []byte
+	var blob []byte
+	var contentType string
 	switch format {
 	case formatTypeProtobuf, formatTypeProtobuf3:
-		w.Header().Set("Content-Type", contentTypeProtobuf)
-		b, err = metrics.Marshal()
-
-		memoryUsage += len(b)
-		/* #nosec */
-		_, _ = w.Write(b)
+		contentType = contentTypeProtobuf
+		blob, err = carbonapi_v2.RenderEncoder(metrics)
 	case formatTypeJSON:
-		presponse := createRenderResponse(metrics, nil)
-		w.Header().Set("Content-Type", contentTypeJSON)
-		e := json.NewEncoder(w)
-		err = e.Encode(presponse)
+		contentType = contentTypeJSON
+		blob, err = json.RenderEncoder(metrics)
 	case formatTypeEmpty, formatTypePickle:
-		presponse := createRenderResponse(metrics, pickle.None{})
-		w.Header().Set("Content-Type", contentTypePickle)
-		e := pickle.NewEncoder(w)
-		err = e.Encode(presponse)
+		contentType = contentTypePickle
+		blob, err = pickle.RenderEncoder(metrics)
+	default:
+		err = errors.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -404,49 +394,25 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
+			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
 		return
 	}
 
+	w.Header().Set("Content-Type", contentType)
+	w.Write(blob)
+
 	accessLogger.Info("request served",
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
+		zap.Int64s("trace", request.Trace.Report()),
 	)
 
 	Metrics.Responses.Add(1)
 	prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
-}
-
-func createRenderResponse(metrics *pb3.MultiFetchResponse, missing interface{}) []map[string]interface{} {
-
-	var response []map[string]interface{}
-
-	for _, metric := range metrics.GetMetrics() {
-
-		var pvalues []interface{}
-		for i, v := range metric.Values {
-			if metric.IsAbsent[i] {
-				pvalues = append(pvalues, missing)
-			} else {
-				pvalues = append(pvalues, v)
-			}
-		}
-
-		// create the response
-		presponse := map[string]interface{}{
-			"start":  metric.StartTime,
-			"step":   metric.StepTime,
-			"end":    metric.StopTime,
-			"name":   metric.Name,
-			"values": pvalues,
-		}
-		response = append(response, presponse)
-	}
-
-	return response
 }
 
 func infoHandler(w http.ResponseWriter, req *http.Request) {
@@ -508,8 +474,9 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	infos, stats, err := config.zipper.Info(ctx, logger, target)
-	sendStats(stats)
+	request := types.NewInfoRequest(target)
+	bs := backend.Filter(backends, []string{target})
+	infos, err := backend.Infos(ctx, bs, request)
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -522,25 +489,17 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var b []byte
+	var contentType string
+	var blob []byte
 	switch format {
 	case formatTypeProtobuf, formatTypeProtobuf3:
-		w.Header().Set("Content-Type", contentTypeProtobuf)
-		var result pb3.ZipperInfoResponse
-		result.Responses = make([]pb3.ServerInfoResponse, len(infos))
-		for s, i := range infos {
-			var r pb3.ServerInfoResponse
-			r.Server = s
-			r.Info = &i
-			result.Responses = append(result.Responses, r)
-		}
-		b, err = result.Marshal()
-		/* #nosec */
-		_, _ = w.Write(b)
+		contentType = contentTypeProtobuf
+		blob, err = carbonapi_v2.InfoEncoder(infos)
 	case formatTypeEmpty, formatTypeJSON:
-		w.Header().Set("Content-Type", contentTypeJSON)
-		jEnc := json.NewEncoder(w)
-		err = jEnc.Encode(infos)
+		contentType = contentTypeJSON
+		blob, err = json.InfoEncoder(infos)
+	default:
+		err = errors.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -555,6 +514,9 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
 		return
 	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Write(blob)
 
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
@@ -616,7 +578,7 @@ func main() {
 		)
 	}
 
-	config.Zipper, err = cfg.ParseZipperConfig(fh)
+	config, err = cfg.ParseZipperConfig(fh)
 	if err != nil {
 		logger.Fatal("failed to parse config",
 			zap.String("config_path", *configFile),
@@ -635,6 +597,27 @@ func main() {
 			zap.Error(err),
 		)
 	}
+
+	bs, err := initBackends(config, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize backends",
+			zap.Error(err),
+		)
+	}
+
+	backends = bs
+
+	go func() {
+		probeTicker := time.NewTicker(5 * time.Minute)
+		for {
+			for _, b := range backends {
+				go b.Probe()
+			}
+			<-probeTicker.C
+		}
+	}()
+
+	types.SetCorruptionWatcher(config.CorruptionThreshold, logger)
 
 	// Should print nicer stack traces in case of unexpected panic.
 	defer func() {
@@ -683,8 +666,6 @@ func main() {
 
 	Metrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", Metrics.CacheItems)
-
-	config.zipper = zipper.NewZipper(sendStats, config.Zipper, zapwriter.Logger("zipper"))
 
 	r := http.NewServeMux()
 
@@ -819,15 +800,6 @@ func main() {
 	}
 }
 
-func sendStats(stats *zipper.Stats) {
-	Metrics.Timeouts.Add(stats.Timeouts)
-	Metrics.FindErrors.Add(stats.FindErrors)
-	Metrics.RenderErrors.Add(stats.RenderErrors)
-	Metrics.InfoErrors.Add(stats.InfoErrors)
-	Metrics.CacheMisses.Add(stats.CacheMisses)
-	Metrics.CacheHits.Add(stats.CacheHits)
-}
-
 var timeBuckets []int64
 var expTimeBuckets []int64
 
@@ -876,4 +848,36 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 
 	prometheusMetrics.DurationsExp.Observe(t.Seconds())
 	prometheusMetrics.DurationsLin.Observe(t.Seconds())
+}
+
+func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, error) {
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeouts.Connect,
+			KeepAlive: config.KeepAliveInterval,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	backends := make([]backend.Backend, 0, len(config.Backends))
+	for _, host := range config.Backends {
+		b, err := bnet.New(bnet.Config{
+			Address:            host,
+			Client:             client,
+			Timeout:            config.Timeouts.AfterStarted,
+			Limit:              config.ConcurrencyLimitPerServer,
+			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			Logger:             logger,
+		})
+
+		if err != nil {
+			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
+		}
+
+		backends = append(backends, b)
+	}
+
+	return backends, nil
 }

@@ -298,10 +298,14 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, errors.New("Request timed out")
+			return nil, types.ErrTimeout{ctx.Err()}
 		}
 
-		return nil, errors.Wrap(err, "HTTP call failed")
+		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
+			return nil, types.ErrMetricsNotFound
+		}
+
+		return nil, err
 	}
 
 	t1 := time.Now()
@@ -314,17 +318,15 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	case "application/x-protobuf", "application/protobuf":
 		metrics, err = carbonapi_v2.RenderDecoder(resp)
 
+	/* TODO(gmagnusson)
 	case "application/json":
-		// TODO(gmagnusson)
 
 	case "application/pickle":
-		// TODO(gmagnusson)
 
 	case "application/x-msgpack":
-		// TODO(gmagnusson)
 
 	case "application/x-carbonapi-v3-pb":
-		// TODO(gmagnusson)
+	*/
 
 	default:
 		return nil, errors.Errorf("Unknown content type '%s'", contentType)
@@ -419,7 +421,15 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
-		return types.Matches{}, errors.Wrap(err, "HTTP call failed")
+		if ctx.Err() != nil {
+			return types.Matches{}, types.ErrTimeout{ctx.Err()}
+		}
+
+		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
+			return types.Matches{}, types.ErrMatchesNotFound
+		}
+
+		return types.Matches{}, err
 	}
 
 	t1 := time.Now()
@@ -432,17 +442,15 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	case "application/x-protobuf", "application/protobuf":
 		matches, err = carbonapi_v2.FindDecoder(resp)
 
+	/* TODO(gmagnusson)
 	case "application/json":
-		// TODO(gmagnusson)
 
 	case "application/pickle":
-		// TODO(gmagnusson)
 
 	case "application/x-msgpack":
-		// TODO(gmagnusson)
 
 	case "application/x-carbonapi-v3-pb":
-		// TODO(gmagnusson)
+	*/
 
 	default:
 		return types.Matches{}, errors.Errorf("Unknown content type '%s'", contentType)
