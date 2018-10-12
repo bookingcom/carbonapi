@@ -7,7 +7,6 @@ The definitions correspond to the types of responses to the /render, /info, and
 package types
 
 import (
-	"errors"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -19,10 +18,24 @@ var (
 	corruptionThreshold = 1.0
 	corruptionLogger    = zap.New(nil)
 
-	ErrMetricsNotFound = errors.New("No metrics returned")
-	ErrMatchesNotFound = errors.New("No matches found")
-	ErrInfoNotFound    = errors.New("No information found")
+	ErrMetricsNotFound = ErrNotFound("No metrics returned")
+	ErrMatchesNotFound = ErrNotFound("No matches found")
+	ErrInfoNotFound    = ErrNotFound("No information found")
 )
+
+type ErrNotFound string
+
+func (err ErrNotFound) Error() string {
+	return string(err)
+}
+
+type ErrTimeout struct {
+	Err error
+}
+
+func (err ErrTimeout) Error() string {
+	return err.Err.Error()
+}
 
 func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
 	corruptionThreshold = threshold

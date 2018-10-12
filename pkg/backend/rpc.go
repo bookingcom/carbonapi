@@ -209,15 +209,21 @@ func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger)
 }
 
 func combineErrors(errs []error) error {
-	msgs := make(map[string]int)
+	msgs := make(map[error]int)
 	for _, err := range errs {
 		if err != nil {
-			msgs[err.Error()]++
+			msgs[errors.Cause(err)]++
 		}
 	}
 
 	if len(msgs) == 0 {
 		return nil
+	}
+
+	if len(msgs) == 1 {
+		for err, count := range msgs {
+			return errors.WithMessage(err, fmt.Sprintf("%d backends", count))
+		}
 	}
 
 	ms := make([]string, 0, len(msgs))

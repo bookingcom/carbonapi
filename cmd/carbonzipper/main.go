@@ -174,15 +174,27 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	bs := backend.Filter(backends, []string{originalQuery})
 	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		accessLogger.Error("find failed",
-			zap.Int("http_code", http.StatusInternalServerError),
-			zap.Duration("runtime_seconds", time.Since(t0)),
-			zap.Error(err),
-		)
-		http.Error(w, "error fetching the data", http.StatusInternalServerError)
-		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
-		return
+		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+			// body to be happy with its life, so we can't 404 a /metrics/find
+			// request that finds nothing. We are however interested in knowing
+			// that we found nothing on the monitoring side, so we claim we
+			// returned a 404 code to Prometheus.
+			Metrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+		} else {
+			msg := "error fetching the data"
+			code := http.StatusInternalServerError
+			accessLogger.Error("find failed",
+				zap.Int("http_code", code),
+				zap.Duration("runtime_seconds", time.Since(t0)),
+				zap.Error(err),
+			)
+			http.Error(w, msg, code)
+			Metrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			return
+		}
 	}
 
 	sort.Slice(metrics.Matches, func(i, j int) bool {
@@ -337,16 +349,24 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := backend.Filter(backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
-		http.Error(w, "error fetching the data", http.StatusInternalServerError)
+		msg := "error fetching the data"
+		code := http.StatusInternalServerError
+		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+			msg = "not found"
+			code = http.StatusNotFound
+		}
+
+		http.Error(w, msg, code)
 		accessLogger.Error("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
-			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Int("http_code", code),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Int64s("trace", request.Trace.Report()),
 		)
+
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
+		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "render").Inc()
 		return
 	}
 
