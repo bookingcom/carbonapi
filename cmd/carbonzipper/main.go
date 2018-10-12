@@ -864,11 +864,12 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	backends := make([]backend.Backend, 0, len(config.Backends))
 	for _, host := range config.Backends {
 		b, err := bnet.New(bnet.Config{
-			Address: host,
-			Client:  client,
-			Timeout: config.Timeouts.AfterStarted,
-			Limit:   config.ConcurrencyLimitPerServer,
-			Logger:  logger,
+			Address:            host,
+			Client:             client,
+			Timeout:            config.Timeouts.AfterStarted,
+			Limit:              config.ConcurrencyLimitPerServer,
+			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			Logger:             logger,
 		})
 
 		if err != nil {
