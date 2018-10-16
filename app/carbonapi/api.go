@@ -38,7 +38,7 @@ import (
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
-var BuildVersion = "(development build)"
+var BuildVersion string
 
 var config = struct {
 	cfg.API
@@ -190,8 +190,9 @@ func zipperStats(stats *realZipper.Stats) {
 }
 
 
-func StartCarbonapi(api cfg.API, logger *zap.Logger) {
+func StartCarbonapi(api cfg.API, logger *zap.Logger, buildVersion string) {
 	config.API = api
+	BuildVersion = buildVersion
 	setUpConfigUpstreams(logger)
 	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper)
@@ -293,7 +294,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	functions.New(config.FunctionsConfigs)
 
 	expvar.NewString("GoVersion").Set(runtime.Version())
-	expvar.NewString("BuildVersion").Set(BuildVersion)
 	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
 
 	apiMetrics.Goroutines = expvar.Func(func() interface{} {
@@ -423,11 +423,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 			host = config.Graphite.Host
 		}
 	}
-
-	logger.Info("starting carbonapi",
-		zap.String("build_version", BuildVersion),
-		zap.Any("config", config),
-	)
 
 	// +1 to track every over the number of buckets we track
 	timeBuckets = make([]int64, config.Buckets+1)

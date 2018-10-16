@@ -29,14 +29,14 @@ import (
 	"strconv"
 )
 
+var BuildVersion string
 var (
 	config   cfg.Zipper = cfg.DefaultZipperConfig
 	backends []backend.Backend
 )
 
-var BuildVersion = "(development version)"
-
-func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
+func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger, buildVersion string){
+	BuildVersion = buildVersion
 
 	bs, err := initBackends(config, logger)
 	if err != nil {
@@ -68,12 +68,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		}
 	}()
 
-	expvar.NewString("BuildVersion").Set(BuildVersion)
 	logger = zapwriter.Logger("main")
-	logger.Info("starting carbonzipper",
-		zap.String("build_version", BuildVersion),
-		zap.Any("config", config),
-	)
 
 	runtime.GOMAXPROCS(config.MaxProcs)
 

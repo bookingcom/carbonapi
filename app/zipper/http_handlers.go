@@ -149,6 +149,8 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewFindRequest(originalQuery)
 	bs := backend.Filter(backends, []string{originalQuery})
 	metrics, err := backend.Finds(ctx, bs, request)
+	fmt.Println(metrics)
+	fmt.Println(err)
 	if err != nil {
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty

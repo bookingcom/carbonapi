@@ -10,9 +10,12 @@ import (
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
+	"expvar"
 )
 // for testing
 var timeNow = time.Now
+// BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
+var BuildVersion = "(development build)"
 
 func main() {
 	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
@@ -38,5 +41,10 @@ func main() {
 		)
 	}
 	fh.Close()
-	capi.StartCarbonapi(api, logger)
+	expvar.NewString("BuildVersion").Set(BuildVersion)
+	logger.Info("starting carbonapi",
+		zap.String("build_version", BuildVersion),
+		zap.Any("apiConfig", api),
+	)
+	capi.StartCarbonapi(api, logger, BuildVersion)
 }

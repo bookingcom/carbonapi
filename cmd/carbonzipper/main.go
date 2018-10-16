@@ -15,6 +15,8 @@ import (
 	//"github.com/uber/jaeger-client-go/config"
 )
 
+var BuildVersion = "(development version)"
+
 func main() {
 	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
 	if err != nil {
@@ -67,7 +69,12 @@ func main() {
 			zap.Error(err),
 		)
 	}
+	expvar.NewString("BuildVersion").Set(BuildVersion)
+	logger.Info("starting carbonzipper",
+		zap.String("build_version", BuildVersion),
+		zap.Any("zipperConfig", config),
+	)
 
-	zipper.StartCarbonZipper(config, logger)
+	zipper.StartCarbonZipper(config, logger, BuildVersion)
 }
 
