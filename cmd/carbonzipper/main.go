@@ -7,12 +7,11 @@ import (
 	"os"
 	"runtime"
 
-	cfg "github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/app/zipper"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
-	"github.com/bookingcom/carbonapi/app/zipper"
-	"github.com/facebookgo/pidfile"
-	//"github.com/uber/jaeger-client-go/config"
 )
 
 var BuildVersion = "(development version)"

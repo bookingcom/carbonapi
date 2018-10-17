@@ -115,10 +115,10 @@ var prometheusMetrics = struct {
 
 
 
-func findHandler(w http.ResponseWriter, req *http.Request) {
+func (envConfig *EnvConfig) findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), envConfig.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("find").With(
@@ -147,7 +147,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	request := types.NewFindRequest(originalQuery)
-	bs := backend.Filter(backends, []string{originalQuery})
+	bs := backend.Filter(envConfig.backends, []string{originalQuery})
 	metrics, err := backend.Finds(ctx, bs, request)
 	fmt.Println(metrics)
 	fmt.Println(err)
@@ -196,7 +196,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		blob, err = json.FindEncoder(metrics)
 	case formatTypeEmpty, formatTypePickle:
 		contentType = contentTypePickle
-		if config.GraphiteWeb09Compatibility {
+		if envConfig.config.GraphiteWeb09Compatibility {
 			blob, err = pickle.FindEncoderV0_9(metrics)
 		} else {
 			blob, err = pickle.FindEncoderV1_0(metrics)
@@ -230,11 +230,11 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
 }
 
-func renderHandler(w http.ResponseWriter, req *http.Request) {
+func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	memoryUsage := 0
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), envConfig.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("render").With(
@@ -324,7 +324,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	bs := backend.Filter(backends, request.Targets)
+	bs := backend.Filter(envConfig.backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
 		msg := "error fetching the data"
@@ -393,10 +393,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
 }
 
-func infoHandler(w http.ResponseWriter, req *http.Request) {
+func (envConfig *EnvConfig) infoHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), envConfig.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("info").With(
@@ -453,7 +453,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewInfoRequest(target)
-	bs := backend.Filter(backends, []string{target})
+	bs := backend.Filter(envConfig.backends, []string{target})
 	infos, err := backend.Infos(ctx, bs, request)
 	if err != nil {
 		accessLogger.Error("info failed",
@@ -505,7 +505,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
 }
 
-func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
+func (envConfig *EnvConfig) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	logger := zapwriter.Logger("loadbalancer").With(zap.String("handler", "loadbalancer"))
 	accessLogger := zapwriter.Logger("access").With(zap.String("handler", "loadbalancer"))

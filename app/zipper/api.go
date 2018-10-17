@@ -30,22 +30,23 @@ import (
 )
 
 var BuildVersion string
-var (
-	config   cfg.Zipper = cfg.DefaultZipperConfig
+type EnvConfig struct {
+	config   cfg.Zipper
 	backends []backend.Backend
-)
+}
 
-func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger, buildVersion string){
+func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger, buildVersion string)(cfg.Zipper, []backend.Backend){
 	BuildVersion = buildVersion
 
 	bs, err := initBackends(config, logger)
+	envConfig := EnvConfig{config:config, backends:bs}
 	if err != nil {
 		logger.Fatal("Failed to initialize backends",
 			zap.Error(err),
 		)
 	}
 
-	backends = bs
+	backends := bs
 
 	go func() {
 		probeTicker := time.NewTicker(5 * time.Minute)
@@ -105,10 +106,10 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger, buildVersion string
 
 	r := http.NewServeMux()
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
-	r.HandleFunc("/lb_check", lbCheckHandler)
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(envConfig.findHandler, envConfig.bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(envConfig.renderHandler, envConfig.bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(envConfig.infoHandler, envConfig.bucketRequestTimes)))
+	r.HandleFunc("/lb_check", envConfig.lbCheckHandler)
 
 	handler := util.UUIDHandler(r)
 
@@ -226,6 +227,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger, buildVersion string
 			zap.Error(err),
 		)
 	}
+	return config, backends
 }
 
 var timeBuckets []int64
@@ -263,14 +265,14 @@ func findBucketIndex(buckets []int64, bucket int) int {
 	return i
 }
 
-func bucketRequestTimes(req *http.Request, t time.Duration) {
+func (envConfig *EnvConfig) bucketRequestTimes(req *http.Request, t time.Duration) {
 	ms := t.Nanoseconds() / int64(time.Millisecond)
 
 	bucket := int(ms / 100)
 	bucketIdx := findBucketIndex(timeBuckets, bucket)
 	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
 
-	expBucket := util.Bucket(ms, config.Buckets)
+	expBucket := util.Bucket(ms, envConfig.config.Buckets)
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
