@@ -1,6 +1,7 @@
 package carbonapi
 
 import (
+	"github.com/uber/jaeger-client-go/config"
 	"time"
 	"expvar"
 	"net/http"
@@ -40,9 +41,8 @@ import (
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
 
-var config = struct {
-	cfg.API
-
+type EnvConfig struct {
+	config   cfg.API
 	queryCache       cache.BytesCache
 	findCache        cache.BytesCache
 	blockHeaderRules RuleConfig
@@ -50,16 +50,8 @@ var config = struct {
 	defaultTimeZone *time.Location
 
 	zipper CarbonZipper
-
 	// Limiter limits concurrent zipper requests
 	limiter limiter.ServerLimiter
-}{
-	API: cfg.DefaultAPIConfig,
-
-	queryCache: cache.NullCache{},
-	findCache:  cache.NullCache{},
-
-	defaultTimeZone: time.Local,
 }
 
 var prometheusMetrics = struct {
@@ -191,26 +183,26 @@ func zipperStats(stats *realZipper.Stats) {
 
 
 func StartCarbonapi(api cfg.API, logger *zap.Logger, buildVersion string) {
-	config.API = api
 	BuildVersion = buildVersion
-	setUpConfigUpstreams(logger)
-	zipper := newZipper(zipperStats, config.Zipper, logger.With(zap.String("handler", "zipper")))
-	setUpConfig(logger, zipper)
-	handler := initHandlers()
+	envConfig := EnvConfig{config:api, }
+	setUpConfigUpstreams(logger, &envConfig)
+	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
+	setUpConfig(logger, zipper, &envConfig)
+	handler := initHandlers(&envConfig)
 	handler = handlers.CompressHandler(handler)
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
-	registerPromehteusMetrics(logger)
-	if config.BlockHeaderUpdatePeriod > 0 {
-		ticker := time.NewTicker(config.BlockHeaderUpdatePeriod)
-		go loadBlockRuleHeaderConfig(ticker, logger)
+	registerPromehteusMetrics(logger, &envConfig)
+	if envConfig.config.BlockHeaderUpdatePeriod > 0 {
+		ticker := time.NewTicker(envConfig.config.BlockHeaderUpdatePeriod)
+		go loadBlockRuleHeaderConfig(ticker, logger, &envConfig)
 	}
 	err := gracehttp.Serve(&http.Server{
-		Addr:         config.Listen,
+		Addr:         envConfig.config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: config.Timeouts.Global,
+		WriteTimeout: envConfig.config.Timeouts.Global,
 	})
 	if err != nil {
 		logger.Fatal("gracehttp failed",
@@ -219,21 +211,21 @@ func StartCarbonapi(api cfg.API, logger *zap.Logger, buildVersion string) {
 	}
 }
 
-func registerPromehteusMetrics(logger *zap.Logger) {
+func registerPromehteusMetrics(logger *zap.Logger,envConfig *EnvConfig) {
 	go func() {
 		prometheus.MustRegister(prometheusMetrics.Requests)
 		prometheus.MustRegister(prometheusMetrics.Responses)
 		prometheus.MustRegister(prometheusMetrics.DurationsExp)
 		prometheus.MustRegister(prometheusMetrics.DurationsLin)
 
-		writeTimeout := config.Timeouts.Global
+		writeTimeout := envConfig.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
 			writeTimeout = time.Minute
 		}
 
 		s := &http.Server{
-			Addr:         config.ListenInternal,
-			Handler:      initHandlersInternal(),
+			Addr:         envConfig.config.ListenInternal,
+			Handler:      initHandlersInternal(envConfig),
 			ReadTimeout:  1 * time.Second,
 			WriteTimeout: writeTimeout,
 		}
@@ -246,34 +238,34 @@ func registerPromehteusMetrics(logger *zap.Logger) {
 	}()
 }
 
-func loadBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger) {
+func loadBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, envConfig *EnvConfig) {
 	var ruleConfig RuleConfig
 	for range ticker.C {
-		fileData, err := loadBlockRuleConfig()
+		fileData, err := loadBlockRuleConfig(envConfig)
 
 		if err == nil {
 			err = yaml.Unmarshal(fileData, &ruleConfig)
 			if err != nil {
 				logger.Error("couldn't unmarshal block rule file data")
 			} else {
-				config.blockHeaderRules = ruleConfig
+				envConfig.blockHeaderRules = ruleConfig
 			}
 		} else {
-			config.blockHeaderRules = RuleConfig{}
+			envConfig.blockHeaderRules = RuleConfig{}
 		}
 	}
 }
 
-func loadBlockRuleConfig() ([]byte, error) {
+func loadBlockRuleConfig(envConfig *EnvConfig) ([]byte, error) {
 	fileLock.Lock()
 	defer fileLock.Unlock()
-	fileData, err := ioutil.ReadFile(config.BlockHeaderFile)
+	fileData, err := ioutil.ReadFile(envConfig.config.BlockHeaderFile)
 	return fileData, err
 }
 
 
-func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
-	err := zapwriter.ApplyConfig(config.Logger)
+func setUpConfig(logger *zap.Logger, zipper CarbonZipper, envConfig *EnvConfig) {
+	err := zapwriter.ApplyConfig(envConfig.config.Logger)
 	if err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
 			zap.Any("configuration", config.Logger),
@@ -281,7 +273,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		)
 	}
 
-	for name, color := range config.DefaultColors {
+	for name, color := range envConfig.config.DefaultColors {
 		if err := png.SetColor(name, color); err != nil {
 			logger.Warn("invalid color specified and will be ignored",
 				zap.String("reason", "color must be valid hex rgb or rbga value, e.x. '#c80032', 'c80032', 'c80032ff', etc."),
@@ -290,11 +282,11 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		}
 	}
 
-	rewrite.New(config.FunctionsConfigs)
-	functions.New(config.FunctionsConfigs)
+	rewrite.New(envConfig.config.FunctionsConfigs)
+	functions.New(envConfig.config.FunctionsConfigs)
 
 	expvar.NewString("GoVersion").Set(runtime.Version())
-	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
+	expvar.Publish("config", expvar.Func(func() interface{} { return envConfig.config }))
 
 	apiMetrics.Goroutines = expvar.Func(func() interface{} {
 		return runtime.NumGoroutine()
@@ -308,35 +300,35 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 	expvar.Publish("uptime", apiMetrics.Uptime)
 
 	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
-	config.limiter = limiter.NewServerLimiter([]string{localHostName}, config.ConcurrencyLimitPerServer)
-	config.zipper = zipper
+	envConfig.limiter = limiter.NewServerLimiter([]string{localHostName}, envConfig.config.ConcurrencyLimitPerServer)
+	envConfig.zipper = zipper
 
 	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
-		return config.limiter.LimiterUse()[localHostName]
+		return envConfig.limiter.LimiterUse()[localHostName]
 	})
 	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
 
 	apiMetrics.LimiterUseMax = expvar.Func(func() interface{} {
-		return config.limiter.MaxLimiterUse()
+		return envConfig.limiter.MaxLimiterUse()
 	})
 	expvar.Publish("limiter_use_max", apiMetrics.LimiterUseMax)
 
-	switch config.Cache.Type {
+	switch envConfig.config.Cache.Type {
 	case "memcache":
-		if len(config.Cache.MemcachedServers) == 0 {
+		if len(envConfig.config.Cache.MemcachedServers) == 0 {
 			logger.Fatal("memcache cache requested but no memcache servers provided")
 		}
 
 		logger.Info("memcached configured",
-			zap.Strings("servers", config.Cache.MemcachedServers),
+			zap.Strings("servers", envConfig.config.Cache.MemcachedServers),
 		)
-		config.queryCache = cache.NewMemcached("capi", config.Cache.MemcachedServers...)
+		envConfig.queryCache = cache.NewMemcached("capi", envConfig.config.Cache.MemcachedServers...)
 		// find cache is only used if SendGlobsAsIs is false.
-		if !config.SendGlobsAsIs {
-			config.findCache = cache.NewExpireCache(0)
+		if !envConfig.config.SendGlobsAsIs {
+			envConfig.findCache = cache.NewExpireCache(0)
 		}
 
-		mcache := config.queryCache.(*cache.MemcachedCache)
+		mcache := envConfig.queryCache.(*cache.MemcachedCache)
 
 		apiMetrics.MemcacheTimeouts = expvar.Func(func() interface{} {
 			return mcache.Timeouts()
@@ -344,14 +336,14 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
 
 	case "mem":
-		config.queryCache = cache.NewExpireCache(uint64(config.Cache.Size * 1024 * 1024))
+		envConfig.queryCache = cache.NewExpireCache(uint64(envConfig.config.Cache.Size * 1024 * 1024))
 
 		// find cache is only used if SendGlobsAsIs is false.
-		if !config.SendGlobsAsIs {
-			config.findCache = cache.NewExpireCache(0)
+		if !envConfig.config.SendGlobsAsIs {
+			envConfig.findCache = cache.NewExpireCache(0)
 		}
 
-		qcache := config.queryCache.(*cache.ExpireCache)
+		qcache := envConfig.queryCache.(*cache.ExpireCache)
 
 		apiMetrics.CacheSize = expvar.Func(func() interface{} {
 			return qcache.Size()
@@ -365,21 +357,21 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 	case "null":
 		// defaults
-		config.queryCache = cache.NullCache{}
-		config.findCache = cache.NullCache{}
+		envConfig.queryCache = cache.NullCache{}
+		envConfig.findCache = cache.NullCache{}
 	default:
 		logger.Error("unknown cache type",
-			zap.String("cache_type", config.Cache.Type),
+			zap.String("cache_type", envConfig.config.Cache.Type),
 			zap.Strings("known_cache_types", []string{"null", "mem", "memcache"}),
 		)
 	}
 
-	if config.TimezoneString != "" {
-		fields := strings.Split(config.TimezoneString, ",")
+	if envConfig.config.TimezoneString != "" {
+		fields := strings.Split(envConfig.config.TimezoneString, ",")
 
 		if len(fields) != 2 {
 			logger.Fatal("unexpected amount of fields in tz",
-				zap.String("timezone_string", config.TimezoneString),
+				zap.String("timezone_string", envConfig.config.TimezoneString),
 				zap.Int("fields_got", len(fields)),
 				zap.Int("fields_expected", 2),
 			)
@@ -393,53 +385,53 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 			)
 		}
 
-		config.defaultTimeZone = time.FixedZone(fields[0], offs)
+		envConfig.defaultTimeZone = time.FixedZone(fields[0], offs)
 		logger.Info("using fixed timezone",
-			zap.String("timezone", config.defaultTimeZone.String()),
+			zap.String("timezone", envConfig.defaultTimeZone.String()),
 			zap.Int("offset", offs),
 		)
 	}
 
-	if len(config.UnicodeRangeTables) != 0 {
-		for _, stringRange := range config.UnicodeRangeTables {
+	if len(envConfig.config.UnicodeRangeTables) != 0 {
+		for _, stringRange := range envConfig.config.UnicodeRangeTables {
 			parser.RangeTables = append(parser.RangeTables, unicode.Scripts[stringRange])
 		}
 	} else {
 		parser.RangeTables = append(parser.RangeTables, unicode.Latin)
 	}
 
-	if config.MaxProcs != 0 {
-		runtime.GOMAXPROCS(config.MaxProcs)
+	if envConfig.config.MaxProcs != 0 {
+		runtime.GOMAXPROCS(envConfig.config.MaxProcs)
 	}
 
 	var host string
-	if envhost := os.Getenv("GRAPHITEHOST") + ":" + os.Getenv("GRAPHITEPORT"); envhost != ":" || config.Graphite.Host != "" {
+	if envhost := os.Getenv("GRAPHITEHOST") + ":" + os.Getenv("GRAPHITEPORT"); envhost != ":" || envConfig.config.Graphite.Host != "" {
 		switch {
-		case envhost != ":" && config.Graphite.Host != "":
-			host = config.Graphite.Host
+		case envhost != ":" && envConfig.config.Graphite.Host != "":
+			host = envConfig.config.Graphite.Host
 		case envhost != ":":
 			host = envhost
-		case config.Graphite.Host != "":
-			host = config.Graphite.Host
+		case envConfig.config.Graphite.Host != "":
+			host = envConfig.config.Graphite.Host
 		}
 	}
 
 	// +1 to track every over the number of buckets we track
-	timeBuckets = make([]int64, config.Buckets+1)
-	expTimeBuckets = make([]int64, config.Buckets+1)
+	timeBuckets = make([]int64, envConfig.config.Buckets+1)
+	expTimeBuckets = make([]int64, envConfig.config.Buckets+1)
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
 	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
 
 	if host != "" {
 		// register our metrics with graphite
-		graphite := g2g.NewGraphite(host, config.Graphite.Interval, 10*time.Second)
+		graphite := g2g.NewGraphite(host, envConfig.config.Graphite.Interval, 10*time.Second)
 
 		hostname, _ := os.Hostname()
 		hostname = strings.Replace(hostname, ".", "_", -1)
 
-		prefix := config.Graphite.Prefix
+		prefix := envConfig.config.Graphite.Prefix
 
-		pattern := config.Graphite.Pattern
+		pattern := envConfig.config.Graphite.Pattern
 		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
@@ -447,7 +439,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.responses", pattern), apiMetrics.Responses)
 		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
 
-		for i := 0; i <= config.Buckets; i++ {
+		for i := 0; i <= envConfig.config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
 			lower, upper := util.Bounds(i)
 			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
@@ -490,7 +482,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_hits", pattern), zipperMetrics.CacheHits)
 		graphite.Register(fmt.Sprintf("%s.zipper.cache_misses", pattern), zipperMetrics.CacheMisses)
 
-		go mstats.Start(config.Graphite.Interval)
+		go mstats.Start(envConfig.config.Graphite.Interval)
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
@@ -503,8 +495,8 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 
 	}
 
-	if config.PidFile != "" {
-		pidfile.SetPidfilePath(config.PidFile)
+	if envConfig.config.PidFile != "" {
+		pidfile.SetPidfilePath(envConfig.config.PidFile)
 		err := pidfile.Write()
 		if err != nil {
 			logger.Fatal("error during pidfile.Write()",
@@ -513,26 +505,26 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper) {
 		}
 	}
 
-	helper.ExtrapolatePoints = config.ExtrapolateExperiment
-	if config.ExtrapolateExperiment {
+	helper.ExtrapolatePoints = envConfig.config.ExtrapolateExperiment
+	if envConfig.config.ExtrapolateExperiment {
 		logger.Warn("extraploation experiment is enabled",
 			zap.String("reason", "this feature is highly experimental and untested"),
 		)
 	}
 }
 
-func setUpConfigUpstreams(logger *zap.Logger) {
-	if len(config.Backends) == 0 {
+func setUpConfigUpstreams(logger *zap.Logger, envConfig *EnvConfig) {
+	if len(envConfig.config.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
 	}
 
 	// Setup in-memory path cache for carbonzipper requests
-	config.PathCache = pathcache.NewPathCache(config.ExpireDelaySec)
+	envConfig.config.PathCache = pathcache.NewPathCache(envConfig.config.ExpireDelaySec)
 
-	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return config.PathCache.ECSize() })
+	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return envConfig.config.PathCache.ECSize() })
 	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
 
-	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
+	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return envConfig.config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
 }
 
@@ -597,7 +589,7 @@ func findBucketIndex(buckets []int64, bucket int) int {
 	return i
 }
 
-func bucketRequestTimes(req *http.Request, t time.Duration) {
+func (envConfig *EnvConfig) bucketRequestTimes(req *http.Request, t time.Duration) {
 	logger := zapwriter.Logger("slow")
 
 	ms := t.Nanoseconds() / int64(time.Millisecond)
@@ -606,7 +598,7 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	bucketIdx := findBucketIndex(timeBuckets, bucket)
 	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
 
-	expBucket := util.Bucket(ms, config.Buckets)
+	expBucket := util.Bucket(ms, envConfig.config.Buckets)
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
@@ -614,7 +606,7 @@ func bucketRequestTimes(req *http.Request, t time.Duration) {
 	prometheusMetrics.DurationsLin.Observe(t.Seconds())
 
 	// This seems slow enough to count as a slow request
-	if bucket >= config.Buckets {
+	if bucket >= envConfig.config.Buckets {
 		logger.Warn("Slow Request",
 			zap.Duration("time", t),
 			zap.String("url", req.URL.String()),
