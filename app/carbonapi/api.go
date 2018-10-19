@@ -1,41 +1,40 @@
 package carbonapi
 
 import (
-	"github.com/uber/jaeger-client-go/config"
-	"time"
 	"expvar"
-	"net/http"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/lomik/zapwriter"
-	"go.uber.org/zap"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/cache"
-	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/rewrite"
-	"github.com/bookingcom/carbonapi/expr/functions"
-	realZipper "github.com/bookingcom/carbonapi/zipper"
-	"runtime"
-	"strings"
-	"strconv"
-	"github.com/bookingcom/carbonapi/pkg/parser"
-	"unicode"
-	"os"
-	"github.com/peterbourgon/g2g"
-	"github.com/bookingcom/carbonapi/util"
-	"github.com/facebookgo/pidfile"
-	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/pathcache"
-	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/expr/functions"
+	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/expr/helper"
+	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/limiter"
-	"github.com/gorilla/handlers"
+	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/pathcache"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/util"
+	realZipper "github.com/bookingcom/carbonapi/zipper"
 	"github.com/facebookgo/grace/gracehttp"
-	"io/ioutil"
-	"sync/atomic"
+	"github.com/facebookgo/pidfile"
+	"github.com/gorilla/handlers"
+	"github.com/peterbourgon/g2g"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"unicode"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
@@ -268,7 +267,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, envConfig *EnvConfig) 
 	err := zapwriter.ApplyConfig(envConfig.config.Logger)
 	if err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
-			zap.Any("configuration", config.Logger),
+			zap.Any("configuration", envConfig.config.Logger),
 			zap.Error(err),
 		)
 	}
