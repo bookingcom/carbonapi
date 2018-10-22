@@ -183,7 +183,12 @@ func zipperStats(stats *realZipper.Stats) {
 
 func StartCarbonapi(api cfg.API, logger *zap.Logger, buildVersion string) {
 	BuildVersion = buildVersion
-	envConfig := EnvConfig{config:api, }
+	envConfig := EnvConfig{
+		config:api,
+		queryCache: cache.NullCache{},
+		findCache:  cache.NullCache{},
+		defaultTimeZone: time.Local,
+	}
 	setUpConfigUpstreams(logger, &envConfig)
 	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper, &envConfig)
