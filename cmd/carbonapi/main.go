@@ -24,7 +24,7 @@ func main() {
 	}
 	logger := zapwriter.Logger("main")
 
-	configPath := flag.String("config", "carbonapi.yaml", "Path to the `config file`.")
+	configPath := flag.String("config", "", "Path to the `config file`.")
 	flag.Parse()
 
 	fh, err := os.Open(*configPath)
