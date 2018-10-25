@@ -74,6 +74,10 @@ func main() {
 		zap.Any("zipperConfig", config),
 	)
 
-	zipper.StartCarbonZipper(config, logger, BuildVersion)
+	app, err := zipper.InitializeApp(config, logger, BuildVersion)
+	if err != nil {
+		logger.Error("Error initializing app")
+	}
+	app.StartCarbonZipper()
 }
 

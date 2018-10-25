@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testEnvConfig *EnvConfig
+var testApp *App
 
 type mockCarbonZipper struct {
 }
@@ -96,24 +96,24 @@ func getMockInfoResponse() map[string]pb.InfoResponse {
 }
 
 func init() {
-	testEnvConfig = setUpTestConfig()
+	testApp = setUpTestConfig()
 }
 
-func setUpTestConfig() (*EnvConfig) {
+func setUpTestConfig() (*App) {
 	c := cfg.DefaultLoggerConfig
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
-	envConfig := EnvConfig{config: cfg.API{},
+	app := App{config: cfg.API{},
 					queryCache: cache.NewMemcached("capi", ``),
 					findCache: cache.NewExpireCache(1000),
 	}
-	envConfig.config.Backends = []string{"http://127.0.0.1:8080"}
-	envConfig.config.ConcurrencyLimitPerServer = 1024
-	setUpConfigUpstreams(logger, &envConfig)
-	setUpConfig(logger, newMockCarbonZipper(), &envConfig)
-	initHandlers(&envConfig)
-	return &envConfig
+	app.config.Backends = []string{"http://127.0.0.1:8080"}
+	app.config.ConcurrencyLimitPerServer = 1024
+	setUpConfigUpstreams(logger, &app)
+	setUpConfig(logger, newMockCarbonZipper(), &app)
+	initHandlers(&app)
+	return &app
 }
 
 func setUpRequest(t *testing.T, url string) (*http.Request, *httptest.ResponseRecorder) {
@@ -129,7 +129,7 @@ func setUpRequest(t *testing.T, url string) (*http.Request, *httptest.ResponseRe
 
 func TestRenderHandler(t *testing.T) {
 	req, rr := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
-	testEnvConfig.renderHandler(rr, req)
+	testApp.renderHandler(rr, req)
 
 	expected := `[{"target":"foo.bar","datapoints":[[null,1510913280],[1510913759,1510913340],[1510913818,1510913400]]}]`
 
@@ -146,7 +146,7 @@ func TestRenderHandler(t *testing.T) {
 
 func TestFindHandler(t *testing.T) {
 	req, rr := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
-	testEnvConfig.findHandler(rr, req)
+	testApp.findHandler(rr, req)
 
 	body := rr.Body.String()
 	expected, _ := findTreejson(getMetricGlobResponse("foo.bar"))
@@ -164,7 +164,7 @@ func TestFindHandlerCompleter(t *testing.T) {
 	testMetrics := []string{"foo.b/", "foo.bar"}
 	for _, testMetric := range testMetrics {
 		req, rr := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
-		testEnvConfig.findHandler(rr, req)
+		testApp.findHandler(rr, req)
 		body := rr.Body.String()
 		expectedValue, _ := findCompleter(getMetricGlobResponse(getCompleterQuery(testMetric)))
 		r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
@@ -180,7 +180,7 @@ func TestFindHandlerCompleter(t *testing.T) {
 
 func TestInfoHandler(t *testing.T) {
 	req, rr := setUpRequest(t, "/info/?target=foo.bar&format=json")
-	testEnvConfig.infoHandler(rr, req)
+	testApp.infoHandler(rr, req)
 
 	body := rr.Body.String()
 	expected := getMockInfoResponse()

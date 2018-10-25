@@ -41,7 +41,6 @@ func TestShouldBlock(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	rule := Rule{"foo": "bar"}
-	//envConfig.blockHeaderRules = RuleConfig{Rules: []Rule{rule}}
 	assert.Equal(t, true, shouldBlockRequest(req, []Rule{rule}), "Req should be blocked")
 }
 

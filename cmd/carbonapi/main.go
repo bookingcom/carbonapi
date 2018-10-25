@@ -46,5 +46,9 @@ func main() {
 		zap.String("build_version", BuildVersion),
 		zap.Any("apiConfig", api),
 	)
-	capi.StartCarbonapi(api, logger, BuildVersion)
+	app, err := capi.InitializeApp(api, logger, BuildVersion)
+	if err != nil {
+		logger.Error("Error initializing app")
+	}
+	app.Start()
 }

@@ -58,11 +58,11 @@ type RuleConfig struct {
 
 var fileLock sync.Mutex
 
-func (envConfig *EnvConfig) validateRequest(h http.Handler, handler string) http.HandlerFunc {
+func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if shouldBlockRequest(r, envConfig.blockHeaderRules.Rules) {
-			accessLogDetails := carbonapipb.NewAccessLogDetails(r, handler, &envConfig.config)
+		if shouldBlockRequest(r, app.blockHeaderRules.Rules) {
+			accessLogDetails := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			accessLogDetails.HttpCode = http.StatusForbidden
 			defer func() {
 				deferredAccessLogging(r, &accessLogDetails, t0, true)
@@ -74,14 +74,14 @@ func (envConfig *EnvConfig) validateRequest(h http.Handler, handler string) http
 	})
 }
 
-func initHandlersInternal(envConfig *EnvConfig) http.Handler {
+func initHandlersInternal(app *App) http.Handler {
 	r := http.NewServeMux()
 
-	r.HandleFunc("/block-headers/", httputil.TimeHandler(envConfig.blockHeaders, envConfig.bucketRequestTimes))
-	r.HandleFunc("/block-headers", httputil.TimeHandler(envConfig.blockHeaders, envConfig.bucketRequestTimes))
+	r.HandleFunc("/block-headers/", httputil.TimeHandler(app.blockHeaders, app.bucketRequestTimes))
+	r.HandleFunc("/block-headers", httputil.TimeHandler(app.blockHeaders, app.bucketRequestTimes))
 
-	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(envConfig.unblockHeaders, envConfig.bucketRequestTimes))
-	r.HandleFunc("/unblock-headers", httputil.TimeHandler(envConfig.unblockHeaders, envConfig.bucketRequestTimes))
+	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
+	r.HandleFunc("/unblock-headers", httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
 
 	r.HandleFunc("/debug/version", debugVersionHandler)
 
@@ -97,27 +97,27 @@ func initHandlersInternal(envConfig *EnvConfig) http.Handler {
 	return r
 }
 
-func initHandlers(envConfig *EnvConfig) http.Handler {
+func initHandlers(app *App) http.Handler {
 	r := http.NewServeMux()
 
-	r.HandleFunc("/render/", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.renderHandler), "render"), envConfig.bucketRequestTimes))
-	r.HandleFunc("/render", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.renderHandler), "render"), envConfig.bucketRequestTimes))
+	r.HandleFunc("/render/", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.renderHandler), "render"), app.bucketRequestTimes))
+	r.HandleFunc("/render", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.renderHandler), "render"), app.bucketRequestTimes))
 
-	r.HandleFunc("/metrics/find/", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.findHandler), "find"), envConfig.bucketRequestTimes))
-	r.HandleFunc("/metrics/find", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.findHandler), "find"), envConfig.bucketRequestTimes))
+	r.HandleFunc("/metrics/find/", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.findHandler), "find"), app.bucketRequestTimes))
+	r.HandleFunc("/metrics/find", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.findHandler), "find"), app.bucketRequestTimes))
 
-	r.HandleFunc("/info/", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.infoHandler), "info"), envConfig.bucketRequestTimes))
-	r.HandleFunc("/info", httputil.TimeHandler(envConfig.validateRequest(http.HandlerFunc(envConfig.infoHandler), "info"), envConfig.bucketRequestTimes))
+	r.HandleFunc("/info/", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.infoHandler), "info"), app.bucketRequestTimes))
+	r.HandleFunc("/info", httputil.TimeHandler(app.validateRequest(http.HandlerFunc(app.infoHandler), "info"), app.bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", httputil.TimeHandler(envConfig.lbcheckHandler, envConfig.bucketRequestTimes))
+	r.HandleFunc("/lb_check", httputil.TimeHandler(app.lbcheckHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/version", httputil.TimeHandler(envConfig.versionHandler, envConfig.bucketRequestTimes))
-	r.HandleFunc("/version/", httputil.TimeHandler(envConfig.versionHandler, envConfig.bucketRequestTimes))
+	r.HandleFunc("/version", httputil.TimeHandler(app.versionHandler, app.bucketRequestTimes))
+	r.HandleFunc("/version/", httputil.TimeHandler(app.versionHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/functions", httputil.TimeHandler(envConfig.functionsHandler, envConfig.bucketRequestTimes))
-	r.HandleFunc("/functions/", httputil.TimeHandler(envConfig.functionsHandler, envConfig.bucketRequestTimes))
+	r.HandleFunc("/functions", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
+	r.HandleFunc("/functions/", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/", httputil.TimeHandler(usageHandler, envConfig.bucketRequestTimes))
+	r.HandleFunc("/", httputil.TimeHandler(usageHandler, app.bucketRequestTimes))
 
 	return r
 }
@@ -173,13 +173,13 @@ type renderResponse struct {
 	error error
 }
 
-func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(r.Context(), envConfig.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
 	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", accessLogDetails.Username),
@@ -225,7 +225,7 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 		format = pngFormat
 	}
 
-	cacheTimeout := envConfig.config.Cache.DefaultTimeoutSec
+	cacheTimeout := app.config.Cache.DefaultTimeoutSec
 
 	if tstr := r.FormValue("cacheTimeout"); tstr != "" {
 		t, err := strconv.Atoi(tstr)
@@ -254,8 +254,8 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 
 	// normalize from and until values
 	qtz := r.FormValue("tz")
-	from32 := date.DateParamToEpoch(from, qtz, timeNow().Add(-24*time.Hour).Unix(), envConfig.defaultTimeZone)
-	until32 := date.DateParamToEpoch(until, qtz, timeNow().Unix(), envConfig.defaultTimeZone)
+	from32 := date.DateParamToEpoch(from, qtz, timeNow().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
+	until32 := date.DateParamToEpoch(until, qtz, timeNow().Unix(), app.defaultTimeZone)
 
 	accessLogDetails.UseCache = useCache
 	accessLogDetails.FromRaw = from
@@ -268,7 +268,7 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 	accessLogDetails.Targets = targets
 	if useCache {
 		tc := time.Now()
-		response, err := envConfig.queryCache.Get(cacheKey)
+		response, err := app.queryCache.Get(cacheKey)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 
@@ -324,7 +324,7 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 				continue
 			}
 
-			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails, envConfig)
+			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails, app)
 			if err != nil {
 				logger.Error("find error",
 					zap.String("metric", m.Metric),
@@ -337,13 +337,13 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 			rch := make(chan renderResponse, len(renderRequests))
 			for _, m := range renderRequests {
 				go func(path string, from, until int32) {
-					envConfig.limiter.Enter(localHostName)
-					defer envConfig.limiter.Leave(localHostName)
+					app.limiter.Enter(localHostName)
+					defer app.limiter.Leave(localHostName)
 
 					apiMetrics.RenderRequests.Add(1)
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
-					r, err := envConfig.zipper.Render(ctx, path, from, until)
+					r, err := app.zipper.Render(ctx, path, from, until)
 					rch <- renderResponse{r, err}
 				}(m, mfetch.From, mfetch.Until)
 			}
@@ -478,7 +478,7 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 
 	if len(results) != 0 {
 		tc := time.Now()
-		envConfig.queryCache.Set(cacheKey, body, cacheTimeout)
+		app.queryCache.Set(cacheKey, body, cacheTimeout)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
@@ -486,16 +486,16 @@ func (envConfig *EnvConfig) renderHandler(w http.ResponseWriter, r *http.Request
 	accessLogDetails.HaveNonFatalErrors = len(errors) > 0
 }
 
-func sendGlobs(glob pb.GlobResponse, envConfig *EnvConfig) bool {
+func sendGlobs(glob pb.GlobResponse, app *App) bool {
 	// Yay globals
-	if envConfig.config.AlwaysSendGlobsAsIs {
+	if app.config.AlwaysSendGlobsAsIs {
 		return true
 	}
 
-	return envConfig.config.SendGlobsAsIs && len(glob.Matches) < envConfig.config.MaxBatchSize
+	return app.config.SendGlobsAsIs && len(glob.Matches) < app.config.MaxBatchSize
 }
 
-func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, config *EnvConfig) (pb.GlobResponse, error) {
+func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, config *App) (pb.GlobResponse, error) {
 	var glob pb.GlobResponse
 	var haveCacheData bool
 
@@ -536,18 +536,18 @@ func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDe
 	return glob, nil
 }
 
-func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, envConfig *EnvConfig) ([]string, error) {
-	if envConfig.config.AlwaysSendGlobsAsIs {
+func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, app *App) ([]string, error) {
+	if app.config.AlwaysSendGlobsAsIs {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, envConfig)
+	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, app)
 	if err != nil {
 		return nil, err
 	}
 
-	if sendGlobs(glob, envConfig) {
+	if sendGlobs(glob, app) {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
@@ -562,10 +562,10 @@ func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache boo
 	return renderRequests, nil
 }
 
-func (envConfig *EnvConfig) findHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(r.Context(), envConfig.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
 	apiMetrics.Requests.Add(1)
@@ -575,7 +575,7 @@ func (envConfig *EnvConfig) findHandler(w http.ResponseWriter, r *http.Request) 
 	jsonp := r.FormValue("jsonp")
 	query := r.FormValue("query")
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "find", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 
 	logAsError := false
 	defer func() {
@@ -598,7 +598,7 @@ func (envConfig *EnvConfig) findHandler(w http.ResponseWriter, r *http.Request) 
 		format = treejsonFormat
 	}
 
-	globs, err := envConfig.zipper.Find(ctx, query)
+	globs, err := app.zipper.Find(ctx, query)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
@@ -628,7 +628,7 @@ func (envConfig *EnvConfig) findHandler(w http.ResponseWriter, r *http.Request) 
 		for _, metric := range globs.Matches {
 			// Tell graphite-web that we have everything
 			var mm map[string]interface{}
-			if envConfig.config.GraphiteWeb09Compatibility {
+			if app.config.GraphiteWeb09Compatibility {
 				// graphite-web 0.9.x
 				mm = map[string]interface{}{
 					// graphite-web 0.9.x
@@ -736,10 +736,10 @@ func findList(globs pb.GlobResponse) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (envConfig *EnvConfig) infoHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(r.Context(), envConfig.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
 	format := r.FormValue("format")
@@ -751,7 +751,7 @@ func (envConfig *EnvConfig) infoHandler(w http.ResponseWriter, r *http.Request) 
 		format = jsonFormat
 	}
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "info", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "info", &app.config)
 	accessLogDetails.Format = format
 
 	logAsError := false
@@ -771,7 +771,7 @@ func (envConfig *EnvConfig) infoHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if data, err = envConfig.zipper.Info(ctx, query); err != nil {
+	if data, err = app.zipper.Info(ctx, query); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
 		accessLogDetails.Reason = err.Error()
@@ -802,7 +802,7 @@ func (envConfig *EnvConfig) infoHandler(w http.ResponseWriter, r *http.Request) 
 	accessLogDetails.HttpCode = http.StatusOK
 }
 
-func (envConfig *EnvConfig) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
@@ -814,12 +814,12 @@ func (envConfig *EnvConfig) lbcheckHandler(w http.ResponseWriter, r *http.Reques
 
 	w.Write([]byte("Ok\n"))
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "lbcheck", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
 	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
-func (envConfig *EnvConfig) versionHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
@@ -829,25 +829,25 @@ func (envConfig *EnvConfig) versionHandler(w http.ResponseWriter, r *http.Reques
 		prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
 	}()
 
-	if envConfig.config.GraphiteWeb09Compatibility {
+	if app.config.GraphiteWeb09Compatibility {
 		w.Write([]byte("0.9.15\n"))
 	} else {
 		w.Write([]byte("1.0.0\n"))
 	}
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "version", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
 	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
-func (envConfig *EnvConfig) functionsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
 	prometheusMetrics.Requests.Inc()
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "functions", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
 
 	logAsError := false
 	defer func() {
@@ -957,13 +957,13 @@ func (envConfig *EnvConfig) functionsHandler(w http.ResponseWriter, r *http.Requ
 // The rules are added(appended) in the block headers config file
 // Returns failure if handler is invoked and config entry is missing
 // Otherwise, it creates the config file with the rule
-func (envConfig *EnvConfig) blockHeaders(w http.ResponseWriter, r *http.Request) {
+func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	logger := zapwriter.Logger("logger")
 
 	apiMetrics.Requests.Add(1)
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &app.config)
 
 	logAsError := false
 	defer func() {
@@ -982,7 +982,7 @@ func (envConfig *EnvConfig) blockHeaders(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
-	if envConfig.config.BlockHeaderFile == "" {
+	if app.config.BlockHeaderFile == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(failResponse)
 		return
@@ -993,11 +993,11 @@ func (envConfig *EnvConfig) blockHeaders(w http.ResponseWriter, r *http.Request)
 	if len(m) == 0 {
 		logger.Error("couldn't create a rule from params")
 	} else {
-		fileData, err := loadBlockRuleConfig(envConfig)
+		fileData, err := loadBlockRuleConfig(app)
 		if err == nil {
 			yaml.Unmarshal(fileData, &ruleConfig)
 		}
-		err1 = appendRuleToConfig(ruleConfig, m, logger, envConfig)
+		err1 = appendRuleToConfig(ruleConfig, m, logger, app)
 	}
 
 	if len(m) == 0 || err1 != nil {
@@ -1008,12 +1008,12 @@ func (envConfig *EnvConfig) blockHeaders(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(`{"success":"true"}`))
 }
 
-func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, envConfig *EnvConfig) error {
+func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, app *App) error {
 	ruleConfig.Rules = append(ruleConfig.Rules, m)
 	output, err := yaml.Marshal(ruleConfig)
 	if err == nil {
 		logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
-		err = writeBlockRuleToFile(output, envConfig)
+		err = writeBlockRuleToFile(output, app)
 		if err != nil {
 			logger.Error("couldn't write rule to file")
 		}
@@ -1021,20 +1021,20 @@ func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, envCo
 	return err
 }
 
-func writeBlockRuleToFile(output []byte, envConfig *EnvConfig) error {
+func writeBlockRuleToFile(output []byte, app *App) error {
 	fileLock.Lock()
 	defer fileLock.Unlock()
-	err := ioutil.WriteFile(envConfig.config.BlockHeaderFile, output, 0644)
+	err := ioutil.WriteFile(app.config.BlockHeaderFile, output, 0644)
 	return err
 }
 
 // It deletes the block headers config file
 // Use it to remove all blocking rules, or to restart adding rules
 // from scratch
-func (envConfig *EnvConfig) unblockHeaders(w http.ResponseWriter, r *http.Request) {
+func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	apiMetrics.Requests.Add(1)
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &envConfig.config)
+	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
 
 	logAsError := false
 	defer func() {
@@ -1042,7 +1042,7 @@ func (envConfig *EnvConfig) unblockHeaders(w http.ResponseWriter, r *http.Reques
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
-	err := os.Remove(envConfig.config.BlockHeaderFile)
+	err := os.Remove(app.config.BlockHeaderFile)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"success":"false"}`))
