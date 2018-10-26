@@ -61,7 +61,8 @@ var fileLock sync.Mutex
 func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if shouldBlockRequest(r, app.blockHeaderRules.Rules) {
+		blockingRules := app.blockHeaderRules.Load().(RuleConfig)
+		if shouldBlockRequest(r, blockingRules.Rules) {
 			accessLogDetails := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			accessLogDetails.HttpCode = http.StatusForbidden
 			defer func() {
@@ -993,11 +994,11 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	if len(m) == 0 {
 		logger.Error("couldn't create a rule from params")
 	} else {
-		fileData, err := loadBlockRuleConfig(app)
+		fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
 		if err == nil {
 			yaml.Unmarshal(fileData, &ruleConfig)
 		}
-		err1 = appendRuleToConfig(ruleConfig, m, logger, app)
+		err1 = appendRuleToConfig(ruleConfig, m, logger, app.config.BlockHeaderFile)
 	}
 
 	if len(m) == 0 || err1 != nil {
@@ -1008,12 +1009,12 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"success":"true"}`))
 }
 
-func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, app *App) error {
+func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, blockHeaderFile string) error {
 	ruleConfig.Rules = append(ruleConfig.Rules, m)
 	output, err := yaml.Marshal(ruleConfig)
 	if err == nil {
 		logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
-		err = writeBlockRuleToFile(output, app)
+		err = writeBlockRuleToFile(output, blockHeaderFile)
 		if err != nil {
 			logger.Error("couldn't write rule to file")
 		}
@@ -1021,10 +1022,10 @@ func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, app *
 	return err
 }
 
-func writeBlockRuleToFile(output []byte, app *App) error {
+func writeBlockRuleToFile(output []byte, blockHeaderFile string) error {
 	fileLock.Lock()
 	defer fileLock.Unlock()
-	err := ioutil.WriteFile(app.config.BlockHeaderFile, output, 0644)
+	err := ioutil.WriteFile(blockHeaderFile, output, 0644)
 	return err
 }
 

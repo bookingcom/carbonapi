@@ -44,7 +44,7 @@ type App struct {
 	config   cfg.API
 	queryCache       cache.BytesCache
 	findCache        cache.BytesCache
-	blockHeaderRules RuleConfig
+	blockHeaderRules atomic.Value
 
 	defaultTimeZone *time.Location
 
@@ -87,7 +87,6 @@ var prometheusMetrics = struct {
 		},
 	),
 }
-
 
 var apiMetrics = struct {
 	// Total counts across all request types
@@ -180,7 +179,7 @@ func zipperStats(stats *realZipper.Stats) {
 	zipperMetrics.CacheHits.Add(stats.CacheHits)
 }
 
-func InitializeApp(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
+func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	app := &App{
 		config:api,
@@ -188,6 +187,7 @@ func InitializeApp(api cfg.API, logger *zap.Logger, buildVersion string) (*App, 
 		findCache:  cache.NullCache{},
 		defaultTimeZone: time.Local,
 	}
+	loadBlockRuleHeaderConfig(app, logger)
 	setUpConfigUpstreams(logger, app)
 	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper, app)
@@ -202,10 +202,10 @@ func (app *App) Start() {
 	handler = util.UUIDHandler(handler)
 
 	logger := zapwriter.Logger("carbonapi")
-	registerPromehteusMetrics(logger, app)
+	app.registerPrometheusMetrics(logger)
 	if app.config.BlockHeaderUpdatePeriod > 0 {
 		ticker := time.NewTicker(app.config.BlockHeaderUpdatePeriod)
-		go loadBlockRuleHeaderConfig(ticker, logger, app)
+		go loadTickerBlockRuleHeaderConfig(ticker, logger, app)
 	}
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
@@ -220,7 +220,7 @@ func (app *App) Start() {
 	}
 }
 
-func registerPromehteusMetrics(logger *zap.Logger, app *App) {
+func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 	go func() {
 		prometheus.MustRegister(prometheusMetrics.Requests)
 		prometheus.MustRegister(prometheusMetrics.Responses)
@@ -247,28 +247,32 @@ func registerPromehteusMetrics(logger *zap.Logger, app *App) {
 	}()
 }
 
-func loadBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, app *App) {
-	var ruleConfig RuleConfig
+func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, app *App) {
 	for range ticker.C {
-		fileData, err := loadBlockRuleConfig(app)
-
-		if err == nil {
-			err = yaml.Unmarshal(fileData, &ruleConfig)
-			if err != nil {
-				logger.Error("couldn't unmarshal block rule file data")
-			} else {
-				app.blockHeaderRules = ruleConfig
-			}
-		} else {
-			app.blockHeaderRules = RuleConfig{}
-		}
+		loadBlockRuleHeaderConfig(app, logger)
 	}
 }
 
-func loadBlockRuleConfig(app *App) ([]byte, error) {
+func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
+	var ruleConfig RuleConfig
+	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
+	if err == nil {
+		err = yaml.Unmarshal(fileData, &ruleConfig)
+		if err != nil {
+			logger.Error("couldn't unmarshal block rule file data")
+			app.blockHeaderRules.Store(RuleConfig{})
+		} else {
+			app.blockHeaderRules.Store(ruleConfig)
+		}
+	} else {
+		app.blockHeaderRules.Store(RuleConfig{})
+	}
+}
+
+func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	fileLock.Lock()
 	defer fileLock.Unlock()
-	fileData, err := ioutil.ReadFile(app.config.BlockHeaderFile)
+	fileData, err := ioutil.ReadFile(blockHeaderFile)
 	return fileData, err
 }
 
@@ -407,10 +411,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 		}
 	} else {
 		parser.RangeTables = append(parser.RangeTables, unicode.Latin)
-	}
-
-	if app.config.MaxProcs != 0 {
-		runtime.GOMAXPROCS(app.config.MaxProcs)
 	}
 
 	var host string
@@ -553,13 +553,7 @@ func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.Access
 	prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", accessLogDetails.HttpCode), accessLogDetails.Handler).Inc()
 }
 
-//
-
-
 var graphTemplates map[string]png.PictureParams
-
-
-
 var timeBuckets []int64
 var expTimeBuckets []int64
 

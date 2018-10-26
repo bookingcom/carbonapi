@@ -58,6 +58,9 @@ func main() {
 	}
 	fh.Close()
 
+	if config.MaxProcs != 0 {
+		runtime.GOMAXPROCS(config.MaxProcs)
+	}
 	if len(config.Backends) == 0 {
 		logger.Fatal("no Backends loaded -- exiting")
 	}
@@ -74,10 +77,10 @@ func main() {
 		zap.Any("zipperConfig", config),
 	)
 
-	app, err := zipper.InitializeApp(config, logger, BuildVersion)
+	app, err := zipper.New(config, logger, BuildVersion)
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
-	app.StartCarbonZipper()
+	app.Start()
 }
 

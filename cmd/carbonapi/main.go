@@ -4,13 +4,14 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
 	"time"
+	"expvar"
+
 	capi "github.com/bookingcom/carbonapi/app/carbonapi"
-	//"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
-	"expvar"
 )
 // for testing
 var timeNow = time.Now
@@ -41,12 +42,16 @@ func main() {
 		)
 	}
 	fh.Close()
+
+	if api.MaxProcs != 0 {
+		runtime.GOMAXPROCS(api.MaxProcs)
+	}
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	logger.Info("starting carbonapi",
 		zap.String("build_version", BuildVersion),
 		zap.Any("apiConfig", api),
 	)
-	app, err := capi.InitializeApp(api, logger, BuildVersion)
+	app, err := capi.New(api, logger, BuildVersion)
 	if err != nil {
 		logger.Error("Error initializing app")
 	}

@@ -35,7 +35,7 @@ type App struct {
 	backends []backend.Backend
 }
 
-func InitializeApp(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*App, error) {
+func New(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	bs, err := initBackends(config, logger)
 	if err != nil {
@@ -47,7 +47,8 @@ func InitializeApp(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*
 	app := App{config: config, backends:bs}
 	return &app, nil
 }
-func (app *App) StartCarbonZipper() {
+
+func (app *App) Start() {
 	backends := app.backends
 	logger := zapwriter.Logger("zipper")
 	go func() {
@@ -70,8 +71,6 @@ func (app *App) StartCarbonZipper() {
 			)
 		}
 	}()
-
-	runtime.GOMAXPROCS(app.config.MaxProcs)
 
 	// +1 to track every over the number of buckets we track
 	timeBuckets = make([]int64, app.config.Buckets+1)
