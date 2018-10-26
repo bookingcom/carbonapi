@@ -1,23 +1,24 @@
 package zipper
 
 import (
-	"net/http"
-	"time"
-	"github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/bookingcom/carbonapi/pkg/backend"
-	"github.com/bookingcom/carbonapi/util"
-	"github.com/pkg/errors"
-	"github.com/lomik/zapwriter"
-	"go.uber.org/zap"
+	"context"
+	"expvar"
 	"fmt"
+	"net/http"
 	"sort"
+	"strconv"
+	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
-	"strconv"
-	"expvar"
-	"context"
+	"github.com/bookingcom/carbonapi/util"
+	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -113,8 +114,6 @@ var prometheusMetrics = struct {
 	),
 }
 
-
-
 func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
@@ -149,8 +148,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewFindRequest(originalQuery)
 	bs := backend.Filter(app.backends, []string{originalQuery})
 	metrics, err := backend.Finds(ctx, bs, request)
-	fmt.Println(metrics)
-	fmt.Println(err)
 	if err != nil {
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
