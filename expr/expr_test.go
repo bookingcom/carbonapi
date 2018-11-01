@@ -341,6 +341,18 @@ func TestEvalExpression(t *testing.T) {
 			[]*types.MetricData{types.MakeMetricData("nonNegativeDerivative(metric1,32)", []float64{math.NaN(), 2, 29, 10, 24, math.NaN(), math.NaN(), 32, math.NaN()}, 1, now32)},
 		},
 		{
+			parser.NewExpr("nonNegativeDerivative",
+				"metric1",
+				parser.NamedArgs{
+					"minValue": 1,
+				},
+			),
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{2, 4, 2, 10, 1, math.NaN(), 8, 40, 37}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("nonNegativeDerivative(metric1,minValue=1)", []float64{math.NaN(), 2, 2, 8, 1, math.NaN(), math.NaN(), 32, 37}, 1, now32)},
+		},
+		{
 			parser.NewExpr("perSecond",
 				"metric1",
 			),
@@ -357,6 +369,18 @@ func TestEvalExpression(t *testing.T) {
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), 1, 2, 3, 4, 30, 0, 32, math.NaN()}, 1, now32)},
 			},
 			[]*types.MetricData{types.MakeMetricData("perSecond(metric1,32)", []float64{math.NaN(), math.NaN(), 1, 1, 1, 26, 3, 32, math.NaN()}, 1, now32)},
+		},
+		{
+			parser.NewExpr("perSecond",
+				"metric1",
+				parser.NamedArgs{
+					"minValue": 1,
+				},
+			),
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), 1, 2, 3, 4, 30, 3, 32, math.NaN()}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("perSecond(metric1,minValue=1)", []float64{math.NaN(), math.NaN(), 1, 1, 1, 26, 3, 29, math.NaN()}, 1, now32)},
 		},
 		{
 			parser.NewExpr("movingAverage",
