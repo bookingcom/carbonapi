@@ -25,6 +25,7 @@ import (
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"github.com/lomik/zapwriter"
 )
 
 // Backend codifies the RPC calls a Graphite backend responds to.
@@ -50,8 +51,8 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		return nil, nil
 	}
 
-	logger := backends[0].Logger()
-	logger.Info("backends_count", zap.Int("backends_length", len(backends)))
+	//logger := backends[0].Logger()
+	zapwriter.Logger("backends_count").Error("backends_count", zap.Int("backends_length", len(backends)))
 	msgCh := make(chan []types.Metric, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
