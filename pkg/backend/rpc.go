@@ -50,6 +50,8 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		return nil, nil
 	}
 
+	logger := backends[0].Logger()
+	logger.Info("backends_count", zap.Int("backends_length", len(backends)))
 	msgCh := make(chan []types.Metric, len(backends))
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
