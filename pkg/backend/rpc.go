@@ -52,6 +52,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 	}
 
 	//logger := backends[0].Logger()
+	fmt.Printf("backends count is %d\n", len(backends))
 	zapwriter.Logger("backends_count").Error("backends_count", zap.Int("backends_length", len(backends)))
 	msgCh := make(chan []types.Metric, len(backends))
 	errCh := make(chan error, len(backends))
