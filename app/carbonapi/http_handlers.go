@@ -466,7 +466,18 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	case rawFormat:
 		body = types.MarshalRaw(results)
 	case csvFormat:
-		body = types.MarshalCSV(results)
+		tz := app.defaultTimeZone
+		if qtz != "" {
+			z, err := time.LoadLocation(qtz)
+			if err != nil {
+				logger.Warn("Invalid time zone",
+					zap.String("tz", qtz),
+				)
+			} else {
+				tz = z
+			}
+		}
+		body = types.MarshalCSV(results, tz)
 	case pickleFormat:
 		body = types.MarshalPickle(results)
 	case pngFormat:

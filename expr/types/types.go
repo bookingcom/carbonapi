@@ -55,7 +55,7 @@ func MakeMetricData(name string, values []float64, step, start int32) *MetricDat
 }
 
 // MarshalCSV marshals metric data to CSV
-func MarshalCSV(results []*MetricData) []byte {
+func MarshalCSV(results []*MetricData, location *time.Location) []byte {
 
 	var b []byte
 
@@ -68,7 +68,13 @@ func MarshalCSV(results []*MetricData) []byte {
 			b = append(b, r.Name...)
 			b = append(b, '"')
 			b = append(b, ',')
-			b = append(b, time.Unix(int64(t), 0).Format("2006-01-02 15:04:05")...)
+
+			tmp := time.Unix(int64(t), 0)
+			if location != nil {
+				tmp = tmp.In(location)
+			}
+
+			b = append(b, tmp.Format("2006-01-02 15:04:05")...)
 			b = append(b, ',')
 			if !r.IsAbsent[i] {
 				b = strconv.AppendFloat(b, v, 'f', -1, 64)
