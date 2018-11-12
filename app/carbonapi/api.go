@@ -607,9 +607,11 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 
 	// This seems slow enough to count as a slow request
 	if bucket >= app.config.Buckets {
+		referer := req.Header.Get("Referer")
 		logger.Warn("Slow Request",
 			zap.Duration("time", t),
 			zap.String("url", req.URL.String()),
+			zap.String("referer", referer),
 		)
 	}
 }
