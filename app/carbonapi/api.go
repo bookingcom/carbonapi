@@ -3,15 +3,18 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
-
-	"github.com/bookingcom/carbonapi/carbonapipb"
-	"github.com/lomik/zapwriter"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
+	"unicode"
 
 	"github.com/bookingcom/carbonapi/cache"
+	"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
@@ -23,25 +26,22 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/util"
 	realZipper "github.com/bookingcom/carbonapi/zipper"
+
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
 	"github.com/gorilla/handlers"
+	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"os"
-	"runtime"
-	"strconv"
-	"strings"
-	"sync/atomic"
-	"unicode"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
 
 type App struct {
-	config   cfg.API
+	config           cfg.API
 	queryCache       cache.BytesCache
 	findCache        cache.BytesCache
 	blockHeaderRules atomic.Value
@@ -135,6 +135,7 @@ var apiMetrics = struct {
 const (
 	localHostName = ""
 )
+
 var zipperMetrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -182,9 +183,9 @@ func zipperStats(stats *realZipper.Stats) {
 func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	app := &App{
-		config:api,
-		queryCache: cache.NullCache{},
-		findCache:  cache.NullCache{},
+		config:          api,
+		queryCache:      cache.NullCache{},
+		findCache:       cache.NullCache{},
 		defaultTimeZone: time.Local,
 	}
 	loadBlockRuleHeaderConfig(app, logger)
@@ -275,7 +276,6 @@ func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	fileData, err := ioutil.ReadFile(blockHeaderFile)
 	return fileData, err
 }
-
 
 func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 	err := zapwriter.ApplyConfig(app.config.Logger)
@@ -615,4 +615,5 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 		)
 	}
 }
+
 //
