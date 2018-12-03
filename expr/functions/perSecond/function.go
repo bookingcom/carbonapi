@@ -93,7 +93,7 @@ func (f *perSecond) Do(e parser.Expr, from, until int32, values map[parser.Metri
 			} else if hasMax && maxValue >= v {
 				r.Values[i] = ((maxValue - prev) + (v - minValue) + 1) / float64(a.StepTime)
 			} else if hasMin && minValue <= v {
-				r.Values[i] = ((v - minValue) + 1) / float64(a.StepTime)
+				r.Values[i] = (v - minValue) / float64(a.StepTime)
 			} else {
 				r.Values[i] = 0
 				r.IsAbsent[i] = true
