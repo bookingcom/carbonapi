@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,18 +20,20 @@ import (
 	"github.com/bookingcom/carbonapi/date"
 	"github.com/bookingcom/carbonapi/expr"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/bookingcom/carbonapi/intervalset"
-	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/bookingcom/carbonapi/util"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-
-	"sync"
-
 	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	data_types "github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
+	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
+	"github.com/bookingcom/carbonapi/util"
+
 	"github.com/dgryski/httputil"
-	pickle "github.com/lomik/og-rek"
+	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -598,6 +601,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		query = getCompleterQuery(query)
 	}
 
+	if format == "" {
+		format = treejsonFormat
+	}
+
 	if query == "" {
 		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
 		accessLogDetails.HttpCode = http.StatusBadRequest
@@ -606,62 +613,57 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if format == "" {
-		format = treejsonFormat
-	}
-
-	globs, err := app.zipper.Find(ctx, query)
+	request := data_types.NewFindRequest(query)
+	bs := backend.Filter(app.backends, []string{query})
+	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
-		logAsError = true
-		return
-	}
+		if _, ok := errors.Cause(err).(data_types.ErrNotFound); ok {
+			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+			// body to be happy with its life, so we can't 404 a /metrics/find
+			// request that finds nothing. We are however interested in knowing
+			// that we found nothing on the monitoring side, so we claim we
+			// returned a 404 code to Prometheus.
+			apiMetrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+		} else {
+			msg := "error fetching the data"
+			code := http.StatusInternalServerError
 
-	var b []byte
-	switch format {
-	case treejsonFormat, jsonFormat:
-		b, err = findTreejson(globs)
-		format = jsonFormat
-	case "completer":
-		b, err = findCompleter(globs)
-		format = jsonFormat
-	case rawFormat:
-		b, err = findList(globs)
-		format = rawFormat
-	case protobufFormat, protobuf3Format:
-		b, err = globs.Marshal()
-		format = protobufFormat
-	case "", pickleFormat:
-		var result []map[string]interface{}
+			accessLogDetails.HttpCode = int32(code)
+			accessLogDetails.Reason = err.Error()
+			logAsError = true
 
-		now := int32(time.Now().Unix() + 60)
-		for _, metric := range globs.Matches {
-			// Tell graphite-web that we have everything
-			var mm map[string]interface{}
-			if app.config.GraphiteWeb09Compatibility {
-				// graphite-web 0.9.x
-				mm = map[string]interface{}{
-					// graphite-web 0.9.x
-					"metric_path": metric.Path,
-					"isLeaf":      metric.IsLeaf,
-				}
-			} else {
-				// graphite-web 1.0
-				interval := &intervalset.IntervalSet{Start: 0, End: now}
-				mm = map[string]interface{}{
-					"is_leaf":   metric.IsLeaf,
-					"path":      metric.Path,
-					"intervals": interval,
-				}
-			}
-			result = append(result, mm)
+			http.Error(w, msg, code)
+			apiMetrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			return
 		}
+	}
 
-		p := bytes.NewBuffer(b)
-		pEnc := pickle.NewEncoder(p)
-		err = pEnc.Encode(result)
+	var contentType string
+	var blob []byte
+	switch format {
+	case protobufFormat, protobuf3Format:
+		contentType = contentTypeProtobuf
+		blob, err = carbonapi_v2.FindEncoder(metrics)
+	case treejsonFormat, jsonFormat:
+		contentType = contentTypeJSON
+		blob, err = ourJson.FindEncoder(metrics)
+	case "", pickleFormat:
+		contentType = contentTypePickle
+		if app.config.GraphiteWeb09Compatibility {
+			blob, err = pickle.FindEncoderV0_9(metrics)
+		} else {
+			blob, err = pickle.FindEncoderV1_0(metrics)
+		}
+	case rawFormat:
+		blob, err = findList(metrics)
+		contentType = rawFormat
+	case "completer":
+		blob, err = findCompleter(metrics)
+		contentType = jsonFormat
+	default:
+		err = errors.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -672,7 +674,16 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeResponse(w, b, format, jsonp)
+	if contentType == jsonFormat && jsonp != "" {
+		w.Header().Set("Content-Type", contentTypeJavaScript)
+		w.Write([]byte(jsonp))
+		w.Write([]byte{'('})
+		w.Write(blob)
+		w.Write([]byte{')'})
+	} else {
+		w.Header().Set("Content-Type", contentType)
+		w.Write(blob)
+	}
 }
 
 func getCompleterQuery(query string) string {
@@ -692,7 +703,7 @@ type completer struct {
 	IsLeaf string `json:"is_leaf"`
 }
 
-func findCompleter(globs pb.GlobResponse) ([]byte, error) {
+func findCompleter(globs data_types.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	var complete = make([]completer, 0)
@@ -731,7 +742,7 @@ func findCompleter(globs pb.GlobResponse) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func findList(globs pb.GlobResponse) ([]byte, error) {
+func findList(globs data_types.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	for _, g := range globs.Matches {

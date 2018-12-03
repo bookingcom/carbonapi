@@ -15,6 +15,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/util"
+
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"

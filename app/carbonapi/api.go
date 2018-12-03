@@ -48,7 +48,8 @@ type App struct {
 
 	defaultTimeZone *time.Location
 
-	zipper CarbonZipper
+	backends []backend.Backend
+	zipper   CarbonZipper
 	// Limiter limits concurrent zipper requests
 	limiter limiter.ServerLimiter
 }
@@ -189,9 +190,11 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 		defaultTimeZone: time.Local,
 	}
 	loadBlockRuleHeaderConfig(app, logger)
+
 	setUpConfigUpstreams(logger, app)
 	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(logger, zipper, app)
+
 	return app, nil
 }
 
