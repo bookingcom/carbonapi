@@ -782,9 +782,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
-	var data map[string]pb.InfoResponse
-	var err error
-
 	query := r.FormValue("target")
 	if query == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -794,7 +791,10 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if data, err = app.zipper.Info(ctx, query); err != nil {
+	request := dataTypes.NewInfoRequest(query)
+	bs := backend.Filter(app.backends, []string{query})
+	infos, err := backend.Infos(ctx, bs, request)
+	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
 		accessLogDetails.Reason = err.Error()
@@ -803,11 +803,14 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var b []byte
+	var contentType string
 	switch format {
 	case jsonFormat:
-		b, err = json.Marshal(data)
+		contentType = contentTypeJSON
+		b, err = ourJson.InfoEncoder(infos)
 	case protobufFormat, protobuf3Format:
-		err = fmt.Errorf("not implemented yet")
+		contentType = contentTypeProtobuf
+		b, err = carbonapi_v2.InfoEncoder(infos)
 	default:
 		err = fmt.Errorf("unknown format %v", format)
 	}
@@ -820,7 +823,9 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", contentType)
 	w.Write(b)
+
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
 	accessLogDetails.HttpCode = http.StatusOK
 }
