@@ -258,19 +258,21 @@ func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, ap
 }
 
 func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
-	var ruleConfig RuleConfig
 	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-	if err == nil {
-		err = yaml.Unmarshal(fileData, &ruleConfig)
-		if err != nil {
-			logger.Error("couldn't unmarshal block rule file data")
-			app.blockHeaderRules.Store(RuleConfig{})
-		} else {
-			app.blockHeaderRules.Store(ruleConfig)
-		}
-	} else {
+	if err != nil {
+		logger.Error("failed to load header block rules", zap.Error(err))
 		app.blockHeaderRules.Store(RuleConfig{})
+		return
 	}
+
+	var ruleConfig RuleConfig
+	if err := yaml.Unmarshal(fileData, &ruleConfig); err != nil {
+		logger.Error("couldn't unmarshal block rule file data", zap.Error(err))
+		app.blockHeaderRules.Store(RuleConfig{})
+		return
+	}
+
+	app.blockHeaderRules.Store(ruleConfig)
 }
 
 func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
