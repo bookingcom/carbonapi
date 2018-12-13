@@ -16,9 +16,8 @@ func TestShouldNotBlock(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	rule := Rule{"foo": "block"}
-	config.blockHeaderRules = RuleConfig{Rules: []Rule{rule}}
 
-	if shouldBlockRequest(req) {
+	if shouldBlockRequest(req, []Rule{rule}) {
 		t.Error("Should not have blocked this request")
 	}
 }
@@ -31,7 +30,7 @@ func TestShouldNotBlockWithoutRule(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	// no rules are set
-	assert.Equal(t, false, shouldBlockRequest(req), "Req should not be blocked")
+	assert.Equal(t, false, shouldBlockRequest(req, []Rule{}), "Req should not be blocked")
 }
 
 func TestShouldBlock(t *testing.T) {
@@ -42,8 +41,7 @@ func TestShouldBlock(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	rule := Rule{"foo": "bar"}
-	config.blockHeaderRules = RuleConfig{Rules: []Rule{rule}}
-	assert.Equal(t, true, shouldBlockRequest(req), "Req should be blocked")
+	assert.Equal(t, true, shouldBlockRequest(req, []Rule{rule}), "Req should be blocked")
 }
 
 func TestGetCompleterQuery(t *testing.T) {

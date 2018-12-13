@@ -29,24 +29,28 @@ import (
 	"strconv"
 )
 
-var (
-	config   cfg.Zipper = cfg.DefaultZipperConfig
+var BuildVersion string
+type App struct {
+	config   cfg.Zipper
 	backends []backend.Backend
-)
+}
 
-var BuildVersion = "(development version)"
-
-func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
-
+func New(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*App, error) {
+	BuildVersion = buildVersion
 	bs, err := initBackends(config, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize backends",
 			zap.Error(err),
 		)
+		return nil, err
 	}
+	app := App{config: config, backends:bs}
+	return &app, nil
+}
 
-	backends = bs
-
+func (app *App) Start() {
+	backends := app.backends
+	logger := zapwriter.Logger("zipper")
 	go func() {
 		probeTicker := time.NewTicker(5 * time.Minute)
 		for {
@@ -57,7 +61,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		}
 	}()
 
-	types.SetCorruptionWatcher(config.CorruptionThreshold, logger)
+	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
 	// Should print nicer stack traces in case of unexpected panic.
 	defer func() {
@@ -68,18 +72,9 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		}
 	}()
 
-	expvar.NewString("BuildVersion").Set(BuildVersion)
-	logger = zapwriter.Logger("main")
-	logger.Info("starting carbonzipper",
-		zap.String("build_version", BuildVersion),
-		zap.Any("config", config),
-	)
-
-	runtime.GOMAXPROCS(config.MaxProcs)
-
 	// +1 to track every over the number of buckets we track
-	timeBuckets = make([]int64, config.Buckets+1)
-	expTimeBuckets = make([]int64, config.Buckets+1)
+	timeBuckets = make([]int64, app.config.Buckets+1)
+	expTimeBuckets = make([]int64, app.config.Buckets+1)
 
 	httputil.PublishTrackedConnections("httptrack")
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
@@ -97,53 +92,53 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 	expvar.Publish("uptime", Metrics.Uptime)
 
 	// export config via expvars
-	expvar.Publish("config", expvar.Func(func() interface{} { return config }))
+	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
 
 	/* Configure zipper */
 	// set up caches
 
-	Metrics.CacheSize = expvar.Func(func() interface{} { return config.PathCache.ECSize() })
+	Metrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
 	expvar.Publish("cacheSize", Metrics.CacheSize)
 
-	Metrics.CacheItems = expvar.Func(func() interface{} { return config.PathCache.ECItems() })
+	Metrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
 	expvar.Publish("cacheItems", Metrics.CacheItems)
 
 	r := http.NewServeMux()
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(findHandler, bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(renderHandler, bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(infoHandler, bucketRequestTimes)))
-	r.HandleFunc("/lb_check", lbCheckHandler)
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(app.findHandler, app.bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(app.renderHandler, app.bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(app.infoHandler, app.bucketRequestTimes)))
+	r.HandleFunc("/lb_check", app.lbCheckHandler)
 
 	handler := util.UUIDHandler(r)
 
-	// nothing in the config? check the environment
-	if config.Graphite.Host == "" {
+	// nothing in the app.config? check the environment
+	if app.config.Graphite.Host == "" {
 		if host := os.Getenv("GRAPHITEHOST") + ":" + os.Getenv("GRAPHITEPORT"); host != ":" {
-			config.Graphite.Host = host
+			app.config.Graphite.Host = host
 		}
 	}
 
-	if config.Graphite.Pattern == "" {
-		config.Graphite.Pattern = "{prefix}.{fqdn}"
+	if app.config.Graphite.Pattern == "" {
+		app.config.Graphite.Pattern = "{prefix}.{fqdn}"
 	}
 
-	if config.Graphite.Prefix == "" {
-		config.Graphite.Prefix = "carbon.zipper"
+	if app.config.Graphite.Prefix == "" {
+		app.config.Graphite.Prefix = "carbon.zipper"
 	}
 
 	// only register g2g if we have a graphite host
-	if config.Graphite.Host != "" {
+	if app.config.Graphite.Host != "" {
 		// register our metrics with graphite
-		graphite := g2g.NewGraphite(config.Graphite.Host, config.Graphite.Interval, 10*time.Second)
+		graphite := g2g.NewGraphite(app.config.Graphite.Host, app.config.Graphite.Interval, 10*time.Second)
 
 		/* #nosec */
 		hostname, _ := os.Hostname()
 		hostname = strings.Replace(hostname, ".", "_", -1)
 
-		prefix := config.Graphite.Prefix
+		prefix := app.config.Graphite.Prefix
 
-		pattern := config.Graphite.Pattern
+		pattern := app.config.Graphite.Pattern
 		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
@@ -162,7 +157,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 
 		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
 
-		for i := 0; i <= config.Buckets; i++ {
+		for i := 0; i <= app.config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
 			lower, upper := util.Bounds(i)
 			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
@@ -174,7 +169,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
 		graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
 
-		go mstats.Start(config.Graphite.Interval)
+		go mstats.Start(app.config.Graphite.Interval)
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
@@ -190,7 +185,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		prometheus.MustRegister(prometheusMetrics.DurationsExp)
 		prometheus.MustRegister(prometheusMetrics.DurationsLin)
 
-		writeTimeout := config.Timeouts.Global
+		writeTimeout := app.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
 			writeTimeout = time.Minute
 		}
@@ -206,7 +201,7 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 		s := &http.Server{
-			Addr:         config.ListenInternal,
+			Addr:         app.config.ListenInternal,
 			Handler:      r,
 			ReadTimeout:  1 * time.Second,
 			WriteTimeout: writeTimeout,
@@ -219,11 +214,11 @@ func StartCarbonZipper(config cfg.Zipper,logger *zap.Logger){
 		}
 	}()
 
-	err = gracehttp.Serve(&http.Server{
-		Addr:         config.Listen,
+	err := gracehttp.Serve(&http.Server{
+		Addr:         app.config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: config.Timeouts.Global,
+		WriteTimeout: app.config.Timeouts.Global,
 	})
 
 	if err != nil {
@@ -268,14 +263,14 @@ func findBucketIndex(buckets []int64, bucket int) int {
 	return i
 }
 
-func bucketRequestTimes(req *http.Request, t time.Duration) {
+func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	ms := t.Nanoseconds() / int64(time.Millisecond)
 
 	bucket := int(ms / 100)
 	bucketIdx := findBucketIndex(timeBuckets, bucket)
 	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
 
-	expBucket := util.Bucket(ms, config.Buckets)
+	expBucket := util.Bucket(ms, app.config.Buckets)
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 

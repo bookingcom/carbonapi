@@ -7,13 +7,14 @@ import (
 	"os"
 	"runtime"
 
-	cfg "github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/app/zipper"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
-	"github.com/bookingcom/carbonapi/app/zipper"
-	"github.com/facebookgo/pidfile"
-	//"github.com/uber/jaeger-client-go/config"
 )
+
+var BuildVersion = "(development version)"
 
 func main() {
 	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
@@ -57,6 +58,9 @@ func main() {
 	}
 	fh.Close()
 
+	if config.MaxProcs != 0 {
+		runtime.GOMAXPROCS(config.MaxProcs)
+	}
 	if len(config.Backends) == 0 {
 		logger.Fatal("no Backends loaded -- exiting")
 	}
@@ -67,7 +71,16 @@ func main() {
 			zap.Error(err),
 		)
 	}
+	expvar.NewString("BuildVersion").Set(BuildVersion)
+	logger.Info("starting carbonzipper",
+		zap.String("build_version", BuildVersion),
+		zap.Any("zipperConfig", config),
+	)
 
-	zipper.StartCarbonZipper(config, logger)
+	app, err := zipper.New(config, logger, BuildVersion)
+	if err != nil {
+		logger.Error("Error initializing app")
+	}
+	app.Start()
 }
 

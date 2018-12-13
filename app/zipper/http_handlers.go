@@ -1,23 +1,24 @@
 package zipper
 
 import (
-	"net/http"
-	"time"
-	"github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/bookingcom/carbonapi/pkg/backend"
-	"github.com/bookingcom/carbonapi/util"
-	"github.com/pkg/errors"
-	"github.com/lomik/zapwriter"
-	"go.uber.org/zap"
+	"context"
+	"expvar"
 	"fmt"
+	"net/http"
 	"sort"
+	"strconv"
+	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
-	"strconv"
-	"expvar"
-	"context"
+	"github.com/bookingcom/carbonapi/util"
+	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -113,12 +114,10 @@ var prometheusMetrics = struct {
 	),
 }
 
-
-
-func findHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("find").With(
@@ -147,7 +146,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	request := types.NewFindRequest(originalQuery)
-	bs := backend.Filter(backends, []string{originalQuery})
+	bs := backend.Filter(app.backends, []string{originalQuery})
 	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
@@ -194,7 +193,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 		blob, err = json.FindEncoder(metrics)
 	case formatTypeEmpty, formatTypePickle:
 		contentType = contentTypePickle
-		if config.GraphiteWeb09Compatibility {
+		if app.config.GraphiteWeb09Compatibility {
 			blob, err = pickle.FindEncoderV0_9(metrics)
 		} else {
 			blob, err = pickle.FindEncoderV1_0(metrics)
@@ -228,11 +227,11 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
 }
 
-func renderHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	memoryUsage := 0
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("render").With(
@@ -322,7 +321,7 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	bs := backend.Filter(backends, request.Targets)
+	bs := backend.Filter(app.backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	if err != nil {
 		msg := "error fetching the data"
@@ -391,10 +390,10 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
 }
 
-func infoHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
 	logger := zapwriter.Logger("info").With(
@@ -451,7 +450,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewInfoRequest(target)
-	bs := backend.Filter(backends, []string{target})
+	bs := backend.Filter(app.backends, []string{target})
 	infos, err := backend.Infos(ctx, bs, request)
 	if err != nil {
 		accessLogger.Error("info failed",
@@ -503,7 +502,7 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
 }
 
-func lbCheckHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	logger := zapwriter.Logger("loadbalancer").With(zap.String("handler", "loadbalancer"))
 	accessLogger := zapwriter.Logger("access").With(zap.String("handler", "loadbalancer"))
