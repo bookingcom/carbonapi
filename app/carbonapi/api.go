@@ -183,6 +183,10 @@ func zipperStats(stats *realZipper.Stats) {
 }
 
 func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
+	if len(api.Backends) == 0 {
+		logger.Fatal("no backends specified for upstreams!")
+	}
+
 	BuildVersion = buildVersion
 	app := &App{
 		config:          api,
@@ -192,7 +196,6 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	}
 	loadBlockRuleHeaderConfig(app, logger)
 
-	setUpConfigUpstreams(app, logger)
 	app.zipper = newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(app, logger)
 
@@ -284,8 +287,7 @@ func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
-	err := zapwriter.ApplyConfig(app.config.Logger)
-	if err != nil {
+	if err := zapwriter.ApplyConfig(app.config.Logger); err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
 			zap.Any("configuration", app.config.Logger),
 			zap.Error(err),
@@ -436,6 +438,15 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
 	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
 
+	// Setup in-memory path cache for carbonzipper requests
+	app.config.PathCache = pathcache.NewPathCache(app.config.ExpireDelaySec)
+
+	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
+	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
+
+	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
+	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
+
 	if host != "" {
 		// register our metrics with graphite
 		graphite := g2g.NewGraphite(host, app.config.Graphite.Interval, 10*time.Second)
@@ -525,21 +536,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 			zap.String("reason", "this feature is highly experimental and untested"),
 		)
 	}
-}
-
-func setUpConfigUpstreams(app *App, logger *zap.Logger) {
-	if len(app.config.Backends) == 0 {
-		logger.Fatal("no backends specified for upstreams!")
-	}
-
-	// Setup in-memory path cache for carbonzipper requests
-	app.config.PathCache = pathcache.NewPathCache(app.config.ExpireDelaySec)
-
-	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
-	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
-
-	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
-	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
 }
 
 func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {

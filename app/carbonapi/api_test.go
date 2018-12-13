@@ -130,7 +130,6 @@ func setUpTestConfig() *App {
 	app.config.ConcurrencyLimitPerServer = 1024
 	app.zipper = newMockCarbonZipper()
 
-	setUpConfigUpstreams(app, logger)
 	setUpConfig(app, logger)
 	initHandlers(app)
 
