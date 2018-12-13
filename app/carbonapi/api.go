@@ -4,6 +4,7 @@ import (
 	"expvar"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -24,6 +25,7 @@ import (
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/backend"
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/util"
 	realZipper "github.com/bookingcom/carbonapi/zipper"
@@ -33,6 +35,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -196,6 +199,13 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	}
 	loadBlockRuleHeaderConfig(app, logger)
 
+	// TODO(gmagnusson): Setup backends
+	backends, err := initBackends(app.config, logger)
+	if err != nil {
+		logger.Fatal("couldn't initialize backends", zap.Error(err))
+	}
+
+	app.backends = backends
 	app.zipper = newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(app, logger)
 
@@ -617,4 +627,34 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 }
 
-//
+func initBackends(config cfg.API, logger *zap.Logger) ([]backend.Backend, error) {
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeouts.Connect,
+			KeepAlive: config.KeepAliveInterval,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	backends := make([]backend.Backend, 0, len(config.Backends))
+	for _, host := range config.Backends {
+		b, err := bnet.New(bnet.Config{
+			Address:            host,
+			Client:             client,
+			Timeout:            config.Timeouts.AfterStarted,
+			Limit:              config.ConcurrencyLimitPerServer,
+			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			Logger:             logger,
+		})
+
+		if err != nil {
+			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
+		}
+
+		backends = append(backends, b)
+	}
+
+	return backends, nil
+}
