@@ -128,9 +128,10 @@ func setUpTestConfig() *App {
 	}
 	app.config.Backends = []string{"http://127.0.0.1:8080"}
 	app.config.ConcurrencyLimitPerServer = 1024
+	app.zipper = newMockCarbonZipper()
 
 	setUpConfigUpstreams(app, logger)
-	setUpConfig(app, logger, newMockCarbonZipper())
+	setUpConfig(app, logger)
 	initHandlers(app)
 
 	return app

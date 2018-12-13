@@ -193,8 +193,8 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	loadBlockRuleHeaderConfig(app, logger)
 
 	setUpConfigUpstreams(app, logger)
-	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
-	setUpConfig(app, logger, zipper)
+	app.zipper = newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
+	setUpConfig(app, logger)
 
 	return app, nil
 }
@@ -283,7 +283,7 @@ func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	return fileData, err
 }
 
-func setUpConfig(app *App, logger *zap.Logger, zipper CarbonZipper) {
+func setUpConfig(app *App, logger *zap.Logger) {
 	err := zapwriter.ApplyConfig(app.config.Logger)
 	if err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
@@ -320,7 +320,6 @@ func setUpConfig(app *App, logger *zap.Logger, zipper CarbonZipper) {
 
 	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
 	app.limiter = limiter.NewServerLimiter([]string{localHostName}, app.config.ConcurrencyLimitPerServer)
-	app.zipper = zipper
 
 	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
 		return app.limiter.LimiterUse()[localHostName]
