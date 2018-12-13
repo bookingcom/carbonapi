@@ -24,7 +24,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	data_types "github.com/bookingcom/carbonapi/pkg/types"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
@@ -613,11 +613,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request := data_types.NewFindRequest(query)
+	request := dataTypes.NewFindRequest(query)
 	bs := backend.Filter(app.backends, []string{query})
 	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		if _, ok := errors.Cause(err).(data_types.ErrNotFound); ok {
+		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -703,7 +703,7 @@ type completer struct {
 	IsLeaf string `json:"is_leaf"`
 }
 
-func findCompleter(globs data_types.Matches) ([]byte, error) {
+func findCompleter(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	var complete = make([]completer, 0)
@@ -742,7 +742,7 @@ func findCompleter(globs data_types.Matches) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func findList(globs data_types.Matches) ([]byte, error) {
+func findList(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	for _, g := range globs.Matches {
@@ -1146,7 +1146,7 @@ type treejson struct {
 
 var treejsonContext = make(map[string]int)
 
-func findTreejson(globs pb.GlobResponse) ([]byte, error) {
+func findTreejson(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	var tree = make([]treejson, 0)

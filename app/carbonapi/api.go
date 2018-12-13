@@ -23,6 +23,7 @@ import (
 	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
+	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/util"
 	realZipper "github.com/bookingcom/carbonapi/zipper"

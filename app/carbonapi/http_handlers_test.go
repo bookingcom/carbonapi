@@ -4,7 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/bookingcom/carbonapi/pkg/types"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,9 +56,9 @@ func TestGetCompleterQuery(t *testing.T) {
 }
 
 func TestFindCompleter(t *testing.T) {
-	metricTestCases := []pb.GlobResponse{
-		{Name: "foo.bar", Matches: []pb.GlobMatch{}},
-		{Name: "foo.ba*", Matches: []pb.GlobMatch{
+	metricTestCases := []types.Matches{
+		{Name: "foo.bar", Matches: []types.Match{}},
+		{Name: "foo.ba*", Matches: []types.Match{
 			{Path: "foo.bat", IsLeaf: true},
 		}},
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/types"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 
 	"github.com/lomik/zapwriter"
@@ -27,7 +28,7 @@ func newMockCarbonZipper() *mockCarbonZipper {
 	return z
 }
 
-func (z mockCarbonZipper) Find(ctx context.Context, metric string) (pb.GlobResponse, error) {
+func (z mockCarbonZipper) Find(ctx context.Context, metric string) (dataTypes.Matches, error) {
 	return getMetricGlobResponse(metric), nil
 }
 
@@ -44,24 +45,39 @@ func (z mockCarbonZipper) Render(ctx context.Context, metric string, from, until
 	return result, nil
 }
 
-func getMetricGlobResponse(metric string) pb.GlobResponse {
-
-	globResponses := make(map[string]pb.GlobResponse)
-
-	globMatch := pb.GlobMatch{Path: metric, IsLeaf: true}
-	var matches []pb.GlobMatch
-	matches = append(matches, globMatch)
-	globResponse := pb.GlobResponse{
-		Name:    "foo.bar",
-		Matches: matches,
+func getMetricGlobResponse(metric string) dataTypes.Matches {
+	match := dataTypes.Match{
+		Path:   metric,
+		IsLeaf: true,
 	}
-	globResponses["foo.bar*"] = globResponse
-	globResponses["foo.bar"] = globResponse
-	globResponses["foo.b*"] = pb.GlobResponse{
-		Name:    "foo.b",
-		Matches: append(matches, pb.GlobMatch{Path: "foo.bat", IsLeaf: true}),
+
+	switch metric {
+	case "foo.bar*":
+		return dataTypes.Matches{
+			Name:    "foo.bar",
+			Matches: []dataTypes.Match{match},
+		}
+
+	case "foo.bar":
+		return dataTypes.Matches{
+			Name:    "foo.bar",
+			Matches: []dataTypes.Match{match},
+		}
+
+	case "foo.b*":
+		return dataTypes.Matches{
+			Name: "foo.b",
+			Matches: []dataTypes.Match{
+				match,
+				dataTypes.Match{
+					Path:   "foo.bat",
+					IsLeaf: true,
+				},
+			},
+		}
 	}
-	return globResponses[metric]
+
+	return dataTypes.Matches{}
 }
 
 func getMultiFetchResponse() pb.MultiFetchResponse {
@@ -99,14 +115,14 @@ func init() {
 	testApp = setUpTestConfig()
 }
 
-func setUpTestConfig() (*App) {
+func setUpTestConfig() *App {
 	c := cfg.DefaultLoggerConfig
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
 	app := App{config: cfg.API{},
-					queryCache: cache.NewMemcached("capi", ``),
-					findCache: cache.NewExpireCache(1000),
+		queryCache: cache.NewMemcached("capi", ``),
+		findCache:  cache.NewExpireCache(1000),
 	}
 	app.config.Backends = []string{"http://127.0.0.1:8080"}
 	app.config.ConcurrencyLimitPerServer = 1024
