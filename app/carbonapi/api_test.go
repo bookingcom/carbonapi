@@ -120,16 +120,20 @@ func setUpTestConfig() *App {
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
-	app := App{config: cfg.API{},
+
+	app := &App{
+		config:     cfg.API{},
 		queryCache: cache.NewMemcached("capi", ``),
 		findCache:  cache.NewExpireCache(1000),
 	}
 	app.config.Backends = []string{"http://127.0.0.1:8080"}
 	app.config.ConcurrencyLimitPerServer = 1024
-	setUpConfigUpstreams(logger, &app)
-	setUpConfig(logger, newMockCarbonZipper(), &app)
-	initHandlers(&app)
-	return &app
+
+	setUpConfigUpstreams(app, logger)
+	setUpConfig(app, logger, newMockCarbonZipper())
+	initHandlers(app)
+
+	return app
 }
 
 func setUpRequest(t *testing.T, url string) (*http.Request, *httptest.ResponseRecorder) {

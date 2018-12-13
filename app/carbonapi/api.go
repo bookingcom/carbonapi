@@ -192,9 +192,9 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	}
 	loadBlockRuleHeaderConfig(app, logger)
 
-	setUpConfigUpstreams(logger, app)
+	setUpConfigUpstreams(app, logger)
 	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
-	setUpConfig(logger, zipper, app)
+	setUpConfig(app, logger, zipper)
 
 	return app, nil
 }
@@ -283,7 +283,7 @@ func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	return fileData, err
 }
 
-func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
+func setUpConfig(app *App, logger *zap.Logger, zipper CarbonZipper) {
 	err := zapwriter.ApplyConfig(app.config.Logger)
 	if err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
@@ -528,7 +528,7 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 	}
 }
 
-func setUpConfigUpstreams(logger *zap.Logger, app *App) {
+func setUpConfigUpstreams(app *App, logger *zap.Logger) {
 	if len(app.config.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
 	}
