@@ -21,14 +21,12 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/rewrite"
-	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/util"
-	realZipper "github.com/bookingcom/carbonapi/zipper"
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
@@ -53,9 +51,6 @@ type App struct {
 	defaultTimeZone *time.Location
 
 	backends []backend.Backend
-	zipper   CarbonZipper
-	// Limiter limits concurrent zipper requests
-	limiter limiter.ServerLimiter
 }
 
 var prometheusMetrics = struct {
@@ -174,17 +169,6 @@ var zipperMetrics = struct {
 	CacheMisses: expvar.NewInt("zipper_cache_misses"),
 }
 
-func zipperStats(stats *realZipper.Stats) {
-	zipperMetrics.Timeouts.Add(stats.Timeouts)
-
-	zipperMetrics.FindErrors.Add(stats.FindErrors)
-	zipperMetrics.RenderErrors.Add(stats.RenderErrors)
-	zipperMetrics.InfoErrors.Add(stats.InfoErrors)
-
-	zipperMetrics.CacheMisses.Add(stats.CacheMisses)
-	zipperMetrics.CacheHits.Add(stats.CacheHits)
-}
-
 func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	if len(api.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
@@ -206,7 +190,6 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	}
 
 	app.backends = backends
-	app.zipper = newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
 	setUpConfig(app, logger)
 
 	return app, nil
@@ -329,19 +312,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		return time.Now().Unix()/60 - startMinute
 	})
 	expvar.Publish("uptime", apiMetrics.Uptime)
-
-	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
-	app.limiter = limiter.NewServerLimiter([]string{localHostName}, app.config.ConcurrencyLimitPerServer)
-
-	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
-		return app.limiter.LimiterUse()[localHostName]
-	})
-	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
-
-	apiMetrics.LimiterUseMax = expvar.Func(func() interface{} {
-		return app.limiter.MaxLimiterUse()
-	})
-	expvar.Publish("limiter_use_max", apiMetrics.LimiterUseMax)
 
 	switch app.config.Cache.Type {
 	case "memcache":
@@ -521,8 +491,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
-		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), apiMetrics.LimiterUseMax)
-		graphite.Register(fmt.Sprintf("%s.limiter_use", pattern), apiMetrics.LimiterUse)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)

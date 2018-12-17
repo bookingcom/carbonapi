@@ -340,14 +340,26 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			rch := make(chan renderResponse, len(renderRequests))
 			for _, m := range renderRequests {
 				go func(path string, from, until int32) {
-					app.limiter.Enter(localHostName)
-					defer app.limiter.Leave(localHostName)
-
 					apiMetrics.RenderRequests.Add(1)
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
-					r, err := app.zipper.Render(ctx, path, from, until)
-					rch <- renderResponse{r, err}
+					request := dataTypes.NewRenderRequest([]string{path}, from, until)
+					bs := backend.Filter(app.backends, request.Targets)
+					metrics, err := backend.Renders(ctx, bs, request)
+
+					// TODO(gmagnusson): Account for request stats
+
+					metricData := make([]*types.MetricData, 0)
+					for i := range metrics {
+						metricData = append(metricData, &types.MetricData{
+							Metric: metrics[i],
+						})
+					}
+
+					rch <- renderResponse{
+						data:  metricData,
+						error: err,
+					}
 				}(m, mfetch.From, mfetch.Until)
 			}
 
@@ -360,7 +372,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				for _, r := range resp.data {
-					size += r.Size()
+					size += 8 * len(r.Values) // close enough
 					metricMap[mfetch] = append(metricMap[mfetch], r)
 				}
 			}
