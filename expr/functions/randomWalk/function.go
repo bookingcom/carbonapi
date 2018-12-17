@@ -1,11 +1,12 @@
 package randomWalk
 
 import (
+	"math/rand"
+
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"math/rand"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type randomWalk struct {
@@ -35,7 +36,7 @@ func (f *randomWalk) Do(e parser.Expr, from, until int32, values map[parser.Metr
 
 	size := until - from
 
-	r := types.MetricData{FetchResponse: pb.FetchResponse{
+	r := types.MetricData{Metric: dataTypes.Metric{
 		Name:      name,
 		Values:    make([]float64, size),
 		IsAbsent:  make([]bool, size),

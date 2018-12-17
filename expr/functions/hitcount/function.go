@@ -2,12 +2,13 @@ package hitcount
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"math"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type hitcount struct {
@@ -66,7 +67,7 @@ func (f *hitcount) Do(e parser.Expr, from, until int32, values map[parser.Metric
 		}
 		name += ")"
 
-		r := types.MetricData{FetchResponse: pb.FetchResponse{
+		r := types.MetricData{Metric: dataTypes.Metric{
 			Name:      name,
 			Values:    make([]float64, buckets, buckets+1),
 			IsAbsent:  make([]bool, buckets, buckets+1),

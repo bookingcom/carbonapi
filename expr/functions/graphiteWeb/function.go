@@ -17,7 +17,8 @@ import (
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
+
 	"github.com/lomik/zapwriter"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -92,8 +93,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	}
 
 	cfg := graphiteWebConfig{
-		Enabled: false,
-		Strict:  false,
+		Enabled:                  false,
+		Strict:                   false,
 		MaxConcurrentConnections: 10,
 		Timeout:                  60 * time.Second,
 		KeepAliveInterval:        30 * time.Second,
@@ -412,7 +413,7 @@ func (f *graphiteWeb) Do(e parser.Expr, from, until int32, values map[parser.Met
 		if len(m.Datapoints) > 1 {
 			stepTime = int32(m.Datapoints[1][0] - m.Datapoints[0][0])
 		}
-		pbResp := pb.FetchResponse{
+		pbResp := dataTypes.Metric{
 			Name:      string(m.Target),
 			StartTime: int32(m.Datapoints[0][0]),
 			StopTime:  int32(m.Datapoints[len(m.Datapoints)-1][0]),
@@ -430,7 +431,7 @@ func (f *graphiteWeb) Do(e parser.Expr, from, until int32, values map[parser.Met
 			}
 		}
 		res = append(res, &types.MetricData{
-			FetchResponse: pbResp,
+			Metric: pbResp,
 		})
 	}
 

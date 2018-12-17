@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
+
 	pickle "github.com/lomik/og-rek"
 )
 
@@ -20,7 +22,7 @@ var (
 
 // MetricData contains necessary data to represent parsed metric (ready to be send out or drawn)
 type MetricData struct {
-	pb.FetchResponse
+	types.Metric
 
 	GraphOptions
 
@@ -44,7 +46,7 @@ func MakeMetricData(name string, values []float64, step, start int32) *MetricDat
 
 	stop := start + int32(len(values))*step
 
-	return &MetricData{FetchResponse: pb.FetchResponse{
+	return &MetricData{Metric: types.Metric{
 		Name:      name,
 		Values:    values,
 		StartTime: start,
@@ -205,16 +207,12 @@ func MarshalPickle(results []*MetricData) []byte {
 
 // MarshalProtobuf marshals metric data to protobuf
 func MarshalProtobuf(results []*MetricData) ([]byte, error) {
-	response := pb.MultiFetchResponse{}
+	metrics := make([]types.Metric, 0)
 	for _, metric := range results {
-		response.Metrics = append(response.Metrics, (*metric).FetchResponse)
-	}
-	b, err := response.Marshal()
-	if err != nil {
-		return nil, err
+		metrics = append(metrics, metric.Metric)
 	}
 
-	return b, nil
+	return carbonapi_v2.RenderEncoder(metrics)
 }
 
 // MarshalRaw marshals metric data to graphite's internal format, called 'raw'

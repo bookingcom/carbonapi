@@ -2,12 +2,13 @@ package holtWintersForecast
 
 import (
 	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/holtwinters"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type holtWintersForecast struct {
@@ -43,7 +44,7 @@ func (f *holtWintersForecast) Do(e parser.Expr, from, until int32, values map[pa
 		windowPoints := 7 * 86400 / stepTime
 		predictionsOfInterest := predictions[windowPoints:]
 
-		r := types.MetricData{FetchResponse: pb.FetchResponse{
+		r := types.MetricData{Metric: dataTypes.Metric{
 			Name:      fmt.Sprintf("holtWintersForecast(%s)", arg.Name),
 			Values:    predictionsOfInterest,
 			IsAbsent:  make([]bool, len(predictionsOfInterest)),

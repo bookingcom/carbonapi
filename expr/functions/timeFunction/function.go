@@ -2,10 +2,11 @@ package timeFunction
 
 import (
 	"errors"
+
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type timeFunction struct {
@@ -54,7 +55,7 @@ func (f *timeFunction) Do(e parser.Expr, from, until int32, values map[parser.Me
 	}
 
 	p := types.MetricData{
-		FetchResponse: pb.FetchResponse{
+		Metric: dataTypes.Metric{
 			Name:      name,
 			StartTime: from,
 			StopTime:  until,
