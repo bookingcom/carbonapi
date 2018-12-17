@@ -11,7 +11,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type FuncEvaluator struct {
@@ -22,7 +22,11 @@ func (evaluator *FuncEvaluator) EvalExpr(e parser.Expr, from, until int32, value
 	if e.IsName() {
 		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
 	} else if e.IsConst() {
-		p := types.MetricData{FetchResponse: pb.FetchResponse{Name: e.Target(), Values: []float64{e.FloatValue()}}}
+		p := types.MetricData{
+			Metric: dataTypes.Metric{
+				Name:   e.Target(),
+				Values: []float64{e.FloatValue()},
+			}}
 		return []*types.MetricData{&p}, nil
 	}
 	// evaluate the function
@@ -61,7 +65,7 @@ func DeepClone(original map[parser.MetricRequest][]*types.MetricData) map[parser
 		copiedMetrics := []*types.MetricData{}
 		for _, originalMetric := range originalMetrics {
 			copiedMetric := types.MetricData{
-				FetchResponse: pb.FetchResponse{
+				Metric: dataTypes.Metric{
 					Name:      originalMetric.Name,
 					StartTime: originalMetric.StartTime,
 					StopTime:  originalMetric.StopTime,

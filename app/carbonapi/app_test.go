@@ -19,8 +19,7 @@ import (
 
 var testApp *App
 
-type mockCarbonZipper struct {
-}
+type mockCarbonZipper struct{}
 
 func newMockCarbonZipper() *mockCarbonZipper {
 	z := &mockCarbonZipper{}
@@ -128,7 +127,6 @@ func setUpTestConfig() *App {
 	}
 	app.config.Backends = []string{"http://127.0.0.1:8080"}
 	app.config.ConcurrencyLimitPerServer = 1024
-	app.zipper = newMockCarbonZipper()
 
 	setUpConfig(app, logger)
 	initHandlers(app)

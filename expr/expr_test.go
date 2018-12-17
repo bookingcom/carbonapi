@@ -13,8 +13,8 @@ import (
 	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	th "github.com/bookingcom/carbonapi/tests"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 )
 
 func init() {
@@ -188,7 +188,7 @@ func TestEvalExpr(t *testing.T) {
 			}
 
 			data := types.MetricData{
-				FetchResponse: pb.FetchResponse{
+				Metric: dataTypes.Metric{
 					Name:      request.Metric,
 					StartTime: request.From,
 					StopTime:  request.Until,

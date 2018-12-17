@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/bookingcom/carbonapi/pkg/types"
 )
 
 func TestMarshalCSVInUTC(t *testing.T) {
 	results := []*MetricData{
 		&MetricData{
-			FetchResponse: pb.FetchResponse{
+			Metric: types.Metric{
 				Name:      "foo",
 				StartTime: 0,
 				StopTime:  1,
@@ -34,7 +34,7 @@ func TestMarshalCSVInUTC(t *testing.T) {
 func TestMarshalCSVNotInUTC(t *testing.T) {
 	results := []*MetricData{
 		&MetricData{
-			FetchResponse: pb.FetchResponse{
+			Metric: types.Metric{
 				Name:      "foo",
 				StartTime: 0,
 				StopTime:  1,
