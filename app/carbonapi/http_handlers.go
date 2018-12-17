@@ -31,7 +31,6 @@ import (
 	"github.com/bookingcom/carbonapi/util"
 
 	"github.com/dgryski/httputil"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -328,7 +327,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails, app)
+			renderRequests, err := app.getRenderRequests(ctx, m, useCache, &accessLogDetails)
 			if err != nil {
 				logger.Error("find error",
 					zap.String("metric", m.Metric),
@@ -501,7 +500,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogDetails.HaveNonFatalErrors = len(errors) > 0
 }
 
-func sendGlobs(glob pb.GlobResponse, app *App) bool {
+func (app *App) sendGlobs(glob dataTypes.Matches) bool {
 	// Yay globals
 	if app.config.AlwaysSendGlobsAsIs {
 		return true
@@ -510,59 +509,68 @@ func sendGlobs(glob pb.GlobResponse, app *App) bool {
 	return app.config.SendGlobsAsIs && len(glob.Matches) < app.config.MaxBatchSize
 }
 
-func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, config *App) (pb.GlobResponse, error) {
-	var glob pb.GlobResponse
-	var haveCacheData bool
+func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) {
+	tc := time.Now()
+	blob, err := app.findCache.Get(metric)
+	td := time.Since(tc).Nanoseconds()
+	apiMetrics.FindCacheOverheadNS.Add(td)
 
+	if err != nil {
+		return dataTypes.Matches{}, err
+	}
+
+	matches, err := carbonapi_v2.FindDecoder(blob)
+	if err != nil {
+		return matches, err
+	}
+
+	apiMetrics.FindCacheHits.Add(1)
+
+	return matches, nil
+}
+
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, error) {
 	if useCache {
-		tc := time.Now()
-		response, err := config.findCache.Get(metric)
-		td := time.Since(tc).Nanoseconds()
-		apiMetrics.FindCacheOverheadNS.Add(td)
-
+		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
-			err := glob.Unmarshal(response)
-			haveCacheData = err == nil
+			return matches, nil
 		}
 	}
 
-	if haveCacheData {
-		apiMetrics.FindCacheHits.Add(1)
-	}
-
 	apiMetrics.FindCacheMisses.Add(1)
-	var err error
 	apiMetrics.FindRequests.Add(1)
 	accessLogDetails.ZipperRequests++
 
-	glob, err = config.zipper.Find(ctx, metric)
+	request := dataTypes.NewFindRequest(metric)
+	bs := backend.Filter(app.backends, []string{metric})
+	matches, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		return glob, err
+		return matches, err
 	}
 
-	b, err := glob.Marshal()
+	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
 		tc := time.Now()
-		config.findCache.Set(metric, b, 5*60)
+		app.findCache.Set(metric, blob, 5*60)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
-	return glob, nil
+	return matches, nil
 }
 
-func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, app *App) ([]string, error) {
+func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, app)
+	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, accessLogDetails)
 	if err != nil {
 		return nil, err
 	}
 
-	if sendGlobs(glob, app) {
+	if app.sendGlobs(glob) {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
