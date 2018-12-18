@@ -2,16 +2,16 @@ package carbonapi
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/bookingcom/carbonapi/cache"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bookingcom/carbonapi/cache"
 	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 
 	"github.com/lomik/zapwriter"
 	"github.com/stretchr/testify/assert"
@@ -19,29 +19,43 @@ import (
 
 var testApp *App
 
-type mockCarbonZipper struct{}
-
-func newMockCarbonZipper() *mockCarbonZipper {
-	z := &mockCarbonZipper{}
-
-	return z
+func find(ctx context.Context, request dataTypes.FindRequest) (dataTypes.Matches, error) {
+	return getMetricGlobResponse(request.Query), nil
 }
 
-func (z mockCarbonZipper) Find(ctx context.Context, metric string) (dataTypes.Matches, error) {
-	return getMetricGlobResponse(metric), nil
+func info(ctx context.Context, request dataTypes.InfoRequest) ([]dataTypes.Info, error) {
+	return getMockInfoResponse(), nil
 }
 
-func (z mockCarbonZipper) Info(ctx context.Context, metric string) (map[string]pb.InfoResponse, error) {
-	response := getMockInfoResponse()
-
-	return response, nil
+func getMockInfoResponse() []dataTypes.Info {
+	return []dataTypes.Info{
+		dataTypes.Info{
+			Host:              "http://127.0.0.1:8080",
+			Name:              "foo.bar",
+			AggregationMethod: "Average",
+			MaxRetention:      157680000,
+			XFilesFactor:      0.5,
+			Retentions: []dataTypes.Retention{
+				dataTypes.Retention{
+					SecondsPerPoint: 60,
+					NumberOfPoints:  43200,
+				},
+			},
+		},
+	}
 }
 
-func (z mockCarbonZipper) Render(ctx context.Context, metric string, from, until int32) ([]*types.MetricData, error) {
-	var result []*types.MetricData
-	multiFetchResponse := getMultiFetchResponse()
-	result = append(result, &types.MetricData{FetchResponse: multiFetchResponse.Metrics[0]})
-	return result, nil
+func render(ctx context.Context, request dataTypes.RenderRequest) ([]dataTypes.Metric, error) {
+	return []dataTypes.Metric{
+		dataTypes.Metric{
+			Name:      "foo.bar",
+			StartTime: 1510913280,
+			StopTime:  1510913880,
+			StepTime:  60,
+			Values:    []float64{0, 1510913759, 1510913818},
+			IsAbsent:  []bool{true, false, false},
+		},
+	}, nil
 }
 
 func getMetricGlobResponse(metric string) dataTypes.Matches {
@@ -79,37 +93,6 @@ func getMetricGlobResponse(metric string) dataTypes.Matches {
 	return dataTypes.Matches{}
 }
 
-func getMultiFetchResponse() pb.MultiFetchResponse {
-	mfr := pb.FetchResponse{
-		Name:      "foo.bar",
-		StartTime: 1510913280,
-		StopTime:  1510913880,
-		StepTime:  60,
-		Values:    []float64{0, 1510913759, 1510913818},
-		IsAbsent:  []bool{true, false, false},
-	}
-
-	result := pb.MultiFetchResponse{Metrics: []pb.FetchResponse{mfr}}
-	return result
-}
-
-func getMockInfoResponse() map[string]pb.InfoResponse {
-	decoded := make(map[string]pb.InfoResponse)
-	r := pb.Retention{
-		SecondsPerPoint: 60,
-		NumberOfPoints:  43200,
-	}
-	d := pb.InfoResponse{
-		Name:              "foo.bar",
-		AggregationMethod: "Average",
-		MaxRetention:      157680000,
-		XFilesFactor:      0.5,
-		Retentions:        []pb.Retention{r},
-	}
-	decoded["http://127.0.0.1:8080"] = d
-	return decoded
-}
-
 func init() {
 	testApp = setUpTestConfig()
 }
@@ -125,7 +108,14 @@ func setUpTestConfig() *App {
 		queryCache: cache.NewMemcached("capi", ``),
 		findCache:  cache.NewExpireCache(1000),
 	}
-	app.config.Backends = []string{"http://127.0.0.1:8080"}
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
 	app.config.ConcurrencyLimitPerServer = 1024
 
 	setUpConfig(app, logger)
@@ -167,7 +157,8 @@ func TestFindHandler(t *testing.T) {
 	testApp.findHandler(rr, req)
 
 	body := rr.Body.String()
-	expected, _ := findTreejson(getMetricGlobResponse("foo.bar"))
+	// LOL this test is so fragile
+	expected := "[{\"allowChildren\":0,\"context\":{},\"expandable\":0,\"id\":\"foo.bar\",\"leaf\":1,\"text\":\"bar\"}]"
 	r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
 	if !r {
 		t.Error("HttpStatusCode should be 200 OK.")
@@ -202,7 +193,7 @@ func TestInfoHandler(t *testing.T) {
 
 	body := rr.Body.String()
 	expected := getMockInfoResponse()
-	expectedJson, err := json.Marshal(expected)
+	expectedJson, err := json.InfoEncoder(expected)
 	r := assert.Nil(t, err)
 	if !r {
 		t.Errorf("err should be nil, %v instead", err)
