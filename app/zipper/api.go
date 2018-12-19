@@ -1,41 +1,44 @@
 package zipper
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"time"
-	"github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/bookingcom/carbonapi/mstats"
-	"github.com/lomik/zapwriter"
-	"go.uber.org/zap"
-	"runtime"
 	"expvar"
-	"net/http"
-	"github.com/dgryski/httputil"
-	"github.com/bookingcom/carbonapi/util"
-	"github.com/bookingcom/carbonapi/pkg/backend"
-	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
-	"github.com/pkg/errors"
-	"os"
-	"github.com/peterbourgon/g2g"
-	"strings"
 	"fmt"
 	"log"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http/pprof"
-	"github.com/facebookgo/grace/gracehttp"
-	"sync/atomic"
-	"github.com/bookingcom/carbonapi/cfg"
 	"net"
+	"net/http"
+	"net/http/pprof"
+	"os"
+	"runtime"
 	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
+	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/util"
+
+	"github.com/dgryski/httputil"
+	"github.com/facebookgo/grace/gracehttp"
+	"github.com/lomik/zapwriter"
+	"github.com/peterbourgon/g2g"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 )
 
 var BuildVersion string
+
 type App struct {
 	config   cfg.Zipper
 	backends []backend.Backend
 }
 
-func New(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*App, error) {
+func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	bs, err := initBackends(config, logger)
 	if err != nil {
@@ -44,7 +47,7 @@ func New(config cfg.Zipper,logger *zap.Logger, buildVersion string) (*App, error
 		)
 		return nil, err
 	}
-	app := App{config: config, backends:bs}
+	app := App{config: config, backends: bs}
 	return &app, nil
 }
 
@@ -282,6 +285,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		IdleConnTimeout:     3 * time.Second,
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeouts.Connect,
 			KeepAlive: config.KeepAliveInterval,

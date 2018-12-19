@@ -194,19 +194,22 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	t0 := time.Now()
 	resp, err := b.client.Do(req)
 	trace.AddHTTPCall(t0)
+
+	var body []byte
+	var bodyErr error
+	if resp != nil && resp.Body != nil {
+		t1 := time.Now()
+		body, bodyErr = ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		trace.AddReadBody(t1)
+	}
+
 	if err != nil {
-		if resp != nil && resp.Body != nil {
-			resp.Body.Close()
-		}
 		return "", nil, err
 	}
 
-	t1 := time.Now()
-	body, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	trace.AddReadBody(t1)
-	if err != nil {
-		return "", nil, err
+	if bodyErr != nil {
+		return "", nil, bodyErr
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -318,15 +321,18 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	case "application/x-protobuf", "application/protobuf":
 		metrics, err = carbonapi_v2.RenderDecoder(resp)
 
-	/* TODO(gmagnusson)
-	case "application/json":
+		/* TODO(gmagnusson)
+		case "application/json":
 
-	case "application/pickle":
+		case "application/pickle":
 
-	case "application/x-msgpack":
+		case "application/x-msgpack":
 
-	case "application/x-carbonapi-v3-pb":
-	*/
+		case "application/x-carbonapi-v3-pb":
+		*/
+
+	case "application/text":
+		return nil, errors.Errorf("Unexpected application/text response:\n%s", string(resp))
 
 	default:
 		return nil, errors.Errorf("Unknown content type '%s'", contentType)
