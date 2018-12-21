@@ -120,6 +120,8 @@ func initHandlers(app *App) http.Handler {
 	r.HandleFunc("/functions", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 	r.HandleFunc("/functions/", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 
+	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(tagsHandler, app.bucketRequestTimes))
+
 	r.HandleFunc("/", httputil.TimeHandler(usageHandler, app.bucketRequestTimes))
 
 	return r
@@ -876,6 +878,12 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 		apiMetrics.Responses.Add(1)
 		prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
 	}()
+	// Use a specific version of graphite for grafana
+	// This handler is queried by grafana, and if needed, an override can be provided
+	if app.config.GraphiteVersionForGrafana != "" {
+		w.Write([]byte(app.config.GraphiteVersionForGrafana))
+		return
+	}
 
 	if app.config.GraphiteWeb09Compatibility {
 		w.Write([]byte("0.9.15\n"))
@@ -1123,6 +1131,7 @@ supported requests:
 	/metrics/find/?query=
 	/info/?target=
 	/functions/
+	/tags/autoComplete/tags
 `)
 
 func usageHandler(w http.ResponseWriter, r *http.Request) {
@@ -1134,6 +1143,18 @@ func usageHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Write(usageMsg)
+}
+
+//TODO : Fix this handler if and when tag support is added
+// This responds to grafana's tag requests, which were falling through to the usageHandler,
+// preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
+func tagsHandler(w http.ResponseWriter, r *http.Request) {
+	apiMetrics.Requests.Add(1)
+	prometheusMetrics.Requests.Inc()
+	defer func() {
+		apiMetrics.Responses.Add(1)
+		prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
+	}()
 }
 
 func debugVersionHandler(w http.ResponseWriter, r *http.Request) {

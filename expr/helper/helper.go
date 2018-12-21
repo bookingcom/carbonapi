@@ -115,6 +115,9 @@ func ForEachSeriesDo(e parser.Expr, from, until int32, values map[parser.MetricR
 
 // AlignSeries aligns different series together. By default it only prepends and appends NaNs in case of different length, but if ExtrapolatePoints is enabled, it can extrapolate
 func AlignSeries(args []*types.MetricData) []*types.MetricData {
+	if len(args) == 0 {
+		return nil
+	}
 	minStart := args[0].StartTime
 	maxStop := args[0].StopTime
 	maxVals := 0
@@ -203,6 +206,9 @@ type AggregateFunc func([]float64) float64
 
 // AggregateSeries aggregates series
 func AggregateSeries(e parser.Expr, args []*types.MetricData, function AggregateFunc) ([]*types.MetricData, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
 	args = AlignSeries(args)
 	length := len(args[0].Values)
 	r := *args[0]

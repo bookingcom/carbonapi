@@ -89,10 +89,11 @@ type API struct {
 	BlockHeaderUpdatePeriod time.Duration `yaml:"blockHeaderUpdatePeriod"`
 	HeadersToLog            []string      `yaml:"headersToLog"`
 
-	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`
-	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`
-	DefaultColors       map[string]string `yaml:"defaultColors"`
-	FunctionsConfigs    map[string]string `yaml:"functionsConfig"`
+	UnicodeRangeTables        []string          `yaml:"unicodeRangeTables"`
+	IgnoreClientTimeout       bool              `yaml:"ignoreClientTimeout"`
+	DefaultColors             map[string]string `yaml:"defaultColors"`
+	FunctionsConfigs          map[string]string `yaml:"functionsConfig"`
+	GraphiteVersionForGrafana string            `yaml:"graphiteVersionForGrafana"`
 }
 
 type CacheConfig struct {

@@ -285,6 +285,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		IdleConnTimeout:     3 * time.Second,
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeouts.Connect,
 			KeepAlive: config.KeepAliveInterval,
