@@ -17,7 +17,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 
 	"bitbucket.org/tebeka/strftime"
 	"github.com/evmar/gocairo/cairo"
@@ -856,7 +856,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		}
 
 		p := types.MetricData{
-			FetchResponse: pb.FetchResponse{
+			Metric: dataTypes.Metric{
 				Name:      name,
 				StartTime: from,
 				StopTime:  until,
@@ -2247,7 +2247,7 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 				r.HasAlpha = true
 
 				newSeries := types.MetricData{
-					FetchResponse: pb.FetchResponse{
+					Metric: dataTypes.Metric{
 						Name:      r.Name,
 						StopTime:  r.StopTime,
 						StartTime: r.StartTime,

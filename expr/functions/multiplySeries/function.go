@@ -2,12 +2,13 @@ package multiplySeries
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"math"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type multiplySeries struct {
@@ -31,7 +32,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 // multiplySeries(factorsSeriesList)
 func (f *multiplySeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
 	r := types.MetricData{
-		FetchResponse: pb.FetchResponse{
+		Metric: dataTypes.Metric{
 			Name:      fmt.Sprintf("multiplySeries(%s)", e.RawArgs()),
 			StartTime: from,
 			StopTime:  until,

@@ -43,16 +43,16 @@ func (f *linearRegression) Do(e parser.Expr, from, until int32, values map[parse
 	for _, a := range arg {
 		r := *a
 		if len(e.Args()) > 2 {
-			r.Name = fmt.Sprintf("linearRegression(%s,'%s','%s')", a.GetName(), e.Args()[1].StringValue(), e.Args()[2].StringValue())
+			r.Name = fmt.Sprintf("linearRegression(%s,'%s','%s')", a.Name, e.Args()[1].StringValue(), e.Args()[2].StringValue())
 		} else if len(e.Args()) > 1 {
-			r.Name = fmt.Sprintf("linearRegression(%s,'%s')", a.GetName(), e.Args()[2].StringValue())
+			r.Name = fmt.Sprintf("linearRegression(%s,'%s')", a.Name, e.Args()[2].StringValue())
 		} else {
-			r.Name = fmt.Sprintf("linearRegression(%s)", a.GetName())
+			r.Name = fmt.Sprintf("linearRegression(%s)", a.Name)
 		}
 
 		r.Values = make([]float64, len(a.Values))
 		r.IsAbsent = make([]bool, len(r.Values))
-		r.StopTime = a.GetStopTime()
+		r.StopTime = a.StopTime
 
 		// Removing absent values from original dataset
 		nonNulls := make([]float64, 0)

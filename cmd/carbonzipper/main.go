@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bookingcom/carbonapi/app/zipper"
+	"github.com/bookingcom/carbonapi/app/carbonzipper"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
@@ -36,7 +36,6 @@ func main() {
 	flag.Parse()
 
 	expvar.NewString("GoVersion").Set(runtime.Version())
-
 
 	if *configFile == "" {
 		logger.Fatal("missing config file option")
@@ -83,4 +82,3 @@ func main() {
 	}
 	app.Start()
 }
-

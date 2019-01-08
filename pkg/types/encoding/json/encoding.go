@@ -44,8 +44,9 @@ func matchesToJSONMatches(matches types.Matches) []jsonMatch {
 		}
 
 		jm := jsonMatch{
-			Text: name,
-			ID:   basepath + name,
+			Text:    name,
+			ID:      basepath + name,
+			Context: make(map[string]int),
 		}
 
 		if m.IsLeaf {

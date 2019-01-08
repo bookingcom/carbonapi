@@ -2,12 +2,13 @@ package summarize
 
 import (
 	"fmt"
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"math"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type summarize struct {
@@ -91,25 +92,27 @@ func (f *summarize) Do(e parser.Expr, from, until int32, values map[parser.Metri
 
 		if arg.StepTime > bucketSize {
 			// We don't have enough data to do math
-			results = append(results, &types.MetricData{FetchResponse: pb.FetchResponse{
-				Name:      name,
-				Values:    arg.Values,
-				IsAbsent:  arg.IsAbsent,
-				StepTime:  arg.StepTime,
-				StartTime: arg.StartTime,
-				StopTime:  arg.StopTime,
-			}})
+			results = append(results, &types.MetricData{
+				Metric: dataTypes.Metric{
+					Name:      name,
+					Values:    arg.Values,
+					IsAbsent:  arg.IsAbsent,
+					StepTime:  arg.StepTime,
+					StartTime: arg.StartTime,
+					StopTime:  arg.StopTime,
+				}})
 			continue
 		}
 
-		r := types.MetricData{FetchResponse: pb.FetchResponse{
-			Name:      name,
-			Values:    make([]float64, buckets, buckets),
-			IsAbsent:  make([]bool, buckets, buckets),
-			StepTime:  bucketSize,
-			StartTime: start,
-			StopTime:  stop,
-		}}
+		r := types.MetricData{
+			Metric: dataTypes.Metric{
+				Name:      name,
+				Values:    make([]float64, buckets, buckets),
+				IsAbsent:  make([]bool, buckets, buckets),
+				StepTime:  bucketSize,
+				StartTime: start,
+				StopTime:  stop,
+			}}
 
 		t := arg.StartTime // unadjusted
 		bucketEnd := start + bucketSize

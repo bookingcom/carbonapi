@@ -3,54 +3,54 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
-	"net/http"
-	"time"
-
-	"github.com/bookingcom/carbonapi/carbonapipb"
-	"github.com/lomik/zapwriter"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
-
-	"github.com/bookingcom/carbonapi/cache"
-	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/expr/functions"
-	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/helper"
-	"github.com/bookingcom/carbonapi/expr/rewrite"
-	"github.com/bookingcom/carbonapi/limiter"
-	"github.com/bookingcom/carbonapi/mstats"
-	"github.com/bookingcom/carbonapi/pathcache"
-	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/bookingcom/carbonapi/util"
-	realZipper "github.com/bookingcom/carbonapi/zipper"
-	"github.com/facebookgo/grace/gracehttp"
-	"github.com/facebookgo/pidfile"
-	"github.com/gorilla/handlers"
-	"github.com/peterbourgon/g2g"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 	"unicode"
+
+	"github.com/bookingcom/carbonapi/cache"
+	"github.com/bookingcom/carbonapi/carbonapipb"
+	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/expr/functions"
+	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/expr/helper"
+	"github.com/bookingcom/carbonapi/expr/rewrite"
+	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/pathcache"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/util"
+
+	"github.com/facebookgo/grace/gracehttp"
+	"github.com/facebookgo/pidfile"
+	"github.com/gorilla/handlers"
+	"github.com/lomik/zapwriter"
+	"github.com/peterbourgon/g2g"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
 
 type App struct {
-	config   cfg.API
+	config           cfg.API
 	queryCache       cache.BytesCache
 	findCache        cache.BytesCache
 	blockHeaderRules atomic.Value
 
 	defaultTimeZone *time.Location
 
-	zipper CarbonZipper
-	// Limiter limits concurrent zipper requests
-	limiter limiter.ServerLimiter
+	backends []backend.Backend
 }
 
 var prometheusMetrics = struct {
@@ -135,6 +135,7 @@ var apiMetrics = struct {
 const (
 	localHostName = ""
 )
+
 var zipperMetrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -168,29 +169,29 @@ var zipperMetrics = struct {
 	CacheMisses: expvar.NewInt("zipper_cache_misses"),
 }
 
-func zipperStats(stats *realZipper.Stats) {
-	zipperMetrics.Timeouts.Add(stats.Timeouts)
-
-	zipperMetrics.FindErrors.Add(stats.FindErrors)
-	zipperMetrics.RenderErrors.Add(stats.RenderErrors)
-	zipperMetrics.InfoErrors.Add(stats.InfoErrors)
-
-	zipperMetrics.CacheMisses.Add(stats.CacheMisses)
-	zipperMetrics.CacheHits.Add(stats.CacheHits)
-}
-
 func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
+	if len(api.Backends) == 0 {
+		logger.Fatal("no backends specified for upstreams!")
+	}
+
 	BuildVersion = buildVersion
 	app := &App{
-		config:api,
-		queryCache: cache.NullCache{},
-		findCache:  cache.NullCache{},
+		config:          api,
+		queryCache:      cache.NullCache{},
+		findCache:       cache.NullCache{},
 		defaultTimeZone: time.Local,
 	}
 	loadBlockRuleHeaderConfig(app, logger)
-	setUpConfigUpstreams(logger, app)
-	zipper := newZipper(zipperStats, api.Zipper, logger.With(zap.String("handler", "zipper")))
-	setUpConfig(logger, zipper, app)
+
+	// TODO(gmagnusson): Setup backends
+	backends, err := initBackends(app.config, logger)
+	if err != nil {
+		logger.Fatal("couldn't initialize backends", zap.Error(err))
+	}
+
+	app.backends = backends
+	setUpConfig(app, logger)
+
 	return app, nil
 }
 
@@ -254,19 +255,21 @@ func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, ap
 }
 
 func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
-	var ruleConfig RuleConfig
 	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-	if err == nil {
-		err = yaml.Unmarshal(fileData, &ruleConfig)
-		if err != nil {
-			logger.Error("couldn't unmarshal block rule file data")
-			app.blockHeaderRules.Store(RuleConfig{})
-		} else {
-			app.blockHeaderRules.Store(ruleConfig)
-		}
-	} else {
+	if err != nil {
+		logger.Debug("failed to load header block rules", zap.Error(err))
 		app.blockHeaderRules.Store(RuleConfig{})
+		return
 	}
+
+	var ruleConfig RuleConfig
+	if err := yaml.Unmarshal(fileData, &ruleConfig); err != nil {
+		logger.Error("couldn't unmarshal block rule file data", zap.Error(err))
+		app.blockHeaderRules.Store(RuleConfig{})
+		return
+	}
+
+	app.blockHeaderRules.Store(ruleConfig)
 }
 
 func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
@@ -276,10 +279,8 @@ func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	return fileData, err
 }
 
-
-func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
-	err := zapwriter.ApplyConfig(app.config.Logger)
-	if err != nil {
+func setUpConfig(app *App, logger *zap.Logger) {
+	if err := zapwriter.ApplyConfig(app.config.Logger); err != nil {
 		logger.Fatal("failed to initialize logger with requested configuration",
 			zap.Any("configuration", app.config.Logger),
 			zap.Error(err),
@@ -311,20 +312,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 		return time.Now().Unix()/60 - startMinute
 	})
 	expvar.Publish("uptime", apiMetrics.Uptime)
-
-	// TODO(gmagnusson): Shouldn't limiter live in config.zipper?
-	app.limiter = limiter.NewServerLimiter([]string{localHostName}, app.config.ConcurrencyLimitPerServer)
-	app.zipper = zipper
-
-	apiMetrics.LimiterUse = expvar.Func(func() interface{} {
-		return app.limiter.LimiterUse()[localHostName]
-	})
-	expvar.Publish("limiter_use", apiMetrics.LimiterUse)
-
-	apiMetrics.LimiterUseMax = expvar.Func(func() interface{} {
-		return app.limiter.MaxLimiterUse()
-	})
-	expvar.Publish("limiter_use_max", apiMetrics.LimiterUseMax)
 
 	switch app.config.Cache.Type {
 	case "memcache":
@@ -431,6 +418,15 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
 	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
 
+	// Setup in-memory path cache for carbonzipper requests
+	app.config.PathCache = pathcache.NewPathCache(app.config.ExpireDelaySec)
+
+	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
+	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
+
+	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
+	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
+
 	if host != "" {
 		// register our metrics with graphite
 		graphite := g2g.NewGraphite(host, app.config.Graphite.Interval, 10*time.Second)
@@ -495,8 +491,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 
 		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
 		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
-		graphite.Register(fmt.Sprintf("%s.max_limiter_use", pattern), apiMetrics.LimiterUseMax)
-		graphite.Register(fmt.Sprintf("%s.limiter_use", pattern), apiMetrics.LimiterUse)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
@@ -520,21 +514,6 @@ func setUpConfig(logger *zap.Logger, zipper CarbonZipper, app *App) {
 			zap.String("reason", "this feature is highly experimental and untested"),
 		)
 	}
-}
-
-func setUpConfigUpstreams(logger *zap.Logger, app *App) {
-	if len(app.config.Backends) == 0 {
-		logger.Fatal("no backends specified for upstreams!")
-	}
-
-	// Setup in-memory path cache for carbonzipper requests
-	app.config.PathCache = pathcache.NewPathCache(app.config.ExpireDelaySec)
-
-	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
-	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
-
-	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
-	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
 }
 
 func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
@@ -615,4 +594,35 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 		)
 	}
 }
-//
+
+func initBackends(config cfg.API, logger *zap.Logger) ([]backend.Backend, error) {
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeouts.Connect,
+			KeepAlive: config.KeepAliveInterval,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	backends := make([]backend.Backend, 0, len(config.Backends))
+	for _, host := range config.Backends {
+		b, err := bnet.New(bnet.Config{
+			Address:            host,
+			Client:             client,
+			Timeout:            config.Timeouts.AfterStarted,
+			Limit:              config.ConcurrencyLimitPerServer,
+			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			Logger:             logger,
+		})
+
+		if err != nil {
+			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
+		}
+
+		backends = append(backends, b)
+	}
+
+	return backends, nil
+}

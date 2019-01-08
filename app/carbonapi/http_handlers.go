@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,18 +20,19 @@ import (
 	"github.com/bookingcom/carbonapi/date"
 	"github.com/bookingcom/carbonapi/expr"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/bookingcom/carbonapi/intervalset"
-	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/bookingcom/carbonapi/util"
-	pb "github.com/go-graphite/protocol/carbonapi_v2_pb"
-
-	"sync"
-
 	"github.com/bookingcom/carbonapi/expr/metadata"
+	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/parser"
+	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
+	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
+	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
+	"github.com/bookingcom/carbonapi/util"
+
 	"github.com/dgryski/httputil"
-	pickle "github.com/lomik/og-rek"
 	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -327,7 +329,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			renderRequests, err := getRenderRequests(ctx, m, useCache, &accessLogDetails, app)
+			renderRequests, err := app.getRenderRequests(ctx, m, useCache, &accessLogDetails)
 			if err != nil {
 				logger.Error("find error",
 					zap.String("metric", m.Metric),
@@ -340,14 +342,26 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			rch := make(chan renderResponse, len(renderRequests))
 			for _, m := range renderRequests {
 				go func(path string, from, until int32) {
-					app.limiter.Enter(localHostName)
-					defer app.limiter.Leave(localHostName)
-
 					apiMetrics.RenderRequests.Add(1)
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
-					r, err := app.zipper.Render(ctx, path, from, until)
-					rch <- renderResponse{r, err}
+					request := dataTypes.NewRenderRequest([]string{path}, from, until)
+					bs := backend.Filter(app.backends, request.Targets)
+					metrics, err := backend.Renders(ctx, bs, request)
+
+					// TODO(gmagnusson): Account for request stats
+
+					metricData := make([]*types.MetricData, 0)
+					for i := range metrics {
+						metricData = append(metricData, &types.MetricData{
+							Metric: metrics[i],
+						})
+					}
+
+					rch <- renderResponse{
+						data:  metricData,
+						error: err,
+					}
 				}(m, mfetch.From, mfetch.Until)
 			}
 
@@ -360,7 +374,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				for _, r := range resp.data {
-					size += r.Size()
+					size += 8 * len(r.Values) // close enough
 					metricMap[mfetch] = append(metricMap[mfetch], r)
 				}
 			}
@@ -500,7 +514,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	accessLogDetails.HaveNonFatalErrors = len(errors) > 0
 }
 
-func sendGlobs(glob pb.GlobResponse, app *App) bool {
+func (app *App) sendGlobs(glob dataTypes.Matches) bool {
 	// Yay globals
 	if app.config.AlwaysSendGlobsAsIs {
 		return true
@@ -509,59 +523,68 @@ func sendGlobs(glob pb.GlobResponse, app *App) bool {
 	return app.config.SendGlobsAsIs && len(glob.Matches) < app.config.MaxBatchSize
 }
 
-func resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, config *App) (pb.GlobResponse, error) {
-	var glob pb.GlobResponse
-	var haveCacheData bool
+func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) {
+	tc := time.Now()
+	blob, err := app.findCache.Get(metric)
+	td := time.Since(tc).Nanoseconds()
+	apiMetrics.FindCacheOverheadNS.Add(td)
 
+	if err != nil {
+		return dataTypes.Matches{}, err
+	}
+
+	matches, err := carbonapi_v2.FindDecoder(blob)
+	if err != nil {
+		return matches, err
+	}
+
+	apiMetrics.FindCacheHits.Add(1)
+
+	return matches, nil
+}
+
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, error) {
 	if useCache {
-		tc := time.Now()
-		response, err := config.findCache.Get(metric)
-		td := time.Since(tc).Nanoseconds()
-		apiMetrics.FindCacheOverheadNS.Add(td)
-
+		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
-			err := glob.Unmarshal(response)
-			haveCacheData = err == nil
+			return matches, nil
 		}
 	}
 
-	if haveCacheData {
-		apiMetrics.FindCacheHits.Add(1)
-	}
-
 	apiMetrics.FindCacheMisses.Add(1)
-	var err error
 	apiMetrics.FindRequests.Add(1)
 	accessLogDetails.ZipperRequests++
 
-	glob, err = config.zipper.Find(ctx, metric)
+	request := dataTypes.NewFindRequest(metric)
+	bs := backend.Filter(app.backends, []string{metric})
+	matches, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		return glob, err
+		return matches, err
 	}
 
-	b, err := glob.Marshal()
+	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
 		tc := time.Now()
-		config.findCache.Set(metric, b, 5*60)
+		app.findCache.Set(metric, blob, 5*60)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
-	return glob, nil
+	return matches, nil
 }
 
-func getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, app *App) ([]string, error) {
+func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, app)
+	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, accessLogDetails)
 	if err != nil {
 		return nil, err
 	}
 
-	if sendGlobs(glob, app) {
+	if app.sendGlobs(glob) {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
@@ -600,6 +623,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		query = getCompleterQuery(query)
 	}
 
+	if format == "" {
+		format = treejsonFormat
+	}
+
 	if query == "" {
 		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
 		accessLogDetails.HttpCode = http.StatusBadRequest
@@ -608,62 +635,57 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if format == "" {
-		format = treejsonFormat
-	}
-
-	globs, err := app.zipper.Find(ctx, query)
+	request := dataTypes.NewFindRequest(query)
+	bs := backend.Filter(app.backends, []string{query})
+	metrics, err := backend.Finds(ctx, bs, request)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
-		logAsError = true
-		return
-	}
+		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
+			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+			// body to be happy with its life, so we can't 404 a /metrics/find
+			// request that finds nothing. We are however interested in knowing
+			// that we found nothing on the monitoring side, so we claim we
+			// returned a 404 code to Prometheus.
+			apiMetrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+		} else {
+			msg := "error fetching the data"
+			code := http.StatusInternalServerError
 
-	var b []byte
-	switch format {
-	case treejsonFormat, jsonFormat:
-		b, err = findTreejson(globs)
-		format = jsonFormat
-	case "completer":
-		b, err = findCompleter(globs)
-		format = jsonFormat
-	case rawFormat:
-		b, err = findList(globs)
-		format = rawFormat
-	case protobufFormat, protobuf3Format:
-		b, err = globs.Marshal()
-		format = protobufFormat
-	case "", pickleFormat:
-		var result []map[string]interface{}
+			accessLogDetails.HttpCode = int32(code)
+			accessLogDetails.Reason = err.Error()
+			logAsError = true
 
-		now := int32(time.Now().Unix() + 60)
-		for _, metric := range globs.Matches {
-			// Tell graphite-web that we have everything
-			var mm map[string]interface{}
-			if app.config.GraphiteWeb09Compatibility {
-				// graphite-web 0.9.x
-				mm = map[string]interface{}{
-					// graphite-web 0.9.x
-					"metric_path": metric.Path,
-					"isLeaf":      metric.IsLeaf,
-				}
-			} else {
-				// graphite-web 1.0
-				interval := &intervalset.IntervalSet{Start: 0, End: now}
-				mm = map[string]interface{}{
-					"is_leaf":   metric.IsLeaf,
-					"path":      metric.Path,
-					"intervals": interval,
-				}
-			}
-			result = append(result, mm)
+			http.Error(w, msg, code)
+			apiMetrics.Errors.Add(1)
+			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			return
 		}
+	}
 
-		p := bytes.NewBuffer(b)
-		pEnc := pickle.NewEncoder(p)
-		err = pEnc.Encode(result)
+	var contentType string
+	var blob []byte
+	switch format {
+	case protobufFormat, protobuf3Format:
+		contentType = contentTypeProtobuf
+		blob, err = carbonapi_v2.FindEncoder(metrics)
+	case treejsonFormat, jsonFormat:
+		contentType = contentTypeJSON
+		blob, err = ourJson.FindEncoder(metrics)
+	case "", pickleFormat:
+		contentType = contentTypePickle
+		if app.config.GraphiteWeb09Compatibility {
+			blob, err = pickle.FindEncoderV0_9(metrics)
+		} else {
+			blob, err = pickle.FindEncoderV1_0(metrics)
+		}
+	case rawFormat:
+		blob, err = findList(metrics)
+		contentType = rawFormat
+	case "completer":
+		blob, err = findCompleter(metrics)
+		contentType = jsonFormat
+	default:
+		err = errors.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -674,7 +696,16 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeResponse(w, b, format, jsonp)
+	if contentType == jsonFormat && jsonp != "" {
+		w.Header().Set("Content-Type", contentTypeJavaScript)
+		w.Write([]byte(jsonp))
+		w.Write([]byte{'('})
+		w.Write(blob)
+		w.Write([]byte{')'})
+	} else {
+		w.Header().Set("Content-Type", contentType)
+		w.Write(blob)
+	}
 }
 
 func getCompleterQuery(query string) string {
@@ -694,7 +725,7 @@ type completer struct {
 	IsLeaf string `json:"is_leaf"`
 }
 
-func findCompleter(globs pb.GlobResponse) ([]byte, error) {
+func findCompleter(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	var complete = make([]completer, 0)
@@ -733,7 +764,7 @@ func findCompleter(globs pb.GlobResponse) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func findList(globs pb.GlobResponse) ([]byte, error) {
+func findList(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	for _, g := range globs.Matches {
@@ -773,9 +804,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
-	var data map[string]pb.InfoResponse
-	var err error
-
 	query := r.FormValue("target")
 	if query == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -785,7 +813,10 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if data, err = app.zipper.Info(ctx, query); err != nil {
+	request := dataTypes.NewInfoRequest(query)
+	bs := backend.Filter(app.backends, []string{query})
+	infos, err := backend.Infos(ctx, bs, request)
+	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
 		accessLogDetails.Reason = err.Error()
@@ -794,11 +825,14 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var b []byte
+	var contentType string
 	switch format {
 	case jsonFormat:
-		b, err = json.Marshal(data)
+		contentType = contentTypeJSON
+		b, err = ourJson.InfoEncoder(infos)
 	case protobufFormat, protobuf3Format:
-		err = fmt.Errorf("not implemented yet")
+		contentType = contentTypeProtobuf
+		b, err = carbonapi_v2.InfoEncoder(infos)
 	default:
 		err = fmt.Errorf("unknown format %v", format)
 	}
@@ -811,7 +845,9 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", contentType)
 	w.Write(b)
+
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
 	accessLogDetails.HttpCode = http.StatusOK
 }
@@ -1156,7 +1192,7 @@ type treejson struct {
 
 var treejsonContext = make(map[string]int)
 
-func findTreejson(globs pb.GlobResponse) ([]byte, error) {
+func findTreejson(globs dataTypes.Matches) ([]byte, error) {
 	var b bytes.Buffer
 
 	var tree = make([]treejson, 0)
