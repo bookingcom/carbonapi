@@ -257,6 +257,7 @@ func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, ap
 func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
 	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
 	if err != nil {
+		logger.Debug("failed to load header block rules", zap.Error(err))
 		app.blockHeaderRules.Store(RuleConfig{})
 		return
 	}
