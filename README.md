@@ -1,6 +1,7 @@
 # Carbonapi
 
 [![Build Status](https://travis-ci.com/bookingcom/carbonapi.svg?branch=master)](https://travis-ci.com/bookingcom/carbonapi)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bookingcom/carbonapi)](https://goreportcard.com/report/github.com/bookingcom/carbonapi)
 
 Carbonapi is a Go-based Graphite frontend. It provides two binaries,
 `carbonapi` and `carbonzipper`, that unify responses from multiple Graphite
@@ -17,18 +18,17 @@ faster than requesting data from graphite-web.
 ## Build
 
 To build both the `carbonapi` and `carbonzipper` binaries, run:
+
 ```
-$ make
+make
 ```
+
 To build the binaries with debug symbols, run:
+
 ```
-$ make debug
+make debug
 ```
-To build the binaries without Cairo, that is, without support for image
-rendering, run:
-```
-$ make nocairo
-```
+
 We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
@@ -53,9 +53,9 @@ MacOSX.
 Install cairo:
 
 ```
-$ brew install Caskroom/cask/xquartz
+brew install Caskroom/cask/xquartz
 
-$ brew install cairo --with-x11
+brew install cairo --with-x11
 ```
 
 
