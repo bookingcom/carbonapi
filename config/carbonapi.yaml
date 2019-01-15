@@ -9,8 +9,10 @@
 # or graphite-clickhouse's http url.
 # Listen address, should always include hostname or ip address and a port.
 listen: "localhost:8081"
+listenInternal: "localhost:7081"
 # Max concurrent requests to CarbonZipper
-concurency: 20
+concurrencyLimitPerServer: 1025
+concurrencyLimit: 1024
 cache:
    # Type of caching. Valid: "mem", "memcache", "null"
    type: "mem"
@@ -20,10 +22,10 @@ cache:
    defaultTimeoutSec: 60
    # Only used by memcache type of cache. List of memcache servers.
    memcachedServers:
-       - "127.0.0.1:1234"
-       - "127.0.0.2:1235"
+       - "127.0.0.1:11211"
 # Amount of CPUs to use. 0 - unlimited
 cpus: 0
+#graphiteWeb: "graphiteWeb.example.yaml"
 # Timezone, default - local
 tz: ""
 # If 'true', carbonapi will send requests as is, with globs and braces
@@ -35,7 +37,7 @@ tz: ""
 # to get reasonable performance
 #
 # For go-carbon --- it depends on how you use it.
-sendGlobsAsIs: false
+sendGlobsAsIs: true
 # If sendGlobsAsIs is set and resulting response will be larger than maxBatchSize
 # carbonapi will revert to old behavir. This allows you to use benifits of passing
 # globs as is but keep memory usage in sane limits.
@@ -43,15 +45,13 @@ sendGlobsAsIs: false
 # For go-carbon you might want it to keep in some reasonable limits, 100 is good "safe" defaults
 #
 # For some backends (e.x. graphite-clickhouse) you might want to set it to some insanly high value, like 100000
-
-# If 'true', carbonapi will send requests as is, with globs and braces
-# even without checking maxBatchSize
-# in result it can increase performance for graphite-clickhouse by removing /metric/find request before calling /render
-alwaysSendGlobsAsIs: false
-
-functionsConfigs:
-    graphiteWeb: ./graphiteWeb.example.yaml
 maxBatchSize: 100
+
+# alwaysSendGlobsAsIs: false
+
+# functionsConfigs:
+#     graphiteWeb: ./graphiteWeb.example.yaml
+
 graphite:
     # Host:port where to send internal metrics
     # Empty = disabled
@@ -64,6 +64,9 @@ graphite:
     pattern: "{prefix}.{fqdn}"
 # Maximium idle connections to carbonzipper
 idleConnections: 10
+# Config to ensure we return version needed for providing integrated graphite docs in grafana
+# without supporting tags
+graphiteVersionForGrafana: 1.1.0
 pidFile: ""
 # See https://github.com/go-graphite/carbonzipper/blob/master/example.conf#L70-L108 for format explanation
 upstreams:
@@ -72,40 +75,28 @@ upstreams:
     # Requests beyond the last bucket are logged as slow
     # (default of 10 implies "slow" is >1 second).
     buckets: 10
-
+#    maxBatchSize: 200
+#    concurrencyLimitPerServer: 100
     timeouts:
-        # Maximum total backend requesting timeout in ms.
-        # ( How long we may spend making requests. )
-        global: "10s"
-        # Timeout, in ms, once the final backend has been contacted.
-        # ( [Effectively] How long we'll wait for the slowest response. )
-        afterStarted: "2s"
-        # Timeout to connect to the server
-        connect: "200ms"
+#        # Maximum backend request time for find requests.
+#        find: "600s"
+#        # Maximum backend request time for render requests. This is total one and doesn't take into account in-flight requests
+#        render: "600s"
+#        # Timeout to connect to the server
+#        connect: "200ms"
+        global: "600s"
+#        afterStarted: "600s"
+    # Configures how often keep alive packets will be sent out
+    keepAliveInterval: "30s"
+    # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
+    # connections on the backend servers which may bump into limits; tune with care.
+    maxIdleConnsPerHost: 1030
+    backends:
+      - http://127.0.0.1:8000
 
     # Number of concurrent requests to any given backend - default is no limit.
     # If set, you likely want >= MaxIdleConnsPerHost
-    concurrencyLimit: 0
-
-    # Configures how often keep alive packets will be sent out
-    keepAliveInterval: "30s"
-
-    # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
-    # connections on the backend servers which may bump into limits; tune with care.
-    maxIdleConnsPerHost: 100
-
-    # "http://host:port" array of instances of carbonserver stores
-    # This is the *ONLY* config element in this section that MUST be specified.
-    backends:
-        - "http://127.0.0.2:8080"
-        - "http://127.0.0.3:8080"
-        - "http://127.0.0.4:8080"
-
-    carbonsearch:
-        # Instance of carbonsearch backend
-        backend: "http://127.0.0.1:8070"
-        # carbonsearch prefix to reserve/register
-        prefix: "virt.v1.*"
+#    concurrencyLimit: 0
 
     # Enable compatibility with graphite-web 0.9
     # This will affect graphite-web 1.0+ with multiple cluster_servers
@@ -114,24 +105,21 @@ upstreams:
 # If not zero, enabled cache for find requests
 # This parameter controls when it will expire (in seconds)
 # Default: 600 (10 minutes)
-graphTemplates: graphTemplates.example.yaml
 expireDelaySec: 10
-# Uncomment this to get the behavior of graphite-web as proposed in https://github.com/graphite-project/graphite-web/pull/2239
-# Beware this will make darkbackground graphs less readable
-#defaultColors:
-#      "red": "ff0000"
-#      "green": "00ff00"
-#      "blue": "#0000ff"
-#      "darkred": "#c80032"
-#      "darkgreen": "00c800"
-#      "darkblue": "002173"
+blockHeaderFile: "block_header_list.yaml"
+blockHeaderUpdatePeriod: "30s"
+headersToLog:
+    - X-Panel-Id
+    - X-Dashboard-Id
+    - X-Real-Ip
+    - X-Webauth-User
 logger:
     - logger: ""
       file: "stderr"
       level: "debug"
       encoding: "console"
-      encodingTime: "iso8601"
-      encodingDuration: "seconds"
+#      encodingTime: "iso8601"
+#      encodingDuration: "seconds"
     - logger: ""
       file: "carbonapi.log"
       level: "info"
