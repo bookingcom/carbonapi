@@ -15,7 +15,7 @@ concurrencyLimitPerServer: 1025
 concurrencyLimit: 1024
 cache:
    # Type of caching. Valid: "mem", "memcache", "null"
-   type: "memcache"
+   type: "mem"
    # Cache limit in megabytes
    size_mb: 0
    # Default cache timeout value. Identical to DEFAULT_CACHE_DURATION in graphite-web.
