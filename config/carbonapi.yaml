@@ -47,6 +47,11 @@ sendGlobsAsIs: true
 # For some backends (e.x. graphite-clickhouse) you might want to set it to some insanly high value, like 100000
 maxBatchSize: 100
 
+# alwaysSendGlobsAsIs: false
+
+# functionsConfigs:
+#     graphiteWeb: ./graphiteWeb.example.yaml
+
 graphite:
     # Host:port where to send internal metrics
     # Empty = disabled
@@ -65,6 +70,10 @@ graphiteVersionForGrafana: 1.1.0
 pidFile: ""
 # See https://github.com/go-graphite/carbonzipper/blob/master/example.conf#L70-L108 for format explanation
 upstreams:
+    # Number of 100ms buckets to track request distribution in. Used to build
+    # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
+    # Requests beyond the last bucket are logged as slow
+    # (default of 10 implies "slow" is >1 second).
     buckets: 10
 #    maxBatchSize: 200
 #    concurrencyLimitPerServer: 100
@@ -77,89 +86,17 @@ upstreams:
 #        connect: "200ms"
         global: "600s"
 #        afterStarted: "600s"
-#    concurrencyLimitPerServer: 1200
+    # Configures how often keep alive packets will be sent out
     keepAliveInterval: "30s"
+    # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
+    # connections on the backend servers which may bump into limits; tune with care.
     maxIdleConnsPerHost: 1030
     backends:
       - http://127.0.0.1:8000
-      #TODO change back to go -carbon settings
-#      - http://127.0.0.1:8080
-#      - http://127.0.0.1:8082
-#    backendsv2:
-#        maxBatchSize: 300
-##        concurrencyLimit: 1024
-#        backends:
-#
-#            -
-#                groupName: "carbon-lhr4a"
-#                protocol: "carbonapi_v3_pb"
-#                maxBatchSize: 100
-##                concurrencyLimit: 2048
-#                lbMethod: "broadcast"
-#                servers:
-#                    - "http://127.0.0.1:8080"
-##                    - "http://127.0.0.1:8082"
-#
-#            -
-#                groupName: "carbon-lhr4b"
-#                protocol: "carbonapi_v3_pb"
-#                lbMethod: "broadcast"
-#
-#                servers:
-#                    - "http://127.0.0.1:8082"
-#                    - "http://127.0.0.1:8080"
-    # Number of 100ms buckets to track request distribution in. Used to build
-    # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
-    # Requests beyond the last bucket are logged as slow
-    # (default of 10 implies "slow" is >1 second).
-#    buckets: 10
-
-#    timeouts:
-        # Maximum total backend requesting timeout in ms.
-        # ( How long we may spend making requests. )
-#        global: "10s"
-        # Timeout, in ms, once the final backend has been contacted.
-        # ( [Effectively] How long we'll wait for the slowest response. )
-#        afterStarted: "2s"
-        # Timeout to connect to the server
-#        connect: "200ms"
 
     # Number of concurrent requests to any given backend - default is no limit.
     # If set, you likely want >= MaxIdleConnsPerHost
 #    concurrencyLimit: 0
-
-    # Configures how often keep alive packets will be sent out
-#    keepAliveInterval: "30s"
-
-    # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
-    # connections on the backend servers which may bump into limits; tune with care.
-#    maxIdleConnsPerHost: 100
-
-    # "http://host:port" array of instances of carbonserver stores
-    # This is the *ONLY* config element in this section that MUST be specified.
-#    backends:
-#        - "http://127.0.0.1:8080"
-#        - "http://127.0.0.1:8082"
-
-#    carbonsearchv2:
-#        backendsv2:
-#            backends:
-#            -
-#                groupName: "group1"
-#                protocol: "carbonapi_v3_pb"
-#                lbMethod: "broadcast"
-#                servers:
-#                  - "http://127.0.0.1:8080"
-#        #backend: "http://127.0.0.1:8070"
-#        prefix: "virt.v1.*."
-
-
-
-#    carbonsearch:
-        # Instance of carbonsearch backend
-#        backend: "http://127.0.0.1:8070"
-        # carbonsearch prefix to reserve/register
-#        prefix: "virt.v1.*"
 
     # Enable compatibility with graphite-web 0.9
     # This will affect graphite-web 1.0+ with multiple cluster_servers
