@@ -32,6 +32,10 @@ make debug
 We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
+### Run
+
+You can easily run the program with sample config provided in `config/` directory by running `./run.sh`.
+
 
 ## Requirements
 
