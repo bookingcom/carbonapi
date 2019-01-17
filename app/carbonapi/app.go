@@ -94,7 +94,7 @@ var prometheusMetrics = struct {
 			Name: "time_in_queue",
 			Help: "Time a request to backend spends in queue, in ms",
 			// TODO (grzkv): Replace with config
-			Buckets: prometheus.LinearBuckets(0.0, 0.5, 50),
+			Buckets: prometheus.LinearBuckets(0.0, 5, 50),
 		},
 	),
 }

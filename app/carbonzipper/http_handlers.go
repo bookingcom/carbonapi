@@ -81,7 +81,7 @@ var Metrics = struct {
 	CacheMisses: expvar.NewInt("cache_misses"),
 }
 
-// TODO (grzkv): Move from global scope
+// TODO (grzkv): Move from global scope. Move from this file
 var prometheusMetrics = struct {
 	Requests     prometheus.Counter
 	Responses    *prometheus.CounterVec
@@ -121,7 +121,7 @@ var prometheusMetrics = struct {
 			Name: "time_in_queue",
 			Help: "Time a request spends in queue, ms",
 			// TODO (grzkv): Start using config
-			Buckets: prometheus.LinearBuckets(0.0, 0.5, 50),
+			Buckets: prometheus.LinearBuckets(0.0, 2, 50),
 		},
 	),
 }
