@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// ParseAPIConfig reads carbonapi-specific config
 func ParseAPIConfig(r io.Reader) (API, error) {
 	d := yaml.NewDecoder(r)
 	d.SetStrict(DEBUG)
@@ -52,6 +53,7 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 	return api, nil
 }
 
+// TODO (grzkv): Remove this. Used in one place + global
 var DefaultAPIConfig = defaultAPIConfig()
 
 func defaultAPIConfig() API {
@@ -75,6 +77,7 @@ func defaultAPIConfig() API {
 	return cfg
 }
 
+// API is carbonapi-specific config
 type API struct {
 	Zipper `yaml:",inline"`
 
@@ -94,8 +97,23 @@ type API struct {
 	DefaultColors             map[string]string `yaml:"defaultColors"`
 	FunctionsConfigs          map[string]string `yaml:"functionsConfig"`
 	GraphiteVersionForGrafana string            `yaml:"graphiteVersionForGrafana"`
+
+	// TODO (grzkv): Start using this
+	Monitoring MonitoringConfig `yaml:"monitoring"`	// UNUSED!
 }
 
+// MonitoringConfig allows setting custom monitoring parameters
+type MonitoringConfig struct {
+	TimeInQueueHistogram HistogramConfig `yaml:"timeInQueueHistogram"`
+}
+
+// HistogramConfig is histogram config for Prometheus metrics
+type HistogramConfig struct {
+	BucketsNum int `yaml:"bucketsNum"`
+	BucketSize float64 `yaml:"bucketSize"`
+}
+
+// CacheConfig configs the cache
 type CacheConfig struct {
 	Type              string   `yaml:"type"`
 	Size              int      `yaml:"size_mb"`

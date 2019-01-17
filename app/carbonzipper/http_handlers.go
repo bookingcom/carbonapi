@@ -36,6 +36,7 @@ const (
 	formatTypeProtobuf3 = "protobuf3"
 )
 
+// TODO (grzkv): Move from global scope
 // Metrics contains grouped expvars for /debug/vars and graphite
 var Metrics = struct {
 	Requests  *expvar.Int
@@ -80,11 +81,13 @@ var Metrics = struct {
 	CacheMisses: expvar.NewInt("cache_misses"),
 }
 
+// TODO (grzkv): Move from global scope
 var prometheusMetrics = struct {
 	Requests     prometheus.Counter
 	Responses    *prometheus.CounterVec
 	DurationsExp prometheus.Histogram
 	DurationsLin prometheus.Histogram
+	TimeInQueue prometheus.Histogram
 }{
 	Requests: prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -111,6 +114,14 @@ var prometheusMetrics = struct {
 			Name:    "http_request_duration_seconds_lin",
 			Help:    "The duration of HTTP requests (linear)",
 			Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
+		},
+	),
+	TimeInQueue: prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "time_in_queue",
+			Help: "Time a request spends in queue, ms",
+			// TODO (grzkv): Start using config
+			Buckets: prometheus.LinearBuckets(0.0, 0.5, 50),
 		},
 	),
 }
@@ -324,6 +335,9 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	bs := backend.Filter(app.backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
+	// time in queue is converted to ms
+	prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2])/1000)
+
 	if err != nil {
 		msg := "error fetching the data"
 		code := http.StatusInternalServerError

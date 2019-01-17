@@ -187,6 +187,7 @@ func (app *App) Start() {
 		prometheus.MustRegister(prometheusMetrics.Responses)
 		prometheus.MustRegister(prometheusMetrics.DurationsExp)
 		prometheus.MustRegister(prometheusMetrics.DurationsLin)
+		prometheus.MustRegister(prometheusMetrics.TimeInQueue)
 
 		writeTimeout := app.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {

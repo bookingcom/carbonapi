@@ -124,3 +124,10 @@ logger:
       file: "carbonapi.log"
       level: "info"
       encoding: "json"
+
+# UNUSED
+monitoring:
+    timeInQueueHistogram:
+        start: 0.0
+        bucketsNum: 50
+        bucketSize: 0.1

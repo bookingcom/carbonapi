@@ -42,6 +42,7 @@ import (
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
 
+// App is the main carbonapi runnable
 type App struct {
 	config           cfg.API
 	queryCache       cache.BytesCache
@@ -53,11 +54,13 @@ type App struct {
 	backends []backend.Backend
 }
 
+// TODO (grzkv): Remove from global scope
 var prometheusMetrics = struct {
 	Requests     prometheus.Counter
 	Responses    *prometheus.CounterVec
 	DurationsExp prometheus.Histogram
 	DurationsLin prometheus.Histogram
+	TimeInQueue	prometheus.Histogram
 }{
 	Requests: prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -86,8 +89,17 @@ var prometheusMetrics = struct {
 			Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
 		},
 	),
+	TimeInQueue: prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "time_in_queue",
+			Help: "Time a request to backend spends in queue, in ms",
+			// TODO (grzkv): Replace with config
+			Buckets: prometheus.LinearBuckets(0.0, 0.5, 50),
+		},
+	),
 }
 
+// TODO (grzkv): Romove from global scope
 var apiMetrics = struct {
 	// Total counts across all request types
 	Requests  *expvar.Int
@@ -132,10 +144,7 @@ var apiMetrics = struct {
 	FindCacheOverheadNS: expvar.NewInt("find_cache_overhead_ns"),
 }
 
-const (
-	localHostName = ""
-)
-
+// TODO (grzkv): Remove from global scope
 var zipperMetrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int
@@ -169,6 +178,7 @@ var zipperMetrics = struct {
 	CacheMisses: expvar.NewInt("zipper_cache_misses"),
 }
 
+// New creates a new app
 func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	if len(api.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
@@ -195,6 +205,7 @@ func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
 	return app, nil
 }
 
+// Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() {
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
@@ -227,6 +238,7 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 		prometheus.MustRegister(prometheusMetrics.Responses)
 		prometheus.MustRegister(prometheusMetrics.DurationsExp)
 		prometheus.MustRegister(prometheusMetrics.DurationsLin)
+		prometheus.MustRegister(prometheusMetrics.TimeInQueue)
 
 		writeTimeout := app.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
