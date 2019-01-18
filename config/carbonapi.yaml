@@ -125,7 +125,6 @@ logger:
       level: "info"
       encoding: "json"
 
-# UNUSED
 monitoring:
     timeInQueueHistogram:
         start: 0.0

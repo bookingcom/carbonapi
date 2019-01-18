@@ -52,54 +52,62 @@ type App struct {
 	defaultTimeZone *time.Location
 
 	backends []backend.Backend
+
+	prometheusMetrics PrometheusMetrics
 }
 
-// TODO (grzkv): Remove from global scope
-var prometheusMetrics = struct {
+// PrometheusMetrics are metrix exported via /metrics endpoint for Prom scraping
+type PrometheusMetrics struct {
 	Requests     prometheus.Counter
 	Responses    *prometheus.CounterVec
 	DurationsExp prometheus.Histogram
 	DurationsLin prometheus.Histogram
-	TimeInQueue	prometheus.Histogram
-}{
-	Requests: prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Count of HTTP requests",
-		},
-	),
-	Responses: prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_responses_total",
-			Help: "Count of HTTP responses, partitioned by return code and handler",
-		},
-		[]string{"code", "handler"},
-	),
-	DurationsExp: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds_exp",
-			Help:    "The duration of HTTP requests (exponential)",
-			Buckets: prometheus.ExponentialBuckets((50 * time.Millisecond).Seconds(), 2.0, 20),
-		},
-	),
-	DurationsLin: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds_lin",
-			Help:    "The duration of HTTP requests (linear)",
-			Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
-		},
-	),
-	TimeInQueue: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name: "time_in_queue",
-			Help: "Time a request to backend spends in queue, in ms",
-			// TODO (grzkv): Replace with config
-			Buckets: prometheus.LinearBuckets(0.0, 5, 50),
-		},
-	),
+	TimeInQueue  prometheus.Histogram
 }
 
-// TODO (grzkv): Romove from global scope
+func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
+	return PrometheusMetrics{
+		Requests: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Count of HTTP requests",
+			},
+		),
+		Responses: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_responses_total",
+				Help: "Count of HTTP responses, partitioned by return code and handler",
+			},
+			[]string{"code", "handler"},
+		),
+		DurationsExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds_exp",
+				Help:    "The duration of HTTP requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets((50 * time.Millisecond).Seconds(), 2.0, 20),
+			},
+		),
+		DurationsLin: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds_lin",
+				Help:    "The duration of HTTP requests (linear)",
+				Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
+			},
+		),
+		TimeInQueue: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "time_in_queue",
+				Help: "Time a request to backend spends in queue, in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.TimeInQueueHistogram.Start,
+					config.Zipper.Common.Monitoring.TimeInQueueHistogram.BucketSize,
+					config.Zipper.Common.Monitoring.TimeInQueueHistogram.BucketsNum),
+			},
+		),
+	}
+}
+
+// TODO (grzkv): Remove from global scope
 var apiMetrics = struct {
 	// Total counts across all request types
 	Requests  *expvar.Int
@@ -179,17 +187,18 @@ var zipperMetrics = struct {
 }
 
 // New creates a new app
-func New(api cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
-	if len(api.Backends) == 0 {
+func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
+	if len(config.Backends) == 0 {
 		logger.Fatal("no backends specified for upstreams!")
 	}
 
 	BuildVersion = buildVersion
 	app := &App{
-		config:          api,
-		queryCache:      cache.NullCache{},
-		findCache:       cache.NullCache{},
-		defaultTimeZone: time.Local,
+		config:            config,
+		queryCache:        cache.NullCache{},
+		findCache:         cache.NullCache{},
+		defaultTimeZone:   time.Local,
+		prometheusMetrics: newPrometheusMetrics(config),
 	}
 	loadBlockRuleHeaderConfig(app, logger)
 
@@ -234,11 +243,11 @@ func (app *App) Start() {
 
 func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 	go func() {
-		prometheus.MustRegister(prometheusMetrics.Requests)
-		prometheus.MustRegister(prometheusMetrics.Responses)
-		prometheus.MustRegister(prometheusMetrics.DurationsExp)
-		prometheus.MustRegister(prometheusMetrics.DurationsLin)
-		prometheus.MustRegister(prometheusMetrics.TimeInQueue)
+		prometheus.MustRegister(app.prometheusMetrics.Requests)
+		prometheus.MustRegister(app.prometheusMetrics.Responses)
+		prometheus.MustRegister(app.prometheusMetrics.DurationsExp)
+		prometheus.MustRegister(app.prometheusMetrics.DurationsLin)
+		prometheus.MustRegister(app.prometheusMetrics.TimeInQueue)
 
 		writeTimeout := app.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
@@ -528,7 +537,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	}
 }
 
-func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
+func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
 	accessLogger := zapwriter.Logger("access")
 
 	accessLogDetails.Runtime = time.Since(t).Seconds()
@@ -541,7 +550,10 @@ func deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.Access
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
 		apiMetrics.Responses.Add(1)
 	}
-	prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", accessLogDetails.HttpCode), accessLogDetails.Handler).Inc()
+
+	if app != nil {
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", accessLogDetails.HttpCode), accessLogDetails.Handler).Inc()
+	}
 }
 
 var graphTemplates map[string]png.PictureParams
@@ -593,8 +605,8 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
-	prometheusMetrics.DurationsExp.Observe(t.Seconds())
-	prometheusMetrics.DurationsLin.Observe(t.Seconds())
+	app.prometheusMetrics.DurationsExp.Observe(t.Seconds())
+	app.prometheusMetrics.DurationsLin.Observe(t.Seconds())
 
 	// This seems slow enough to count as a slow request
 	if bucket >= app.config.Buckets {

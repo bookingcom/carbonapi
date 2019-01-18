@@ -8,8 +8,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// TODO (grzkv): Remove from global scope. Probably should be replaced with flags
 var DEBUG bool = false
 
+// TODO (grzkv): This type of config does not makes sense, since there is no such entity as graphite
+
+// GraphiteConfig does not makes real sense
 type GraphiteConfig struct {
 	Pattern  string
 	Host     string
@@ -17,16 +21,67 @@ type GraphiteConfig struct {
 	Prefix   string
 }
 
+// ParseCommon sets the default config, parses input one, and overrides the defaults
 func ParseCommon(r io.Reader) (Common, error) {
 	d := yaml.NewDecoder(r)
 	d.SetStrict(DEBUG)
 
-	c := DefaultConfig
+	// set the default config
+	c := getDefaultCommonConfig()
+
 	err := d.Decode(&c)
 
 	return c, err
 }
 
+func getDefaultCommonConfig() Common {
+	return Common{
+		Listen:         ":8080",
+		ListenInternal: ":7080",
+
+		MaxProcs: 1,
+		Timeouts: Timeouts{
+			Global:       10000 * time.Millisecond,
+			AfterStarted: 2 * time.Second,
+			Connect:      200 * time.Millisecond,
+		},
+		ConcurrencyLimitPerServer: 20,
+		KeepAliveInterval:         30 * time.Second,
+		MaxIdleConnsPerHost:       100,
+
+		ExpireDelaySec: int32(10 * time.Minute / time.Second),
+
+		Buckets: 10,
+		Graphite: GraphiteConfig{
+			Interval: 60 * time.Second,
+			Host:     "127.0.0.1:3002",
+			Prefix:   "carbon.zipper",
+			Pattern:  "{prefix}.{fqdn}",
+		},
+		Logger: []zapwriter.Config{GetDefaultLoggerConfig()},
+		Monitoring: MonitoringConfig{
+			TimeInQueueHistogram: HistogramConfig{
+				Start:      0.0,
+				BucketsNum: 10,
+				BucketSize: 0.1,
+			},
+		},
+	}
+}
+
+// GetDefaultLoggerConfig returns sane default for the logger conf
+func GetDefaultLoggerConfig() zapwriter.Config {
+	return zapwriter.Config{
+		Logger:           "",
+		File:             "stdout",
+		Level:            "info",
+		Encoding:         "console",
+		EncodingTime:     "iso8601",
+		EncodingDuration: "seconds",
+	}
+}
+
+// Common is the configuration shared by carbonapi and carbonzipper
 type Common struct {
 	Listen         string   `yaml:"listen"`
 	ListenInternal string   `yaml:"listenInternal"`
@@ -45,45 +100,25 @@ type Common struct {
 	Buckets  int                `yaml:"buckets"`
 	Graphite GraphiteConfig     `yaml:"graphite"`
 	Logger   []zapwriter.Config `yaml:"logger"`
+
+	Monitoring MonitoringConfig `yaml:"monitoring"`
 }
 
+// MonitoringConfig allows setting custom monitoring parameters
+type MonitoringConfig struct {
+	TimeInQueueHistogram HistogramConfig `yaml:"timeInQueueHistogram"`
+}
+
+// HistogramConfig is histogram config for Prometheus metrics
+type HistogramConfig struct {
+	Start      float64 `yaml:"start"`
+	BucketsNum int     `yaml:"bucketsNum"`
+	BucketSize float64 `yaml:"bucketSize"`
+}
+
+// Timeouts needs some figuring out
 type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
-}
-
-var DefaultConfig = Common{
-	Listen:         ":8080",
-	ListenInternal: ":7080",
-
-	MaxProcs: 1,
-	Timeouts: Timeouts{
-		Global:       10000 * time.Millisecond,
-		AfterStarted: 2 * time.Second,
-		Connect:      200 * time.Millisecond,
-	},
-	ConcurrencyLimitPerServer: 20,
-	KeepAliveInterval:         30 * time.Second,
-	MaxIdleConnsPerHost:       100,
-
-	ExpireDelaySec: int32(10 * time.Minute / time.Second),
-
-	Buckets: 10,
-	Graphite: GraphiteConfig{
-		Interval: 60 * time.Second,
-		Host:     "127.0.0.1:3002",
-		Prefix:   "carbon.zipper",
-		Pattern:  "{prefix}.{fqdn}",
-	},
-	Logger: []zapwriter.Config{DefaultLoggerConfig},
-}
-
-var DefaultLoggerConfig = zapwriter.Config{
-	Logger:           "",
-	File:             "stdout",
-	Level:            "info",
-	Encoding:         "console",
-	EncodingTime:     "iso8601",
-	EncodingDuration: "seconds",
 }

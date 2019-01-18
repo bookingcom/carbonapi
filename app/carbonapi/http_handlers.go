@@ -68,7 +68,7 @@ func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc
 			accessLogDetails := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			accessLogDetails.HttpCode = http.StatusForbidden
 			defer func() {
-				deferredAccessLogging(r, &accessLogDetails, t0, true)
+				app.deferredAccessLogging(r, &accessLogDetails, t0, true)
 			}()
 			w.WriteHeader(http.StatusForbidden)
 		} else {
@@ -86,7 +86,7 @@ func initHandlersInternal(app *App) http.Handler {
 	r.HandleFunc("/unblock-headers/", httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
 	r.HandleFunc("/unblock-headers", httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
 
-	r.HandleFunc("/debug/version", debugVersionHandler)
+	r.HandleFunc("/debug/version", app.debugVersionHandler)
 
 	r.Handle("/debug/vars", expvar.Handler())
 	r.HandleFunc("/debug/pprof/", pprof.Index)
@@ -120,9 +120,9 @@ func initHandlers(app *App) http.Handler {
 	r.HandleFunc("/functions", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 	r.HandleFunc("/functions/", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(tagsHandler, app.bucketRequestTimes))
+	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(app.tagsHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/", httputil.TimeHandler(usageHandler, app.bucketRequestTimes))
+	r.HandleFunc("/", httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes))
 
 	return r
 }
@@ -192,12 +192,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	size := 0
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 
 	err := r.ParseForm()
 	if err != nil {
@@ -350,7 +350,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					metrics, err := backend.Renders(ctx, bs, request)
 
 					// time in queue is converted to ms
-					prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2])/1000)
+					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2])/1000)
 
 					// TODO(gmagnusson): Account for request stats
 
@@ -609,7 +609,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
@@ -619,7 +619,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	if format == "completer" {
@@ -649,7 +649,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
 			apiMetrics.Errors.Add(1)
-			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
 		} else {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
@@ -660,7 +660,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, msg, code)
 			apiMetrics.Errors.Add(1)
-			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
 			return
 		}
 	}
@@ -793,7 +793,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	format := r.FormValue("format")
 
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 
 	if format == "" {
 		format = jsonFormat
@@ -804,7 +804,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	query := r.FormValue("target")
@@ -859,10 +859,10 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
 	}()
 
 	w.Write([]byte("Ok\n"))
@@ -876,10 +876,10 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
 	}()
 	// Use a specific version of graphite for grafana
 	// This handler is queried by grafana, and if needed, an override can be provided
@@ -904,13 +904,13 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
@@ -1026,7 +1026,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	queryParams := r.URL.Query()
@@ -1097,7 +1097,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
-		deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
@@ -1137,12 +1137,12 @@ supported requests:
 	/tags/autoComplete/tags
 `)
 
-func usageHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) usageHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
 	}()
 
 	w.Write(usageMsg)
@@ -1151,21 +1151,21 @@ func usageHandler(w http.ResponseWriter, r *http.Request) {
 //TODO : Fix this handler if and when tag support is added
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
-func tagsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
 	}()
 }
 
-func debugVersionHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) debugVersionHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		prometheusMetrics.Responses.WithLabelValues("200", "debugversion").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues("200", "debugversion").Inc()
 	}()
 
 	fmt.Fprintf(w, "GIT_TAG: %s\n", BuildVersion)

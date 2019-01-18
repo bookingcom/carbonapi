@@ -13,8 +13,8 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 	d.SetStrict(DEBUG)
 
 	pre := preAPI{
-		API:       DefaultAPIConfig,
-		Upstreams: DefaultConfig,
+		API:       DefaultAPIConfig(),
+		Upstreams: getDefaultCommonConfig(),
 	}
 	err := d.Decode(&pre)
 	if err != nil {
@@ -36,13 +36,15 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 		api.MaxIdleConnsPerHost = pre.IdleConnections
 	}
 
-	if pre.Upstreams.Buckets != DefaultConfig.Buckets {
+	var defaultCfg = getDefaultCommonConfig()
+
+	if pre.Upstreams.Buckets != defaultCfg.Buckets {
 		api.Buckets = pre.Upstreams.Buckets
 	}
 
 	// Any value set to a non-default in a nested structure means we pick all
 	// values from that structure, for the sanity of the ops people.
-	if pre.Upstreams.Timeouts != DefaultConfig.Timeouts {
+	if pre.Upstreams.Timeouts != defaultCfg.Timeouts {
 		api.Timeouts = pre.Upstreams.Timeouts
 	}
 
@@ -53,12 +55,10 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 	return api, nil
 }
 
-// TODO (grzkv): Remove this. Used in one place + global
-var DefaultAPIConfig = defaultAPIConfig()
-
-func defaultAPIConfig() API {
+// DefaultAPIConfig gives a starter carbonapi conf
+func DefaultAPIConfig() API {
 	cfg := API{
-		Zipper: DefaultZipperConfig,
+		Zipper: fromCommon(getDefaultCommonConfig()),
 
 		ExtrapolateExperiment: false,
 		SendGlobsAsIs:         false,
@@ -79,6 +79,8 @@ func defaultAPIConfig() API {
 
 // API is carbonapi-specific config
 type API struct {
+	// TODO (grzkv): Why does carbonapi config refer to zipper config?
+	// It should probably refer to the common one
 	Zipper `yaml:",inline"`
 
 	ExtrapolateExperiment   bool          `yaml:"extrapolateExperiment"`
@@ -97,20 +99,6 @@ type API struct {
 	DefaultColors             map[string]string `yaml:"defaultColors"`
 	FunctionsConfigs          map[string]string `yaml:"functionsConfig"`
 	GraphiteVersionForGrafana string            `yaml:"graphiteVersionForGrafana"`
-
-	// TODO (grzkv): Start using this
-	Monitoring MonitoringConfig `yaml:"monitoring"`	// UNUSED!
-}
-
-// MonitoringConfig allows setting custom monitoring parameters
-type MonitoringConfig struct {
-	TimeInQueueHistogram HistogramConfig `yaml:"timeInQueueHistogram"`
-}
-
-// HistogramConfig is histogram config for Prometheus metrics
-type HistogramConfig struct {
-	BucketsNum int `yaml:"bucketsNum"`
-	BucketSize float64 `yaml:"bucketSize"`
 }
 
 // CacheConfig configs the cache

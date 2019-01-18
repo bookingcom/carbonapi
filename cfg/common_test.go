@@ -9,6 +9,7 @@ import (
 func TestParseCommon(t *testing.T) {
 	DEBUG = true
 
+	// TODO (grzkv): Move out to support proper indent with spaces
 	var input = `
 listen: ":8000"
 maxProcs: 32
@@ -27,6 +28,12 @@ logger:
        file: "/var/log/carbonzipper/carbonzipper.log"
        level: "info"
        encoding: "json"
+monitoring:
+    timeInQueueHistogram:
+        start: 0.0
+        bucketsNum: 50
+        bucketSize: 0.1
+
 `
 
 	r := strings.NewReader(input)
@@ -61,6 +68,13 @@ logger:
 			Host:     "127.0.0.1:3002",
 			Interval: 60 * time.Second,
 			Prefix:   "carbon.zipper",
+		},
+		Monitoring: MonitoringConfig{
+			TimeInQueueHistogram: HistogramConfig{
+				Start:      0.0,
+				BucketsNum: 50,
+				BucketSize: 0.1,
+			},
 		},
 	}
 
