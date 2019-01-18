@@ -2,7 +2,6 @@ package zipper
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"net/http"
 	"sort"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -35,96 +33,6 @@ const (
 	formatTypeProtobuf  = "protobuf"
 	formatTypeProtobuf3 = "protobuf3"
 )
-
-// TODO (grzkv): Move from global scope
-// Metrics contains grouped expvars for /debug/vars and graphite
-var Metrics = struct {
-	Requests  *expvar.Int
-	Responses *expvar.Int
-	Errors    *expvar.Int
-
-	Goroutines expvar.Func
-	Uptime     expvar.Func
-
-	FindRequests *expvar.Int
-	FindErrors   *expvar.Int
-
-	RenderRequests *expvar.Int
-	RenderErrors   *expvar.Int
-
-	InfoRequests *expvar.Int
-	InfoErrors   *expvar.Int
-
-	Timeouts *expvar.Int
-
-	CacheSize   expvar.Func
-	CacheItems  expvar.Func
-	CacheMisses *expvar.Int
-	CacheHits   *expvar.Int
-}{
-	Requests:  expvar.NewInt("requests"),
-	Responses: expvar.NewInt("responses"),
-	Errors:    expvar.NewInt("errors"),
-
-	FindRequests: expvar.NewInt("find_requests"),
-	FindErrors:   expvar.NewInt("find_errors"),
-
-	RenderRequests: expvar.NewInt("render_requests"),
-	RenderErrors:   expvar.NewInt("render_errors"),
-
-	InfoRequests: expvar.NewInt("info_requests"),
-	InfoErrors:   expvar.NewInt("info_errors"),
-
-	Timeouts: expvar.NewInt("timeouts"),
-
-	CacheHits:   expvar.NewInt("cache_hits"),
-	CacheMisses: expvar.NewInt("cache_misses"),
-}
-
-// TODO (grzkv): Move from global scope. Move from this file
-var prometheusMetrics = struct {
-	Requests     prometheus.Counter
-	Responses    *prometheus.CounterVec
-	DurationsExp prometheus.Histogram
-	DurationsLin prometheus.Histogram
-	TimeInQueue prometheus.Histogram
-}{
-	Requests: prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "http_request_total",
-			Help: "Count of HTTP requests",
-		},
-	),
-	Responses: prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_response_total",
-			Help: "Count of HTTP responses, partitioned by return code and handler",
-		},
-		[]string{"code", "handler"},
-	),
-	DurationsExp: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds_exp",
-			Help:    "The duration of HTTP requests (exponential)",
-			Buckets: prometheus.ExponentialBuckets((50 * time.Millisecond).Seconds(), 2.0, 20),
-		},
-	),
-	DurationsLin: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds_lin",
-			Help:    "The duration of HTTP requests (linear)",
-			Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
-		},
-	),
-	TimeInQueue: prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name: "time_in_queue",
-			Help: "Time a request spends in queue, ms",
-			// TODO (grzkv): Start using config
-			Buckets: prometheus.LinearBuckets(0.0, 2, 50),
-		},
-	),
-}
 
 func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
@@ -147,7 +55,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	format := req.FormValue("format")
 
 	Metrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	Metrics.FindRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -168,7 +76,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
 			Metrics.Errors.Add(1)
-			prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
 		} else {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
@@ -179,7 +87,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			)
 			http.Error(w, msg, code)
 			Metrics.Errors.Add(1)
-			prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
 			return
 		}
 	}
@@ -223,7 +131,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
 		return
 	}
 
@@ -236,7 +144,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
@@ -259,7 +167,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	Metrics.RenderRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -278,7 +186,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -300,7 +208,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -315,7 +223,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -328,7 +236,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -336,7 +244,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := backend.Filter(app.backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	// time in queue is converted to ms
-	prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2])/1000)
+	app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000)
 
 	if err != nil {
 		msg := "error fetching the data"
@@ -356,7 +264,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "render").Inc()
 		return
 	}
 
@@ -387,7 +295,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
 		return
 	}
 
@@ -402,7 +310,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
@@ -423,7 +331,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
 	accessLogger := zapwriter.Logger("access").With(
@@ -440,7 +348,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -460,7 +368,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -475,7 +383,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -501,7 +409,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -514,7 +422,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
 }
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -529,7 +437,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	Metrics.Requests.Add(1)
-	prometheusMetrics.Requests.Inc()
+	app.prometheusMetrics.Requests.Inc()
 
 	/* #nosec */
 	fmt.Fprintf(w, "Ok\n")
@@ -538,5 +446,5 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 	Metrics.Responses.Add(1)
-	prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
 }

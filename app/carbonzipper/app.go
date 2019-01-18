@@ -31,13 +31,17 @@ import (
 	"go.uber.org/zap"
 )
 
+// BuildVersion is replaced by ldflags
 var BuildVersion string
 
+// App represents the main zipper runnable
 type App struct {
-	config   cfg.Zipper
-	backends []backend.Backend
+	config            cfg.Zipper
+	prometheusMetrics *PrometheusMetrics
+	backends          []backend.Backend
 }
 
+// New inits backends and makes a new copy of the app. Does not run the app
 func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	bs, err := initBackends(config, logger)
@@ -47,10 +51,11 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 		)
 		return nil, err
 	}
-	app := App{config: config, backends: bs}
+	app := App{config: config, prometheusMetrics: NewPrometheusMetrics(config), backends: bs}
 	return &app, nil
 }
 
+// Start start launches the goroutines starts the app execution
 func (app *App) Start() {
 	backends := app.backends
 	logger := zapwriter.Logger("zipper")
@@ -183,11 +188,11 @@ func (app *App) Start() {
 	}
 
 	go func() {
-		prometheus.MustRegister(prometheusMetrics.Requests)
-		prometheus.MustRegister(prometheusMetrics.Responses)
-		prometheus.MustRegister(prometheusMetrics.DurationsExp)
-		prometheus.MustRegister(prometheusMetrics.DurationsLin)
-		prometheus.MustRegister(prometheusMetrics.TimeInQueue)
+		prometheus.MustRegister(app.prometheusMetrics.Requests)
+		prometheus.MustRegister(app.prometheusMetrics.Responses)
+		prometheus.MustRegister(app.prometheusMetrics.DurationsExp)
+		prometheus.MustRegister(app.prometheusMetrics.DurationsLin)
+		prometheus.MustRegister(app.prometheusMetrics.TimeInQueue)
 
 		writeTimeout := app.config.Timeouts.Global
 		if writeTimeout < 30*time.Second {
@@ -278,8 +283,8 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
-	prometheusMetrics.DurationsExp.Observe(t.Seconds())
-	prometheusMetrics.DurationsLin.Observe(t.Seconds())
+	app.prometheusMetrics.DurationsExp.Observe(t.Seconds())
+	app.prometheusMetrics.DurationsLin.Observe(t.Seconds())
 }
 
 func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, error) {
