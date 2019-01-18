@@ -127,8 +127,9 @@ func initHandlers(app *App) http.Handler {
 	return r
 }
 
-func writeResponse(w http.ResponseWriter, b []byte, format string, jsonp string) {
+func writeResponse(w http.ResponseWriter, b []byte, format string, jsonp string, ctx context.Context) {
 
+	w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
 	switch format {
 	case jsonFormat:
 		if jsonp != "" {
@@ -282,7 +283,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 		if err == nil {
 			apiMetrics.RequestCacheHits.Add(1)
-			writeResponse(w, response, format, jsonp)
+			writeResponse(w, response, format, jsonp, ctx)
 			accessLogDetails.FromCache = true
 			return
 		}
@@ -502,7 +503,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		body = png.MarshalSVGRequest(r, results, template)
 	}
 
-	writeResponse(w, body, format, jsonp)
+	writeResponse(w, body, format, jsonp, ctx)
 
 	if len(results) != 0 {
 		tc := time.Now()
