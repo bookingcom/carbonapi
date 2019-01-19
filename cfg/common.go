@@ -65,6 +65,16 @@ func getDefaultCommonConfig() Common {
 				BucketsNum: 10,
 				BucketSize: 0.1,
 			},
+			RequestDurationExp: HistogramConfig{
+				Start:      0.05,
+				BucketSize: 2,
+				BucketsNum: 20,
+			},
+			RequestDurationLin: HistogramConfig{
+				Start:      0.0,
+				BucketSize: 0.05,
+				BucketsNum: 40,
+			},
 		},
 	}
 }
