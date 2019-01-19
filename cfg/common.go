@@ -106,6 +106,8 @@ type Common struct {
 
 // MonitoringConfig allows setting custom monitoring parameters
 type MonitoringConfig struct {
+	RequestDurationExp   HistogramConfig `yaml:"requestDurationExpHistogram"`
+	RequestDurationLin   HistogramConfig `yaml:"requestDurationLinHistogram"`
 	TimeInQueueHistogram HistogramConfig `yaml:"timeInQueueHistogram"`
 }
 

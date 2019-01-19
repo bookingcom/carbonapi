@@ -2,7 +2,6 @@ package zipper
 
 import (
 	"expvar"
-	"time"
 
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/prometheus/client_golang/prometheus"
@@ -79,16 +78,22 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		DurationsExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name:    "http_request_duration_seconds_exp",
-				Help:    "The duration of HTTP requests (exponential)",
-				Buckets: prometheus.ExponentialBuckets((50 * time.Millisecond).Seconds(), 2.0, 20),
+				Name: "http_request_duration_seconds_exp",
+				Help: "The duration of HTTP requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.RequestDurationExp.Start,
+					config.Monitoring.RequestDurationExp.BucketSize,
+					config.Monitoring.RequestDurationExp.BucketsNum),
 			},
 		),
 		DurationsLin: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name:    "http_request_duration_seconds_lin",
-				Help:    "The duration of HTTP requests (linear)",
-				Buckets: prometheus.LinearBuckets(0.0, (50 * time.Millisecond).Seconds(), 40), // Up to 2 seconds
+				Name: "http_request_duration_seconds_lin",
+				Help: "The duration of HTTP requests (linear)",
+				Buckets: prometheus.LinearBuckets(
+					config.Monitoring.RequestDurationLin.Start,
+					config.Monitoring.RequestDurationLin.BucketSize,
+					config.Monitoring.RequestDurationLin.BucketsNum),
 			},
 		),
 		TimeInQueue: prometheus.NewHistogram(

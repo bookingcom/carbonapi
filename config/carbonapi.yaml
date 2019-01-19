@@ -130,3 +130,11 @@ monitoring:
         start: 0.0
         bucketsNum: 50
         bucketSize: 0.1
+    requestDurationExpHistogram:
+        start: 0.05
+        bucketsNum: 20
+        bucketSize: 2
+    requestDurationLinHistogram:
+        start: 0.0
+        bucketsNum: 40
+        bucketSize: 0.05
