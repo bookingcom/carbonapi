@@ -19,15 +19,20 @@ debug: GCFLAGS += -gcflags=all='-l -N'
 
 LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
 
+TAGS := -tags cairo
+nocairo: TAGS =
+
 # Targets
 all: build
+
+nocairo: build
 
 .PHONY: debug
 debug: build
 
 build:
-	$(PKGCONF) $(GO) build $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
-	$(PKGCONF) $(GO) build $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
+	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
+	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
 vet:
 	go vet -composites=false ./...
