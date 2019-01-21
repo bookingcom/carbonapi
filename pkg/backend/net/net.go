@@ -133,6 +133,7 @@ func (b Backend) url(path string) *url.URL {
 	}
 }
 
+// Logger returns logger for this backend. Needed to satisfy interface.
 func (b Backend) Logger() *zap.Logger {
 	return b.logger
 }
@@ -144,6 +145,11 @@ func (b Backend) enter(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
+		b.logger.Error("Request context cancelled",
+			zap.String("host", b.address),
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(ctx.Err()),
+		)
 		return ctx.Err()
 
 	case b.limiter <- struct{}{}:
@@ -301,7 +307,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, types.ErrTimeout{ctx.Err()}
+			return nil, types.ErrTimeout{Err: ctx.Err()}
 		}
 
 		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
@@ -428,7 +434,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			return types.Matches{}, types.ErrTimeout{ctx.Err()}
+			return types.Matches{}, types.ErrTimeout{Err: ctx.Err()}
 		}
 
 		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
