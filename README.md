@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.com/bookingcom/carbonapi.svg?branch=master)](https://travis-ci.com/bookingcom/carbonapi)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bookingcom/carbonapi)](https://goreportcard.com/report/github.com/bookingcom/carbonapi)
+[![codecov](https://codecov.io/gh/bookingcom/carbonapi/branch/master/graph/badge.svg)](https://codecov.io/gh/bookingcom/carbonapi)
 
 Carbonapi is a Go-based Graphite frontend. It provides two binaries,
 `carbonapi` and `carbonzipper`, that unify responses from multiple Graphite

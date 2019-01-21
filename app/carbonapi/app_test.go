@@ -98,15 +98,19 @@ func init() {
 }
 
 func setUpTestConfig() *App {
-	c := cfg.DefaultLoggerConfig
+	c := cfg.GetDefaultLoggerConfig()
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
 
+	config := cfg.DefaultAPIConfig()
+
+	// TODO (grzkv): Should use New
 	app := &App{
-		config:     cfg.API{},
-		queryCache: cache.NewMemcached("capi", ``),
-		findCache:  cache.NewExpireCache(1000),
+		config:            config,
+		queryCache:        cache.NewMemcached("capi", ``),
+		findCache:         cache.NewExpireCache(1000),
+		prometheusMetrics: newPrometheusMetrics(config),
 	}
 	app.backends = []backend.Backend{
 		mock.New(mock.Config{
