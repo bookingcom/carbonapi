@@ -17,7 +17,7 @@ import (
 var BuildVersion = "(development version)"
 
 func main() {
-	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.DefaultLoggerConfig})
+	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.GetDefaultLoggerConfig()})
 	if err != nil {
 		log.Fatal("Failed to initialize logger with default configuration")
 
