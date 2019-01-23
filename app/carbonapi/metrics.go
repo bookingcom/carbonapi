@@ -46,9 +46,9 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Name: "http_request_duration_seconds_lin",
 				Help: "The duration of HTTP requests (linear)",
 				Buckets: prometheus.LinearBuckets(
-					config.Zipper.Common.Monitoring.RequestDurationExp.Start,
-					config.Zipper.Common.Monitoring.RequestDurationExp.BucketSize,
-					config.Zipper.Common.Monitoring.RequestDurationExp.BucketsNum),
+					config.Zipper.Common.Monitoring.RequestDurationLin.Start,
+					config.Zipper.Common.Monitoring.RequestDurationLin.BucketSize,
+					config.Zipper.Common.Monitoring.RequestDurationLin.BucketsNum),
 			},
 		),
 		TimeInQueue: prometheus.NewHistogram(
