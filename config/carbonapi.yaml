@@ -126,10 +126,10 @@ logger:
       encoding: "json"
 
 monitoring:
-    timeInQueueHistogram:
-        start: 0.0
-        bucketsNum: 50
-        bucketSize: 0.1
+    timeInQueueExpHistogram:
+        start: 0.05
+        bucketsNum: 25
+        bucketSize: 2
     requestDurationExpHistogram:
         start: 0.05
         bucketsNum: 20

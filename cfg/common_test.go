@@ -29,10 +29,10 @@ logger:
        level: "info"
        encoding: "json"
 monitoring:
-    timeInQueueHistogram:
-        start: 0.0
-        bucketsNum: 50
-        bucketSize: 0.1
+    timeInQueueExpHistogram:
+        start: 0.3
+        bucketsNum: 30
+        bucketSize: 3
     requestDurationExpHistogram:
         start: 0.05
         bucketsNum: 30
@@ -78,10 +78,10 @@ monitoring:
 			Prefix:   "carbon.zipper",
 		},
 		Monitoring: MonitoringConfig{
-			TimeInQueueHistogram: HistogramConfig{
-				Start:      0.0,
-				BucketsNum: 50,
-				BucketSize: 0.1,
+			TimeInQueueExpHistogram: HistogramConfig{
+				Start:      0.3,
+				BucketsNum: 30,
+				BucketSize: 3,
 			},
 			RequestDurationExp: HistogramConfig{
 				Start:      0.05,

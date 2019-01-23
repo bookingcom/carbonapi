@@ -197,7 +197,7 @@ func TestInfoHandler(t *testing.T) {
 
 	body := rr.Body.String()
 	expected := getMockInfoResponse()
-	expectedJson, err := json.InfoEncoder(expected)
+	expectedJSON, err := json.InfoEncoder(expected)
 	r := assert.Nil(t, err)
 	if !r {
 		t.Errorf("err should be nil, %v instead", err)
@@ -207,7 +207,7 @@ func TestInfoHandler(t *testing.T) {
 	if !r {
 		t.Error("Http response should be same.")
 	}
-	r = assert.Equal(t, string(expectedJson), body, "Http response should be same.")
+	r = assert.Equal(t, string(expectedJSON), body, "Http response should be same.")
 	if !r {
 		t.Error("Http response should be same.")
 	}
