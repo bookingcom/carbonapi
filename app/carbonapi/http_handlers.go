@@ -351,7 +351,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					metrics, err := backend.Renders(ctx, bs, request)
 
 					// time in queue is converted to ms
-					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000)
+					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 					// TODO(gmagnusson): Account for request stats
 
