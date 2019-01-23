@@ -53,7 +53,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 		),
 		TimeInQueue: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "time_in_queue",
+				Name: "time_in_queue_ms_exp",
 				Help: "Time a request to backend spends in queue (exponential), in ms",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Zipper.Common.Monitoring.TimeInQueueExpHistogram.Start,
