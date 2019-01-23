@@ -98,12 +98,12 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		TimeInQueue: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "time_in_queue",
-				Help: "Time a request spends in queue, ms",
-				Buckets: prometheus.LinearBuckets(
-					config.Monitoring.TimeInQueueHistogram.Start,
-					config.Monitoring.TimeInQueueHistogram.BucketSize,
-					config.Monitoring.TimeInQueueHistogram.BucketsNum),
+				Name: "time_in_queue_ms_exp",
+				Help: "Time a request spends in queue (exponential), ms",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.TimeInQueueExpHistogram.Start,
+					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
+					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
 			},
 		),
 	}

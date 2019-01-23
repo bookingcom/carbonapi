@@ -244,7 +244,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := backend.Filter(app.backends, request.Targets)
 	metrics, err := backend.Renders(ctx, bs, request)
 	// time in queue is converted to ms
-	app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000)
+	app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 	if err != nil {
 		msg := "error fetching the data"

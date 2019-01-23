@@ -127,7 +127,7 @@ func initHandlers(app *App) http.Handler {
 	return r
 }
 
-func writeResponse(w http.ResponseWriter, b []byte, format string, jsonp string, ctx context.Context) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, b []byte, format string, jsonp string) {
 
 	w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
 	switch format {
@@ -283,7 +283,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 		if err == nil {
 			apiMetrics.RequestCacheHits.Add(1)
-			writeResponse(w, response, format, jsonp, ctx)
+			writeResponse(ctx, w, response, format, jsonp)
 			accessLogDetails.FromCache = true
 			return
 		}
@@ -351,7 +351,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					metrics, err := backend.Renders(ctx, bs, request)
 
 					// time in queue is converted to ms
-					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000)
+					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 					// TODO(gmagnusson): Account for request stats
 
@@ -506,7 +506,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		body = png.MarshalSVGRequest(r, results, template)
 	}
 
-	writeResponse(w, body, format, jsonp, ctx)
+	writeResponse(ctx, w, body, format, jsonp)
 
 	if len(results) != 0 {
 		tc := time.Now()
