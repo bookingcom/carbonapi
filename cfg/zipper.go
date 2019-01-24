@@ -23,6 +23,11 @@ func ParseZipperConfig(r io.Reader) (Zipper, error) {
 	return fromCommon(cfg), nil
 }
 
+// DefaultZipperConfig makes a testable default config
+func DefaultZipperConfig() Zipper {
+	return fromCommon(DefaultCommonConfig())
+}
+
 func fromCommon(c Common) Zipper {
 	return Zipper{
 		Common:    c,

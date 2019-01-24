@@ -27,14 +27,14 @@ func ParseCommon(r io.Reader) (Common, error) {
 	d.SetStrict(DEBUG)
 
 	// set the default config
-	c := getDefaultCommonConfig()
+	c := DefaultCommonConfig()
 
 	err := d.Decode(&c)
 
 	return c, err
 }
 
-func getDefaultCommonConfig() Common {
+func DefaultCommonConfig() Common {
 	return Common{
 		Listen:         ":8080",
 		ListenInternal: ":7080",
