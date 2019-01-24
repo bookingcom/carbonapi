@@ -2,6 +2,8 @@ package zipper
 
 import (
 	"expvar"
+	"strconv"
+	"sync/atomic"
 
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/prometheus/client_golang/prometheus"
@@ -107,4 +109,39 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 			},
 		),
 	}
+}
+
+var timeBuckets []int64
+var expTimeBuckets []int64
+
+type bucketEntry int
+type expBucketEntry int
+
+func (b bucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
+}
+
+func (b expBucketEntry) String() string {
+	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
+}
+
+func renderTimeBuckets() interface{} {
+	return timeBuckets
+}
+
+func renderExpTimeBuckets() interface{} {
+	return expTimeBuckets
+}
+
+func findBucketIndex(buckets []int64, bucket int) int {
+	var i int
+	if bucket < 0 {
+		i = 0
+	} else if bucket < len(buckets)-1 {
+		i = bucket
+	} else {
+		i = len(buckets) - 1
+	}
+
+	return i
 }

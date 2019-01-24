@@ -14,7 +14,7 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 
 	pre := preAPI{
 		API:       DefaultAPIConfig(),
-		Upstreams: getDefaultCommonConfig(),
+		Upstreams: DefaultCommonConfig(),
 	}
 	err := d.Decode(&pre)
 	if err != nil {
@@ -36,7 +36,7 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 		api.MaxIdleConnsPerHost = pre.IdleConnections
 	}
 
-	var defaultCfg = getDefaultCommonConfig()
+	var defaultCfg = DefaultCommonConfig()
 
 	if pre.Upstreams.Buckets != defaultCfg.Buckets {
 		api.Buckets = pre.Upstreams.Buckets
@@ -58,7 +58,7 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 // DefaultAPIConfig gives a starter carbonapi conf
 func DefaultAPIConfig() API {
 	cfg := API{
-		Zipper: fromCommon(getDefaultCommonConfig()),
+		Zipper: fromCommon(DefaultCommonConfig()),
 
 		ExtrapolateExperiment: false,
 		SendGlobsAsIs:         false,

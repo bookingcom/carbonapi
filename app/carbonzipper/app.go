@@ -9,7 +9,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -20,12 +19,12 @@ import (
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/util"
+	"github.com/pkg/errors"
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -235,41 +234,6 @@ func (app *App) Start() {
 			zap.Error(err),
 		)
 	}
-}
-
-var timeBuckets []int64
-var expTimeBuckets []int64
-
-type bucketEntry int
-type expBucketEntry int
-
-func (b bucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
-}
-
-func (b expBucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
-}
-
-func renderTimeBuckets() interface{} {
-	return timeBuckets
-}
-
-func renderExpTimeBuckets() interface{} {
-	return expTimeBuckets
-}
-
-func findBucketIndex(buckets []int64, bucket int) int {
-	var i int
-	if bucket < 0 {
-		i = 0
-	} else if bucket < len(buckets)-1 {
-		i = bucket
-	} else {
-		i = len(buckets) - 1
-	}
-
-	return i
 }
 
 func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
