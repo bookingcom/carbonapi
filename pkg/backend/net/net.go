@@ -216,11 +216,6 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	case res := <-ch:
 		trace.AddHTTPCall(t0)
 
-		// we should not try to interpret the body if there is an error
-		if res.err != nil {
-			return "", nil, res.err
-		}
-
 		var body []byte
 		var bodyErr error
 		if res.resp != nil && res.resp.Body != nil {
@@ -228,6 +223,11 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 			body, bodyErr = ioutil.ReadAll(res.resp.Body)
 			res.resp.Body.Close()
 			trace.AddReadBody(t1)
+		}
+
+		// TODO (grzkv): we should not try to interpret the body if there is an error
+		if res.err != nil {
+			return "", nil, res.err
 		}
 
 		if bodyErr != nil {
