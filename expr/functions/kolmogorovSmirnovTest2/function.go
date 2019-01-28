@@ -2,11 +2,11 @@ package kolmogorovSmirnovTest2
 
 import (
 	"fmt"
-	"github.com/dgryski/go-onlinestats"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/dgryski/go-onlinestats"
 	"math"
 )
 
