@@ -426,7 +426,6 @@ func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbona
 	}
 }
 
-var graphTemplates map[string]png.PictureParams
 var timeBuckets []int64
 var expTimeBuckets []int64
 
