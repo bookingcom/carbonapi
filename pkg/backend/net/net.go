@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ErrHTTPCode is a custom error type to distinguish HTTP errors
 type ErrHTTPCode int
 
 func (e ErrHTTPCode) Error() string {
@@ -145,7 +146,7 @@ func (b Backend) enter(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		b.logger.Error("Request context cancelled",
+		b.logger.Warn("Request context cancelled",
 			zap.String("host", b.address),
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(ctx.Err()),
@@ -196,33 +197,57 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 	return req, nil
 }
 
+type requestRes struct {
+	resp *http.Response
+	err  error
+}
+
 func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
 	t0 := time.Now()
-	resp, err := b.client.Do(req)
-	trace.AddHTTPCall(t0)
 
-	var body []byte
-	var bodyErr error
-	if resp != nil && resp.Body != nil {
-		t1 := time.Now()
-		body, bodyErr = ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-		trace.AddReadBody(t1)
+	ch := make(chan requestRes)
+
+	go func() {
+		resp, err := b.client.Do(req)
+		ch <- requestRes{resp: resp, err: err}
+	}()
+
+	select {
+	case res := <-ch:
+		trace.AddHTTPCall(t0)
+
+		var body []byte
+		var bodyErr error
+		if res.resp != nil && res.resp.Body != nil {
+			t1 := time.Now()
+			body, bodyErr = ioutil.ReadAll(res.resp.Body)
+			res.resp.Body.Close()
+			trace.AddReadBody(t1)
+		}
+
+		// TODO (grzkv): we should not try to interpret the body if there is an error
+		if res.err != nil {
+			return "", nil, res.err
+		}
+
+		if bodyErr != nil {
+			return "", nil, bodyErr
+		}
+
+		if res.resp.StatusCode != http.StatusOK {
+			return "", body, ErrHTTPCode(res.resp.StatusCode)
+		}
+
+		return res.resp.Header.Get("Content-Type"), body, nil
+
+	case <-ctx.Done():
+		b.logger.Warn("Request context cancelled",
+			zap.String("host", b.address),
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(ctx.Err()),
+		)
+		return "", nil, ctx.Err()
 	}
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	if bodyErr != nil {
-		return "", nil, bodyErr
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", body, ErrHTTPCode(resp.StatusCode)
-	}
-
-	return resp.Header.Get("Content-Type"), body, nil
 }
 
 // Call makes a call to a backend.

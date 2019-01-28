@@ -75,6 +75,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		}
 	}
 
+	// TODO (grzkv): This is based on an *assumption* about loggers. Replace by a logger passed from above
 	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
 		return nil, err
 	}
