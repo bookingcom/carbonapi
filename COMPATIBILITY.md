@@ -9,6 +9,7 @@
   - [Functions diff compared to `graphite-web` v1.1.5](#functions-diff-compared-to-graphite-web-v115)
     - [Functions *present in graphite-web but absent in carbonapi*](#functions-present-in-graphite-web-but-absent-in-carbonapi)
     - [Functions *present in carbonapi but absent in graphite-web*](#functions-present-in-carbonapi-but-absent-in-graphite-web)
+  - [Function short docs](#function-short-docs)
 
 ## Default Settings
 
@@ -168,3 +169,127 @@ _When `format=png`_ (default if not specified)
 - stdev
 - tukeyAbove
 - tukeyBelow
+
+## Function short docs
+
+| Graphite Function                                                         |
+| :------------------------------------------------------------------------ |
+| absolute(seriesList)                                                      |
+| alias(seriesList, newName)                                                |
+| aliasByMetric(seriesList)                                                 |
+| aliasByNode(seriesList, *nodes)                                           |
+| aliasSub(seriesList, search, replace)                                     |
+| alpha(seriesList, alpha)                                                  |
+| applyByNode(seriesList, nodeNum, templateFunction, newName=None)          |
+| areaBetween(seriesList)                                                   |
+| asPercent(seriesList, total=None, *nodes)                                 |
+| averageAbove(seriesList, n)                                               |
+| averageBelow(seriesList, n)                                               |
+| averageSeries(*seriesLists), Short Alias: avg()                           |
+| averageSeriesWithWildcards(seriesList, *position)                         |
+| cactiStyle(seriesList, system=None)                                       |
+| changed(seriesList)                                                       |
+| color(seriesList, theColor)                                               |
+| consolidateBy(seriesList, consolidationFunc)                              |
+| constantLine(value)                                                       |
+| countSeries(*seriesLists)                                                 |
+| cumulative(seriesList)                                                    |
+| currentAbove(seriesList, n)                                               |
+| currentBelow(seriesList, n)                                               |
+| dashed(*seriesList)                                                       |
+| delay(seriesList, steps)                                                  |
+| derivative(seriesList)                                                    |
+| diffSeries(*seriesLists)                                                  |
+| divideSeries(dividendSeriesList, divisorSeries)                           |
+| divideSeriesLists(dividendSeriesList, divisorSeriesList)                  |
+| diffSeriesLists(leftSeriesList, rightSeriesList)                          |
+| multiplySeriesLists(leftSeriesList, rightSeriesList)                      |
+| drawAsInfinite(seriesList)                                                |
+| exclude(seriesList, pattern)                                              |
+| exponentialWeightedMovingAverage(seriesList, alpha)                       |
+| ewma(seriesList, alpha)                                                   |
+| fallbackSeries( seriesList, fallback )                                    |
+| [fft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList) |
+| grep(seriesList, pattern)                                                 |
+| group(*seriesLists)                                                       |
+| groupByNode(seriesList, nodeNum, callback)                                |
+| groupByNodes(seriesList, callback, *nodes)                                |
+| highestAverage(seriesList, n)                                             |
+| highestCurrent(seriesList, n)                                             |
+| highestMax(seriesList, n)                                                 |
+| hitcount(seriesList, intervalString, alignToInterval=False)               |
+| holtWintersAberration(seriesList, delta=3)                                |
+| holtWintersConfidenceArea(seriesList, delta=3)                            |
+| holtWintersConfidenceBands(seriesList, delta=3)                           |
+| holtWintersForecast(seriesList)                                           |
+| [ifft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList) |
+| integral(seriesList)                                                      |
+| invert(seriesList)                                                        |
+| isNonNull(seriesList)                                                     |
+| keepLastValue(seriesList, limit=inf)                                      |
+| [kolmogorovSmirnovTest2](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test)(series, series, windowSize) alias ksTest2()   |
+| legendValue(seriesList, *valueTypes)                                      |
+| limit(seriesList, n)                                                      |
+| lineWidth(seriesList, width)                                              |
+| linearRegression(seriesList, startSourceAt=None, endSourceAt=None)        |
+| logarithm(seriesList, base=10), alias log()                               |
+| lowestAverage(seriesList, n)                                              |
+| lowestCurrent(seriesList, n)                                              |
+| [lowPass](https://en.wikipedia.org/wiki/Low-pass_filter)(seriesList, cutPercent) |
+| mapSeries(seriesList, mapNode), Short form: map()                         |
+| maxSeries(*seriesLists)                                                   |
+| maximumAbove(seriesList, n)                                               |
+| maximumBelow(seriesList, n)                                               |
+| minSeries(*seriesLists)                                                   |
+| minimumAbove(seriesList, n)                                               |
+| minimumBelow(seriesList, n)                                               |
+| mostDeviant(seriesList, n)                                                |
+| movingAverage(seriesList, windowSize)                                     |
+| movingMax(seriesList, windowSize)                                         |
+| movingMedian(seriesList, windowSize)                                      |
+| movingMin(seriesList, windowSize)                                         |
+| movingSum(seriesList, windowSize)                                         |
+| multiplySeries(*seriesLists)                                              |
+| multiplySeriesWithWildcards(seriesList, *position)                        |
+| nPercentile(seriesList, n)                                                |
+| nonNegativeDerivative(seriesList, maxValue=None)                          |
+| offset(seriesList, factor)                                                |
+| offsetToZero(seriesList)                                                  |
+| [pearson](https://en.wikipedia.org/wiki/Pearson_product-moment_correlation_coefficient)(series, series, n) |
+| pearsonClosest(series, seriesList, windowSize, direction="abs")           |
+| perSecond(seriesList, maxValue=None)                                      |
+| percentileOfSeries(seriesList, n, interpolate=False)                      |
+| [polyfit](https://en.wikipedia.org/wiki/Polynomial_regression)(seriesList, degree=1, offset='0d') |
+| pow(seriesList, factor)                                                   |
+| randomWalkFunction(name, step=60), Short Alias: randomWalk()              |
+| rangeOfSeries(*seriesLists)                                               |
+| reduceSeries(seriesLists, reduceFunction, reduceNode, *reduceMatchers)    |
+| reduce()                                                                  |
+| removeAbovePercentile(seriesList, n)                                      |
+| removeAboveValue(seriesList, n)                                           |
+| removeBelowPercentile(seriesList, n)                                      |
+| removeBelowValue(seriesList, n)                                           |
+| removeEmptySeries(seriesList)                                             |
+| removeZeroSeries(seriesList)                                              |
+| scale(seriesList, factor)                                                 |
+| scaleToSeconds(seriesList, seconds)                                       |
+| secondYAxis(seriesList)                                                   |
+| sortByMaxima(seriesList)                                                  |
+| sortByMinima(seriesList)                                                  |
+| sortByName(seriesList)                                                    |
+| sortByTotal(seriesList)                                                   |
+| squareRoot(seriesList)                                                    |
+| stacked(seriesLists, stackName='__DEFAULT__')                             |
+| stddevSeries(*seriesLists)                                                |
+| stdev(seriesList, points, windowTolerance=0.1)                            |
+| substr(seriesList, start=0, stop=0)                                       |
+| SUMSERIES(*SERIESLISTS), SHORT FORM: SUM()                                |
+| SUMSERIESWITHWILDCARDS(SERIESLIST, *POSITION)                             |
+| SUMMARIZE(SERIESLIST, INTERVALSTRING, FUNC='SUM', ALIGNTOFROM=FALSE)      |
+| THRESHOLD(VALUE, LABEL=NONE, COLOR=NONE)                                  |
+| TIMEFUNCTION(NAME, STEP=60), SHORT ALIAS: TIME()                          |
+| TIMESHIFT(SERIESLIST, TIMESHIFT, RESETEND=TRUE)                           |
+| TIMESTACK(SERIESLIST, TIMESHIFTUNIT, TIMESHIFTSTART, TIMESHIFTEND)        |
+| [TUKEYABOVE](HTTPS://EN.WIKIPEDIA.ORG/WIKI/TUKEY%27S_RANGE_TEST)(SERIESLIST, BASIS, N, INTERVAL=0) |
+| [TUKEYBELOW](HTTPS://EN.WIKIPEDIA.ORG/WIKI/TUKEY%27S_RANGE_TEST)(SERIESLIST, BASIS, N, INTERVAL=0) |
+| TRANSFORMNULL(SERIESLIST, DEFAULT=0)                                      |
