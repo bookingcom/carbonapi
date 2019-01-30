@@ -283,13 +283,13 @@ _When `format=png`_ (default if not specified)
 | stddevSeries(*seriesLists)                                                |
 | stdev(seriesList, points, windowTolerance=0.1)                            |
 | substr(seriesList, start=0, stop=0)                                       |
-| SUMSERIES(*SERIESLISTS), SHORT FORM: SUM()                                |
-| SUMSERIESWITHWILDCARDS(SERIESLIST, *POSITION)                             |
-| SUMMARIZE(SERIESLIST, INTERVALSTRING, FUNC='SUM', ALIGNTOFROM=FALSE)      |
-| THRESHOLD(VALUE, LABEL=NONE, COLOR=NONE)                                  |
-| TIMEFUNCTION(NAME, STEP=60), SHORT ALIAS: TIME()                          |
-| TIMESHIFT(SERIESLIST, TIMESHIFT, RESETEND=TRUE)                           |
-| TIMESTACK(SERIESLIST, TIMESHIFTUNIT, TIMESHIFTSTART, TIMESHIFTEND)        |
-| [TUKEYABOVE](HTTPS://EN.WIKIPEDIA.ORG/WIKI/TUKEY%27S_RANGE_TEST)(SERIESLIST, BASIS, N, INTERVAL=0) |
-| [TUKEYBELOW](HTTPS://EN.WIKIPEDIA.ORG/WIKI/TUKEY%27S_RANGE_TEST)(SERIESLIST, BASIS, N, INTERVAL=0) |
-| TRANSFORMNULL(SERIESLIST, DEFAULT=0)                                      |
+| sumSeries(*seriesLists), Short form: sum()                                |
+| sumSeriesWithWildcards(seriesList, *position)                             |
+| summarize(seriesList, intervalString, func='sum', alignToFrom=False)      |
+| threshold(value, label=None, color=None)                                  |
+| timeFunction(name, step=60), Short Alias: time()                          |
+| timeShift(seriesList, timeShift, resetEnd=True)                           |
+| timeStack(seriesList, timeShiftUnit, timeShiftStart, timeShiftEnd)        |
+| [tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
+| [tukeyBelow](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
+| transformNull(seriesList, default=0)                                      |
