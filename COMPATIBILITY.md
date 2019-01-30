@@ -160,7 +160,7 @@ _When `format=png`_ (default if not specified)
 - maxSeries
 - minSeries
 - multiplySeriesLists
-- pearsonClosest
+- pearson
 - pearsonClosest
 - polyfit
 - powSeriesLists
