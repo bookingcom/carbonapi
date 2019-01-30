@@ -1,21 +1,26 @@
 # CarbonAPI compatibility with Graphite
 
-Topics:
-* [Default settings](#default-settings)
-* [URI Parameters](#uri-params)
-* [Functions](#functions)
+- [CarbonAPI compatibility with Graphite](#carbonapi-compatibility-with-graphite)
+  - [Default Settings](#default-settings)
+    - [Default Line Colors](#default-line-colors)
+  - [URI Parameters](#uri-parameters)
+    - [/render/?...](#render)
+    - [/metrics/find/?](#metricsfind)
+  - [Functions diff compared to `graphite-web` v1.1.5](#functions-diff-compared-to-graphite-web-v115)
+    - [Functions *present in graphite-web but absent in carbonapi*](#functions-present-in-graphite-web-but-absent-in-carbonapi)
+    - [Functions *present in carbonapi but absent in graphite-web*](#functions-present-in-carbonapi-but-absent-in-graphite-web)
+  - [Function short docs](#function-short-docs)
 
-<a name="default-settings"></a>
 ## Default Settings
 
 ### Default Line Colors
+
 Default colors for png or svg rendering intentionally specified like it is in graphite-web 1.1.0
 
 You can redefine that in config to be more more precise. In default config example they are defined in the same way as in [original graphite PR to make them right](https://github.com/graphite-project/graphite-web/pull/2239)
 
 Reason behind that change is that on dark background it's much nicer to read old colors than new one
 
-<a name="uri-params"></a>
 ## URI Parameters
 
 ### /render/?...
@@ -100,163 +105,191 @@ _When `format=png`_ (default if not specified)
 * `jsonp` : ...
 * `query` : the metric or glob-pattern to find
 
----
 
-<a name="functions"></a>
-## Functions
+## Functions diff compared to `graphite-web` v1.1.5
 
-**Note:** _Version_ listed in the table below represents the earliest graphite version where the function appeared with the current signature. In **most** cases this was when the function was introduced.
+### Functions *present in graphite-web but absent in carbonapi*
 
-Missing function: "applyByNode", "aliasQuery", "filterSeries", "unique", "integralByInterval", "xFilesFactor", "lowest"
+- aggregate
+- aggregateLine
+- aggregateWithWildcards
+- aliasByTags
+- aliasQuery
+- averageOutsidePercentile
+- events
+- exponentialMovingAverage
+- filterSeries
+- groupByTags
+- highest
+- holtWintersConfidenceArea
+- identity
+- integralByInterval
+- interpolate
+- lowest
+- minMax
+- movingWindow
+- pct
+- powSeries
+- removeBetweenPercentile
+- round
+- seriesByTag
+- setXFilesFactor
+- sin
+- sinFunction
+- smartSummarize
+- sortBy
+- timeSlice
+- unique
+- useSeriesAbove
+- verticalLine
+- weightedAverage
+- xFilesFactor
 
-Graphite Function                                                         | Version | Carbon API
-:------------------------------------------------------------------------ | :------ | :---------
-absolute(seriesList)                                                      |  0.9.10 | Supported
-aggregate                                                                 |  1.1.0  |
-aggregateLine(seriesList, func='avg')                                     |  1.0.0  |
-aggregateWithWildcards                                                    |  1.1.0  |
-alias(seriesList, newName)                                                |  0.9.9  | Supported
-aliasByMetric(seriesList)                                                 |  0.9.10 | Supported
-aliasByNode(seriesList, *nodes)                                           |  0.9.14 | Supported
-aliasByTags                                                               |  1.1.0  |
-aliasSub(seriesList, search, replace)                                     |  0.9.10 | Supported
-alpha(seriesList, alpha)                                                  |  0.9.10 | Supported
-applyByNode(seriesList, nodeNum, templateFunction, newName=None)          |  1.0.0  | Supported
-areaBetween(seriesList)                                                   |  0.9.14 | Supported
-asPercent(seriesList, total=None, *nodes)                                 |  1.1.1  | Supported
-averageAbove(seriesList, n)                                               |  0.9.9  | Supported
-averageBelow(seriesList, n)                                               |  0.9.9  | Supported
-averageOutsidePercentile(seriesList, n)                                   |  1.0.0  |
-averageSeries(*seriesLists), Short Alias: avg()                           |  0.9.9  | Supported
-averageSeriesWithWildcards(seriesList, *position)                         |  0.9.10 | Supported
-cactiStyle(seriesList, system=None)                                       |  latest | Supported
-changed(seriesList)                                                       |  0.9.14 | Supported
-color(seriesList, theColor)                                               |  0.9.9  | Supported
-consolidateBy(seriesList, consolidationFunc)                              |  0.9.14 | Supported
-constantLine(value)                                                       |  0.9.9  | Supported
-countSeries(*seriesLists)                                                 |  0.9.14 | Supported
-cumulative(seriesList)                                                    |  0.9.14 | Supported
-currentAbove(seriesList, n)                                               |  0.9.9  | Supported
-currentBelow(seriesList, n)                                               |  0.9.9  | Supported
-dashed(*seriesList)                                                       |  0.9.9  | Supported
-delay(seriesList, steps)                                                  |  1.0.0  | Supported
-derivative(seriesList)                                                    |  0.9.9  | Supported
-diffSeries(*seriesLists)                                                  |  0.9.9  | Supported
-divideSeries(dividendSeriesList, divisorSeries)                           |  0.9.14 | Supported
-divideSeriesLists(dividendSeriesList, divisorSeriesList)                  |  1.0.2  | Supported
-diffSeriesLists(leftSeriesList, rightSeriesList)                          |  not in graphite  | Experimental
-multiplySeriesLists(leftSeriesList, rightSeriesList)                      |  not in graphite  | Experimental
-drawAsInfinite(seriesList)                                                |  0.9.9  | Supported
-events(*tags)                                                             |  0.9.9  |
-exclude(seriesList, pattern)                                              |  0.9.9  | Supported
-exponentialMovingAverage(seriesList, windowSize)                          |  1.0.0  |
-exponentialWeightedMovingAverage(seriesList, alpha)                       | not in graphite | Experimental
-ewma(seriesList, alpha)                                                   | - - -   | Short form of exponentialWeightedMovingAverage
-fallbackSeries( seriesList, fallback )                                    |  1.0.0  |
-[fft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList)                                       |  not in graphite | Experimental
-grep(seriesList, pattern)                                                 |  1.0.0  | Supported
-group(*seriesLists)                                                       |  0.9.10 | Supported
-groupByNode(seriesList, nodeNum, callback)                                |  0.9.9  | Supported
-groupByNodes(seriesList, callback, *nodes)                                |  1.0.0  | Supported
-groupByTags                                                               |  1.1.0  |
-highest                                                                   |  1.1.0  |
-highestAverage(seriesList, n)                                             |  0.9.9  | Supported
-highestCurrent(seriesList, n)                                             |  0.9.9  | Supported
-highestMax(seriesList, n)                                                 |  0.9.9  | Supported
-hitcount(seriesList, intervalString, alignToInterval=False)               |  0.9.10 | Supported
-holtWintersAberration(seriesList, delta=3)                                |  0.9.10 | Supported
-holtWintersConfidenceArea(seriesList, delta=3)                            |  0.9.10 | [#66](https://github.com/go-graphite/carbonapi/issues/66)
-holtWintersConfidenceBands(seriesList, delta=3)                           |  0.9.10 | Supported
-holtWintersForecast(seriesList)                                           |  0.9.10 | Supported
-identity(name)                                                            |  0.9.14 |
-[ifft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList)                                      |  not in graphite | Experimental
-integral(seriesList)                                                      |  0.9.9  | Supported
-integralByInterval(seriesList, intervalUnit)                              |  1.0.0  |
-interpolate(seriesList, limit=inf)                                        |  1.0.0  |
-invert(seriesList)                                                        |  1.0.0  | Supported
-isNonNull(seriesList)                                                     |  1.0.0  | Supported (also isNotNull alias)
-keepLastValue(seriesList, limit=inf)                                      |  0.9.14 | Supported
-[kolmogorovSmirnovTest2](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test)(series, series, windowSize) alias ksTest2()        |  not in graphite | Experimental
-legendValue(seriesList, *valueTypes)                                      |  0.9.10 | Supported
-limit(seriesList, n)                                                      |  0.9.9  | Supported
-lineWidth(seriesList, width)                                              |  0.9.9  | Supported
-linearRegression(seriesList, startSourceAt=None, endSourceAt=None)        |  1.0.0 | Supported (based on polyfit)
-linearRegressionAnalysis(series)                                          |  1.0.0 |
-logarithm(seriesList, base=10), alias log()                               |  0.9.10 | Supported
-lowestAverage(seriesList, n)                                              |  0.9.9  | Supported
-lowestCurrent(seriesList, n)                                              |  0.9.9  | Supported
-[lowPass](https://en.wikipedia.org/wiki/Low-pass_filter)(seriesList, cutPercent)                                           |  not in graphite | Experimental
-mapSeries(seriesList, mapNode), Short form: map()                         |  1.0.0  | Supported
-maxSeries(*seriesLists)                                                   |  0.9.9  | Supported
-maximumAbove(seriesList, n)                                               |  0.9.9  | Supported
-maximumBelow(seriesList, n)                                               |  0.9.9  | Supported
-minSeries(*seriesLists)                                                   |  0.9.9  | Supported
-minMax                                                                    |  1.1.0  |
-minimumAbove(seriesList, n)                                               |  0.9.10 | Supported
-minimumBelow(seriesList, n)                                               |  0.9.14 | Supported
-mostDeviant(seriesList, n)                                                |  0.9.9  | Supported
-movingAverage(seriesList, windowSize)                                     |  0.9.14 | Supported
-movingMax(seriesList, windowSize)                                         |  1.0.0  | Supported
-movingMedian(seriesList, windowSize)                                      |  0.9.14 | Supported
-movingMin(seriesList, windowSize)                                         |  1.0.0  | Supported
-movingSum(seriesList, windowSize)                                         |  1.0.0  | Supported
-movingWindow                                                              |  1.1.0  |
-multiplySeries(*seriesLists)                                              |  0.9.10 | Supported
-multiplySeriesWithWildcards(seriesList, *position)                        |  1.0.0  | Supported
-nPercentile(seriesList, n)                                                |  0.9.9  | Supported
-nonNegativeDerivative(seriesList, maxValue=None)                          |  0.9.9  | Supported
-offset(seriesList, factor)                                                |  0.9.9  | Supported
-offsetToZero(seriesList)                                                  |  1.0.0  | Supported
-pct                                                                       |  1.1.0  |
-[pearson](https://en.wikipedia.org/wiki/Pearson_product-moment_correlation_coefficient)(series, series, n)                                                |  not in graphite | Experimental
-pearsonClosest(series, seriesList, windowSize, direction="abs")           |  not in graphite | Experimental
-perSecond(seriesList, maxValue=None)                                      |  0.9.14 | Supported
-percentileOfSeries(seriesList, n, interpolate=False)                      |  0.9.10 | Supported
-[polyfit](https://en.wikipedia.org/wiki/Polynomial_regression)(seriesList, degree=1, offset='0d')                                |  not in graphite | Experimental
-pow(seriesList, factor)                                                   |  0.9.14 | Supported
-powSeries(*seriesLists)                                                   |  1.0.0  |
-randomWalkFunction(name, step=60), Short Alias: randomWalk()              |  0.9.9  | Supported
-rangeOfSeries(*seriesLists)                                               |  0.9.10 | Supported
-reduceSeries(seriesLists, reduceFunction, reduceNode, *reduceMatchers)    |  0.9.14 | Supported
-reduce()                                                                  |  - - -  | Short form of reduceSeries()
-removeAbovePercentile(seriesList, n)                                      |  0.9.10 | Supported
-removeAboveValue(seriesList, n)                                           |  0.9.10 | Supported
-removeBelowPercentile(seriesList, n)                                      |  0.9.10 | Supported
-removeBelowValue(seriesList, n)                                           |  0.9.10 | Supported
-removeBetweenPercentile(seriesList, n)                                    |  1.0.0  |
-removeEmptySeries(seriesList)                                             |  1.0.0  | Supported
-removeZeroSeries(seriesList)                                              |  0.9.14 | Supported
-round                                                                     |  1.1.0  |
-scale(seriesList, factor)                                                 |  0.9.9  | Supported
-scaleToSeconds(seriesList, seconds)                                       |  0.9.10 | Supported
-secondYAxis(seriesList)                                                   |  0.9.10 | Supported
-seriesByTag                                                               |  1.1.0  |
-setXFilesFactor                                                           |  1.1.0  |
-sinFunction(name, amplitude=1, step=60), Short Alias: sin()               |  0.9.9  |
-smartSummarize(seriesList, intervalString, func='sum', alignToFrom=False) |  0.9.10 |
-sortBy                                                                    |  1.1.0  |
-sortByMaxima(seriesList)                                                  |  0.9.9  | Supported
-sortByMinima(seriesList)                                                  |  0.9.9  | Supported
-sortByName(seriesList)                                                    |  0.9.15 | Supported
-sortByTotal(seriesList)                                                   |  0.9.11 | Supported
-squareRoot(seriesList)                                                    |  1.0.0  | Supported
-stacked(seriesLists, stackName='__DEFAULT__')                             |  0.9.10 | [#74](https://github.com/go-graphite/carbonapi/issues/74)
-stddevSeries(*seriesLists)                                                |  0.9.14 | Supported
-stdev(seriesList, points, windowTolerance=0.1)                            |  0.9.10 | Supported + alias stddev()
-substr(seriesList, start=0, stop=0)                                       |  0.9.9  | Supported
-sumSeries(*seriesLists), Short form: sum()                                |  0.9.9  | Supported
-sumSeriesWithWildcards(seriesList, *position)                             |  0.9.10 | Supported
-summarize(seriesList, intervalString, func='sum', alignToFrom=False)      |  0.9.9  | Supported
-threshold(value, label=None, color=None)                                  |  0.9.9  | Supported
-timeFunction(name, step=60), Short Alias: time()                          |  0.9.9  | Supported
-timeShift(seriesList, timeShift, resetEnd=True)                           |  0.9.11 | Supported
-timeSlice(seriesList, startSliceAt, endSliceAt='now')                     |  1.0.0  |
-timeStack(seriesList, timeShiftUnit, timeShiftStart, timeShiftEnd)        |  0.9.14 | Supported
-[tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0)                              |  not in graphite | Experimental
-[tukeyBelow](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0)                              |  not in graphite | Experimental
-transformNull(seriesList, default=0)                                      |  0.9.10 | Supported
-useSeriesAbove(seriesList, value, search, replace)                        |  0.9.10 |
-verticalLine(ts, label=None, color=None)                                  |  1.0.0  |
-weightedAverage(seriesListAvg, seriesListWeight, node)                    |  1.0.0  |
+### Functions *present in carbonapi but absent in graphite-web*
 
------
+- diffSeriesLists
+- ewma
+- exponentialWeightedMovingAverage
+- fft
+- ifft
+- isNotNull
+- kolmogorovSmirnovTest2
+- ksTest2
+- log
+- lowPass
+- lpf
+- maxSeries
+- minSeries
+- multiplySeriesLists
+- pearson
+- pearsonClosest
+- polyfit
+- powSeriesLists
+- removeZeroSeries
+- stdev
+- tukeyAbove
+- tukeyBelow
+
+## Function short docs
+
+| Graphite Function                                                         |
+| :------------------------------------------------------------------------ |
+| absolute(seriesList)                                                      |
+| alias(seriesList, newName)                                                |
+| aliasByMetric(seriesList)                                                 |
+| aliasByNode(seriesList, *nodes)                                           |
+| aliasSub(seriesList, search, replace)                                     |
+| alpha(seriesList, alpha)                                                  |
+| applyByNode(seriesList, nodeNum, templateFunction, newName=None)          |
+| areaBetween(seriesList)                                                   |
+| asPercent(seriesList, total=None, *nodes)                                 |
+| averageAbove(seriesList, n)                                               |
+| averageBelow(seriesList, n)                                               |
+| averageSeries(*seriesLists), Short Alias: avg()                           |
+| averageSeriesWithWildcards(seriesList, *position)                         |
+| cactiStyle(seriesList, system=None)                                       |
+| changed(seriesList)                                                       |
+| color(seriesList, theColor)                                               |
+| consolidateBy(seriesList, consolidationFunc)                              |
+| constantLine(value)                                                       |
+| countSeries(*seriesLists)                                                 |
+| cumulative(seriesList)                                                    |
+| currentAbove(seriesList, n)                                               |
+| currentBelow(seriesList, n)                                               |
+| dashed(*seriesList)                                                       |
+| delay(seriesList, steps)                                                  |
+| derivative(seriesList)                                                    |
+| diffSeries(*seriesLists)                                                  |
+| divideSeries(dividendSeriesList, divisorSeries)                           |
+| divideSeriesLists(dividendSeriesList, divisorSeriesList)                  |
+| diffSeriesLists(leftSeriesList, rightSeriesList)                          |
+| multiplySeriesLists(leftSeriesList, rightSeriesList)                      |
+| drawAsInfinite(seriesList)                                                |
+| exclude(seriesList, pattern)                                              |
+| exponentialWeightedMovingAverage(seriesList, alpha)                       |
+| ewma(seriesList, alpha)                                                   |
+| fallbackSeries( seriesList, fallback )                                    |
+| [fft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList) |
+| grep(seriesList, pattern)                                                 |
+| group(*seriesLists)                                                       |
+| groupByNode(seriesList, nodeNum, callback)                                |
+| groupByNodes(seriesList, callback, *nodes)                                |
+| highestAverage(seriesList, n)                                             |
+| highestCurrent(seriesList, n)                                             |
+| highestMax(seriesList, n)                                                 |
+| hitcount(seriesList, intervalString, alignToInterval=False)               |
+| holtWintersAberration(seriesList, delta=3)                                |
+| holtWintersConfidenceArea(seriesList, delta=3)                            |
+| holtWintersConfidenceBands(seriesList, delta=3)                           |
+| holtWintersForecast(seriesList)                                           |
+| [ifft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList) |
+| integral(seriesList)                                                      |
+| invert(seriesList)                                                        |
+| isNonNull(seriesList)                                                     |
+| keepLastValue(seriesList, limit=inf)                                      |
+| [kolmogorovSmirnovTest2](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test)(series, series, windowSize) alias ksTest2()   |
+| legendValue(seriesList, *valueTypes)                                      |
+| limit(seriesList, n)                                                      |
+| lineWidth(seriesList, width)                                              |
+| linearRegression(seriesList, startSourceAt=None, endSourceAt=None)        |
+| logarithm(seriesList, base=10), alias log()                               |
+| lowestAverage(seriesList, n)                                              |
+| lowestCurrent(seriesList, n)                                              |
+| [lowPass](https://en.wikipedia.org/wiki/Low-pass_filter)(seriesList, cutPercent) |
+| mapSeries(seriesList, mapNode), Short form: map()                         |
+| maxSeries(*seriesLists)                                                   |
+| maximumAbove(seriesList, n)                                               |
+| maximumBelow(seriesList, n)                                               |
+| minSeries(*seriesLists)                                                   |
+| minimumAbove(seriesList, n)                                               |
+| minimumBelow(seriesList, n)                                               |
+| mostDeviant(seriesList, n)                                                |
+| movingAverage(seriesList, windowSize)                                     |
+| movingMax(seriesList, windowSize)                                         |
+| movingMedian(seriesList, windowSize)                                      |
+| movingMin(seriesList, windowSize)                                         |
+| movingSum(seriesList, windowSize)                                         |
+| multiplySeries(*seriesLists)                                              |
+| multiplySeriesWithWildcards(seriesList, *position)                        |
+| nPercentile(seriesList, n)                                                |
+| nonNegativeDerivative(seriesList, maxValue=None)                          |
+| offset(seriesList, factor)                                                |
+| offsetToZero(seriesList)                                                  |
+| [pearson](https://en.wikipedia.org/wiki/Pearson_product-moment_correlation_coefficient)(series, series, n) |
+| pearsonClosest(series, seriesList, windowSize, direction="abs")           |
+| perSecond(seriesList, maxValue=None)                                      |
+| percentileOfSeries(seriesList, n, interpolate=False)                      |
+| [polyfit](https://en.wikipedia.org/wiki/Polynomial_regression)(seriesList, degree=1, offset='0d') |
+| pow(seriesList, factor)                                                   |
+| randomWalkFunction(name, step=60), Short Alias: randomWalk()              |
+| rangeOfSeries(*seriesLists)                                               |
+| reduceSeries(seriesLists, reduceFunction, reduceNode, *reduceMatchers)    |
+| reduce()                                                                  |
+| removeAbovePercentile(seriesList, n)                                      |
+| removeAboveValue(seriesList, n)                                           |
+| removeBelowPercentile(seriesList, n)                                      |
+| removeBelowValue(seriesList, n)                                           |
+| removeEmptySeries(seriesList)                                             |
+| removeZeroSeries(seriesList)                                              |
+| scale(seriesList, factor)                                                 |
+| scaleToSeconds(seriesList, seconds)                                       |
+| secondYAxis(seriesList)                                                   |
+| sortByMaxima(seriesList)                                                  |
+| sortByMinima(seriesList)                                                  |
+| sortByName(seriesList)                                                    |
+| sortByTotal(seriesList)                                                   |
+| squareRoot(seriesList)                                                    |
+| stacked(seriesLists, stackName='__DEFAULT__')                             |
+| stddevSeries(*seriesLists)                                                |
+| stdev(seriesList, points, windowTolerance=0.1)                            |
+| substr(seriesList, start=0, stop=0)                                       |
+| sumSeries(*seriesLists), Short form: sum()                                |
+| sumSeriesWithWildcards(seriesList, *position)                             |
+| summarize(seriesList, intervalString, func='sum', alignToFrom=False)      |
+| threshold(value, label=None, color=None)                                  |
+| timeFunction(name, step=60), Short Alias: time()                          |
+| timeShift(seriesList, timeShift, resetEnd=True)                           |
+| timeStack(seriesList, timeShiftUnit, timeShiftStart, timeShiftEnd)        |
+| [tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
+| [tukeyBelow](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
+| transformNull(seriesList, default=0)                                      |
