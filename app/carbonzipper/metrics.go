@@ -73,7 +73,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		Responses: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "http_response_total",
+				Name: "http_responses_total",
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
