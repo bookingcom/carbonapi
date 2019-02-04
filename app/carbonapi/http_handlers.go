@@ -47,9 +47,13 @@ const (
 )
 
 // for testing
+// TODO (grzkv): Clean up
 var timeNow = time.Now
 
+// Rule is a request blocking rule
 type Rule map[string]string
+
+// RuleConfig represents the request blocking rules
 type RuleConfig struct {
 	Rules []Rule
 }
@@ -146,6 +150,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
+	// TODO (grzkv): Move form management to a separate function
 	err := r.ParseForm()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
@@ -297,9 +302,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					metrics, err := backend.Renders(ctx, bs, request)
 
 					// time in queue is converted to ms
-					app.prometheusMetrics.TimeInQueue.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-
-					// TODO(gmagnusson): Account for request stats
+					app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+					app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 					metricData := make([]*types.MetricData, 0)
 					for i := range metrics {
