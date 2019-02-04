@@ -9,11 +9,12 @@ import (
 
 // PrometheusMetrics are metrix exported via /metrics endpoint for Prom scraping
 type PrometheusMetrics struct {
-	Requests     prometheus.Counter
-	Responses    *prometheus.CounterVec
-	DurationsExp prometheus.Histogram
-	DurationsLin prometheus.Histogram
-	TimeInQueue  prometheus.Histogram
+	Requests       prometheus.Counter
+	Responses      *prometheus.CounterVec
+	DurationsExp   prometheus.Histogram
+	DurationsLin   prometheus.Histogram
+	TimeInQueueExp prometheus.Histogram
+	TimeInQueueLin prometheus.Histogram
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -51,7 +52,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.RequestDurationLin.BucketsNum),
 			},
 		),
-		TimeInQueue: prometheus.NewHistogram(
+		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "time_in_queue_ms_exp",
 				Help: "Time a request to backend spends in queue (exponential), in ms",
@@ -61,10 +62,21 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.TimeInQueueExpHistogram.BucketsNum),
 			},
 		),
+		TimeInQueueLin: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "time_in_queue_ms_lin",
+				Help: "Time a request to backend spends in queue (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.Start,
+					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketSize,
+					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketsNum),
+			},
+		),
 	}
 }
 
 // TODO (grzkv): Remove from global scope
+// TODO (grzkv): Consider substituting this with Prometheus
 var apiMetrics = struct {
 	// Total counts across all request types
 	Requests  *expvar.Int

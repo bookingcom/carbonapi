@@ -61,9 +61,14 @@ func DefaultCommonConfig() Common {
 		Logger: []zapwriter.Config{GetDefaultLoggerConfig()},
 		Monitoring: MonitoringConfig{
 			TimeInQueueExpHistogram: HistogramConfig{
-				Start:      0.05,
+				Start:      0.01,
 				BucketsNum: 25,
 				BucketSize: 2,
+			},
+			TimeInQueueLinHistogram: HistogramConfig{
+				Start:      0.0,
+				BucketsNum: 25,
+				BucketSize: 0.02,
 			},
 			RequestDurationExp: HistogramConfig{
 				Start:      0.05,
@@ -119,6 +124,7 @@ type MonitoringConfig struct {
 	RequestDurationExp      HistogramConfig `yaml:"requestDurationExpHistogram"`
 	RequestDurationLin      HistogramConfig `yaml:"requestDurationLinHistogram"`
 	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
+	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
 
 // HistogramConfig is histogram config for Prometheus metrics

@@ -6,6 +6,8 @@ The definitions correspond to the types of responses to the /render, /info, and
 */
 package types
 
+// TODO (grzkv): Name of this module makes 0 sense
+
 import (
 	"sort"
 	"sync/atomic"
@@ -41,6 +43,8 @@ func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
 	corruptionThreshold = threshold
 	corruptionLogger = logger
 }
+
+// TODO (grzkv): Move to separate file
 
 type FindRequest struct {
 	Query string
