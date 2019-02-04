@@ -33,6 +33,10 @@ monitoring:
         start: 0.3
         bucketsNum: 30
         bucketSize: 3
+    timeInQueueLinHistogram:
+        start: 0.0
+        bucketsNum: 33
+        bucketSize: 0.3
     requestDurationExpHistogram:
         start: 0.05
         bucketsNum: 30
@@ -82,6 +86,11 @@ monitoring:
 				Start:      0.3,
 				BucketsNum: 30,
 				BucketSize: 3,
+			},
+			TimeInQueueLinHistogram: HistogramConfig{
+				Start:      0.0,
+				BucketsNum: 33,
+				BucketSize: 0.3,
 			},
 			RequestDurationExp: HistogramConfig{
 				Start:      0.05,

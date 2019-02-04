@@ -55,11 +55,12 @@ var Metrics = struct {
 
 // PrometheusMetrics keeps all the metrics exposed on /metrics endpoint
 type PrometheusMetrics struct {
-	Requests     prometheus.Counter
-	Responses    *prometheus.CounterVec
-	DurationsExp prometheus.Histogram
-	DurationsLin prometheus.Histogram
-	TimeInQueue  prometheus.Histogram
+	Requests       prometheus.Counter
+	Responses      *prometheus.CounterVec
+	DurationsExp   prometheus.Histogram
+	DurationsLin   prometheus.Histogram
+	TimeInQueueExp prometheus.Histogram
+	TimeInQueueLin prometheus.Histogram
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -98,7 +99,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.RequestDurationLin.BucketsNum),
 			},
 		),
-		TimeInQueue: prometheus.NewHistogram(
+		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "time_in_queue_ms_exp",
 				Help: "Time a request spends in queue (exponential), ms",
@@ -106,6 +107,16 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.TimeInQueueExpHistogram.Start,
 					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
 					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
+			},
+		),
+		TimeInQueueLin: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "time_in_queue_ms_lin",
+				Help: "Time a request spends in queue (linear), ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Monitoring.TimeInQueueLinHistogram.Start,
+					config.Monitoring.TimeInQueueLinHistogram.BucketSize,
+					config.Monitoring.TimeInQueueLinHistogram.BucketsNum),
 			},
 		),
 	}
