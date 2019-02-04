@@ -298,6 +298,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
 					request := dataTypes.NewRenderRequest([]string{path}, from, until)
+					// TODO (grzkv): Do we need backend filtering for carbonapi?
 					bs := backend.Filter(app.backends, request.Targets)
 					metrics, err := backend.Renders(ctx, bs, request)
 
