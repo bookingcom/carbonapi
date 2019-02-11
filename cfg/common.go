@@ -34,6 +34,7 @@ func ParseCommon(r io.Reader) (Common, error) {
 	return c, err
 }
 
+// DefaultCommonConfig gives the default config shared by carbonapi and zipper
 func DefaultCommonConfig() Common {
 	return Common{
 		Listen:         ":8080",
@@ -66,7 +67,7 @@ func DefaultCommonConfig() Common {
 				BucketSize: 2,
 			},
 			TimeInQueueLinHistogram: HistogramConfig{
-				Start:      0.0,
+				Start:      0.05,
 				BucketsNum: 25,
 				BucketSize: 0.02,
 			},
@@ -76,9 +77,19 @@ func DefaultCommonConfig() Common {
 				BucketsNum: 20,
 			},
 			RequestDurationLin: HistogramConfig{
-				Start:      0.0,
+				Start:      0.05,
 				BucketSize: 0.05,
 				BucketsNum: 40,
+			},
+			RenderDurationExp: HistogramConfig{
+				Start:      0.05,
+				BucketSize: 2,
+				BucketsNum: 20,
+			},
+			FindDurationExp: HistogramConfig{
+				Start:      0.05,
+				BucketSize: 2,
+				BucketsNum: 20,
 			},
 		},
 	}
@@ -123,6 +134,8 @@ type Common struct {
 type MonitoringConfig struct {
 	RequestDurationExp      HistogramConfig `yaml:"requestDurationExpHistogram"`
 	RequestDurationLin      HistogramConfig `yaml:"requestDurationLinHistogram"`
+	RenderDurationExp       HistogramConfig `yaml:"renderDurationExpHistogram"`
+	FindDurationExp         HistogramConfig `yaml:"findDurationExpHistogram"`
 	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
 	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
