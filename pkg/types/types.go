@@ -25,12 +25,15 @@ var (
 	ErrInfoNotFound    = ErrNotFound("No information found")
 )
 
+// ErrNotFound signals the HTTP not found error
 type ErrNotFound string
 
+// Error makes ErrNotFound compliant with the error interface
 func (err ErrNotFound) Error() string {
 	return string(err)
 }
 
+// ErrTimeout signifies the HTTP timeout error
 type ErrTimeout struct {
 	Err error
 }
@@ -314,6 +317,7 @@ type Matches struct {
 	Matches []Match
 }
 
+// Match describes a single glob match
 type Match struct {
 	Path   string
 	IsLeaf bool
