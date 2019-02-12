@@ -332,6 +332,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
+			// TODO (grzkv): This is wrong
 			return nil, types.ErrTimeout{Err: ctx.Err()}
 		}
 
@@ -459,6 +460,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
+			// TODO (grzkv): This is wrong
 			return types.Matches{}, types.ErrTimeout{Err: ctx.Err()}
 		}
 

@@ -189,8 +189,10 @@ func (app *App) Start() {
 	go func() {
 		prometheus.MustRegister(app.prometheusMetrics.Requests)
 		prometheus.MustRegister(app.prometheusMetrics.Responses)
-		prometheus.MustRegister(app.prometheusMetrics.DurationsExp)
-		prometheus.MustRegister(app.prometheusMetrics.DurationsLin)
+		prometheus.MustRegister(app.prometheusMetrics.DurationExp)
+		prometheus.MustRegister(app.prometheusMetrics.DurationLin)
+		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
+		prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
 		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
 		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
 
@@ -248,8 +250,15 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
 	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
 
-	app.prometheusMetrics.DurationsExp.Observe(t.Seconds())
-	app.prometheusMetrics.DurationsLin.Observe(t.Seconds())
+	app.prometheusMetrics.DurationExp.Observe(t.Seconds())
+	app.prometheusMetrics.DurationLin.Observe(t.Seconds())
+
+	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
+		app.prometheusMetrics.RenderDurationExp.Observe(t.Seconds())
+	}
+	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
+		app.prometheusMetrics.FindDurationExp.Observe(t.Seconds())
+	}
 }
 
 func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, error) {

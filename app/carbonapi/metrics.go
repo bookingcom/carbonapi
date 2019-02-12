@@ -9,12 +9,14 @@ import (
 
 // PrometheusMetrics are metrix exported via /metrics endpoint for Prom scraping
 type PrometheusMetrics struct {
-	Requests       prometheus.Counter
-	Responses      *prometheus.CounterVec
-	DurationsExp   prometheus.Histogram
-	DurationsLin   prometheus.Histogram
-	TimeInQueueExp prometheus.Histogram
-	TimeInQueueLin prometheus.Histogram
+	Requests          prometheus.Counter
+	Responses         *prometheus.CounterVec
+	DurationExp       prometheus.Histogram
+	DurationLin       prometheus.Histogram
+	RenderDurationExp prometheus.Histogram
+	FindDurationExp   prometheus.Histogram
+	TimeInQueueExp    prometheus.Histogram
+	TimeInQueueLin    prometheus.Histogram
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -32,7 +34,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 			},
 			[]string{"code", "handler", "from_cache"},
 		),
-		DurationsExp: prometheus.NewHistogram(
+		DurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "http_request_duration_seconds_exp",
 				Help: "The duration of HTTP requests (exponential)",
@@ -42,7 +44,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.RequestDurationExp.BucketsNum),
 			},
 		),
-		DurationsLin: prometheus.NewHistogram(
+		DurationLin: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "http_request_duration_seconds_lin",
 				Help: "The duration of HTTP requests (linear)",
@@ -50,6 +52,26 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.RequestDurationLin.Start,
 					config.Zipper.Common.Monitoring.RequestDurationLin.BucketSize,
 					config.Zipper.Common.Monitoring.RequestDurationLin.BucketsNum),
+			},
+		),
+		RenderDurationExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "render_request_duration_seconds_exp",
+				Help: "The duration of render requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
+			},
+		),
+		FindDurationExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "find_request_duration_seconds_exp",
+				Help: "The duration of find requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Zipper.Common.Monitoring.FindDurationExp.Start,
+					config.Zipper.Common.Monitoring.FindDurationExp.BucketSize,
+					config.Zipper.Common.Monitoring.FindDurationExp.BucketsNum),
 			},
 		),
 		TimeInQueueExp: prometheus.NewHistogram(
