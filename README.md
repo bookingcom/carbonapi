@@ -50,6 +50,10 @@ At the moment, we only guarantee that Carbonapi can talk to the
 [go-carbon](https://github.com/go-graphite/go-carbon)
 Graphite store. We are interested in supporting other stores.
 
+### Cairo support
+
+The current supported `cairo` version is `v1.14.6`.
+
 
 ## OSX Build Notes
 
