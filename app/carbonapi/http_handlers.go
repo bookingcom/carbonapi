@@ -600,8 +600,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// request that finds nothing. We are however interested in knowing
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
-			apiMetrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+			// TODO (grzkv) This creates confusion: people see 404 in metrics, when
+			// in reality it does not exist. We need to find an alternative way to mark this.
+			apiMetrics.Errors.Add(1) // TODO (grzkv): Not sure if this is really an error
+			// app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
 		} else {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
@@ -612,7 +614,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, msg, code)
 			apiMetrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
 			return
 		}
 	}
@@ -804,7 +805,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
-	accessLogDetails.HttpCode = http.StatusOK
 }
 
 func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -814,7 +814,7 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "lbcheck", "false").Inc()
 	}()
 
 	w.Write([]byte("Ok\n"))
@@ -831,7 +831,7 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues("200", "version").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "version", "false").Inc()
 	}()
 	// Use a specific version of graphite for grafana
 	// This handler is queried by grafana, and if needed, an override can be provided
@@ -995,6 +995,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	failResponse := []byte(`{"success":"false"}`)
 	if app.config.BlockHeaderFile == "" {
 		w.WriteHeader(http.StatusBadRequest)
+		accessLogDetails.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
 		return
 	}
@@ -1013,6 +1014,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	if len(m) == 0 || err1 != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		accessLogDetails.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
 		return
 	}
@@ -1056,6 +1058,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	err := os.Remove(app.config.BlockHeaderFile)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		accessLogDetails.HttpCode = http.StatusBadRequest
 		w.Write([]byte(`{"success":"false"}`))
 		return
 	}
@@ -1094,7 +1097,7 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "usage", "false").Inc()
 	}()
 
 	w.Write(usageMsg)
@@ -1108,7 +1111,7 @@ func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues("200", "usage").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "tags", "false").Inc()
 	}()
 }
 
@@ -1117,7 +1120,7 @@ func (app *App) debugVersionHandler(w http.ResponseWriter, r *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues("200", "debugversion").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "debugversion", "false").Inc()
 	}()
 
 	fmt.Fprintf(w, "GIT_TAG: %s\n", BuildVersion)

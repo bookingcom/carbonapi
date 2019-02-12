@@ -30,7 +30,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Name: "http_responses_total",
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
-			[]string{"code", "handler"},
+			[]string{"code", "handler", "from_cache"},
 		),
 		DurationsExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
