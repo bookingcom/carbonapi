@@ -76,7 +76,9 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
 			Metrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+			// (grzkv): This is 200 in reality, add different empty response tracking in the future
+			// app.prometheusMetrics.Responses.WithLabelValues("404", "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 		} else {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
@@ -87,7 +89,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			)
 			http.Error(w, msg, code)
 			Metrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "find").Inc()
+			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 			return
 		}
 	}
@@ -131,7 +133,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "find").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
 		return
 	}
 
@@ -144,7 +146,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues("200", "find").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
@@ -186,7 +188,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -208,7 +210,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -223,7 +225,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -236,7 +238,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -265,7 +267,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", code), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
 		return
 	}
 
@@ -296,7 +298,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "render").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
 		return
 	}
 
@@ -311,7 +313,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues("200", "render").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
@@ -349,7 +351,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -369,7 +371,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusBadRequest), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -384,7 +386,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -410,7 +412,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", http.StatusInternalServerError), "info").Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -423,7 +425,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues("200", "info").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 }
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -447,5 +449,5 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues("200", "lbcheck").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "lbcheck").Inc()
 }

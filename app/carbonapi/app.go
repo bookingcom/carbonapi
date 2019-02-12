@@ -425,7 +425,10 @@ func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbona
 	}
 
 	if app != nil {
-		app.prometheusMetrics.Responses.WithLabelValues(fmt.Sprintf("%d", accessLogDetails.HttpCode), accessLogDetails.Handler).Inc()
+		app.prometheusMetrics.Responses.WithLabelValues(
+			fmt.Sprintf("%d", accessLogDetails.HttpCode),
+			accessLogDetails.Handler,
+			fmt.Sprintf("%t", accessLogDetails.FromCache)).Inc()
 	}
 }
 
