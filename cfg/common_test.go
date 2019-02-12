@@ -45,6 +45,14 @@ monitoring:
         start: 0.0
         bucketsNum: 30
         bucketSize: 0.03
+    renderDurationExpHistogram:
+        start: 0.03
+        bucketsNum: 30
+        bucketSize: 6
+    findDurationExpHistogram:
+        start: 0.06
+        bucketsNum: 60
+        bucketSize: 3
 
 `
 
@@ -101,6 +109,16 @@ monitoring:
 				Start:      0.0,
 				BucketSize: 0.03,
 				BucketsNum: 30,
+			},
+			RenderDurationExp: HistogramConfig{
+				Start:      0.03,
+				BucketsNum: 30,
+				BucketSize: 6,
+			},
+			FindDurationExp: HistogramConfig{
+				Start:      0.06,
+				BucketsNum: 60,
+				BucketSize: 3,
 			},
 		},
 	}
