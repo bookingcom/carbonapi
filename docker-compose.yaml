@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  go-carbon:
+    build: 
+      dockerfile: docker/go-carbon/Dockerfile
+      context: .
+    ports:
+      - "2003:2003"
+
+  carbonapi:
+    build: 
+      dockerfile: docker/carbonapi/Dockerfile
+      context: .
+    ports:
+      - "8081:8081"
+    links:
+      - zipper
+
+  zipper:
+    build: 
+      dockerfile: docker/zipper/Dockerfile
+      context: .
+    links:
+      - go-carbon
+

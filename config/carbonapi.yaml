@@ -8,8 +8,8 @@
 # you should set it to URL of go-carbon's carbonserver module
 # or graphite-clickhouse's http url.
 # Listen address, should always include hostname or ip address and a port.
-listen: "localhost:8081"
-listenInternal: "localhost:7081"
+listen: ":8081"
+listenInternal: ":7081"
 # Max concurrent requests to CarbonZipper
 concurrencyLimitPerServer: 1025
 concurrencyLimit: 1024
@@ -92,7 +92,7 @@ upstreams:
     # connections on the backend servers which may bump into limits; tune with care.
     maxIdleConnsPerHost: 1030
     backends:
-      - http://127.0.0.1:8000
+      - http://zipper:8000
 
     # Number of concurrent requests to any given backend - default is no limit.
     # If set, you likely want >= MaxIdleConnsPerHost
@@ -117,11 +117,11 @@ logger:
     - logger: ""
       file: "stderr"
       level: "debug"
-      encoding: "console"
+      encoding: "json"
 #      encodingTime: "iso8601"
 #      encodingDuration: "seconds"
     - logger: ""
-      file: "carbonapi.log"
+      file: "stdout"
       level: "info"
       encoding: "json"
 
