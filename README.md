@@ -34,9 +34,25 @@ make debug
 We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
-### Run
+## Run
 
-You can easily run the program with sample config provided in `config/` directory by running `./run.sh`.
+Run the full stack `carbonapi` -> `zipper` -> `go-carbon` with:
+
+```
+docker-compose up
+```
+
+You can feed in sample data with:
+
+```
+echo "test.test 5 `date +%s`" | nc -c localhost 2003
+```
+
+and get it back with:
+
+```
+curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
+```
 
 
 ## Requirements
