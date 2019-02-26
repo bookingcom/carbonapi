@@ -81,9 +81,9 @@ Install cairo:
 ```
 brew install Caskroom/cask/xquartz
 
-brew install cairo --with-x11
+brew install cairo
 ```
-
+Xquartz is a required dependency for cairo.
 
 ## Acknowledgement and history
 
