@@ -348,6 +348,18 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 		var rewritten bool
 		var newTargets []string
+		i := 0
+		defaultStepTime := (int32(-1))
+		for _, value := range metricMap {
+			if i == 0 {
+				defaultStepTime = value[0].StepTime
+			} else {
+				if defaultStepTime != value[0].StepTime {
+					logger.Info("metrics with differing resolution")
+				}
+			}
+			i++
+		}
 		rewritten, newTargets, err = expr.RewriteExpr(exp, from32, until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
