@@ -43,8 +43,8 @@ expireDelaySec: 120
 # "http://host:port" array of instances of carbonserver stores
 # This is the *ONLY* config element that MUST be specified.
 backends:
-    - "http://go-carbon:8080"
-    - "http://go-carbon:8082"
+    - "http://graphite-clickhouse:9090"
+    # - "http://go-carbon:8082"
 
 carbonsearch:
     # Instance of carbonsearch backend
