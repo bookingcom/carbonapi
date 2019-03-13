@@ -110,7 +110,7 @@ func main() {
 	host := flag.String("host", "127.0.0.1", "host to send TCP packets to")
 	port := flag.Int("port", 0, "port to send the TCP packets to")
 	rate := flag.Int("rate", 0, "QPS. 0 for max speed. Default 0, max val 10000")
-	workers := flag.Int("workers", 1, "Number of concurrent workers. Each worker has separate TCP connection. The points in the recording are split between workers. Max 10")
+	workers := flag.Int("workers", 1, "number of concurrent workers. Workers share single TCP connection. The points in the recording are split between workers")
 	flag.Parse()
 
 	l := log.New(os.Stderr, "", 1)
@@ -135,8 +135,8 @@ func main() {
 		l.Println("Rate not supplied or too big")
 		os.Exit(1)
 	}
-	if workers == nil || *workers > 32 {
-		l.Println("Invlid number of workers. Note that max is 32.")
+	if workers == nil {
+		l.Println("Invlid number of workers")
 		os.Exit(1)
 	}
 
