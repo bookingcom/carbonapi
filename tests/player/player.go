@@ -13,6 +13,9 @@ import (
 
 	"encoding/csv"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/pkg/errors"
 )
 
@@ -88,7 +91,9 @@ func play(rec []Point, cycles int, duration int32, conn net.Conn, rate int, ever
 			if i%every != shift {
 				continue
 			}
-			fmt.Printf("\r%d / %d", i+1+len(rec)*c, len(rec)*cycles)
+			if i%100000 == 0 {
+				fmt.Printf("%d / %d @worker %d\n", i+1+len(rec)*c/every, len(rec)*cycles/every, shift)
+			}
 			_, err := conn.Write([]byte(fmt.Sprintf("%s %f %d\n", r.path, r.val, r.epoch+int32(c)*duration)))
 			if err != nil {
 				return errors.Wrap(err, "error writing to TCP connection")
@@ -99,7 +104,6 @@ func play(rec []Point, cycles int, duration int32, conn net.Conn, rate int, ever
 			}
 		}
 	}
-	fmt.Println()
 
 	return nil
 }
@@ -139,6 +143,10 @@ func main() {
 		l.Println("Invlid number of workers")
 		os.Exit(1)
 	}
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	rec, width, err := readRecording(*recFname)
 	if err != nil {
