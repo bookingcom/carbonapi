@@ -38,7 +38,7 @@ for i in range(args.total):
         path_fragments[idx_to_replace] = '*'
         random_path = ".".join(path_fragments)
     start_time = args.current_time - random.randint(2,10)*60*60
-    read_request = f'GET {args.host}:{args.port}/render/?target={random_path}&format={args.format}&from={start_time}&until={args.current_time}\n'
+    read_request = f'GET http://{args.host}:{args.port}/render/?target={random_path}&format={args.format}&from={start_time}&until={args.current_time}\n'
     f.write(read_request)
 
 f.close()
