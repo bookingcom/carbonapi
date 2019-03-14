@@ -5,16 +5,15 @@ import random
 parser=argparse.ArgumentParser()
 
 
-parser.add_argument('--datapoints', default=1440)
-parser.add_argument('--outer', default=10)
-parser.add_argument('--inner', default=10)
+parser.add_argument('--outer', default=10, type=int, help='outer metrics in tree')
+parser.add_argument('--inner', default=10, type=int, help='inner metrics in tree')
 parser.add_argument('--host', default='localhost')
-parser.add_argument('--port', default=2003)
+parser.add_argument('--port', default=8080, type=int)
 parser.add_argument('--resolution', default="minutely")
 parser.add_argument('--format', default="json")
-parser.add_argument('--current_time', default=int(time.time()))
-parser.add_argument('--glob_probability', default=20)
-parser.add_argument('--total', default=200, help='total read requests to be generated')
+parser.add_argument('--current_time', default=int(time.time()), type=int)
+parser.add_argument('--glob_probability', default=20, type=int)
+parser.add_argument('--total', default=200, help='total read requests to be generated', type=int)
 parser.add_argument('--pattern', default="performance.{}.conn-{}.metric-{}")
 
 args=parser.parse_args()
@@ -41,3 +40,6 @@ for i in range(args.total):
     start_time = args.current_time - random.randint(2,10)*60*60
     read_request = f'GET {args.host}:{args.port}/render/?target={random_path}&format={args.format}&from={start_time}&until={args.current_time}\n'
     f.write(read_request)
+
+f.close()
+
