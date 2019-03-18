@@ -1,15 +1,15 @@
-version: '3'
+version: "3"
 
 services:
   go-carbon:
-    build: 
+    build:
       dockerfile: docker/go-carbon/Dockerfile
       context: .
     ports:
       - "2003:2003"
 
   carbonapi:
-    build: 
+    build:
       dockerfile: docker/carbonapi/Dockerfile
       context: .
     ports:
@@ -18,9 +18,10 @@ services:
       - zipper
 
   zipper:
-    build: 
+    build:
       dockerfile: docker/zipper/Dockerfile
       context: .
+    volumes:
+      - "./config/carbonzipper.yaml:/etc/carbonzipper.yaml"
     links:
       - go-carbon
-
