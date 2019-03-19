@@ -17,9 +17,9 @@ parser.add_argument('--total-metrics', default=100, type=int)
 parser.add_argument('--total-pods', default=100, type=int)
 parser.add_argument('--outfile', default="system_test.csv")
 parser.add_argument('--stream', default=1, type=int)
-parser.add_argument('--batches', default=2, type=int, help='total batches of metrics')
+parser.add_argument('--batches', default=1, type=int, help='total batches of metrics')
 
-PATH_PATTERN = "performance.{}.conn-{}.{}.metric-{}"
+PATH_PATTERN = "performance.{minutely}.conn-{digits}.{pods}.metric-{digits}"
 args=parser.parse_args()
 
 def generate_sine_datapoints():
@@ -57,15 +57,16 @@ def stream_metrics(server, paths, start_time):
         timestamp = start_time - 60 * i
         for idx, path in enumerate(paths):
             val = ts_data[idx % args.total_metrics][i]
-            # print(path, val, timestamp)
-            # str = f'{path} {val} {timestamp}\n'
             str = "%s %d %d\n" % (path, val, timestamp)
             server.send(str.encode())
 
 def get_pod_names():
     pod_names = []
+    pod_file = open("pod_names.txt", "a+")
     for i in range(args.total_pods):
         pod_names.append(''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8)))
+    pod_file.write("\n".join(pod_names))
+    pod_file.close()
     return pod_names
 
 ts_data = []
