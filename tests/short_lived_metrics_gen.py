@@ -21,6 +21,7 @@ parser.add_argument('--batches', default=1, type=int, help='total batches of met
 
 PATH_PATTERN = "performance.{}.conn-{}.{}.metric-{}"
 args=parser.parse_args()
+print(args)
 
 def generate_sine_datapoints():
     n = args.datapoints
@@ -44,6 +45,7 @@ def generate_paths(resolution):
 
 def write_metrics_to_file(writer, paths, start_time):
     for i in range(args.datapoints):
+        print("writing datapoint %d of %d\n" % (i+1, args.datapoints))
         rows = []
         timestamp = start_time + 60 * i
         for idx, path in enumerate(paths):
@@ -54,6 +56,7 @@ def write_metrics_to_file(writer, paths, start_time):
 def stream_metrics(server, paths, start_time):
     rows = []
     for i in range(args.datapoints):
+        print("writing datapoint %d of %d for paths in batch \n" % (i+1, args.datapoints))
         timestamp = start_time - 60 * i
         for idx, path in enumerate(paths):
             val = ts_data[idx % args.total_metrics][i]
@@ -90,5 +93,6 @@ else:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((args.host, args.port))
         for i in range(args.batches):
+            print("executing batch %d of %d\n" % (i+1, args.batches))
             paths = generate_paths("minutely")
             stream_metrics(s, paths, current_time - i * args.datapoints)
