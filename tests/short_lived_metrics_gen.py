@@ -19,7 +19,7 @@ parser.add_argument('--outfile', default="system_test.csv")
 parser.add_argument('--stream', default=1, type=int)
 parser.add_argument('--batches', default=1, type=int, help='total batches of metrics')
 
-PATH_PATTERN = "performance.{minutely}.conn-{digits}.{pods}.metric-{digits}"
+PATH_PATTERN = "performance.{}.conn-{}.{}.metric-{}"
 args=parser.parse_args()
 
 def generate_sine_datapoints():
