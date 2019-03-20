@@ -5,27 +5,32 @@ import random
 parser=argparse.ArgumentParser()
 
 
-parser.add_argument('--outer', default=10, type=int, help='outer metrics in tree')
-parser.add_argument('--inner', default=10, type=int, help='inner metrics in tree')
+parser.add_argument('--paths-outer', default=10, type=int)
+parser.add_argument('--paths-inner', default=10, type=int)
 parser.add_argument('--host', default='localhost')
 parser.add_argument('--port', default=8080, type=int)
 parser.add_argument('--resolution', default="minutely")
 parser.add_argument('--format', default="json")
 parser.add_argument('--current_time', default=int(time.time()), type=int)
-parser.add_argument('--glob_probability', default=20, type=int)
+parser.add_argument('--glob_probability', default=80, type=int)
 parser.add_argument('--total', default=200, help='total read requests to be generated', type=int)
-parser.add_argument('--pattern', default="performance.{}.conn-{}.metric-{}")
-
+parser.add_argument('--path-pattern', default="performance.{}.conn-{}.{}.metric-{}")
 args=parser.parse_args()
 
 def generate_paths(resolution):
     paths = []
-    path_pattern = args.pattern
-    for i in  range(args.outer):
-        for j in range(args.inner):
-            path = path_pattern.format(resolution, i, j)
-            paths.append(path)
+    pod_names = get_generated_pod_names()
+    for i in range(args.paths_outer):
+        for pod in pod_names:
+            for j in range(args.paths_inner):
+                path = args.path_pattern.format(resolution, i, pod.rstrip(), j)
+                paths.append(path)
     return paths
+
+def get_generated_pod_names():
+    pod_file = open("pod_names.txt", "r")
+    pod_names = pod_file.readlines()
+    return pod_names
 
 paths = generate_paths(args.resolution)
 
@@ -42,4 +47,3 @@ for i in range(args.total):
     f.write(read_request)
 
 f.close()
-
