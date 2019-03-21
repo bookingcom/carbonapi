@@ -57,7 +57,7 @@ def stream_metrics(server, paths, start_time):
     rows = []
     for i in range(args.datapoints):
         print("writing datapoint %d of %d for paths in batch \n" % (i+1, args.datapoints))
-        timestamp = start_time - 60 * i
+        timestamp = start_time + 60 * i
         for idx, path in enumerate(paths):
             val = ts_data[idx % args.total_metrics][i]
             str = "%s %d %d\n" % (path, val, timestamp)
@@ -95,4 +95,4 @@ else:
         for i in range(args.batches):
             print("executing batch %d of %d\n" % (i+1, args.batches))
             paths = generate_paths("minutely")
-            stream_metrics(s, paths, current_time - i * args.datapoints)
+            stream_metrics(s, paths, current_time - (i+1) * args.datapoints)
