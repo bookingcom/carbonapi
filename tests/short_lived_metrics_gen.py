@@ -5,6 +5,7 @@ import random
 import socket
 import argparse
 import string
+import os
 
 parser=argparse.ArgumentParser()
 
@@ -22,6 +23,8 @@ parser.add_argument('--batches', default=1, type=int, help='total batches of met
 PATH_PATTERN = "performance.{}.conn-{}.{}.metric-{}"
 args=parser.parse_args()
 print(args)
+if os.path.exists("pod_names.txt"):
+    os.remove("pod_names.txt")
 
 def generate_sine_datapoints():
     n = args.datapoints
