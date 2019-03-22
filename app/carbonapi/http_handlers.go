@@ -270,12 +270,14 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		var targetMetricFetches []parser.MetricRequest
 		for _, m := range exp.Metrics() {
 			metrics = append(metrics, m.Metric)
 			mfetch := m
 			mfetch.From += from32
 			mfetch.Until += until32
 
+			targetMetricFetches = append(targetMetricFetches, mfetch)
 			if _, ok := metricMap[mfetch]; ok {
 				// already fetched this metric for this request
 				continue
@@ -348,6 +350,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 		var rewritten bool
 		var newTargets []string
+		logStepTimeMismatch(targetMetricFetches, metricMap, logger, target)
 		rewritten, newTargets, err = expr.RewriteExpr(exp, from32, until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1081,6 +1084,32 @@ func shouldBlockRequest(r *http.Request, rules []Rule) bool {
 		}
 	}
 	return false
+}
+
+func logStepTimeMismatch(targetMetricFetches []parser.MetricRequest, metricMap map[parser.MetricRequest][]*types.MetricData, logger *zap.Logger, target string) {
+	var defaultStepTime int32 = -1
+	for _, mfetch := range targetMetricFetches {
+		values := metricMap[mfetch]
+		if len(values) == 0 {
+			continue
+		}
+		if defaultStepTime <= 0 {
+			defaultStepTime = values[0].StepTime
+		}
+		if !isStepTimeMatching(values[:], defaultStepTime) {
+			logger.Info("metrics with differing resolution", zap.Any("target", target))
+			return
+		}
+	}
+}
+
+func isStepTimeMatching(value []*types.MetricData, defaultStepTime int32) bool {
+	for _, val := range value {
+		if defaultStepTime != val.StepTime {
+			return false
+		}
+	}
+	return true
 }
 
 var usageMsg = []byte(`
