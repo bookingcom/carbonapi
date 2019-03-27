@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import numpy as np
 import csv
 import time
@@ -5,6 +7,7 @@ import random
 import socket
 import argparse
 import string
+import os
 
 parser=argparse.ArgumentParser()
 
@@ -22,6 +25,8 @@ parser.add_argument('--batches', default=1, type=int, help='total batches of met
 PATH_PATTERN = "performance.{}.conn-{}.{}.metric-{}"
 args=parser.parse_args()
 print(args)
+if os.path.exists("pod_names.txt"):
+    os.remove("pod_names.txt")
 
 def generate_sine_datapoints():
     n = args.datapoints
@@ -57,7 +62,7 @@ def stream_metrics(server, paths, start_time):
     rows = []
     for i in range(args.datapoints):
         print("writing datapoint %d of %d for paths in batch \n" % (i+1, args.datapoints))
-        timestamp = start_time - 60 * i
+        timestamp = start_time + 60 * i
         for idx, path in enumerate(paths):
             val = ts_data[idx % args.total_metrics][i]
             str = "%s %d %d\n" % (path, val, timestamp)
@@ -78,8 +83,10 @@ for i in range(args.total_metrics):
 
 
 current_time = int(time.time())
-print("this is the first and current timestamp %d\n" % current_time)
+print("this is the current timestamp %d\n" % current_time)
 print("also it is the max timestamp metric, meaning metrics are being written to older timestamps")
+print("The min timestamp is %d" % current_time - (args.batches * args.datapoints))
+
 
 if args.stream != 1:
     file = open("system_test.csv", "w")
@@ -92,7 +99,7 @@ else:
     if args.stream == 1:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((args.host, args.port))
-        for i in range(args.batches):
-            print("executing batch %d of %d\n" % (i+1, args.batches))
+        for i in reversed(xrange(args.batches+1)):
+            print("executing batch %d of %d\n" % (i, args.batches))
             paths = generate_paths("minutely")
             stream_metrics(s, paths, current_time - i * args.datapoints)
