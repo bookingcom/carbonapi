@@ -54,7 +54,6 @@ and get it back with:
 curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
 ```
 
-
 ## Requirements
 
 We recommend using at least version 1.10 of Go. Booking.com builds its binaries
@@ -83,7 +82,26 @@ brew install Caskroom/cask/xquartz
 
 brew install cairo
 ```
+
 Xquartz is a required dependency for cairo.
+
+## Clickhouse support
+
+The pair `carbonapi` and `carbonzipper` works with [Clickhouse](https://clickhouse.yandex) via [graphite-clickhouse](https://github.com/lomik/graphite-clickhouse).
+
+The access chain then looks like this:
+
+`carbonapi` -> `zipper` -> `graphite-clickhouse` -> `clickhouse`
+
+(this presumes the data was written into Clickhouse with [carbon-clickhouse](https://github.com/lomik/carbon-clickhouse)).
+
+Run
+
+```
+docker-compose --file docker-compose-clickhouse.yaml up
+```
+
+to get the setup up and running in several Docker containers.
 
 ## Acknowledgement and history
 
