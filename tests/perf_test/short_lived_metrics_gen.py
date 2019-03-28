@@ -85,7 +85,7 @@ for i in range(args.total_metrics):
 current_time = int(time.time())
 print("this is the current timestamp %d\n" % current_time)
 print("also it is the max timestamp metric, meaning metrics are being written to older timestamps")
-print("The min timestamp is %d" % current_time - (args.batches * args.datapoints))
+print("The min timestamp is %d" % (current_time - (args.batches * args.datapoints)))
 
 
 if args.stream != 1:
