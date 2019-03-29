@@ -11,3 +11,6 @@ TODO
 coverage.txt
 
 .vscode
+
+# Docker runs data
+data
