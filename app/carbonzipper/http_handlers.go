@@ -34,12 +34,21 @@ const (
 	formatTypeProtobuf3 = "protobuf3"
 )
 
+func findErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
+	return backend.CheckErrs(ctx, errs, numBackends, logger)
+}
+
+func renderErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
+	return backend.CheckErrs(ctx, errs, numBackends, logger)
+}
+
 func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("find").With(
 		zap.String("handler", "find"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -58,6 +67,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.FindRequests.Add(1)
 
+	// TODO (grzkv): Pass logger from above
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "find"),
 		zap.String("format", format),
@@ -67,7 +77,9 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 
 	request := types.NewFindRequest(originalQuery)
 	bs := backend.Filter(app.backends, []string{originalQuery})
-	metrics, err := backend.Finds(ctx, bs, request)
+	metrics, errs := backend.Finds(ctx, bs, request)
+	err := findErrorsFanIn(ctx, errs, len(bs), logger)
+
 	if err != nil {
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
@@ -156,6 +168,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("render").With(
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.String("handler", "render"),
@@ -172,6 +185,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.RenderRequests.Add(1)
 
+	// TODO (grzkv): Pass logger from above
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "render"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -244,7 +258,9 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	bs := backend.Filter(app.backends, request.Targets)
-	metrics, err := backend.Renders(ctx, bs, request)
+	metrics, errs := backend.Renders(ctx, bs, request)
+	err = renderErrorsFanIn(ctx, errs, len(bs), logger)
+
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -322,6 +338,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("info").With(
 		zap.String("handler", "info"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -337,6 +354,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
+	// TODO (grzkv): Pass logger from above
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "info"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -430,7 +448,9 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("loadbalancer").With(zap.String("handler", "loadbalancer"))
+	// TODO (grzkv): Pass logger from above
 	accessLogger := zapwriter.Logger("access").With(zap.String("handler", "loadbalancer"))
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {

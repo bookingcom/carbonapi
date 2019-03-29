@@ -129,6 +129,14 @@ type renderResponse struct {
 	error error
 }
 
+func findErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
+	return backend.CheckErrs(ctx, errs, numBackends, logger)
+}
+
+func renderErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
+	return backend.CheckErrs(ctx, errs, numBackends, logger)
+}
+
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
@@ -136,6 +144,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", accessLogDetails.Username),
@@ -283,7 +292,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			renderRequests, err := app.getRenderRequests(ctx, m, useCache, &accessLogDetails)
+			renderRequests, err := app.getRenderRequests(ctx, m, useCache, &accessLogDetails, logger)
 			if err != nil {
 				logger.Error("find error",
 					zap.String("metric", m.Metric),
@@ -302,7 +311,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					request := dataTypes.NewRenderRequest([]string{path}, from, until)
 					// TODO (grzkv): Do we need backend filtering for carbonapi?
 					bs := backend.Filter(app.backends, request.Targets)
-					metrics, err := backend.Renders(ctx, bs, request)
+					metrics, errs := backend.Renders(ctx, bs, request)
+					err := renderErrorsFanIn(ctx, errs, len(bs), logger)
 
 					// time in queue is converted to ms
 					app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -501,7 +511,7 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
@@ -515,7 +525,8 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	request := dataTypes.NewFindRequest(metric)
 	bs := backend.Filter(app.backends, []string{metric})
-	matches, err := backend.Finds(ctx, bs, request)
+	matches, errs := backend.Finds(ctx, bs, request)
+	err := findErrorsFanIn(ctx, errs, len(bs), logger)
 	if err != nil {
 		return matches, err
 	}
@@ -531,13 +542,13 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	return matches, nil
 }
 
-func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) ([]string, error) {
+func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		accessLogDetails.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, accessLogDetails)
+	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -572,6 +583,12 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 
+	// TODO (grzkv): Pass logger in from above
+	logger := zapwriter.Logger("find").With(
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("username", accessLogDetails.Username),
+	)
+
 	logAsError := false
 	defer func() {
 		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
@@ -595,7 +612,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	request := dataTypes.NewFindRequest(query)
 	bs := backend.Filter(app.backends, []string{query})
-	metrics, err := backend.Finds(ctx, bs, request)
+	metrics, errs := backend.Finds(ctx, bs, request)
+	err := findErrorsFanIn(ctx, errs, len(bs), logger)
 	if err != nil {
 		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
@@ -824,6 +842,7 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	// TODO (grzkv): Pass logger from above
 	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
@@ -851,6 +870,7 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 
 	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
 	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	// TODO (grzkv): Pass logger from above
 	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
 }
 
@@ -973,6 +993,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 // Otherwise, it creates the config file with the rule
 func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
+	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("logger")
 
 	apiMetrics.Requests.Add(1)
