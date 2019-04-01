@@ -40,7 +40,7 @@ vet:
 lint:
 	gometalinter --vendor --deadline=150s --cyclo-over=15 --exclude="\bexported \w+ (\S*['.]*)([a-zA-Z'.*]*) should have comment or be unexported\b" ./...
 
-test:
+check:
 	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
 
 clean:
