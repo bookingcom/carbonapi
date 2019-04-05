@@ -45,7 +45,7 @@ type Backend interface {
 // worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
-func Renders(ctx context.Context, backends []Backend, request types.RenderRequest) ([]types.Metric, error) {
+func Renders(ctx context.Context, backends []Backend, request types.RenderRequest) ([]types.Metric, []error) {
 	if len(backends) == 0 {
 		return nil, nil
 	}
@@ -75,12 +75,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		}
 	}
 
-	// TODO (grzkv): This is based on an *assumption* about loggers. Replace by a logger passed from above
-	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
-		return nil, err
-	}
-
-	return types.MergeMetrics(msgs), nil
+	return types.MergeMetrics(msgs), errs
 }
 
 // Infos makes Info calls to multiple backends.
@@ -114,7 +109,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 		}
 	}
 
-	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
+	if err := CheckErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +117,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 }
 
 // Finds makes Find calls to multiple backends.
-func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (types.Matches, error) {
+func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (types.Matches, []error) {
 	if len(backends) == 0 {
 		return types.Matches{}, nil
 	}
@@ -152,11 +147,7 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (
 		}
 	}
 
-	if err := checkErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
-		return types.Matches{}, err
-	}
-
-	return types.MergeMatches(msgs), nil
+	return types.MergeMatches(msgs), errs
 }
 
 func getTLD(metric string) string {
@@ -192,24 +183,26 @@ func filter(backends []Backend, targets []string) []Backend {
 	return bs
 }
 
-func checkErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
+// CheckErrs checks errs
+func CheckErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
 	if len(errs) == 0 {
 		return nil
 	}
 
 	if len(errs) >= limit {
-		return errors.WithMessage(combineErrors(errs), "All backend requests failed")
+		return errors.WithMessage(CombineErrors(errs), "All backend requests failed")
 	}
 
 	logger.Warn("Some requests failed",
 		zap.String("uuid", util.GetUUID(ctx)),
-		zap.Error(combineErrors(errs)),
+		zap.Error(CombineErrors(errs)),
 	)
 
 	return nil
 }
 
-func combineErrors(errs []error) error {
+// CombineErrors combines errs
+func CombineErrors(errs []error) error {
 	msgs := make(map[error]int)
 	for _, err := range errs {
 		if err != nil {

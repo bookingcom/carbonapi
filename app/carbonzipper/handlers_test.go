@@ -10,7 +10,7 @@ import (
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
-	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
+	types "github.com/bookingcom/carbonapi/pkg/types"
 	"go.uber.org/zap"
 )
 
@@ -216,14 +216,14 @@ func TestFindSingleBackend(t *testing.T) {
 	}
 }
 
-func TestFindSingleBackendWithError(t *testing.T) {
+func TestFindSingleBackendWithGenericError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
 	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
 	app.backends = []backend.Backend{
 		mock.New(mock.Config{
-			Find:   findWithError,
+			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
@@ -244,6 +244,181 @@ func TestFindSingleBackendWithError(t *testing.T) {
 	// TODO (grzkv): This should be BadRequest
 	if w.Code == http.StatusOK {
 		t.Fatalf("got code %d expected an error", http.StatusOK)
+	}
+}
+
+func TestFindSingleBackendWithNotfoundError(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestFindManyBackendsAllNotfound(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestFindManyBackendsAllMixedErrors(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
 	}
 }
 
@@ -310,28 +485,33 @@ func TestInfoSingleBackend(t *testing.T) {
 	}
 }
 
-func find(ctx context.Context, request dataTypes.FindRequest) (dataTypes.Matches, error) {
+func find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	return getMetricGlobResponse(request.Query), nil
 }
 
-func findWithError(ctx context.Context, request dataTypes.FindRequest) (dataTypes.Matches, error) {
+func findWithGenericError(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	return getMetricGlobResponse(request.Query), errors.New("unexpected error")
 }
 
-func info(ctx context.Context, request dataTypes.InfoRequest) ([]dataTypes.Info, error) {
+func findWithNotfoundError(ctx context.Context, request types.FindRequest) (types.Matches, error) {
+	// we return this kind of error instead of generic ErrNotFound
+	return getMetricGlobResponse(request.Query), types.ErrMatchesNotFound
+}
+
+func info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
 	return getMockInfoResponse(), nil
 }
 
-func getMockInfoResponse() []dataTypes.Info {
-	return []dataTypes.Info{
-		dataTypes.Info{
+func getMockInfoResponse() []types.Info {
+	return []types.Info{
+		types.Info{
 			Host:              "http://127.0.0.1:8080",
 			Name:              "foo.bar",
 			AggregationMethod: "Average",
 			MaxRetention:      157680000,
 			XFilesFactor:      0.5,
-			Retentions: []dataTypes.Retention{
-				dataTypes.Retention{
+			Retentions: []types.Retention{
+				types.Retention{
 					SecondsPerPoint: 60,
 					NumberOfPoints:  43200,
 				},
@@ -340,9 +520,9 @@ func getMockInfoResponse() []dataTypes.Info {
 	}
 }
 
-func render(ctx context.Context, request dataTypes.RenderRequest) ([]dataTypes.Metric, error) {
-	return []dataTypes.Metric{
-		dataTypes.Metric{
+func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	return []types.Metric{
+		types.Metric{
 			Name:      "foo.bar",
 			StartTime: 1510913280,
 			StopTime:  1510913880,
@@ -353,31 +533,31 @@ func render(ctx context.Context, request dataTypes.RenderRequest) ([]dataTypes.M
 	}, nil
 }
 
-func getMetricGlobResponse(metric string) dataTypes.Matches {
-	match := dataTypes.Match{
+func getMetricGlobResponse(metric string) types.Matches {
+	match := types.Match{
 		Path:   metric,
 		IsLeaf: true,
 	}
 
 	switch metric {
 	case "foo.bar*":
-		return dataTypes.Matches{
+		return types.Matches{
 			Name:    "foo.bar",
-			Matches: []dataTypes.Match{match},
+			Matches: []types.Match{match},
 		}
 
 	case "foo.bar":
-		return dataTypes.Matches{
+		return types.Matches{
 			Name:    "foo.bar",
-			Matches: []dataTypes.Match{match},
+			Matches: []types.Match{match},
 		}
 
 	case "foo.b*":
-		return dataTypes.Matches{
+		return types.Matches{
 			Name: "foo.b",
-			Matches: []dataTypes.Match{
+			Matches: []types.Match{
 				match,
-				dataTypes.Match{
+				types.Match{
 					Path:   "foo.bat",
 					IsLeaf: true,
 				},
@@ -385,5 +565,5 @@ func getMetricGlobResponse(metric string) dataTypes.Matches {
 		}
 	}
 
-	return dataTypes.Matches{}
+	return types.Matches{}
 }

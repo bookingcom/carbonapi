@@ -92,9 +92,9 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
-	if err != nil {
-		t.Error(err)
+	got, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
+	if len(errs) != 0 {
+		t.Error(errs[0])
 		return
 	}
 
@@ -237,9 +237,9 @@ func TestCarbonapiv2Finds(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Finds(context.Background(), backends, types.NewFindRequest(""))
-	if err != nil {
-		t.Error(err)
+	got, errs := Finds(context.Background(), backends, types.NewFindRequest(""))
+	if len(errs) != 0 {
+		t.Error(errs[0])
 		return
 	}
 
@@ -253,19 +253,19 @@ func TestCheckErrs(t *testing.T) {
 	ctx := context.Background()
 	logger := zap.New(nil)
 
-	if err := checkErrs(ctx, nil, 0, logger); err != nil {
+	if err := CheckErrs(ctx, nil, 0, logger); err != nil {
 		t.Error("Expected no error")
 	}
 
-	if err := checkErrs(ctx, []error{errors.New("no")}, 1, logger); err == nil {
+	if err := CheckErrs(ctx, []error{errors.New("no")}, 1, logger); err == nil {
 		t.Error("Expected error")
 	}
 
-	if err := checkErrs(ctx, []error{errors.New("no")}, 0, logger); err == nil {
+	if err := CheckErrs(ctx, []error{errors.New("no")}, 0, logger); err == nil {
 		t.Error("Expected error")
 	}
 
-	if err := checkErrs(ctx, []error{errors.New("no")}, 2, logger); err != nil {
+	if err := CheckErrs(ctx, []error{errors.New("no")}, 2, logger); err != nil {
 		t.Error("Expected no error")
 	}
 }
