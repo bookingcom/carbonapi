@@ -78,6 +78,12 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 	return types.MergeMetrics(msgs), errs
 }
 
+// Render makes Render calls to a single backend.
+func Render(ctx context.Context, b Backend, request types.RenderRequest) ([]types.Metric, error) {
+	request.IncCall()
+	return b.Render(ctx, request)
+}
+
 // Infos makes Info calls to multiple backends.
 func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) ([]types.Info, error) {
 	if len(backends) == 0 {
