@@ -7,7 +7,7 @@ before_install:
   - sudo apt-get -qq update
   - sudo apt-get install libcairo2-dev -y
 
-script: make all test vet
+script: make all check vet
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
