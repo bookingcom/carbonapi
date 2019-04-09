@@ -129,12 +129,16 @@ type renderResponse struct {
 	error error
 }
 
-func findErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
-	return backend.CheckErrs(ctx, errs, numBackends, logger)
+// TODO (grzkv): This is an intermediate stub. Remove it
+func findErrorsFanIn(ctx context.Context, err error, logger *zap.Logger) error {
+	errs := []error{err}
+	return backend.CheckErrs(ctx, errs, 1, logger)
 }
 
-func renderErrorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
-	return backend.CheckErrs(ctx, errs, numBackends, logger)
+// TODO (grzkv): This is an intermediate stub. Remove it
+func renderErrorsFanIn(ctx context.Context, err error, logger *zap.Logger) error {
+	errs := []error{err}
+	return backend.CheckErrs(ctx, errs, 1, logger)
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
@@ -292,9 +296,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			// This _sometimes_ sends a *find* request
 			renderRequests, err := app.getRenderRequests(ctx, m, useCache, &accessLogDetails, logger)
 			if err != nil {
-				logger.Error("find error",
+				logger.Error("error expanding globs for render request",
 					zap.String("metric", m.Metric),
 					zap.Error(err),
 				)
@@ -309,10 +314,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
 					request := dataTypes.NewRenderRequest([]string{path}, from, until)
-					// TODO (grzkv): Do we need backend filtering for carbonapi?
-					bs := backend.Filter(app.backends, request.Targets)
-					metrics, errs := backend.Renders(ctx, bs, request)
-					err := renderErrorsFanIn(ctx, errs, len(bs), logger)
+					metrics, err := app.backend.Render(ctx, request)
+					err = renderErrorsFanIn(ctx, err, logger)
 
 					// time in queue is converted to ms
 					app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -524,9 +527,9 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	accessLogDetails.ZipperRequests++
 
 	request := dataTypes.NewFindRequest(metric)
-	bs := backend.Filter(app.backends, []string{metric})
-	matches, errs := backend.Finds(ctx, bs, request)
-	err := findErrorsFanIn(ctx, errs, len(bs), logger)
+	request.IncCall()
+	matches, err := app.backend.Find(ctx, request)
+	err = findErrorsFanIn(ctx, err, logger)
 	if err != nil {
 		return matches, err
 	}
@@ -611,9 +614,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request := dataTypes.NewFindRequest(query)
-	bs := backend.Filter(app.backends, []string{query})
-	metrics, errs := backend.Finds(ctx, bs, request)
-	err := findErrorsFanIn(ctx, errs, len(bs), logger)
+	request.IncCall()
+	metrics, err := app.backend.Find(ctx, request)
+	err = findErrorsFanIn(ctx, err, logger)
 	if err != nil {
 		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
@@ -791,8 +794,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request := dataTypes.NewInfoRequest(query)
-	bs := backend.Filter(app.backends, []string{query})
-	infos, err := backend.Infos(ctx, bs, request)
+	request.IncCall()
+	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError

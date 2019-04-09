@@ -83,6 +83,8 @@ type API struct {
 	// It should probably refer to the common one
 	Zipper `yaml:",inline"`
 
+	// TODO (grzkv): Move backends list to a single backend here
+
 	ExtrapolateExperiment   bool          `yaml:"extrapolateExperiment"`
 	SendGlobsAsIs           bool          `yaml:"sendGlobsAsIs"`
 	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
