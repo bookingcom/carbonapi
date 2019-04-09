@@ -51,7 +51,7 @@ type App struct {
 
 	defaultTimeZone *time.Location
 
-	backends []backend.Backend
+	backend backend.Backend
 
 	prometheusMetrics PrometheusMetrics
 }
@@ -73,12 +73,12 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 	loadBlockRuleHeaderConfig(app, logger)
 
 	// TODO(gmagnusson): Setup backends
-	backends, err := initBackends(app.config, logger)
+	backend, err := initBackend(app.config, logger)
 	if err != nil {
 		logger.Fatal("couldn't initialize backends", zap.Error(err))
 	}
 
-	app.backends = backends
+	app.backend = backend
 	setUpConfig(app, logger)
 
 	return app, nil
@@ -501,7 +501,7 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 }
 
-func initBackends(config cfg.API, logger *zap.Logger) ([]backend.Backend, error) {
+func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -512,23 +512,24 @@ func initBackends(config cfg.API, logger *zap.Logger) ([]backend.Backend, error)
 		}).DialContext,
 	}
 
-	backends := make([]backend.Backend, 0, len(config.Backends))
-	for _, host := range config.Backends {
-		b, err := bnet.New(bnet.Config{
-			Address:            host,
-			Client:             client,
-			Timeout:            config.Timeouts.AfterStarted,
-			Limit:              config.ConcurrencyLimitPerServer,
-			PathCacheExpirySec: uint32(config.ExpireDelaySec),
-			Logger:             logger,
-		})
+	// TODO (grzkv): Stop using a list, move to a single value in config
+	if len(config.Backends) == 0 {
+		return nil, errors.New("got empty list of backends from config")
+	}
+	host := config.Backends[0]
 
-		if err != nil {
-			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
-		}
+	b, err := bnet.New(bnet.Config{
+		Address:            host,
+		Client:             client,
+		Timeout:            config.Timeouts.AfterStarted,
+		Limit:              config.ConcurrencyLimitPerServer,
+		PathCacheExpirySec: uint32(config.ExpireDelaySec),
+		Logger:             logger,
+	})
 
-		backends = append(backends, b)
+	if err != nil {
+		return b, errors.Errorf("Couldn't create backend for '%s'", host)
 	}
 
-	return backends, nil
+	return b, nil
 }
