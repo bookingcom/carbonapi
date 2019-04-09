@@ -15,6 +15,9 @@ sleep 5
 
 echo "test.test.test 123456 $(date +%s)" | nc -q 1 localhost 2003 || { printf ">>> ERROR: Putting data in failed"; exit 2; }
 
+# wait to make sure data got there
+sleep 2
+
 if curl "http://localhost:8081/render?target=test.test.test&format=json" | grep -q "123456"
 then
     printf ">>> SUCCESS!\\n"
