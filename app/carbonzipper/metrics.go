@@ -57,6 +57,7 @@ var Metrics = struct {
 type PrometheusMetrics struct {
 	Requests          prometheus.Counter
 	Responses         *prometheus.CounterVec
+	FindNotFound      prometheus.Counter
 	DurationExp       prometheus.Histogram
 	DurationLin       prometheus.Histogram
 	RenderDurationExp prometheus.Histogram
@@ -80,6 +81,12 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
+		),
+		FindNotFound: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "find_not_found",
+				Help: "Count of not-found /find responses",
+			},
 		),
 		DurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
