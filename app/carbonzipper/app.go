@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"runtime"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -84,38 +82,9 @@ func (app *App) Start() {
 	expTimeBuckets = make([]int64, app.config.Buckets+1)
 
 	httputil.PublishTrackedConnections("httptrack")
-	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
-	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
+	publishExpvarz(app)
 
-	Metrics.Goroutines = expvar.Func(func() interface{} {
-		return runtime.NumGoroutine()
-	})
-	expvar.Publish("goroutines", Metrics.Goroutines)
-
-	startMinute := time.Now().Unix() / 60
-	Metrics.Uptime = expvar.Func(func() interface{} {
-		return time.Now().Unix()/60 - startMinute
-	})
-	expvar.Publish("uptime", Metrics.Uptime)
-
-	// export config via expvars
-	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
-
-	/* Configure zipper */
-	// set up caches
-
-	Metrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
-	expvar.Publish("cacheSize", Metrics.CacheSize)
-
-	Metrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
-	expvar.Publish("cacheItems", Metrics.CacheItems)
-
-	r := http.NewServeMux()
-
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(app.findHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(app.renderHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(app.infoHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/lb_check", app.lbCheckHandler)
+	r := initHandlers(app)
 
 	handler := util.UUIDHandler(r)
 
@@ -136,95 +105,10 @@ func (app *App) Start() {
 
 	// only register g2g if we have a graphite host
 	if app.config.Graphite.Host != "" {
-		// register our metrics with graphite
-		graphite := g2g.NewGraphite(app.config.Graphite.Host, app.config.Graphite.Interval, 10*time.Second)
-
-		/* #nosec */
-		hostname, _ := os.Hostname()
-		hostname = strings.Replace(hostname, ".", "_", -1)
-
-		prefix := app.config.Graphite.Prefix
-
-		pattern := app.config.Graphite.Pattern
-		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
-		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
-
-		graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
-		graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
-		graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
-
-		graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
-		graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
-
-		graphite.Register(fmt.Sprintf("%s.render_requests", pattern), Metrics.RenderRequests)
-		graphite.Register(fmt.Sprintf("%s.render_errors", pattern), Metrics.RenderErrors)
-
-		graphite.Register(fmt.Sprintf("%s.info_requests", pattern), Metrics.InfoRequests)
-		graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
-
-		graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
-
-		for i := 0; i <= app.config.Buckets; i++ {
-			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
-			lower, upper := util.Bounds(i)
-			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
-		}
-
-		graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
-		graphite.Register(fmt.Sprintf("%s.cache_items", pattern), Metrics.CacheItems)
-
-		graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
-		graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
-
-		go mstats.Start(app.config.Graphite.Interval)
-
-		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
-		graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
-		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
-		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
-		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
-		graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
+		initGraphite(app)
 	}
 
-	go func() {
-		prometheus.MustRegister(app.prometheusMetrics.Requests)
-		prometheus.MustRegister(app.prometheusMetrics.Responses)
-		prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
-		prometheus.MustRegister(app.prometheusMetrics.DurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.DurationLin)
-		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
-		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
-
-		writeTimeout := app.config.Timeouts.Global
-		if writeTimeout < 30*time.Second {
-			writeTimeout = time.Minute
-		}
-
-		r := http.NewServeMux()
-		r.Handle("/metrics", promhttp.Handler())
-
-		r.Handle("/debug/vars", expvar.Handler())
-		r.HandleFunc("/debug/pprof/", pprof.Index)
-		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-		s := &http.Server{
-			Addr:         app.config.ListenInternal,
-			Handler:      r,
-			ReadTimeout:  1 * time.Second,
-			WriteTimeout: writeTimeout,
-		}
-
-		if err := s.ListenAndServe(); err != nil {
-			logger.Fatal("Internal handle server failed",
-				zap.Error(err),
-			)
-		}
-	}()
+	go metricsServer(app, logger)
 
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
@@ -293,4 +177,115 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	}
 
 	return backends, nil
+}
+
+func initGraphite(app *App) {
+	// register our metrics with graphite
+	graphite := g2g.NewGraphite(app.config.Graphite.Host, app.config.Graphite.Interval, 10*time.Second)
+
+	/* #nosec */
+	hostname, _ := os.Hostname()
+	hostname = strings.Replace(hostname, ".", "_", -1)
+
+	prefix := app.config.Graphite.Prefix
+
+	pattern := app.config.Graphite.Pattern
+	pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
+	pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
+
+	graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
+	graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
+	graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
+
+	graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
+	graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
+
+	graphite.Register(fmt.Sprintf("%s.render_requests", pattern), Metrics.RenderRequests)
+	graphite.Register(fmt.Sprintf("%s.render_errors", pattern), Metrics.RenderErrors)
+
+	graphite.Register(fmt.Sprintf("%s.info_requests", pattern), Metrics.InfoRequests)
+	graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
+
+	graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
+
+	for i := 0; i <= app.config.Buckets; i++ {
+		graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
+		lower, upper := util.Bounds(i)
+		graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
+	}
+
+	graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
+	graphite.Register(fmt.Sprintf("%s.cache_items", pattern), Metrics.CacheItems)
+
+	graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
+	graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
+
+	go mstats.Start(app.config.Graphite.Interval)
+
+	graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
+	graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
+	graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
+	graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
+	graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
+	graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
+}
+
+func metricsServer(app *App, logger *zap.Logger) {
+	prometheus.MustRegister(app.prometheusMetrics.Requests)
+	prometheus.MustRegister(app.prometheusMetrics.Responses)
+	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
+	prometheus.MustRegister(app.prometheusMetrics.DurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.DurationLin)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
+	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
+
+	writeTimeout := app.config.Timeouts.Global
+	if writeTimeout < 30*time.Second {
+		writeTimeout = time.Minute
+	}
+
+	r := initMetricHandlers(app)
+
+	s := &http.Server{
+		Addr:         app.config.ListenInternal,
+		Handler:      r,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: writeTimeout,
+	}
+
+	if err := s.ListenAndServe(); err != nil {
+		logger.Fatal("Internal handle server failed",
+			zap.Error(err),
+		)
+	}
+}
+
+func publishExpvarz(app *App) {
+	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
+	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
+
+	Metrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", Metrics.Goroutines)
+
+	startMinute := time.Now().Unix() / 60
+	Metrics.Uptime = expvar.Func(func() interface{} {
+		return time.Now().Unix()/60 - startMinute
+	})
+	expvar.Publish("uptime", Metrics.Uptime)
+
+	// export config via expvars
+	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
+
+	/* Configure zipper */
+	// set up caches
+
+	Metrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
+	expvar.Publish("cacheSize", Metrics.CacheSize)
+
+	Metrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
+	expvar.Publish("cacheItems", Metrics.CacheItems)
 }
