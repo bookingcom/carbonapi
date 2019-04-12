@@ -1,4 +1,4 @@
-FROM golang:1.11
+FROM golang:1.12
 
 RUN apt-get update
 RUN apt-get install -y libcairo2-dev

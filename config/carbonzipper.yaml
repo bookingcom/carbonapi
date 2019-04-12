@@ -2,12 +2,13 @@ listen: ":8000"
 # Expvars and performance metrics endpoint
 listenInternal: ":7000"
 maxProcs: 0
-graphite:
-    host: "localhost:2003"
-    interval: "60s"
-    prefix: "carbon.zipper"
-    # defines pattern of metric name. If present, {prefix} will be replaced with content of "prefix", {fqdn} with fqdn
-    pattern: "{prefix}.{fqdn}"
+# graphite:
+#     host: "localhost:2003"
+#     interval: "60s"
+#     prefix: "carbon.zipper"
+#     # defines pattern of metric name. If present, {prefix} will be replaced with content of "prefix", {fqdn} with fqdn
+#     pattern: "{prefix}.{fqdn}"
+
 # Number of 100ms buckets to track request distribution in. Used to build
 # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
 # Requests beyond the last bucket are logged as slow
@@ -44,13 +45,6 @@ expireDelaySec: 120
 # This is the *ONLY* config element that MUST be specified.
 backends:
     - "http://go-carbon:8080"
-    - "http://go-carbon:8082"
-
-carbonsearch:
-    # Instance of carbonsearch backend
-    backend: "http://127.0.0.1:8070"
-    # carbonsearch prefix to reserve/register
-    prefix: "virt.v1.*"
 
 # Enable compatibility with graphite-web 0.9
 # This will affect graphite-web 1.0+ with multiple cluster_servers

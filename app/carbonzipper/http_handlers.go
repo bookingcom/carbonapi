@@ -135,7 +135,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			Metrics.Errors.Add(1)
 			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 
-			// TODO (grzkv): Add new metric for not-founds here
+			app.prometheusMetrics.FindNotFound.Inc()
 		} else {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError

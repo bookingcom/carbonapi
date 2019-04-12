@@ -23,5 +23,8 @@ services:
       context: .
     volumes:
       - "./config/carbonzipper.yaml:/etc/carbonzipper.yaml"
+    ports:
+      - "7000:7000"
+      - "8000:8000"
     links:
       - go-carbon
