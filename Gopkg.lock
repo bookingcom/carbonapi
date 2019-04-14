@@ -111,7 +111,7 @@
   name = "github.com/facebookgo/grace"
   packages = [
     "gracehttp",
-    "gracenet",
+    "gracenet"
   ]
   pruneopts = "UT"
   revision = "75cf19382434e82df4dd84953f566b8ad23d6e9e"
@@ -164,7 +164,7 @@
     "gogoproto",
     "proto",
     "protoc-gen-gogo/descriptor",
-    "sortkeys",
+    "sortkeys"
   ]
   pruneopts = "UT"
   revision = "61dbc136cf5d2f08d68a011382652244990a53a9"
@@ -198,7 +198,7 @@
     "hcl/token",
     "json/parser",
     "json/scanner",
-    "json/token",
+    "json/token"
   ]
   pruneopts = "UT"
   revision = "8cb6e5b959231cc1119e43259c4a608f9c51a241"
@@ -250,7 +250,7 @@
   name = "github.com/mjibson/go-dsp"
   packages = [
     "dsputils",
-    "fft",
+    "fft"
   ]
   pruneopts = "UT"
   revision = "11479a337f1259210b7c8f93f7bf2b0cc87b066e"
@@ -280,19 +280,11 @@
   version = "v0.8.0"
 
 [[projects]]
-  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
-  name = "github.com/pmezard/go-difflib"
-  packages = ["difflib"]
-  pruneopts = "UT"
-  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
-  version = "v1.0.0"
-
-[[projects]]
   digest = "1:d14a5f4bfecf017cb780bdde1b6483e5deb87e12c332544d2c430eda58734bcb"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
-    "prometheus/promhttp",
+    "prometheus/promhttp"
   ]
   pruneopts = "UT"
   revision = "c5b7fccd204277076155f10851dad72b76a49317"
@@ -313,7 +305,7 @@
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
-    "model",
+    "model"
   ]
   pruneopts = "UT"
   revision = "c7de2306084e37d54b8be01f3541a8464345e9a5"
@@ -326,7 +318,7 @@
     ".",
     "internal/util",
     "nfs",
-    "xfs",
+    "xfs"
   ]
   pruneopts = "UT"
   revision = "418d78d0b9a7b7de3a6bbc8a23def624cc977bb2"
@@ -344,7 +336,7 @@
   name = "github.com/spf13/afero"
   packages = [
     ".",
-    "mem",
+    "mem"
   ]
   pruneopts = "UT"
   revision = "d40851caa0d747393da1ffb28f7f9d8b4eeffebd"
@@ -383,14 +375,6 @@
   version = "v1.2.1"
 
 [[projects]]
-  digest = "1:18752d0b95816a1b777505a97f71c7467a8445b8ffb55631a7bf779f6ba4fa83"
-  name = "github.com/stretchr/testify"
-  packages = ["assert"]
-  pruneopts = "UT"
-  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
-  version = "v1.2.2"
-
-[[projects]]
   branch = "master"
   digest = "1:f6eda3af90a5876a8aa9eb9524e0fde3acad07dfa041d0b61928bdce7d3975c8"
   name = "github.com/wangjohn/quickselect"
@@ -423,7 +407,7 @@
     "internal/bufferpool",
     "internal/color",
     "internal/exit",
-    "zapcore",
+    "zapcore"
   ]
   pruneopts = "UT"
   revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
@@ -446,7 +430,7 @@
     "internal/ucd",
     "transform",
     "unicode/cldr",
-    "unicode/norm",
+    "unicode/norm"
   ]
   pruneopts = "UT"
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
@@ -468,7 +452,7 @@
     "lapack",
     "lapack/gonum",
     "lapack/lapack64",
-    "mat",
+    "mat"
   ]
   pruneopts = "UT"
   revision = "a290f01ec470228a325b6e013e3caa635d5fc2f7"
@@ -507,11 +491,10 @@
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/satori/go.uuid",
     "github.com/spf13/viper",
-    "github.com/stretchr/testify/assert",
     "github.com/wangjohn/quickselect",
     "go.uber.org/zap",
     "gonum.org/v1/gonum/mat",
-    "gopkg.in/yaml.v2",
+    "gopkg.in/yaml.v2"
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
