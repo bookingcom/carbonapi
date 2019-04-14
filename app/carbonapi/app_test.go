@@ -13,7 +13,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 
 	"github.com/lomik/zapwriter"
-	"github.com/stretchr/testify/assert"
 )
 
 var testApp *App
@@ -142,13 +141,10 @@ func TestRenderHandler(t *testing.T) {
 
 	expected := `[{"target":"foo.bar","datapoints":[[null,1510913280],[1510913759,1510913340],[1510913818,1510913400]]}]`
 
-	// Check the status code is what we expect.
-	r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
-	if !r {
+	if rr.Code != http.StatusOK {
 		t.Error("HttpStatusCode should be 200 OK.")
 	}
-	r = assert.Equal(t, expected, rr.Body.String(), "Http response should be same.")
-	if !r {
+	if expected != rr.Body.String() {
 		t.Error("Http response should be same.")
 	}
 }
@@ -159,13 +155,13 @@ func TestFindHandler(t *testing.T) {
 
 	body := rr.Body.String()
 	// LOL this test is so fragile
+	// TODO (grzkv): It can be made not-fragile by unmarshalling first
+	// ...or using JSONEq, but this would be bloat
 	expected := "[{\"allowChildren\":0,\"context\":{},\"expandable\":0,\"id\":\"foo.bar\",\"leaf\":1,\"text\":\"bar\"}]"
-	r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
-	if !r {
+	if rr.Code != http.StatusOK {
 		t.Error("HttpStatusCode should be 200 OK.")
 	}
-	r = assert.Equal(t, string(expected), body, "Http response should be same.")
-	if !r {
+	if body != expected {
 		t.Error("Http response should be same.")
 	}
 }
@@ -177,13 +173,11 @@ func TestFindHandlerCompleter(t *testing.T) {
 		testApp.findHandler(rr, req)
 		body := rr.Body.String()
 		expectedValue, _ := findCompleter(getMetricGlobResponse(getCompleterQuery(testMetric)))
-		r := assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
-		if !r {
+		if rr.Code != http.StatusOK {
 			t.Error("HttpStatusCode should be 200 OK.")
 		}
-		r = assert.Equal(t, string(expectedValue), body, "Http response should be same.")
-		if !r {
-			t.Error("Http response should be same.")
+		if string(expectedValue) != body {
+			t.Error("HTTP response should be same.")
 		}
 	}
 }
@@ -195,17 +189,15 @@ func TestInfoHandler(t *testing.T) {
 	body := rr.Body.String()
 	expected := getMockInfoResponse()
 	expectedJSON, err := json.InfoEncoder(expected)
-	r := assert.Nil(t, err)
-	if !r {
+	if err != nil {
 		t.Errorf("err should be nil, %v instead", err)
 	}
 
-	r = assert.Equal(t, rr.Code, http.StatusOK, "HttpStatusCode should be 200 OK.")
-	if !r {
+	if rr.Code != http.StatusOK {
 		t.Error("Http response should be same.")
 	}
-	r = assert.Equal(t, string(expectedJSON), body, "Http response should be same.")
-	if !r {
+	// TODO (grzkv): Unmarshal for reliablility
+	if string(expectedJSON) != body {
 		t.Error("Http response should be same.")
 	}
 }

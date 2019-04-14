@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestShouldNotBlock(t *testing.T) {
@@ -31,7 +29,9 @@ func TestShouldNotBlockWithoutRule(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	// no rules are set
-	assert.Equal(t, false, shouldBlockRequest(req, []Rule{}), "Req should not be blocked")
+	if shouldBlockRequest(req, []Rule{}) {
+		t.Error("Req should not be blocked")
+	}
 }
 
 func TestShouldBlock(t *testing.T) {
@@ -42,7 +42,9 @@ func TestShouldBlock(t *testing.T) {
 
 	req.Header.Add("foo", "bar")
 	rule := Rule{"foo": "bar"}
-	assert.Equal(t, true, shouldBlockRequest(req, []Rule{rule}), "Req should be blocked")
+	if !shouldBlockRequest(req, []Rule{rule}) {
+		t.Error("Req should be blocked")
+	}
 }
 
 func TestGetCompleterQuery(t *testing.T) {
@@ -51,7 +53,9 @@ func TestGetCompleterQuery(t *testing.T) {
 
 	for i, metricTestCase := range metricTestCases {
 		response := getCompleterQuery(metricTestCase)
-		assert.Equal(t, metricCompleterResponse[i], response, "should be same")
+		if metricCompleterResponse[i] != response {
+			t.Error("should be same")
+		}
 	}
 }
 
@@ -69,7 +73,9 @@ func TestFindCompleter(t *testing.T) {
 
 	for i, metricTestCase := range metricTestCases {
 		response, _ := findCompleter(metricTestCase)
-		assert.Equal(t, string(metricFindCompleterResponse[i]), string(response), "should be same")
+		if metricFindCompleterResponse[i] != string(response) {
+			t.Error("should be same")
+		}
 	}
 
 }
