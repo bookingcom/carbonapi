@@ -1,3 +1,15 @@
+// Package zipper exposes following non-monitoring endpoints:
+//   - /metrics/find
+//   - /render
+//   - /info
+//
+// Error codes policy
+//
+// Find error policy:
+//   - if at least one backend succeeds, it's a success with code 200.
+//   - if all bakends fail
+//     - if all errors are not-found, it's a not found. But code is 200 + a monitoring counter incremented.
+//     - if errors are of mixed type we fail with code 500.
 package zipper
 
 import (
