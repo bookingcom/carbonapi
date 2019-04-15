@@ -20,7 +20,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
@@ -129,18 +128,6 @@ type renderResponse struct {
 	error error
 }
 
-// TODO (grzkv): This is an intermediate stub. Remove it
-func findErrorsFanIn(ctx context.Context, err error, logger *zap.Logger) error {
-	errs := []error{err}
-	return backend.CheckErrs(ctx, errs, 1, logger)
-}
-
-// TODO (grzkv): This is an intermediate stub. Remove it
-func renderErrorsFanIn(ctx context.Context, err error, logger *zap.Logger) error {
-	errs := []error{err}
-	return backend.CheckErrs(ctx, errs, 1, logger)
-}
-
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 
@@ -246,7 +233,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 					request := dataTypes.NewRenderRequest([]string{path}, from, until)
 					metrics, err := app.backend.Render(ctx, request)
-					err = renderErrorsFanIn(ctx, err, logger)
 
 					// time in queue is converted to ms
 					app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -284,6 +270,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 			if len(errors) != 0 {
 				logger.Error("render error occurred while fetching data",
+					zap.String("uuid", util.GetUUID(ctx)),
 					zap.Any("errors", errors),
 				)
 			}
@@ -556,7 +543,6 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request := dataTypes.NewFindRequest(metric)
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
-	err = findErrorsFanIn(ctx, err, logger)
 	if err != nil {
 		return matches, err
 	}
@@ -643,8 +629,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	request := dataTypes.NewFindRequest(query)
 	request.IncCall()
 	metrics, err := app.backend.Find(ctx, request)
-	err = findErrorsFanIn(ctx, err, logger)
 	if err != nil {
+		logger.Warn("zipper returned erro in find request",
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(err),
+		)
 		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
