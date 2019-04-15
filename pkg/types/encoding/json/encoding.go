@@ -23,6 +23,7 @@ type jsonMatch struct {
 	Text          string         `json:"text"`
 }
 
+// FindEncoder converts matches to JSON data
 func FindEncoder(matches types.Matches) ([]byte, error) {
 	jms := matchesToJSONMatches(matches)
 
@@ -30,7 +31,8 @@ func FindEncoder(matches types.Matches) ([]byte, error) {
 }
 
 func matchesToJSONMatches(matches types.Matches) []jsonMatch {
-	jms := make([]jsonMatch, 0, len(matches.Matches))
+	// values are stored in the map first to remove duplicates by ID
+	ms := make(map[string]jsonMatch)
 
 	var basepath string
 	if i := strings.LastIndex(matches.Name, "."); i != -1 {
@@ -61,9 +63,13 @@ func matchesToJSONMatches(matches types.Matches) []jsonMatch {
 
 		// jm.Context not set on purpose; seems to always be empty map?
 
-		jms = append(jms, jm)
+		ms[jm.ID] = jm
 	}
 
+	jms := make([]jsonMatch, 0, len(ms))
+	for _, jm := range ms {
+		jms = append(jms, jm)
+	}
 	return jms
 }
 
@@ -87,6 +93,7 @@ type jsonRet struct {
 	NumberOfPoints  int32 `json:"numberOfPoints"`
 }
 
+// InfoEncoder converts acquired info data to JSON string
 func InfoEncoder(infos []types.Info) ([]byte, error) {
 	jsonInfos := make(map[string]jsonInfo)
 
@@ -111,6 +118,7 @@ func InfoEncoder(infos []types.Info) ([]byte, error) {
 	return json.Marshal(jsonInfos)
 }
 
+// InfoDecoder converts JSON string to metrics info
 func InfoDecoder(blob []byte) ([]types.Info, error) {
 	jsonInfos := make(map[string]jsonInfo)
 	if err := json.Unmarshal(blob, &jsonInfos); err != nil {
@@ -145,6 +153,7 @@ type jsonMetric struct {
 	Datapoints [][]interface{} `json:"datapoints"`
 }
 
+// RenderEncoder converts metrics data to JSON format
 func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 	jms := make([]jsonMetric, 0, len(metrics))
 
@@ -177,6 +186,7 @@ func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 	return json.Marshal(jms)
 }
 
+// RenderDecoder converts JSON string to metrics data
 func RenderDecoder(blob []byte) ([]types.Metric, error) {
 	jms := make([]jsonMetric, 0)
 	if err := json.Unmarshal(blob, &jms); err != nil {
