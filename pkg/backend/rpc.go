@@ -17,13 +17,10 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/bookingcom/carbonapi/util"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -79,7 +76,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 }
 
 // Infos makes Info calls to multiple backends.
-func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) ([]types.Info, error) {
+func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) ([]types.Info, []error) {
 	if len(backends) == 0 {
 		return nil, nil
 	}
@@ -109,11 +106,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 		}
 	}
 
-	if err := CheckErrs(ctx, errs, len(backends), backends[0].Logger()); err != nil {
-		return nil, err
-	}
-
-	return types.MergeInfos(msgs), nil
+	return types.MergeInfos(msgs), errs
 }
 
 // Finds makes Find calls to multiple backends.
@@ -181,51 +174,4 @@ func filter(backends []Backend, targets []string) []Backend {
 	}
 
 	return bs
-}
-
-// CheckErrs checks errs
-// TODO (grzkv): Cleanup
-func CheckErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
-	if len(errs) == 0 {
-		return nil
-	}
-
-	if len(errs) >= limit {
-		return errors.WithMessage(CombineErrors(errs), "All backend requests failed")
-	}
-
-	logger.Warn("Some requests failed",
-		zap.String("uuid", util.GetUUID(ctx)),
-		zap.Error(CombineErrors(errs)),
-	)
-
-	return nil
-}
-
-// CombineErrors combines errs
-// TODO (grzkv): Cleanup
-func CombineErrors(errs []error) error {
-	msgs := make(map[error]int)
-	for _, err := range errs {
-		if err != nil {
-			msgs[errors.Cause(err)]++
-		}
-	}
-
-	if len(msgs) == 0 {
-		return nil
-	}
-
-	if len(msgs) == 1 {
-		for err, count := range msgs {
-			return errors.WithMessage(err, fmt.Sprintf("%d backends", count))
-		}
-	}
-
-	ms := make([]string, 0, len(msgs))
-	for m, c := range msgs {
-		ms = append(ms, fmt.Sprintf("%s: %d backends", m, c))
-	}
-
-	return fmt.Errorf("%s", strings.Join(ms, "\n"))
 }
