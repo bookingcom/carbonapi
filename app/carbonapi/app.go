@@ -169,8 +169,13 @@ func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
 func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
 	fileLock.Lock()
 	defer fileLock.Unlock()
-	fileData, err := ioutil.ReadFile(blockHeaderFile)
-	return fileData, err
+	if _, err := os.Stat(blockHeaderFile); err == nil {
+		return ioutil.ReadFile(blockHeaderFile)
+	} else if os.IsNotExist(err) {
+		return []byte{}, nil
+	} else {
+		return []byte{}, errors.Wrap(err, "error while checking existense of file")
+	}
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
