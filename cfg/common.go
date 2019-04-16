@@ -55,7 +55,7 @@ func DefaultCommonConfig() Common {
 		Buckets: 10,
 		Graphite: GraphiteConfig{
 			Interval: 60 * time.Second,
-			Host:     "127.0.0.1:3002",
+			Host:     "",
 			Prefix:   "carbon.zipper",
 			Pattern:  "{prefix}.{fqdn}",
 		},

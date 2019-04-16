@@ -85,7 +85,7 @@ monitoring:
 		Buckets: 10,
 		Graphite: GraphiteConfig{
 			Pattern:  "{prefix}.{fqdn}",
-			Host:     "127.0.0.1:3002",
+			Host:     "",
 			Interval: 60 * time.Second,
 			Prefix:   "carbon.zipper",
 		},
