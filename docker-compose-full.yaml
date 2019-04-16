@@ -1,0 +1,36 @@
+version: "3"
+
+services:
+  go-carbon:
+    build:
+      dockerfile: docker/go-carbon/Dockerfile
+      context: .
+
+  carbonapi:
+    build:
+      dockerfile: docker/carbonapi/Dockerfile
+      context: .
+    ports:
+      - "8081:8081"
+    links:
+      - zipper
+
+  zipper:
+    build:
+      dockerfile: docker/zipper/Dockerfile
+      context: .
+    volumes:
+      - "./config/carbonzipper.yaml:/etc/carbonzipper.yaml"
+    ports:
+      - "7000:7000"
+      - "8000:8000"
+    links:
+      - go-carbon
+
+  crelay:
+    build:
+      dockerfile: docker/crelay/Dockerfile
+      context: .
+    ports:
+      - "2003:2003"
+    
