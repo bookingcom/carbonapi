@@ -461,6 +461,7 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 
 func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r *http.Request, logger *zap.Logger) ([]byte, error) {
 	var body []byte
+	var err error
 
 	switch form.format {
 	case jsonFormat:
@@ -470,7 +471,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 
 		body = types.MarshalJSON(results)
 	case protobufFormat, protobuf3Format:
-		body, err := types.MarshalProtobuf(results)
+		body, err = types.MarshalProtobuf(results)
 		if err != nil {
 			return body, errors.Wrap(err, "error while marshalling protobuf")
 		}
