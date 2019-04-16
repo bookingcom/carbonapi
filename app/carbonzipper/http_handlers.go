@@ -144,8 +144,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			// request that finds nothing. We are however interested in knowing
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
-			Metrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 
 			app.prometheusMetrics.FindNotFound.Inc()
 		} else {

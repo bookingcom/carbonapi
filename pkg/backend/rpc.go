@@ -184,6 +184,7 @@ func filter(backends []Backend, targets []string) []Backend {
 }
 
 // CheckErrs checks errs
+// TODO (grzkv): Cleanup
 func CheckErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger) error {
 	if len(errs) == 0 {
 		return nil
@@ -202,6 +203,7 @@ func CheckErrs(ctx context.Context, errs []error, limit int, logger *zap.Logger)
 }
 
 // CombineErrors combines errs
+// TODO (grzkv): Cleanup
 func CombineErrors(errs []error) error {
 	msgs := make(map[error]int)
 	for _, err := range errs {
