@@ -38,6 +38,30 @@ func (e ErrHTTPCode) Error() string {
 	}
 }
 
+// ErrContextCancel signifies context cancellation manual or via timeout
+type ErrContextCancel struct {
+	Err error
+}
+
+func (err ErrContextCancel) Error() string {
+	return err.Err.Error()
+}
+
+// CancelCause tells why the context was cancelled
+func (err ErrContextCancel) CancelCause() string {
+	var cause string
+	switch err.Err {
+	case context.DeadlineExceeded:
+		cause = "deadline"
+	case context.Canceled:
+		cause = "caceled"
+	default:
+		cause = "unknown"
+	}
+
+	return cause
+}
+
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
 	address       string
@@ -332,11 +356,10 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			// TODO (grzkv): This is wrong
-			return nil, types.ErrTimeout{Err: ctx.Err()}
+			return nil, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if code, ok := err.(ErrHTTPCode); ok && code == 404 {
+		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
 		}
 
@@ -460,11 +483,10 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			// TODO (grzkv): This is wrong
-			return types.Matches{}, types.ErrTimeout{Err: ctx.Err()}
+			return types.Matches{}, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
+		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
 		}
 
