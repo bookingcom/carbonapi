@@ -461,6 +461,7 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 
 func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r *http.Request, logger *zap.Logger) ([]byte, error) {
 	var body []byte
+	var err error
 
 	switch form.format {
 	case jsonFormat:
