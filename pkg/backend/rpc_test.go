@@ -8,8 +8,6 @@ import (
 
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"github.com/bookingcom/carbonapi/pkg/types"
-
-	"go.uber.org/zap"
 )
 
 func TestFilter(t *testing.T) {
@@ -143,9 +141,9 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		}),
 	}
 
-	got, err := Infos(context.Background(), backends, types.NewInfoRequest(""))
-	if err != nil {
-		t.Error(err)
+	got, errs := Infos(context.Background(), backends, types.NewInfoRequest(""))
+	if len(errs) != 0 {
+		t.Errorf("Infos returned errors %v ...", errs[0])
 		return
 	}
 
@@ -191,9 +189,9 @@ func TestCarbonapiv2Infos(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, err := Infos(context.Background(), backends, types.NewInfoRequest(""))
-	if err != nil {
-		t.Error(err)
+	got, errs := Infos(context.Background(), backends, types.NewInfoRequest(""))
+	if len(errs) != 0 {
+		t.Errorf("Infos returned errors %v ...", errs[0])
 		return
 	}
 
@@ -246,26 +244,5 @@ func TestCarbonapiv2Finds(t *testing.T) {
 	if len(got.Matches) != N {
 		t.Errorf("Expected %d responses, got %d", N, len(got.Matches))
 		return
-	}
-}
-
-func TestCheckErrs(t *testing.T) {
-	ctx := context.Background()
-	logger := zap.New(nil)
-
-	if err := CheckErrs(ctx, nil, 0, logger); err != nil {
-		t.Error("Expected no error")
-	}
-
-	if err := CheckErrs(ctx, []error{errors.New("no")}, 1, logger); err == nil {
-		t.Error("Expected error")
-	}
-
-	if err := CheckErrs(ctx, []error{errors.New("no")}, 0, logger); err == nil {
-		t.Error("Expected error")
-	}
-
-	if err := CheckErrs(ctx, []error{errors.New("no")}, 2, logger); err != nil {
-		t.Error("Expected no error")
 	}
 }

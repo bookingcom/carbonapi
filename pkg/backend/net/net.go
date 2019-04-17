@@ -336,7 +336,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 			return nil, types.ErrTimeout{Err: ctx.Err()}
 		}
 
-		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
+		if code, ok := err.(ErrHTTPCode); ok && code == 404 {
 			return nil, types.ErrMetricsNotFound
 		}
 
