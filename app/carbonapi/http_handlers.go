@@ -471,7 +471,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 
 		body = types.MarshalJSON(results)
 	case protobufFormat, protobuf3Format:
-		body, err := types.MarshalProtobuf(results)
+		body, err = types.MarshalProtobuf(results)
 		if err != nil {
 			return body, errors.Wrap(err, "error while marshalling protobuf")
 		}
