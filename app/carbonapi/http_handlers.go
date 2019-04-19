@@ -258,7 +258,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				resp := <-rch
 				if resp.error != nil {
 					if e, ok := resp.error.(net.ErrContextCancel); ok {
-						app.prometheusMetrics.RequestCancel.WithLabelValues("render", e.CancelCause()).Inc()
+						app.prometheusMetrics.RequestCancel.WithLabelValues(
+							"render", net.ContextCancelCause(e.Err)).Inc()
 					}
 
 					errors = append(errors, resp.error)
@@ -551,7 +552,8 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
 		if e, ok := err.(net.ErrContextCancel); ok {
-			app.prometheusMetrics.RequestCancel.WithLabelValues("find", e.CancelCause()).Inc()
+			app.prometheusMetrics.RequestCancel.WithLabelValues("find",
+				net.ContextCancelCause(e.Err)).Inc()
 		}
 		return matches, err
 	}
@@ -652,7 +654,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			app.prometheusMetrics.FindNotFound.Inc()
 		} else {
 			if e, ok := err.(net.ErrContextCancel); ok {
-				app.prometheusMetrics.RequestCancel.WithLabelValues("find", e.CancelCause()).Inc()
+				app.prometheusMetrics.RequestCancel.WithLabelValues("find",
+					net.ContextCancelCause(e.Err)).Inc()
 			}
 
 			msg := "error fetching the data"
@@ -824,7 +827,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
 		if e, ok := err.(net.ErrContextCancel); ok {
-			app.prometheusMetrics.RequestCancel.WithLabelValues("info", e.CancelCause()).Inc()
+			app.prometheusMetrics.RequestCancel.WithLabelValues("info", net.ContextCancelCause(e.Err)).Inc()
 		}
 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

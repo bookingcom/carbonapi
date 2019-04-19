@@ -3,9 +3,8 @@
 //   - /render
 //   - /info
 //
-// Error codes policy
+// Error codes policy (applies to find, render, info endpoints)
 //
-// Find error policy:
 //   - if at least one backend succeeds, it's a success with code 200.
 //   - if all bakends fail
 //     - if all errors are not-found, it's a not found. But code is 200 + a monitoring counter incremented.
@@ -22,6 +21,7 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
+	nt "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
@@ -84,6 +84,13 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	bs := backend.Filter(app.backends, []string{originalQuery})
 	metrics, errs := backend.Finds(ctx, bs, request)
 	err := errorsFanIn(ctx, errs, len(bs), logger)
+
+	if ctx.Err() != nil {
+		// context was cancelled even if some of the requests succeeded
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"find", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
 
 	if err != nil {
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
@@ -267,6 +274,13 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+
+	if ctx.Err() != nil {
+		// context was cancelled even if some of the requests succeeded
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"find", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
 
 	if err != nil {
 		msg := "error fetching the data"
@@ -453,9 +467,11 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
 	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("loadbalancer").With(zap.String("handler", "loadbalancer"))
+	logger := zapwriter.Logger("loadbalancer").
+		With(zap.String("handler", "loadbalancer"))
 	// TODO (grzkv): Pass logger from above
-	accessLogger := zapwriter.Logger("access").With(zap.String("handler", "loadbalancer"))
+	accessLogger := zapwriter.Logger("access").
+		With(zap.String("handler", "loadbalancer"))
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
 		ce.Write(
@@ -473,10 +489,12 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "lbcheck").Inc()
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK),
+		"lbcheck").Inc()
 }
 
-func errorsFanIn(ctx context.Context, errs []error, numBackends int, logger *zap.Logger) error {
+func errorsFanIn(ctx context.Context, errs []error, numBackends int,
+	logger *zap.Logger) error {
 	nErrs := len(errs)
 	switch {
 	case (nErrs == 0):
