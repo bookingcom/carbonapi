@@ -59,7 +59,7 @@ func TestContains(t *testing.T) {
 		return
 	}
 
-	b.paths.Set("foo", struct{}{}, 0, 30)
+	b.cache.Set("foo", struct{}{}, 0, 30)
 
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")
@@ -81,7 +81,7 @@ func TestContains(t *testing.T) {
 		t.Error("Expected false")
 	}
 
-	b.paths = expirecache.New(0)
+	b.cache = expirecache.New(0)
 	if ok := b.Contains([]string{"foo"}); ok {
 		t.Error("Expected false")
 	}
