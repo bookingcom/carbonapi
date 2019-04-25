@@ -116,6 +116,7 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 		prometheus.MustRegister(app.prometheusMetrics.Requests)
 		prometheus.MustRegister(app.prometheusMetrics.Responses)
 		prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
+		prometheus.MustRegister(app.prometheusMetrics.RequestCancel)
 		prometheus.MustRegister(app.prometheusMetrics.DurationExp)
 		prometheus.MustRegister(app.prometheusMetrics.DurationLin)
 		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)

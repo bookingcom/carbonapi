@@ -17,8 +17,10 @@ import (
 )
 
 var (
+	// TODO (grzkv): Remove from global scope and to metrics package
 	corruptionThreshold = 1.0
-	corruptionLogger    = zap.New(nil)
+	// TODO (grzkv): Remove from global scope and to metrics package
+	corruptionLogger = zap.New(nil)
 
 	ErrMetricsNotFound = ErrNotFound("No metrics returned")
 	ErrMatchesNotFound = ErrNotFound("No matches found")
@@ -31,15 +33,6 @@ type ErrNotFound string
 // Error makes ErrNotFound compliant with the error interface
 func (err ErrNotFound) Error() string {
 	return string(err)
-}
-
-// ErrTimeout signifies the HTTP timeout error
-type ErrTimeout struct {
-	Err error
-}
-
-func (err ErrTimeout) Error() string {
-	return err.Err.Error()
 }
 
 func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
@@ -88,6 +81,8 @@ func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
 		Trace:   NewTrace(),
 	}
 }
+
+// TODO (grzkv): Move to a separate package
 
 type Trace struct {
 	callCount     *int64
@@ -180,6 +175,8 @@ with an implementation
 
 The interface would probably need to have a Merge(other) method as well.
 */
+
+// TODO (grzkv): Move to a separate package
 
 // Metric represents a part of a time series.
 type Metric struct {

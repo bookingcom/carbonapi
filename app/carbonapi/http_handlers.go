@@ -20,6 +20,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
@@ -256,6 +257,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			for i := 0; i < len(renderRequests); i++ {
 				resp := <-rch
 				if resp.error != nil {
+					if e, ok := resp.error.(net.ErrContextCancel); ok {
+						app.prometheusMetrics.RequestCancel.WithLabelValues(
+							"render", net.ContextCancelCause(e.Err)).Inc()
+					}
+
 					errors = append(errors, resp.error)
 					continue
 				}
@@ -545,6 +551,10 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
+		if e, ok := err.(net.ErrContextCancel); ok {
+			app.prometheusMetrics.RequestCancel.WithLabelValues("find",
+				net.ContextCancelCause(e.Err)).Inc()
+		}
 		return matches, err
 	}
 
@@ -643,6 +653,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// returned a 404 code to Prometheus.
 			app.prometheusMetrics.FindNotFound.Inc()
 		} else {
+			if e, ok := err.(net.ErrContextCancel); ok {
+				app.prometheusMetrics.RequestCancel.WithLabelValues("find",
+					net.ContextCancelCause(e.Err)).Inc()
+			}
+
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
 
@@ -811,6 +826,10 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
+		if e, ok := err.(net.ErrContextCancel); ok {
+			app.prometheusMetrics.RequestCancel.WithLabelValues("info", net.ContextCancelCause(e.Err)).Inc()
+		}
+
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
 		accessLogDetails.Reason = err.Error()

@@ -58,6 +58,7 @@ type PrometheusMetrics struct {
 	Requests          prometheus.Counter
 	Responses         *prometheus.CounterVec
 	FindNotFound      prometheus.Counter
+	RequestCancel     *prometheus.CounterVec
 	DurationExp       prometheus.Histogram
 	DurationLin       prometheus.Histogram
 	RenderDurationExp prometheus.Histogram
@@ -87,6 +88,13 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Name: "find_not_found",
 				Help: "Count of not-found /find responses",
 			},
+		),
+		RequestCancel: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "request_cancel",
+				Help: "Context cancellations or incoming requests due to manual cancels or timeouts",
+			},
+			[]string{"handler", "cause"},
 		),
 		DurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{

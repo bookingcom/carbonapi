@@ -38,16 +38,40 @@ func (e ErrHTTPCode) Error() string {
 	}
 }
 
+// ErrContextCancel signifies context cancellation manual or via timeout
+type ErrContextCancel struct {
+	Err error
+}
+
+func (err ErrContextCancel) Error() string {
+	return err.Err.Error()
+}
+
+// ContextCancelCause tells why the context was cancelled
+func ContextCancelCause(err error) string {
+	var cause string
+	switch err {
+	case context.DeadlineExceeded:
+		cause = "deadline"
+	case context.Canceled:
+		cause = "canceled"
+	default:
+		cause = "unknown"
+	}
+
+	return cause
+}
+
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
-	address       string
-	scheme        string
-	client        *http.Client
-	timeout       time.Duration
-	limiter       chan struct{}
-	logger        *zap.Logger
-	paths         *expirecache.Cache
-	pathExpirySec int32
+	address        string
+	scheme         string
+	client         *http.Client
+	timeout        time.Duration
+	limiter        chan struct{}
+	logger         *zap.Logger
+	cache          *expirecache.Cache
+	cacheExpirySec int32
 }
 
 // Config configures an HTTP backend.
@@ -71,13 +95,13 @@ var fmtProto = []string{"protobuf"}
 // New creates a new backend from the given configuration.
 func New(cfg Config) (*Backend, error) {
 	b := &Backend{
-		paths: expirecache.New(0),
+		cache: expirecache.New(0),
 	}
 
 	if cfg.PathCacheExpirySec > 0 {
-		b.pathExpirySec = int32(cfg.PathCacheExpirySec)
+		b.cacheExpirySec = int32(cfg.PathCacheExpirySec)
 	} else {
-		b.pathExpirySec = int32(10 * time.Minute / time.Second)
+		b.cacheExpirySec = int32(10 * time.Minute / time.Second)
 	}
 
 	address, scheme, err := parseAddress(cfg.Address)
@@ -297,7 +321,7 @@ func (b *Backend) Probe() {
 	}
 
 	for _, m := range matches.Matches {
-		b.paths.Set(m.Path, struct{}{}, 0, b.pathExpirySec)
+		b.cache.Set(m.Path, struct{}{}, 0, b.cacheExpirySec)
 	}
 }
 
@@ -310,7 +334,7 @@ func (b *Backend) Probe() {
 // Contains reports whether the backend contains any of the given targets.
 func (b Backend) Contains(targets []string) bool {
 	for _, target := range targets {
-		if _, ok := b.paths.Get(target); ok {
+		if _, ok := b.cache.Get(target); ok {
 			return true
 		}
 	}
@@ -332,11 +356,10 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			// TODO (grzkv): This is wrong
-			return nil, types.ErrTimeout{Err: ctx.Err()}
+			return nil, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if code, ok := err.(ErrHTTPCode); ok && code == 404 {
+		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
 		}
 
@@ -379,7 +402,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	}
 
 	for _, metric := range metrics {
-		b.paths.Set(metric.Name, struct{}{}, 0, b.pathExpirySec)
+		b.cache.Set(metric.Name, struct{}{}, 0, b.cacheExpirySec)
 	}
 
 	return metrics, nil
@@ -460,11 +483,10 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			// TODO (grzkv): This is wrong
-			return types.Matches{}, types.ErrTimeout{Err: ctx.Err()}
+			return types.Matches{}, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if err, ok := err.(ErrHTTPCode); ok && err/100 == 4 {
+		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
 		}
 
@@ -505,7 +527,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 
 	for _, match := range matches.Matches {
 		if match.IsLeaf {
-			b.paths.Set(match.Path, struct{}{}, 0, b.pathExpirySec)
+			b.cache.Set(match.Path, struct{}{}, 0, b.cacheExpirySec)
 		}
 	}
 
