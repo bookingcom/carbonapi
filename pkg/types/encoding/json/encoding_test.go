@@ -66,57 +66,56 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 				},
 			},
 		},
-		// TODO (grzkv): To add this test, add unordered slice comparison for uncomparable structs
-		// {
-		// 	name: "test with various values",
-		// 	in: types.Matches{
-		// 		Name: "a.b.*",
-		// 		Matches: []types.Match{
-		// 			types.Match{
-		// 				Path:   "a.b.c",
-		// 				IsLeaf: true,
-		// 			},
-		// 			types.Match{
-		// 				Path:   "a.b.d",
-		// 				IsLeaf: true,
-		// 			},
-		// 			types.Match{
-		// 				Path:   "a.b.d",
-		// 				IsLeaf: true,
-		// 			},
-		// 			types.Match{
-		// 				Path:   "a.b.e",
-		// 				IsLeaf: true,
-		// 			},
-		// 		},
-		// 	},
-		// 	out: []jsonMatch{
-		// 		jsonMatch{
-		// 			AllowChildren: 0,
-		// 			Leaf:          1,
-		// 			Expandable:    0,
-		// 			Context:       make(map[string]int),
-		// 			ID:            "a.b.c",
-		// 			Text:          "c",
-		// 		},
-		// 		jsonMatch{
-		// 			AllowChildren: 0,
-		// 			Leaf:          1,
-		// 			Expandable:    0,
-		// 			Context:       make(map[string]int),
-		// 			ID:            "a.b.d",
-		// 			Text:          "d",
-		// 		},
-		// 		jsonMatch{
-		// 			AllowChildren: 0,
-		// 			Leaf:          1,
-		// 			Expandable:    0,
-		// 			Context:       make(map[string]int),
-		// 			ID:            "a.b.e",
-		// 			Text:          "e",
-		// 		},
-		// 	},
-		// },
+		{
+			name: "test with various values",
+			in: types.Matches{
+				Name: "a.b.*",
+				Matches: []types.Match{
+					types.Match{
+						Path:   "a.b.e",
+						IsLeaf: true,
+					},
+					types.Match{
+						Path:   "a.b.c",
+						IsLeaf: true,
+					},
+					types.Match{
+						Path:   "a.b.d",
+						IsLeaf: true,
+					},
+					types.Match{
+						Path:   "a.b.d",
+						IsLeaf: true,
+					},
+				},
+			},
+			out: []jsonMatch{
+				jsonMatch{
+					AllowChildren: 0,
+					Leaf:          1,
+					Expandable:    0,
+					Context:       make(map[string]int),
+					ID:            "a.b.c",
+					Text:          "c",
+				},
+				jsonMatch{
+					AllowChildren: 0,
+					Leaf:          1,
+					Expandable:    0,
+					Context:       make(map[string]int),
+					ID:            "a.b.d",
+					Text:          "d",
+				},
+				jsonMatch{
+					AllowChildren: 0,
+					Leaf:          1,
+					Expandable:    0,
+					Context:       make(map[string]int),
+					ID:            "a.b.e",
+					Text:          "e",
+				},
+			},
+		},
 	}
 
 	for _, tst := range tests {

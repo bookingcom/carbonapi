@@ -7,6 +7,7 @@ package json
 import (
 	"encoding/json"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
@@ -70,6 +71,11 @@ func matchesToJSONMatches(matches types.Matches) []jsonMatch {
 	for _, jm := range ms {
 		jms = append(jms, jm)
 	}
+
+	sort.Slice(jms, func(i, j int) bool {
+		return jms[i].Text < jms[j].Text
+	})
+
 	return jms
 }
 
