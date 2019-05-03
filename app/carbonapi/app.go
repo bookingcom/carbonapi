@@ -200,6 +200,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	rewrite.New(app.config.FunctionsConfigs)
 	functions.New(app.config.FunctionsConfigs)
 
+	// TODO (grzkv): Move expvars to init since they are global to the package
 	expvar.NewString("GoVersion").Set(runtime.Version())
 	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
 
