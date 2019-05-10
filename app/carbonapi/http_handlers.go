@@ -188,6 +188,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var results []*types.MetricData
+	// TODO (grzkv) This is not maintained properly. Refactor
 	errors := make(map[string]string)
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
@@ -315,6 +316,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			errors[target] = err.Error()
 			accessLogDetails.Reason = err.Error()
+			accessLogDetails.HttpCode = http.StatusInternalServerError
 			logAsError = true
 			return
 		}
@@ -377,7 +379,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
 			w.WriteHeader(http.StatusNotFound)
 			accessLogDetails.HttpCode = http.StatusNotFound
-			logAsError = false
+			logAsError = true
 		} else {
 			http.Error(w, totalErr.Error(), http.StatusInternalServerError)
 			accessLogDetails.HttpCode = http.StatusInternalServerError

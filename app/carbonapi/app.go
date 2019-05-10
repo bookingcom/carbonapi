@@ -423,10 +423,12 @@ func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbona
 
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
+	// TODO (grzkv) This logic is not obvious for the user
 	if logAsError {
 		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
 		apiMetrics.Errors.Add(1)
 	} else {
+		// TODO (grzkv) The code can differ from the real one. Clean up
 		accessLogDetails.HttpCode = http.StatusOK
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
 		apiMetrics.Responses.Add(1)
