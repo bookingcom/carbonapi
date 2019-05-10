@@ -92,6 +92,7 @@ type Metadata struct {
 	evaluator interfaces.Evaluator
 }
 
+// TODO (grzkv) Remove from global scope. This blocks testability
 // FunctionMD is actual global variable that stores metadata
 var FunctionMD = Metadata{
 	RewriteFunctions:    make(map[string]interfaces.RewriteFunction),

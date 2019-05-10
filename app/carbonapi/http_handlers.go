@@ -58,6 +58,7 @@ type RuleConfig struct {
 	Rules []Rule
 }
 
+// TODO (grzkv): Move out of global scope
 var fileLock sync.Mutex
 
 func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
@@ -144,6 +145,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
+		// TODO (grzkv) logging duplicated in many places
 		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
 	}()
 
@@ -186,10 +188,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var results []*types.MetricData
+	// TODO (grzkv) This is not maintained properly. Refactor
 	errors := make(map[string]string)
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
 	var metrics []string
+	var targetErrs []error
 	// TODO(gmagnusson): Put the body of this loop in a select { } and cancel work
 	for _, target := range form.targets {
 		exp, e, err := parser.ParseExpr(target)
@@ -203,6 +207,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var targetMetricFetches []parser.MetricRequest
+		var metricErrs []error
 		for _, m := range exp.Metrics() {
 			metrics = append(metrics, m.Metric)
 			mfetch := m
@@ -225,10 +230,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			// if the metric results in no requests but no errors - that's because the peek returned nothing
+			if len(renderRequests) == 0 {
+				metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
+				continue
+			}
+
 			// TODO(dgryski): group the render requests into batches
 			rch := make(chan renderResponse, len(renderRequests))
 			for _, m := range renderRequests {
 				go func(path string, from, until int32) {
+
 					apiMetrics.RenderRequests.Add(1)
 					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
 
@@ -251,7 +263,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 						error: err,
 					}
 				}(m, mfetch.From, mfetch.Until)
-			}
+			} // for range requests
 
 			errors := make([]error, 0)
 			for i := 0; i < len(renderRequests); i++ {
@@ -281,9 +293,20 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				)
 			}
 
+			// errors merge accross one globbed metric
+			if metricErr := errsFanIn(errors, len(renderRequests)); metricErr != nil {
+				metricErrs = append(metricErrs, metricErr)
+			}
+
 			expr.SortMetrics(metricMap[mfetch], mfetch)
-		}
+		} // range exp.Metrics
+
 		accessLogDetails.Metrics = metrics
+
+		// errors merge across several metrics in one target
+		if targetErr := errsFanIn(metricErrs, len(exp.Metrics())); targetErr != nil {
+			targetErrs = append(targetErrs, targetErr)
+		}
 
 		var rewritten bool
 		var newTargets []string
@@ -293,6 +316,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			errors[target] = err.Error()
 			accessLogDetails.Reason = err.Error()
+			accessLogDetails.HttpCode = http.StatusInternalServerError
 			logAsError = true
 			return
 		}
@@ -343,18 +367,30 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					logAsError = true
 				}
 
-				// If err == parser.ErrSeriesDoesNotExist, exprs == nil, so we
-				// can just return here.
 				return
 			}
 
 			results = append(results, exprs...)
 		}()
+	} // for over targets
+
+	totalErr := errsFanIn(targetErrs, len(form.targets))
+	if totalErr != nil {
+		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
+			w.WriteHeader(http.StatusNotFound)
+			accessLogDetails.HttpCode = http.StatusNotFound
+			logAsError = true
+		} else {
+			http.Error(w, totalErr.Error(), http.StatusInternalServerError)
+			accessLogDetails.HttpCode = http.StatusInternalServerError
+			logAsError = true
+		}
+		return
 	}
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		logger.Info("request failed",
+		logger.Error("request failed",
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.String("reason", err.Error()),
 			zap.Duration("runtime", time.Since(t0)),
@@ -505,6 +541,34 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	}
 
 	return body, nil
+}
+
+func errsFanIn(errs []error, n int) error {
+	nErrs := len(errs)
+	if nErrs == 0 {
+		return nil
+	}
+
+	switch {
+	case (nErrs < n):
+		return nil
+	default:
+		// everything failed.
+		// If all the failures are not-founds, it's a not-found
+		allErrorsNotFound := true
+		for _, e := range errs {
+			if _, ok := e.(dataTypes.ErrNotFound); !ok {
+				allErrorsNotFound = false
+				break
+			}
+		}
+
+		if allErrorsNotFound {
+			return dataTypes.ErrNotFound("all returned not found")
+		}
+
+		return errors.New("all failed with mixed errrors")
+	}
 }
 
 func (app *App) sendGlobs(glob dataTypes.Matches) bool {
@@ -698,7 +762,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError),
+			http.StatusInternalServerError)
 		accessLogDetails.HttpCode = http.StatusInternalServerError
 		accessLogDetails.Reason = err.Error()
 		logAsError = true

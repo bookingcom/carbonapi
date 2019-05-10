@@ -11,10 +11,12 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
+	"github.com/pkg/errors"
 
 	"github.com/lomik/zapwriter"
 )
 
+// TODO (grzkv) Clean this
 var testApp *App
 
 func find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
@@ -54,6 +56,18 @@ func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, e
 			IsAbsent:  []bool{true, false, false},
 		},
 	}, nil
+}
+
+func renderErr(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	return []types.Metric{
+		types.Metric{},
+	}, errors.New("error during render")
+}
+
+func renderErrNotFound(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	return []types.Metric{
+		types.Metric{},
+	}, types.ErrMetricsNotFound
 }
 
 func getMetricGlobResponse(metric string) types.Matches {
@@ -124,19 +138,57 @@ func setUpTestConfig() *App {
 	return app
 }
 
-func setUpRequest(t *testing.T, url string) (*http.Request, *httptest.ResponseRecorder) {
+// TODO (grzkv) Enable this after we get rid of global state
+// func newAppWithRenerErrs() *App {
+// 	c := cfg.GetDefaultLoggerConfig()
+// 	c.Level = "none"
+// 	zapwriter.ApplyConfig([]zapwriter.Config{c})
+// 	logger := zapwriter.Logger("main")
+//
+// 	config := cfg.DefaultAPIConfig()
+//
+// 	// TODO (grzkv): Should use New
+// 	app := &App{
+// 		config:            config,
+// 		queryCache:        cache.NewMemcached("capi", ``),
+// 		findCache:         cache.NewExpireCache(1000),
+// 		prometheusMetrics: newPrometheusMetrics(config),
+// 	}
+// 	app.backend = mock.New(mock.Config{
+// 		Find:   find,
+// 		Info:   info,
+// 		Render: renderErr,
+// 	})
+//
+// 	app.config.ConcurrencyLimitPerServer = 1024
+//
+// 	setUpConfig(app, logger)
+// 	initHandlers(app)
+//
+// 	return app
+// }
+
+func setUpRequest(t *testing.T, url string) *http.Request {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// We create a ResponseRecorder (which satisfies http.ResponseWriter) to record the response.
-	rr := httptest.NewRecorder()
-	return req, rr
+	return req
 }
 
 func TestRenderHandler(t *testing.T) {
-	req, rr := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+	rr := httptest.NewRecorder()
+
+	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
+	// TODO (grzkv): Fix this
+	testApp.backend = mock.New(mock.Config{
+		Find:   find,
+		Info:   info,
+		Render: render,
+	})
+
 	testApp.renderHandler(rr, req)
 
 	expected := `[{"target":"foo.bar","datapoints":[[null,1510913280],[1510913759,1510913340],[1510913818,1510913400]]}]`
@@ -149,8 +201,46 @@ func TestRenderHandler(t *testing.T) {
 	}
 }
 
+func TestRenderHandlerErrs(t *testing.T) {
+	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+	rr := httptest.NewRecorder()
+
+	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
+	// TODO (grzkv): Fix this
+	testApp.backend = mock.New(mock.Config{
+		Find:   find,
+		Info:   info,
+		Render: renderErr,
+	})
+
+	testApp.renderHandler(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+}
+
+func TestRenderHandlerNotFoundErrs(t *testing.T) {
+	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+	rr := httptest.NewRecorder()
+
+	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
+	// TODO (grzkv): Fix this
+	testApp.backend = mock.New(mock.Config{
+		Find:   find,
+		Info:   info,
+		Render: renderErrNotFound,
+	})
+
+	testApp.renderHandler(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, rr.Code)
+	}
+}
 func TestFindHandler(t *testing.T) {
-	req, rr := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
+	req := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
+	rr := httptest.NewRecorder()
 	testApp.findHandler(rr, req)
 
 	body := rr.Body.String()
@@ -169,7 +259,8 @@ func TestFindHandler(t *testing.T) {
 func TestFindHandlerCompleter(t *testing.T) {
 	testMetrics := []string{"foo.b/", "foo.bar"}
 	for _, testMetric := range testMetrics {
-		req, rr := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
+		req := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
+		rr := httptest.NewRecorder()
 		testApp.findHandler(rr, req)
 		body := rr.Body.String()
 		expectedValue, _ := findCompleter(getMetricGlobResponse(getCompleterQuery(testMetric)))
@@ -183,7 +274,8 @@ func TestFindHandlerCompleter(t *testing.T) {
 }
 
 func TestInfoHandler(t *testing.T) {
-	req, rr := setUpRequest(t, "/info/?target=foo.bar&format=json")
+	req := setUpRequest(t, "/info/?target=foo.bar&format=json")
+	rr := httptest.NewRecorder()
 	testApp.infoHandler(rr, req)
 
 	body := rr.Body.String()
