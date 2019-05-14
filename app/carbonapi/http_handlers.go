@@ -136,35 +136,35 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
+	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
 	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		zap.String("username", accessLogDetails.Username),
+		zap.String("username", toLog.Username),
 	)
 
 	logAsError := false
 	defer func() {
 		// TODO (grzkv) logging duplicated in many places
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	size := 0
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
-	form, err := app.renderHandlerProcessForm(r, &accessLogDetails, logger)
+	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
 	if form.from32 == form.until32 {
 		http.Error(w, "Invalid empty time range", http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = "invalid empty time range"
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = "invalid empty time range"
 		logAsError = true
 		return
 	}
@@ -175,21 +175,19 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 
-		accessLogDetails.CarbonzipperResponseSizeBytes = 0
-		accessLogDetails.CarbonapiResponseSizeBytes = int64(len(response))
+		toLog.CarbonzipperResponseSizeBytes = 0
+		toLog.CarbonapiResponseSizeBytes = int64(len(response))
 
 		if err == nil {
 			apiMetrics.RequestCacheHits.Add(1)
 			writeResponse(ctx, w, response, form.format, form.jsonp)
-			accessLogDetails.FromCache = true
+			toLog.FromCache = true
 			return
 		}
 		apiMetrics.RequestCacheMisses.Add(1)
 	}
 
 	var results []*types.MetricData
-	// TODO (grzkv) This is not maintained properly. Refactor
-	errors := make(map[string]string)
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
 	var metrics []string
@@ -200,8 +198,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
 			http.Error(w, msg, http.StatusBadRequest)
-			accessLogDetails.Reason = msg
-			accessLogDetails.HttpCode = http.StatusBadRequest
+			toLog.Reason = msg
+			toLog.HttpCode = http.StatusBadRequest
 			logAsError = true
 			return
 		}
@@ -221,7 +219,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// This _sometimes_ sends a *find* request
-			renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, &accessLogDetails, logger)
+			renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, &toLog, logger)
 			if err != nil {
 				logger.Error("error expanding globs for render request",
 					zap.String("metric", m.Metric),
@@ -239,31 +237,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			// TODO(dgryski): group the render requests into batches
 			rch := make(chan renderResponse, len(renderRequests))
 			for _, m := range renderRequests {
-				go func(path string, from, until int32) {
-
-					apiMetrics.RenderRequests.Add(1)
-					atomic.AddInt64(&accessLogDetails.ZipperRequests, 1)
-
-					request := dataTypes.NewRenderRequest([]string{path}, from, until)
-					metrics, err := app.backend.Render(ctx, request)
-
-					// time in queue is converted to ms
-					app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-					app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-
-					metricData := make([]*types.MetricData, 0)
-					for i := range metrics {
-						metricData = append(metricData, &types.MetricData{
-							Metric: metrics[i],
-						})
-					}
-
-					rch <- renderResponse{
-						data:  metricData,
-						error: err,
-					}
-				}(m, mfetch.From, mfetch.Until)
-			} // for range requests
+				go app.sendRenderRequest(ctx, rch, m, mfetch.From, mfetch.Until, &toLog)
+			}
 
 			errors := make([]error, 0)
 			for i := 0; i < len(renderRequests); i++ {
@@ -283,7 +258,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 					metricMap[mfetch] = append(metricMap[mfetch], r)
 				}
 			}
-			accessLogDetails.CarbonzipperResponseSizeBytes += int64(size)
+			toLog.CarbonzipperResponseSizeBytes += int64(size)
 			close(rch)
 
 			if len(errors) != 0 {
@@ -301,7 +276,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			expr.SortMetrics(metricMap[mfetch], mfetch)
 		} // range exp.Metrics
 
-		accessLogDetails.Metrics = metrics
+		toLog.Metrics = metrics
 
 		// errors merge across several metrics in one target
 		if targetErr := errsFanIn(metricErrs, len(exp.Metrics())); targetErr != nil {
@@ -314,75 +289,36 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		rewritten, newTargets, err = expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
 		if err != nil && err != parser.ErrSeriesDoesNotExist {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			errors[target] = err.Error()
-			accessLogDetails.Reason = err.Error()
-			accessLogDetails.HttpCode = http.StatusInternalServerError
+			toLog.Reason = err.Error()
+			toLog.HttpCode = http.StatusInternalServerError
 			logAsError = true
 			return
 		}
 
 		if rewritten {
-			// TODO(gmagnusson): Have the loop be
-			//
-			//		for i := 0; i < total; i++
-			//
-			// and update total here with len(newTargets) so we actually
-			// end up looking at any of the things in there.
-			//
-			// Ugh, I'm now paranoid that the compiler or the runtime will
-			// inline 'total' at some point in the future as an optimization.
-			// Maybe have the loop instead be:
-			//
-			// for {
-			//		if len(targets) == 0 {
-			//			break
-			//		}
-			//
-			//		target = targets[0]
-			//		targets = targets[1:]
-			// }
-			//
-			// If it walks like a stack, and it quacks like a stack ...
-
 			form.targets = append(form.targets, newTargets...)
 			continue
 		}
 
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Error("panic during eval:",
-						zap.String("cache_key", form.cacheKey),
-						zap.Any("reason", r),
-						zap.Stack("stack"),
-					)
-				}
-			}()
-
-			exprs, err := expr.EvalExpr(exp, form.from32, form.until32, metricMap)
-			if err != nil {
-				if err != parser.ErrSeriesDoesNotExist {
-					errors[target] = err.Error()
-					accessLogDetails.Reason = err.Error()
-					logAsError = true
-				}
-
-				return
-			}
-
-			results = append(results, exprs...)
-		}()
+		err = evalExprRender(exp, &results, metricMap, &form)
+		if err != nil && err != parser.ErrSeriesDoesNotExist {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			toLog.Reason = err.Error()
+			toLog.HttpCode = http.StatusInternalServerError
+			logAsError = true
+			return
+		}
 	} // for over targets
 
 	totalErr := errsFanIn(targetErrs, len(form.targets))
 	if totalErr != nil {
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
 			w.WriteHeader(http.StatusNotFound)
-			accessLogDetails.HttpCode = http.StatusNotFound
+			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
 		} else {
 			http.Error(w, totalErr.Error(), http.StatusInternalServerError)
-			accessLogDetails.HttpCode = http.StatusInternalServerError
+			toLog.HttpCode = http.StatusInternalServerError
 			logAsError = true
 		}
 		return
@@ -396,7 +332,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			zap.Duration("runtime", time.Since(t0)),
 		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
+		toLog.HttpCode = http.StatusInternalServerError
 		logAsError = true
 		return
 	}
@@ -409,8 +345,50 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
+}
 
-	accessLogDetails.HaveNonFatalErrors = len(errors) > 0
+func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,
+	form *renderForm) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("panic duting expr eval: %s", r)
+		}
+	}()
+
+	exprs, err := expr.EvalExpr(exp, form.from32, form.until32, metricMap)
+	if err != nil {
+		return err
+	}
+
+	*res = append(*res, exprs...)
+
+	return nil
+}
+
+func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
+	path string, from, until int32, toLog *carbonapipb.AccessLogDetails) {
+
+	apiMetrics.RenderRequests.Add(1)
+	atomic.AddInt64(&toLog.ZipperRequests, 1)
+
+	request := dataTypes.NewRenderRequest([]string{path}, from, until)
+	metrics, err := app.backend.Render(ctx, request)
+
+	// time in queue is converted to ms
+	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+
+	metricData := make([]*types.MetricData, 0)
+	for i := range metrics {
+		metricData = append(metricData, &types.MetricData{
+			Metric: metrics[i],
+		})
+	}
+
+	ch <- renderResponse{
+		data:  metricData,
+		error: err,
+	}
 }
 
 type renderForm struct {
