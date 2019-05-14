@@ -112,25 +112,27 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 	}
 }
 
-// TODO (grzkv): Remove from global scope
-// TODO (grzkv): Consider substituting this with Prometheus
 var apiMetrics = struct {
 	// Total counts across all request types
-	Requests  *expvar.Int
+	// TODO duplicate
+	Requests *expvar.Int
+	// TODO duplicate
 	Responses *expvar.Int
 	Errors    *expvar.Int
 
-	Goroutines    expvar.Func
-	Uptime        expvar.Func
-	LimiterUse    expvar.Func
-	LimiterUseMax expvar.Func
+	Goroutines expvar.Func
+	Uptime     expvar.Func
 
+	// TODO (grzkv) Move to Prom
 	// Despite the names, these only count /render requests
+	// TODO duplicate
 	RenderRequests        *expvar.Int
 	RequestCacheHits      *expvar.Int
 	RequestCacheMisses    *expvar.Int
 	RenderCacheOverheadNS *expvar.Int
 
+	// TODO (grzkv) Move to Prom
+	// TODO duplicate
 	FindRequests        *expvar.Int
 	FindCacheHits       *expvar.Int
 	FindCacheMisses     *expvar.Int
@@ -151,14 +153,13 @@ var apiMetrics = struct {
 	RequestCacheMisses:    expvar.NewInt("request_cache_misses"),
 	RenderCacheOverheadNS: expvar.NewInt("render_cache_overhead_ns"),
 
-	FindRequests: expvar.NewInt("find_requests"),
-
+	FindRequests:        expvar.NewInt("find_requests"),
 	FindCacheHits:       expvar.NewInt("find_cache_hits"),
 	FindCacheMisses:     expvar.NewInt("find_cache_misses"),
 	FindCacheOverheadNS: expvar.NewInt("find_cache_overhead_ns"),
 }
 
-// TODO (grzkv): Remove from global scope
+// TODO (grzkv): Move to Prometheus, as these are not runtime metrics.
 var zipperMetrics = struct {
 	FindRequests *expvar.Int
 	FindErrors   *expvar.Int

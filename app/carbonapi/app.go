@@ -42,6 +42,20 @@ import (
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
 
+func init() {
+	expvar.NewString("GoVersion").Set(runtime.Version())
+	apiMetrics.Goroutines = expvar.Func(func() interface{} {
+		return runtime.NumGoroutine()
+	})
+	expvar.Publish("goroutines", apiMetrics.Goroutines)
+
+	startMinute := time.Now().Unix() / 60
+	apiMetrics.Uptime = expvar.Func(func() interface{} {
+		return time.Now().Unix()/60 - startMinute
+	})
+	expvar.Publish("uptime", apiMetrics.Uptime)
+}
+
 // App is the main carbonapi runnable
 type App struct {
 	config           cfg.API
@@ -201,19 +215,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	functions.New(app.config.FunctionsConfigs)
 
 	// TODO (grzkv): Move expvars to init since they are global to the package
-	expvar.NewString("GoVersion").Set(runtime.Version())
 	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
-
-	apiMetrics.Goroutines = expvar.Func(func() interface{} {
-		return runtime.NumGoroutine()
-	})
-	expvar.Publish("goroutines", apiMetrics.Goroutines)
-
-	startMinute := time.Now().Unix() / 60
-	apiMetrics.Uptime = expvar.Func(func() interface{} {
-		return time.Now().Unix()/60 - startMinute
-	})
-	expvar.Publish("uptime", apiMetrics.Uptime)
 
 	switch app.config.Cache.Type {
 	case "memcache":
