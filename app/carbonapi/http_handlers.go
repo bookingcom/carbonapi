@@ -203,6 +203,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	totalErr := optimistFanIn(targetErrs, len(form.targets))
 	if totalErr != nil {
+		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
 			w.WriteHeader(http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
@@ -281,7 +282,8 @@ func (app *App) getTargetData(ctx context.Context, target string, metricMap map[
 		// This _sometimes_ sends a *find* request
 		renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, toLog, lg)
 		if err != nil {
-			return errors.Wrapf(err, "error expanding globs for metric %s", m.Metric), size
+			metricErrs = append(metricErrs, err)
+			continue
 		}
 
 		// TODO(dgryski): group the render requests into batches
