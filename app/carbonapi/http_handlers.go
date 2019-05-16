@@ -187,130 +187,21 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		apiMetrics.RequestCacheMisses.Add(1)
 	}
 
-	var results []*types.MetricData
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
-	var metrics []string
+	var results []*types.MetricData
 	var targetErrs []error
-	// TODO(gmagnusson): Put the body of this loop in a select { } and cancel work
+	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
-		exp, e, err := parser.ParseExpr(target)
-		if err != nil || e != "" {
-			msg := buildParseErrorString(target, e, err)
-			http.Error(w, msg, http.StatusBadRequest)
-			toLog.Reason = msg
-			toLog.HttpCode = http.StatusBadRequest
-			logAsError = true
-			return
-		}
-
-		var targetMetricFetches []parser.MetricRequest
-		var metricErrs []error
-		for _, m := range exp.Metrics() {
-			metrics = append(metrics, m.Metric)
-			mfetch := m
-			mfetch.From += form.from32
-			mfetch.Until += form.until32
-
-			targetMetricFetches = append(targetMetricFetches, mfetch)
-			if _, ok := metricMap[mfetch]; ok {
-				// already fetched this metric for this request
-				continue
-			}
-
-			// This _sometimes_ sends a *find* request
-			renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, &toLog, logger)
-			if err != nil {
-				logger.Error("error expanding globs for render request",
-					zap.String("metric", m.Metric),
-					zap.Error(err),
-				)
-				continue
-			}
-
-			// if the metric results in no requests but no errors - that's because the peek returned nothing
-			if len(renderRequests) == 0 {
-				metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
-				continue
-			}
-
-			// TODO(dgryski): group the render requests into batches
-			rch := make(chan renderResponse, len(renderRequests))
-			for _, m := range renderRequests {
-				go app.sendRenderRequest(ctx, rch, m, mfetch.From, mfetch.Until, &toLog)
-			}
-
-			errors := make([]error, 0)
-			for i := 0; i < len(renderRequests); i++ {
-				resp := <-rch
-				if resp.error != nil {
-					if e, ok := resp.error.(net.ErrContextCancel); ok {
-						app.prometheusMetrics.RequestCancel.WithLabelValues(
-							"render", net.ContextCancelCause(e.Err)).Inc()
-					}
-
-					errors = append(errors, resp.error)
-					continue
-				}
-
-				for _, r := range resp.data {
-					size += 8 * len(r.Values) // close enough
-					metricMap[mfetch] = append(metricMap[mfetch], r)
-				}
-			}
-			toLog.CarbonzipperResponseSizeBytes += int64(size)
-			close(rch)
-
-			if len(errors) != 0 {
-				logger.Error("render error occurred while fetching data",
-					zap.String("uuid", util.GetUUID(ctx)),
-					zap.Any("errors", errors),
-				)
-			}
-
-			// errors merge accross one globbed metric
-			if metricErr := errsFanIn(errors, len(renderRequests)); metricErr != nil {
-				metricErrs = append(metricErrs, metricErr)
-			}
-
-			expr.SortMetrics(metricMap[mfetch], mfetch)
-		} // range exp.Metrics
-
-		toLog.Metrics = metrics
-
-		// errors merge across several metrics in one target
-		if targetErr := errsFanIn(metricErrs, len(exp.Metrics())); targetErr != nil {
+		// TODO (grzkv): Log UUID wherever possible
+		targetErr, metricSize := app.getTargetData(ctx, target, metricMap, &results, &form, &toLog, logger)
+		if targetErr != nil {
 			targetErrs = append(targetErrs, targetErr)
 		}
+		size += metricSize
+	}
 
-		var rewritten bool
-		var newTargets []string
-		logStepTimeMismatch(targetMetricFetches, metricMap, logger, target)
-		rewritten, newTargets, err = expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
-		if err != nil && err != parser.ErrSeriesDoesNotExist {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			toLog.Reason = err.Error()
-			toLog.HttpCode = http.StatusInternalServerError
-			logAsError = true
-			return
-		}
-
-		if rewritten {
-			form.targets = append(form.targets, newTargets...)
-			continue
-		}
-
-		err = evalExprRender(exp, &results, metricMap, &form)
-		if err != nil && err != parser.ErrSeriesDoesNotExist {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			toLog.Reason = err.Error()
-			toLog.HttpCode = http.StatusInternalServerError
-			logAsError = true
-			return
-		}
-	} // for over targets
-
-	totalErr := errsFanIn(targetErrs, len(form.targets))
+	totalErr := optimistFanIn(targetErrs, len(form.targets))
 	if totalErr != nil {
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
 			w.WriteHeader(http.StatusNotFound)
@@ -363,6 +254,120 @@ func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[p
 	*res = append(*res, exprs...)
 
 	return nil
+}
+
+func (app *App) getTargetData(ctx context.Context, target string, metricMap map[parser.MetricRequest][]*types.MetricData,
+	results *([]*types.MetricData), form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) (error, int) {
+
+	size := 0
+	exp, e, err := parser.ParseExpr(target)
+	if err != nil || e != "" {
+		return errors.New(buildParseErrorString(target, e, err)), size
+	}
+
+	var targetMetricFetches []parser.MetricRequest
+	var metricErrs []error
+	for _, m := range exp.Metrics() {
+		mfetch := m
+		mfetch.From += form.from32
+		mfetch.Until += form.until32
+
+		targetMetricFetches = append(targetMetricFetches, mfetch)
+		if _, ok := metricMap[mfetch]; ok {
+			// already fetched this metric for this request
+			continue
+		}
+
+		// This _sometimes_ sends a *find* request
+		renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, toLog, lg)
+		if err != nil {
+			return errors.Wrapf(err, "error expanding globs for metric %s", m.Metric), size
+		}
+
+		// TODO(dgryski): group the render requests into batches
+		rch := make(chan renderResponse, len(renderRequests))
+		for _, m := range renderRequests {
+			// TODO (grzkv) Refactor to enable premature cancel
+			go app.sendRenderRequest(ctx, rch, m, mfetch.From, mfetch.Until, toLog)
+		}
+
+		errs := make([]error, 0)
+		for i := 0; i < len(renderRequests); i++ {
+			resp := <-rch
+			if resp.error != nil {
+				// TODO (grzkv) Move this
+				if e, ok := resp.error.(net.ErrContextCancel); ok {
+					app.prometheusMetrics.RequestCancel.WithLabelValues(
+						"render", net.ContextCancelCause(e.Err)).Inc()
+				}
+
+				errs = append(errs, resp.error)
+				continue
+			}
+
+			for _, r := range resp.data {
+				size += 8 * len(r.Values) // close enough
+				metricMap[mfetch] = append(metricMap[mfetch], r)
+			}
+		}
+		toLog.CarbonzipperResponseSizeBytes += int64(size)
+		close(rch)
+
+		metricErr := pessimistFanIn(errs)
+		if metricErr != nil {
+			metricErrs = append(metricErrs, metricErr)
+		}
+
+		expr.SortMetrics(metricMap[mfetch], mfetch)
+	} // range exp.Metrics
+
+	targetErr := pessimistFanIn(metricErrs)
+
+	var rewritten bool
+	var newTargets []string
+	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
+	rewritten, newTargets, err = expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
+	if err != nil && err != parser.ErrSeriesDoesNotExist {
+		return errors.Wrap(err, "expression rewrite failed"), size
+	}
+
+	if rewritten {
+		form.targets = append(form.targets, newTargets...)
+
+		return targetErr, size
+	}
+
+	if targetErr != nil {
+		return targetErr, size
+	}
+
+	err = evalExprRender(exp, results, metricMap, form)
+	if err != nil && err != parser.ErrSeriesDoesNotExist {
+		return errors.Wrap(err, "expression eval failed"), size
+	}
+
+	return nil, size
+}
+
+func pessimistFanIn(errs []error) error {
+	if errs == nil || len(errs) == 0 {
+		return nil
+	}
+
+	errStr := ""
+	allErrorsNotFound := true
+	for _, e := range errs {
+		errStr = errStr + e.Error()
+		if _, ok := e.(dataTypes.ErrNotFound); !ok {
+			allErrorsNotFound = false
+		}
+	}
+
+	if allErrorsNotFound {
+		return dataTypes.ErrNotFound("all returned not found")
+	}
+
+	return errors.Errorf("failed with mixed errrors: %s", errStr)
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
@@ -521,7 +526,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	return body, nil
 }
 
-func errsFanIn(errs []error, n int) error {
+func optimistFanIn(errs []error, n int) error {
 	nErrs := len(errs)
 	if nErrs == 0 {
 		return nil

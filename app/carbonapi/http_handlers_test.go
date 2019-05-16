@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/bookingcom/carbonapi/pkg/types"
+	typ "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/pkg/errors"
 )
 
@@ -61,9 +61,9 @@ func TestGetCompleterQuery(t *testing.T) {
 }
 
 func TestFindCompleter(t *testing.T) {
-	metricTestCases := []types.Matches{
-		{Name: "foo.bar", Matches: []types.Match{}},
-		{Name: "foo.ba*", Matches: []types.Match{
+	metricTestCases := []typ.Matches{
+		{Name: "foo.bar", Matches: []typ.Match{}},
+		{Name: "foo.ba*", Matches: []typ.Match{
 			{Path: "foo.bat", IsLeaf: true},
 		}},
 	}
@@ -81,7 +81,7 @@ func TestFindCompleter(t *testing.T) {
 
 }
 
-func TestErrsFanIn(t *testing.T) {
+func TestOptimistErrsFanIn(t *testing.T) {
 	var tests = []struct {
 		name       string
 		in         []error
@@ -101,7 +101,7 @@ func TestErrsFanIn(t *testing.T) {
 		{
 			name: "1 not found err, 1 result",
 			in: []error{
-				types.ErrMetricsNotFound,
+				typ.ErrMetricsNotFound,
 			},
 			n:          1,
 			isErr:      true,
@@ -118,7 +118,7 @@ func TestErrsFanIn(t *testing.T) {
 			name: "2 mixed errs, 2 results",
 			in: []error{
 				errors.New("some error"),
-				types.ErrMetricsNotFound,
+				typ.ErrMetricsNotFound,
 			},
 			n:          2,
 			isErr:      true,
@@ -127,7 +127,7 @@ func TestErrsFanIn(t *testing.T) {
 		{
 			name: "1 not found err, 2 results,",
 			in: []error{
-				types.ErrMetricsNotFound,
+				typ.ErrMetricsNotFound,
 			},
 			n:          2,
 			isErr:      false,
@@ -153,16 +153,92 @@ func TestErrsFanIn(t *testing.T) {
 
 	for _, tst := range tests {
 		t.Run(tst.name, func(t *testing.T) {
-			err := errsFanIn(tst.in, tst.n)
+			err := optimistFanIn(tst.in, tst.n)
 
 			if err != nil {
 				if !tst.isErr {
 					t.Fatal("got err, when none expected")
 				}
 
-				if _, ok := err.(types.ErrNotFound); ok != tst.isNotFound {
+				if _, ok := err.(typ.ErrNotFound); ok != tst.isNotFound {
 					t.Fatalf("got err *%v* when not found err expected", err)
 				}
+			}
+		})
+	}
+}
+
+func TestPessimistErrsFanIn(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          []error
+		outNil      bool
+		outNotFound bool
+	}{
+		{
+			name:   "none in",
+			in:     make([]error, 0),
+			outNil: true,
+		},
+		{
+			name:   "nil in",
+			in:     nil,
+			outNil: true,
+		},
+		{
+			name:        "one in",
+			in:          []error{errors.New("some error")},
+			outNil:      false,
+			outNotFound: false,
+		},
+		{
+			name:        "one not found in",
+			in:          []error{typ.ErrMetricsNotFound},
+			outNil:      false,
+			outNotFound: true,
+		},
+		{
+			name: "many mixed in",
+			in: []error{
+				errors.New("some error"),
+				errors.New("some other error"),
+				typ.ErrMetricsNotFound,
+				errors.New("some other other error"),
+				typ.ErrMetricsNotFound,
+			},
+			outNil:      false,
+			outNotFound: false,
+		},
+		{
+			name: "many generic in",
+			in: []error{
+				errors.New("error a"),
+				errors.New("error b"),
+				errors.New("error c"),
+			},
+			outNil:      false,
+			outNotFound: false,
+		},
+		{
+			name: "many not found in",
+			in: []error{
+				typ.ErrMetricsNotFound,
+				typ.ErrMetricsNotFound,
+				typ.ErrMetricsNotFound,
+			},
+			outNil:      false,
+			outNotFound: true,
+		},
+	}
+
+	for _, tst := range tests {
+		t.Run(tst.name, func(t *testing.T) {
+			out := pessimistFanIn(tst.in)
+			if (out == nil) != tst.outNil {
+				t.Fatalf("expected nil = %t, but got %v", tst.outNil, out)
+			}
+			if _, ok := out.(typ.ErrNotFound); ok != tst.outNotFound {
+				t.Fatalf("expected not found = %t, got otherwise", tst.outNotFound)
 			}
 		})
 	}
