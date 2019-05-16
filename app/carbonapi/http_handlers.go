@@ -532,26 +532,25 @@ func optimistFanIn(errs []error, n int) error {
 		return nil
 	}
 
-	switch {
-	case (nErrs < n):
+	if nErrs < n {
 		return nil
-	default:
-		// everything failed.
-		// If all the failures are not-founds, it's a not-found
-		allErrorsNotFound := true
-		for _, e := range errs {
-			if _, ok := e.(dataTypes.ErrNotFound); !ok {
-				allErrorsNotFound = false
-				break
-			}
-		}
-
-		if allErrorsNotFound {
-			return dataTypes.ErrNotFound("all returned not found")
-		}
-
-		return errors.New("all failed with mixed errrors")
 	}
+
+	// everything failed.
+	// If all the failures are not-founds, it's a not-found
+	allErrorsNotFound := true
+	for _, e := range errs {
+		if _, ok := e.(dataTypes.ErrNotFound); !ok {
+			allErrorsNotFound = false
+			break
+		}
+	}
+
+	if allErrorsNotFound {
+		return dataTypes.ErrNotFound("all returned not found")
+	}
+
+	return errors.New("all failed with mixed errrors")
 }
 
 func (app *App) sendGlobs(glob dataTypes.Matches) bool {
