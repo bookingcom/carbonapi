@@ -431,7 +431,7 @@ func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbona
 		apiMetrics.Errors.Add(1)
 	} else {
 		// TODO (grzkv) The code can differ from the real one. Clean up
-		accessLogDetails.HttpCode = http.StatusOK
+		// accessLogDetails.HttpCode = http.StatusOK
 		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
 		apiMetrics.Responses.Add(1)
 	}
