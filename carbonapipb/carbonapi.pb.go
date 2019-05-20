@@ -8,6 +8,8 @@ import (
 	"github.com/bookingcom/carbonapi/util"
 )
 
+// TODO (grzkv) All this seems to be in a completely wron package
+
 type AccessLogDetails struct {
 	Handler                       string            `json:"handler,omitempty"`
 	CarbonapiUuid                 string            `json:"carbonapi_uuid,omitempty"`
@@ -36,6 +38,7 @@ type AccessLogDetails struct {
 	Tz                            string            `json:"tz,omitempty"`
 	FromRaw                       string            `json:"from_raw,omitempty"`
 	UntilRaw                      string            `json:"until_raw,omitempty"`
+	Path                          string            `json:"path,omitempty"`
 	Uri                           string            `json:"uri,omitempty"`
 	FromCache                     bool              `json:"from_cache"`
 	ZipperRequests                int64             `json:"zipper_requests,omitempty"`
@@ -61,13 +64,16 @@ func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) Acces
 		Username:      username,
 		CarbonapiUuid: util.GetUUID(r.Context()),
 		HeadersData:   getHeadersData(r, config.HeadersToLog),
-		Url:           r.URL.RequestURI(),
+		Url:           r.URL.String(),
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
 		Host:          r.Host,
+		Path:          r.URL.Path,
 		Referer:       r.Referer(),
-		Uri:           r.RequestURI,
-		HttpCode:      http.StatusOK,
+		// TODO (grzkv) Do we need this?
+		Uri: r.RequestURI,
+		// 0 means the code is not specified
+		HttpCode: 0,
 	}
 }
 

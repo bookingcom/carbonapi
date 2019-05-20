@@ -66,10 +66,10 @@ func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		blockingRules := app.blockHeaderRules.Load().(RuleConfig)
 		if shouldBlockRequest(r, blockingRules.Rules) {
-			accessLogDetails := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
-			accessLogDetails.HttpCode = http.StatusForbidden
+			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
+			toLog.HttpCode = http.StatusForbidden
 			defer func() {
-				app.deferredAccessLogging(r, &accessLogDetails, t0, true)
+				app.deferredAccessLogging(r, &toLog, t0, true)
 			}()
 			w.WriteHeader(http.StatusForbidden)
 		} else {
@@ -137,7 +137,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
-	// TODO (grzkv): Pass logger from above
+	// TODO (grzkv): Replace with access logger
 	logger := zapwriter.Logger("render").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", toLog.Username),
@@ -194,18 +194,27 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
 		// TODO (grzkv): Log UUID wherever possible
-		targetErr, metricSize := app.getTargetData(ctx, target, metricMap, &results, &form, &toLog, logger)
+		exp, e, err := parser.ParseExpr(target)
+		if err != nil || e != "" {
+			msg := buildParseErrorString(target, e, err)
+			http.Error(w, msg, http.StatusBadRequest)
+			toLog.Reason = msg
+			toLog.HttpCode = http.StatusBadRequest
+			logAsError = true
+			return
+		}
+		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap, &results, &form, &toLog, logger)
 		if targetErr != nil {
 			targetErrs = append(targetErrs, targetErr)
 		}
 		size += metricSize
 	}
 
-	totalErr := optimistFanIn(targetErrs, len(form.targets))
+	totalErr := targetErrsFanIn(targetErrs, len(form.targets))
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			w.WriteHeader(http.StatusNotFound)
+			http.Error(w, totalErr.Error(), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
 		} else {
@@ -218,12 +227,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		logger.Error("request failed",
-			zap.Int("http_code", http.StatusInternalServerError),
-			zap.String("reason", err.Error()),
-			zap.Duration("runtime", time.Since(t0)),
-		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		toLog.Reason = err.Error()
 		toLog.HttpCode = http.StatusInternalServerError
 		logAsError = true
 		return
@@ -237,6 +242,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
+
+	toLog.HttpCode = http.StatusOK
 }
 
 func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,
@@ -257,14 +264,11 @@ func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[p
 	return nil
 }
 
-func (app *App) getTargetData(ctx context.Context, target string, metricMap map[parser.MetricRequest][]*types.MetricData,
-	results *([]*types.MetricData), form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) (error, int) {
+func (app *App) getTargetData(ctx context.Context, target string, exp parser.Expr,
+	metricMap map[parser.MetricRequest][]*types.MetricData, results *([]*types.MetricData),
+	form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) (error, int) {
 
 	size := 0
-	exp, e, err := parser.ParseExpr(target)
-	if err != nil || e != "" {
-		return errors.New(buildParseErrorString(target, e, err)), size
-	}
 
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
@@ -328,7 +332,7 @@ func (app *App) getTargetData(ctx context.Context, target string, metricMap map[
 	var rewritten bool
 	var newTargets []string
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
-	rewritten, newTargets, err = expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
+	rewritten, newTargets, err := expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
 	if err != nil && err != parser.ErrSeriesDoesNotExist {
 		return errors.Wrap(err, "expression rewrite failed"), size
 	}
@@ -366,10 +370,10 @@ func pessimistFanIn(errs []error) error {
 	}
 
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all returned not found")
+		return dataTypes.ErrNotFound("all returned not found: " + errStr)
 	}
 
-	return errors.Errorf("failed with mixed errrors: %s", errStr)
+	return errors.New("failed with mixed errrors" + errStr)
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
@@ -528,7 +532,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	return body, nil
 }
 
-func optimistFanIn(errs []error, n int) error {
+func targetErrsFanIn(errs []error, n int) error {
 	nErrs := len(errs)
 	if nErrs == 0 {
 		return nil
@@ -541,18 +545,19 @@ func optimistFanIn(errs []error, n int) error {
 	// everything failed.
 	// If all the failures are not-founds, it's a not-found
 	allErrorsNotFound := true
+	errStr := ""
 	for _, e := range errs {
+		errStr = errStr + e.Error()
 		if _, ok := e.(dataTypes.ErrNotFound); !ok {
 			allErrorsNotFound = false
-			break
 		}
 	}
 
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all returned not found")
+		return dataTypes.ErrNotFound("all targets not found: " + errStr)
 	}
 
-	return errors.New("all failed with mixed errrors")
+	return errors.New("all targets failed with mixed errrors: " + errStr)
 }
 
 func (app *App) sendGlobs(glob dataTypes.Matches) bool {
@@ -617,19 +622,19 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	return matches, nil
 }
 
-func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
+func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
-		accessLogDetails.SendGlobs = true
+		toLog.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, accessLogDetails, logger)
+	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	if app.sendGlobs(glob) {
-		accessLogDetails.SendGlobs = true
+		toLog.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
@@ -656,17 +661,17 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	jsonp := r.FormValue("jsonp")
 	query := r.FormValue("query")
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
+	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 
 	// TODO (grzkv): Pass logger in from above
 	logger := zapwriter.Logger("find").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		zap.String("username", accessLogDetails.Username),
+		zap.String("username", toLog.Username),
 	)
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	if format == "completer" {
@@ -679,8 +684,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	if query == "" {
 		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = "missing parameter `query`"
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = "missing parameter `query`"
 		logAsError = true
 		return
 	}
@@ -709,8 +714,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
 
-			accessLogDetails.HttpCode = int32(code)
-			accessLogDetails.Reason = err.Error()
+			toLog.HttpCode = int32(code)
+			toLog.Reason = err.Error()
 			logAsError = true
 
 			http.Error(w, msg, code)
@@ -748,8 +753,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError),
 			http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusInternalServerError
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
@@ -764,6 +769,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)
 		w.Write(blob)
 	}
+
+	toLog.HttpCode = http.StatusOK
 }
 
 func getCompleterQuery(query string) string {
@@ -854,19 +861,19 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		format = jsonFormat
 	}
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "info", &app.config)
-	accessLogDetails.Format = format
+	toLog := carbonapipb.NewAccessLogDetails(r, "info", &app.config)
+	toLog.Format = format
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	query := r.FormValue("target")
 	if query == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = "no target specified"
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = "no target specified"
 		logAsError = true
 		return
 	}
@@ -880,8 +887,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusInternalServerError
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
@@ -901,8 +908,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusInternalServerError
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
@@ -910,7 +917,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.Write(b)
 
-	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	toLog.Runtime = time.Since(t0).Seconds()
+	toLog.HttpCode = http.StatusOK
 }
 
 func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -925,10 +933,11 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Ok\n"))
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
-	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
+	toLog.Runtime = time.Since(t0).Seconds()
+	toLog.HttpCode = http.StatusOK
 	// TODO (grzkv): Pass logger from above
-	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
+	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
 }
 
 func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
@@ -953,10 +962,10 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1.0.0\n"))
 	}
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
-	accessLogDetails.Runtime = time.Since(t0).Seconds()
+	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
+	toLog.Runtime = time.Since(t0).Seconds()
 	// TODO (grzkv): Pass logger from above
-	zapwriter.Logger("access").Info("request served", zap.Any("data", accessLogDetails))
+	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
 }
 
 func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
@@ -966,18 +975,18 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
+	toLog := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
@@ -1060,15 +1069,15 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		accessLogDetails.HttpCode = http.StatusInternalServerError
-		accessLogDetails.Reason = err.Error()
+		toLog.HttpCode = http.StatusInternalServerError
+		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
 
 	w.Write(b)
-	accessLogDetails.Runtime = time.Since(t0).Seconds()
-	accessLogDetails.HttpCode = http.StatusOK
+	toLog.Runtime = time.Since(t0).Seconds()
+	toLog.HttpCode = http.StatusOK
 }
 
 // Add block rules on the basis of headers to block certain requests
@@ -1083,11 +1092,11 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	apiMetrics.Requests.Add(1)
 
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &app.config)
+	toLog := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &app.config)
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	queryParams := r.URL.Query()
@@ -1104,7 +1113,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	failResponse := []byte(`{"success":"false"}`)
 	if app.config.BlockHeaderFile == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
+		toLog.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
 		return
 	}
@@ -1123,11 +1132,13 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 
 	if len(m) == 0 || err1 != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
+		toLog.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
+
+	toLog.HttpCode = http.StatusOK
 }
 
 func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, blockHeaderFile string) error {
@@ -1156,22 +1167,24 @@ func writeBlockRuleToFile(output []byte, blockHeaderFile string) error {
 func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
 	apiMetrics.Requests.Add(1)
-	accessLogDetails := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
+	toLog := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(r, &accessLogDetails, t0, logAsError)
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
 	err := os.Remove(app.config.BlockHeaderFile)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		accessLogDetails.HttpCode = http.StatusBadRequest
+		toLog.HttpCode = http.StatusBadRequest
 		w.Write([]byte(`{"success":"false"}`))
 		return
 	}
 	w.Write([]byte(`{"success":"true"}`))
+
+	toLog.HttpCode = http.StatusOK
 }
 
 func isBlockingHeaderRule(r *http.Request, rule Rule) bool {

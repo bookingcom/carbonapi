@@ -153,7 +153,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 
 	for _, tst := range tests {
 		t.Run(tst.name, func(t *testing.T) {
-			err := optimistFanIn(tst.in, tst.n)
+			err := targetErrsFanIn(tst.in, tst.n)
 
 			if err != nil {
 				if !tst.isErr {
