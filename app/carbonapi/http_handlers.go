@@ -182,6 +182,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			apiMetrics.RequestCacheHits.Add(1)
 			writeResponse(ctx, w, response, form.format, form.jsonp)
 			toLog.FromCache = true
+			toLog.HttpCode = http.StatusOK
 			return
 		}
 		apiMetrics.RequestCacheMisses.Add(1)
