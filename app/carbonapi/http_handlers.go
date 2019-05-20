@@ -214,7 +214,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			w.WriteHeader(http.StatusNotFound)
+			http.Error(w, totalErr.Error(), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
 		} else {
@@ -227,12 +227,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		logger.Error("request failed",
-			zap.Int("http_code", http.StatusInternalServerError),
-			zap.String("reason", err.Error()),
-			zap.Duration("runtime", time.Since(t0)),
-		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		toLog.Reason = err.Error()
 		toLog.HttpCode = http.StatusInternalServerError
 		logAsError = true
 		return
@@ -554,7 +550,6 @@ func targetErrsFanIn(errs []error, n int) error {
 		errStr = errStr + e.Error()
 		if _, ok := e.(dataTypes.ErrNotFound); !ok {
 			allErrorsNotFound = false
-			break
 		}
 	}
 
