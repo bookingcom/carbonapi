@@ -12,6 +12,7 @@ type PrometheusMetrics struct {
 	Requests          prometheus.Counter
 	Responses         *prometheus.CounterVec
 	FindNotFound      prometheus.Counter
+	RenderPartialFail prometheus.Counter
 	RequestCancel     *prometheus.CounterVec
 	DurationExp       prometheus.Histogram
 	DurationLin       prometheus.Histogram
@@ -40,6 +41,12 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 			prometheus.CounterOpts{
 				Name: "find_not_found",
 				Help: "Count of not-found /find responses",
+			},
+		),
+		RenderPartialFail: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_part_fail",
+				Help: "Count of /render requests that partially failed",
 			},
 		),
 		RequestCancel: prometheus.NewCounterVec(

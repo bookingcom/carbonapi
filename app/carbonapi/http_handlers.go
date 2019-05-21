@@ -136,6 +136,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
+	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
 	// TODO (grzkv): Replace with access logger
 	logger := zapwriter.Logger("render").With(
@@ -155,7 +156,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
+		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(),
+			http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = err.Error()
 		logAsError = true
@@ -203,7 +205,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			logAsError = true
 			return
 		}
-		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap, &results, &form, &toLog, logger)
+		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap,
+			&results, &form, &toLog, logger, &partiallyFailed)
 		if targetErr != nil {
 			targetErrs = append(targetErrs, targetErr)
 		}
@@ -211,7 +214,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
-	totalErr, _ := optimistFanIn(targetErrs, len(form.targets))
+	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets))
+	partiallyFailed = partiallyFailed || (totalErrStr != "")
 
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
@@ -245,6 +249,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
 
+	if partiallyFailed {
+		app.prometheusMetrics.RenderPartialFail.Inc()
+	}
 	toLog.HttpCode = http.StatusOK
 }
 
@@ -268,7 +275,7 @@ func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[p
 
 func (app *App) getTargetData(ctx context.Context, target string, exp parser.Expr,
 	metricMap map[parser.MetricRequest][]*types.MetricData, results *([]*types.MetricData),
-	form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) (error, int) {
+	form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool) (error, int) {
 
 	size := 0
 
@@ -324,7 +331,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		toLog.CarbonzipperResponseSizeBytes += int64(size)
 		close(rch)
 
-		metricErr, _ := optimistFanIn(errs, len(renderRequests))
+		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests))
+		*partFail = (*partFail) || (metricErrStr != "")
 		if metricErr != nil {
 			metricErrs = append(metricErrs, metricErr)
 		}
@@ -332,7 +340,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
-	targetErr, _ := optimistFanIn(metricErrs, len(exp.Metrics()))
+	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()))
+	*partFail = *partFail || (targetErrStr != "")
 
 	var rewritten bool
 	var newTargets []string
@@ -374,6 +383,10 @@ func pessimistFanIn(errs []error) error {
 		}
 	}
 
+	if len(errStr) > 200 {
+		errStr = errStr[0:200]
+	}
+
 	if allErrorsNotFound {
 		return dataTypes.ErrNotFound("all not found; merged errs: (" + errStr + ")")
 	}
@@ -399,6 +412,10 @@ func optimistFanIn(errs []error, n int) (error, string) {
 		if _, ok := e.(dataTypes.ErrNotFound); !ok {
 			allErrorsNotFound = false
 		}
+	}
+
+	if len(errStr) > 200 {
+		errStr = errStr[0:200]
 	}
 
 	if nErrs < n {
