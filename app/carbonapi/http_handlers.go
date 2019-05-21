@@ -194,7 +194,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	var targetErrs []error
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
-		// TODO (grzkv): Log UUID wherever possible
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
@@ -211,7 +210,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		size += metricSize
 	}
 
-	totalErr := targetErrsFanIn(targetErrs, len(form.targets))
+	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
+	totalErr, _ := optimistFanIn(targetErrs, len(form.targets))
+
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
@@ -289,6 +290,9 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		if err != nil {
 			metricErrs = append(metricErrs, err)
 			continue
+		} else if len(renderRequests) == 0 {
+			metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
+			continue
 		}
 
 		// TODO(dgryski): group the render requests into batches
@@ -320,7 +324,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		toLog.CarbonzipperResponseSizeBytes += int64(size)
 		close(rch)
 
-		metricErr := pessimistFanIn(errs)
+		metricErr, _ := optimistFanIn(errs, len(renderRequests))
 		if metricErr != nil {
 			metricErrs = append(metricErrs, metricErr)
 		}
@@ -328,7 +332,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
-	targetErr := pessimistFanIn(metricErrs)
+	targetErr, _ := optimistFanIn(metricErrs, len(exp.Metrics()))
 
 	var rewritten bool
 	var newTargets []string
@@ -364,17 +368,48 @@ func pessimistFanIn(errs []error) error {
 	errStr := ""
 	allErrorsNotFound := true
 	for _, e := range errs {
-		errStr = errStr + e.Error()
+		errStr = errStr + e.Error() + ", "
 		if _, ok := e.(dataTypes.ErrNotFound); !ok {
 			allErrorsNotFound = false
 		}
 	}
 
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all returned not found: " + errStr)
+		return dataTypes.ErrNotFound("all not found; merged errs: (" + errStr + ")")
 	}
 
-	return errors.New("failed with mixed errrors" + errStr)
+	return errors.New("all failed with mixed errrors; merged errs: (" + errStr + ")")
+}
+
+// returns non-nil error when errors result in an error
+// returns non-empty string when there are *some* errors, even when total err is nil
+// returned string can be used to indicate partial failure
+func optimistFanIn(errs []error, n int) (error, string) {
+	nErrs := len(errs)
+	if nErrs == 0 {
+		return nil, ""
+	}
+
+	// everything failed.
+	// If all the failures are not-founds, it's a not-found
+	allErrorsNotFound := true
+	errStr := ""
+	for _, e := range errs {
+		errStr = errStr + e.Error() + ", "
+		if _, ok := e.(dataTypes.ErrNotFound); !ok {
+			allErrorsNotFound = false
+		}
+	}
+
+	if nErrs < n {
+		return nil, errStr
+	}
+
+	if allErrorsNotFound {
+		return dataTypes.ErrNotFound("all not found; merged errs: (" + errStr + ")"), errStr
+	}
+
+	return errors.New("all failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
@@ -531,34 +566,6 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	}
 
 	return body, nil
-}
-
-func targetErrsFanIn(errs []error, n int) error {
-	nErrs := len(errs)
-	if nErrs == 0 {
-		return nil
-	}
-
-	if nErrs < n {
-		return nil
-	}
-
-	// everything failed.
-	// If all the failures are not-founds, it's a not-found
-	allErrorsNotFound := true
-	errStr := ""
-	for _, e := range errs {
-		errStr = errStr + e.Error()
-		if _, ok := e.(dataTypes.ErrNotFound); !ok {
-			allErrorsNotFound = false
-		}
-	}
-
-	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all targets not found: " + errStr)
-	}
-
-	return errors.New("all targets failed with mixed errrors: " + errStr)
 }
 
 func (app *App) sendGlobs(glob dataTypes.Matches) bool {

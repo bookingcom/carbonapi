@@ -202,21 +202,47 @@ func TestRenderHandler(t *testing.T) {
 }
 
 func TestRenderHandlerErrs(t *testing.T) {
-	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
-	rr := httptest.NewRecorder()
+	tests := []struct {
+		req     string
+		expCode int
+	}{
+		{
+			req:     "/render/?target=foo.bar&from=-10minutes&format=json&noCache=1",
+			expCode: http.StatusInternalServerError,
+		},
+		{
+			req:     "/render/?target=sum(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1",
+			expCode: http.StatusInternalServerError,
+		},
+		{
+			req:     "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1",
+			expCode: http.StatusInternalServerError,
+		},
+		{
+			req:     "/render/?target=max(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1",
+			expCode: http.StatusInternalServerError,
+		},
+	}
 
-	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
-	// TODO (grzkv): Fix this
-	testApp.backend = mock.New(mock.Config{
-		Find:   find,
-		Info:   info,
-		Render: renderErr,
-	})
+	for _, tst := range tests {
+		t.Run(tst.req, func(t *testing.T) {
+			req := setUpRequest(t, tst.req)
+			rr := httptest.NewRecorder()
 
-	testApp.renderHandler(rr, req)
+			// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
+			// TODO (grzkv): Fix this
+			testApp.backend = mock.New(mock.Config{
+				Find:   find,
+				Info:   info,
+				Render: renderErr,
+			})
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, rr.Code)
+			testApp.renderHandler(rr, req)
+
+			if rr.Code != tst.expCode {
+				t.Errorf("Expected status code %d, got %d", tst.expCode, rr.Code)
+			}
+		})
 	}
 }
 
