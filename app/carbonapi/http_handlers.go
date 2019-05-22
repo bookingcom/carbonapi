@@ -156,15 +156,15 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(),
-			http.StatusBadRequest)
+		http.Error(w, errBody(http.StatusBadRequest, err.Error()), http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
 	if form.from32 == form.until32 {
-		http.Error(w, "Invalid empty time range", http.StatusBadRequest)
+		http.Error(w, errBody(http.StatusBadRequest, "Invalid empty time range"),
+			http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
 		logAsError = true
@@ -199,7 +199,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
-			http.Error(w, msg, http.StatusBadRequest)
+			http.Error(w, errBody(http.StatusBadRequest, msg), http.StatusBadRequest)
 			toLog.Reason = msg
 			toLog.HttpCode = http.StatusBadRequest
 			logAsError = true
@@ -214,17 +214,18 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
-	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets))
+	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
 	partiallyFailed = partiallyFailed || (totalErrStr != "")
 
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			http.Error(w, totalErr.Error(), http.StatusNotFound)
+			http.Error(w, errBody(http.StatusNotFound, totalErr.Error()), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
 		} else {
-			http.Error(w, totalErr.Error(), http.StatusInternalServerError)
+			http.Error(w, errBody(http.StatusInternalServerError, totalErr.Error()),
+				http.StatusInternalServerError)
 			toLog.HttpCode = http.StatusInternalServerError
 			logAsError = true
 		}
@@ -233,7 +234,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errBody(http.StatusInternalServerError, err.Error()),
+			http.StatusInternalServerError)
 		toLog.Reason = err.Error()
 		toLog.HttpCode = http.StatusInternalServerError
 		logAsError = true
@@ -253,6 +255,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		app.prometheusMetrics.RenderPartialFail.Inc()
 	}
 	toLog.HttpCode = http.StatusOK
+}
+
+func errBody(code int, s string) string {
+	return http.StatusText(code) + " (" + strconv.Itoa(code) + ") Details: " + s
 }
 
 func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,
@@ -331,7 +337,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		toLog.CarbonzipperResponseSizeBytes += int64(size)
 		close(rch)
 
-		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests))
+		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
 		*partFail = (*partFail) || (metricErrStr != "")
 		if metricErr != nil {
 			metricErrs = append(metricErrs, metricErr)
@@ -340,7 +346,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
-	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()))
+	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
 
 	var rewritten bool
@@ -397,7 +403,7 @@ func pessimistFanIn(errs []error) error {
 // returns non-nil error when errors result in an error
 // returns non-empty string when there are *some* errors, even when total err is nil
 // returned string can be used to indicate partial failure
-func optimistFanIn(errs []error, n int) (error, string) {
+func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	nErrs := len(errs)
 	if nErrs == 0 {
 		return nil, ""
@@ -423,10 +429,12 @@ func optimistFanIn(errs []error, n int) (error, string) {
 	}
 
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all not found; merged errs: (" + errStr + ")"), errStr
+		return dataTypes.ErrNotFound("all " + subj +
+			" not found; merged errs: (" + errStr + ")"), errStr
 	}
 
-	return errors.New("all failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
+	return errors.New("all " + subj +
+		" failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
