@@ -26,6 +26,10 @@ func MarshalPNGRequest(r *http.Request, results []*types.MetricData, templateNam
 	return nil
 }
 
+func MarshalPNGRequestErr(r *http.Request, errStr string, templateName string) []byte {
+	return nil
+}
+
 func MarshalSVGRequest(r *http.Request, results []*types.MetricData, templateName string) []byte {
 	return nil
 }

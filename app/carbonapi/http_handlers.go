@@ -79,7 +79,6 @@ func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc
 }
 
 func writeResponse(ctx context.Context, w http.ResponseWriter, b []byte, format string, jsonp string) {
-
 	w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
 	switch format {
 	case jsonFormat:
@@ -156,15 +155,14 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
-		http.Error(w, errBody(http.StatusBadRequest, err.Error()), http.StatusBadRequest)
+		writeError(ctx, r, w, http.StatusBadRequest, err.Error(), form)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = err.Error()
 		logAsError = true
 		return
 	}
 	if form.from32 == form.until32 {
-		http.Error(w, errBody(http.StatusBadRequest, "Invalid empty time range"),
-			http.StatusBadRequest)
+		writeError(ctx, r, w, http.StatusBadRequest, "Invalid empty time range", form)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
 		logAsError = true
@@ -199,7 +197,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
-			http.Error(w, errBody(http.StatusBadRequest, msg), http.StatusBadRequest)
+			writeError(ctx, r, w, http.StatusBadRequest, msg, form)
 			toLog.Reason = msg
 			toLog.HttpCode = http.StatusBadRequest
 			logAsError = true
@@ -220,12 +218,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			http.Error(w, errBody(http.StatusNotFound, totalErr.Error()), http.StatusNotFound)
+			writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
 		} else {
-			http.Error(w, errBody(http.StatusInternalServerError, totalErr.Error()),
-				http.StatusInternalServerError)
+			writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusInternalServerError
 			logAsError = true
 		}
@@ -234,8 +231,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		http.Error(w, errBody(http.StatusInternalServerError, err.Error()),
-			http.StatusInternalServerError)
+		writeError(ctx, r, w, http.StatusInternalServerError, err.Error(), form)
 		toLog.Reason = err.Error()
 		toLog.HttpCode = http.StatusInternalServerError
 		logAsError = true
@@ -257,8 +253,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	toLog.HttpCode = http.StatusOK
 }
 
-func errBody(code int, s string) string {
-	return http.StatusText(code) + " (" + strconv.Itoa(code) + ") Details: " + s
+func writeError(ctx context.Context, r *http.Request, w http.ResponseWriter,
+	code int, s string, form renderForm) {
+	// TODO (grzkv) Maybe add SVG format handling
+	if form.format == pngFormat {
+		shortErrStr := http.StatusText(code) + " (" + strconv.Itoa(code) + ")"
+		writeResponse(ctx, w, png.MarshalPNGRequestErr(r, shortErrStr, form.template),
+			form.format, form.jsonp)
+		w.WriteHeader(code)
+	} else {
+		http.Error(w, http.StatusText(code)+" ("+strconv.Itoa(code)+") Details: "+s, code)
+	}
 }
 
 func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,

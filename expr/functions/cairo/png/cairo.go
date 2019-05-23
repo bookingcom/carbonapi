@@ -872,22 +872,28 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 }
 
 func MarshalSVG(params PictureParams, results []*types.MetricData) []byte {
-	return marshalCairo(params, results, cairoSVG)
+	return marshalCairo(params, results, cairoSVG, "")
 }
 
 func MarshalPNG(params PictureParams, results []*types.MetricData) []byte {
-	return marshalCairo(params, results, cairoPNG)
+	return marshalCairo(params, results, cairoPNG, "")
 }
 
 func MarshalSVGRequest(r *http.Request, results []*types.MetricData, templateName string) []byte {
-	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoSVG)
+	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoSVG, "")
 }
 
 func MarshalPNGRequest(r *http.Request, results []*types.MetricData, templateName string) []byte {
-	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoPNG)
+	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoPNG, "")
 }
 
-func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBackend) []byte {
+func MarshalPNGRequestErr(r *http.Request, errStr string, templateName string) []byte {
+	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, make([]*types.MetricData, 0)),
+		make([]*types.MetricData, 0), cairoPNG, errStr)
+}
+
+func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBackend,
+	emptyText string) []byte {
 	var params = Params{
 		pixelRatio:     p.PixelRatio,
 		width:          p.Width,
@@ -993,7 +999,7 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 	setColor(cr, params.bgColor)
 	drawRectangle(cr, &params, 0, 0, params.width, params.height, true)
 
-	drawGraph(cr, &params, results)
+	drawGraph(cr, &params, results, emptyText)
 
 	surface.Flush()
 
@@ -1019,7 +1025,8 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 	return b
 }
 
-func drawGraph(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func drawGraph(cr *cairoSurfaceContext, params *Params,
+	results []*types.MetricData, emptyText string) {
 	var minNumberOfPoints, maxNumberOfPoints int32
 
 	params.secondYAxis = false
@@ -1053,9 +1060,17 @@ func drawGraph(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 		x := params.width / 2.0
 		y := params.height / 2.0
 		setColor(cr, string2RGBA("red"))
-		fontSize := math.Log(params.width * params.height)
+		fontSize := 1.5 * math.Log(params.width*params.height)
 		setFont(cr, params, fontSize)
-		drawText(cr, params, "No Data", x, y, HAlignCenter, VAlignTop, 0)
+		if emptyText == "" {
+			emptyText = "No Data"
+		} else {
+			if len(emptyText) > 23 {
+				emptyText = emptyText[:20] + "..."
+			}
+		}
+
+		drawText(cr, params, emptyText, x, y, HAlignCenter, VAlignTop, 0)
 
 		return
 	}
