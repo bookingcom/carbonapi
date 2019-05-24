@@ -258,9 +258,10 @@ func writeError(ctx context.Context, r *http.Request, w http.ResponseWriter,
 	// TODO (grzkv) Maybe add SVG format handling
 	if form.format == pngFormat {
 		shortErrStr := http.StatusText(code) + " (" + strconv.Itoa(code) + ")"
-		writeResponse(ctx, w, png.MarshalPNGRequestErr(r, shortErrStr, form.template),
-			form.format, form.jsonp)
+		w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
+		w.Header().Set("Content-Type", contentTypePNG)
 		w.WriteHeader(code)
+		w.Write(png.MarshalPNGRequestErr(r, shortErrStr, form.template))
 	} else {
 		http.Error(w, http.StatusText(code)+" ("+strconv.Itoa(code)+") Details: "+s, code)
 	}
