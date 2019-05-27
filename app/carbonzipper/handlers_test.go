@@ -279,7 +279,7 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 	}
 }
 
-func TestRenderMultipleBackendsAllMixedErrors(t *testing.T) {
+func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -294,6 +294,81 @@ func TestRenderMultipleBackendsAllMixedErrors(t *testing.T) {
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/render?target=foo.bar&from=1110&until=1111", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.renderHandler(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestRenderMultipleBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithNotFoundError,
 		}),
 		mock.New(mock.Config{
 			Find:   find,
@@ -507,7 +582,7 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 	}
 }
 
-func TestFindManyBackendsAllMixedErrors(t *testing.T) {
+func TestFindManyBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -530,6 +605,145 @@ func TestFindManyBackendsAllMixedErrors(t *testing.T) {
 		}),
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestFindManyBackendsAllMixedErrorsBelowThreshold2(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestFindManyBackendsAllMixedErrorsSmallAmount(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+	}
+
+	if err != nil {
+		t.Fatalf("got error %v when making new app", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "/metrics/find", nil)
+	if err != nil {
+		t.Fatalf("error making request %v", err)
+	}
+
+	app.findHandler(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
+	}
+}
+func TestFindManyBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync()
+
+	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app.backends = []backend.Backend{
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),

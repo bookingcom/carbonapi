@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -83,7 +82,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewFindRequest(originalQuery)
 	bs := backend.Filter(app.backends, []string{originalQuery})
 	metrics, errs := backend.Finds(ctx, bs, request)
-	err := errorsFanIn(ctx, errs, len(bs), logger)
+	err := errorsFanIn(ctx, errs, len(bs))
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
@@ -101,15 +100,17 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			// returned a 404 code to Prometheus.
 
 			app.prometheusMetrics.FindNotFound.Inc()
+			accessLogger.Info("not found",
+				zap.Error(err))
+			// TODO (grzkv) Should we return here?
 		} else {
-			msg := "error fetching the data"
 			code := http.StatusInternalServerError
 			accessLogger.Error("find failed",
 				zap.Int("http_code", code),
 				zap.Duration("runtime_seconds", time.Since(t0)),
 				zap.Error(err),
 			)
-			http.Error(w, msg, code)
+			http.Error(w, err.Error(), code)
 			Metrics.Errors.Add(1)
 			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 			return
@@ -269,7 +270,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	bs := backend.Filter(app.backends, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs), logger)
+	err = errorsFanIn(ctx, errs, len(bs))
 
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -413,7 +414,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	request := types.NewInfoRequest(target)
 	bs := backend.Filter(app.backends, []string{target})
 	infos, errs := backend.Infos(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs), logger)
+	err = errorsFanIn(ctx, errs, len(bs))
 	if err != nil {
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
@@ -482,7 +483,6 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	Metrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
-	/* #nosec */
 	fmt.Fprintf(w, "Ok\n")
 	accessLogger.Info("lb request served",
 		zap.Int("http_code", http.StatusOK),
@@ -493,51 +493,36 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		"lbcheck").Inc()
 }
 
-func errorsFanIn(ctx context.Context, errs []error, numBackends int,
-	logger *zap.Logger) error {
+func errorsFanIn(ctx context.Context, errs []error, numBackends int) error {
 	nErrs := len(errs)
 	switch {
 	case (nErrs == 0):
 		return nil
 	case (nErrs < numBackends):
-		// if at least one backend is successful, it's a success! But log a warning
-		logger.Warn("Part of requests to backends failed",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.String("summary", errorsSummary(errs)),
-		)
 		return nil
+	case (nErrs > numBackends):
+		return errors.New("got more errors than there are backends. Probably something is broken")
 	default:
+		// how many backends need to fail with other errors for the error to be considered 500
+		minOtherErrs := 3
+
 		// everything failed.
 		// If all the failures are not-founds, it's a not-found
-		allErrorsNotFound := true
+		nOtherErrors := 0
 		for _, e := range errs {
 			if _, ok := e.(types.ErrNotFound); !ok {
-				allErrorsNotFound = false
-				break
+				nOtherErrors += 1
 			}
 		}
 
-		if allErrorsNotFound {
-			return types.ErrNotFound("all backends returned not found")
+		if nOtherErrors < minOtherErrs && nOtherErrors < nErrs {
+			return types.ErrNotFound(fmt.Sprintf(
+				"majority of backends returned not found. %d total errors, %d not found",
+				nErrs, nErrs-nOtherErrors))
 		}
 
-		// if it's not a not-found, it's an internal error
-		logger.Error("Requests to all backends failed",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.String("summary", errorsSummary(errs)),
-		)
-		return errors.New("all backends failed with mixed errrors")
+		return errors.New(fmt.Sprintf(
+			"all backends failed with mixed errors: %d total errors, %d not found",
+			nErrs, nErrs-nOtherErrors))
 	}
-}
-
-// errorsSummary goes through the slice of errors and prints out only ones that are not not-founds
-func errorsSummary(ee []error) string {
-	var sb strings.Builder
-	for _, e := range ee {
-		if _, ok := e.(types.ErrNotFound); !ok {
-			sb.WriteString(fmt.Sprintf("%v\n", e))
-		}
-	}
-
-	return sb.String()
 }
