@@ -33,6 +33,7 @@ type Backend interface {
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
 	Probe()                 // Probe updates internal state of the backend.
+	GetTLD() map[string]bool
 }
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
@@ -149,16 +150,15 @@ func getTLD(metric string) string {
 
 // Filter filters the given backends by whether they Contain() the given targets.
 func Filter(backends []Backend, targets []string) []Backend {
-	if bs := filter(backends, targets); len(bs) > 0 {
-		return bs
-	}
-
-	tlds := make([]string, 0, len(targets))
+	targetTlds := make([]string, 0, len(targets))
 	for _, target := range targets {
-		tlds = append(tlds, getTLD(target))
+		targetTlds = append(targetTlds, getTLD(target))
 	}
 
-	if bs := filter(backends, tlds); len(bs) > 0 {
+	if bs := filterByTLD(backends, targetTlds); len(bs) > 0 {
+		backends = bs
+	}
+	if bs := filter(backends, targets); len(bs) > 0 {
 		return bs
 	}
 
@@ -173,5 +173,19 @@ func filter(backends []Backend, targets []string) []Backend {
 		}
 	}
 
+	return bs
+}
+
+func filterByTLD(backends []Backend, targetTLDs []string) []Backend {
+	bs := make([]Backend, 0)
+	for _, b := range backends {
+		backendTLDs := b.GetTLD()
+		for _, target := range targetTLDs {
+			if backendTLDs[target] {
+				bs = append(bs, b)
+				break
+			}
+		}
+	}
 	return bs
 }

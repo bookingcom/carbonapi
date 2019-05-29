@@ -71,6 +71,7 @@ type Backend struct {
 	limiter        chan struct{}
 	logger         *zap.Logger
 	cache          *expirecache.Cache
+	tldCache       *expirecache.Cache
 	cacheExpirySec int32
 }
 
@@ -95,7 +96,8 @@ var fmtProto = []string{"protobuf"}
 // New creates a new backend from the given configuration.
 func New(cfg Config) (*Backend, error) {
 	b := &Backend{
-		cache: expirecache.New(0),
+		cache:    expirecache.New(0),
+		tldCache: expirecache.New(0),
 	}
 
 	if cfg.PathCacheExpirySec > 0 {
@@ -156,6 +158,14 @@ func (b Backend) url(path string) *url.URL {
 		Host:   b.address,
 		Path:   path,
 	}
+}
+
+func (b Backend) GetTLD() map[string]bool {
+	x, _ := b.tldCache.Get("tlds")
+	if y, ok := x.(map[string]bool); ok {
+		return y
+	}
+	return nil
 }
 
 // Logger returns logger for this backend. Needed to satisfy interface.
@@ -311,7 +321,7 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 
 // Probe performs a single update of the backend's top-level domains.
 func (b *Backend) Probe() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
 
 	request := types.NewFindRequest("*")
@@ -319,10 +329,12 @@ func (b *Backend) Probe() {
 	if err != nil {
 		return
 	}
-
+	tlds := make(map[string]bool)
 	for _, m := range matches.Matches {
-		b.cache.Set(m.Path, struct{}{}, 0, b.cacheExpirySec)
+		tlds[m.Path] = true
 	}
+	b.tldCache.Set("tlds", tlds, 0, 600)
+
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead

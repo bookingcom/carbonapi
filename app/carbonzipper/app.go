@@ -36,6 +36,9 @@ type App struct {
 	config            cfg.Zipper
 	prometheusMetrics *PrometheusMetrics
 	backends          []backend.Backend
+	probeTicker       *time.Ticker
+	ProbeQuit         chan struct{}
+	ProbeForce        chan int
 }
 
 // New inits backends and makes a new copy of the app. Does not run the app
@@ -48,7 +51,15 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 		)
 		return nil, err
 	}
-	app := App{config: config, prometheusMetrics: NewPrometheusMetrics(config), backends: bs}
+
+	app := App{
+		config:            config,
+		prometheusMetrics: NewPrometheusMetrics(config),
+		backends:          bs,
+		probeTicker:       time.NewTicker(300 * time.Second),
+		ProbeQuit:         make(chan struct{}),
+		ProbeForce:        make(chan int),
+	}
 	return &app, nil
 }
 
@@ -108,7 +119,9 @@ func (app *App) Start() {
 		initGraphite(app)
 	}
 
+	go app.probeTlds(logger)
 	go metricsServer(app, logger)
+	app.ProbeForce <- 1
 
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
@@ -121,6 +134,26 @@ func (app *App) Start() {
 		log.Fatal("error during gracehttp.Serve()",
 			zap.Error(err),
 		)
+	}
+}
+
+func (app *App) doProbe(logger *zap.Logger) {
+	for _, backend := range app.backends {
+		backend.Probe()
+	}
+}
+
+func (app *App) probeTlds(logger *zap.Logger) {
+	for {
+		select {
+		case <-app.probeTicker.C:
+			app.doProbe(logger)
+		case <-app.ProbeForce:
+			app.doProbe(logger)
+		case <-app.ProbeQuit:
+			app.probeTicker.Stop()
+			return
+		}
 	}
 }
 

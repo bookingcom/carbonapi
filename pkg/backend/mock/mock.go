@@ -101,3 +101,7 @@ func New(cfg Config) Backend {
 func (b Backend) Contains(targets []string) bool {
 	return b.contains(targets)
 }
+
+func (b Backend) GetTLD() map[string]bool {
+	return nil
+}
