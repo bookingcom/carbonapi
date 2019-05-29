@@ -537,6 +537,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 		Timeout:            config.Timeouts.AfterStarted,
 		Limit:              config.ConcurrencyLimitPerServer,
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
+		TLDExpirySec:       uint32(config.InternalRoutingCache),
 		Logger:             logger,
 	})
 

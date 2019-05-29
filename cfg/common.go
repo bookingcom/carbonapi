@@ -50,7 +50,8 @@ func DefaultCommonConfig() Common {
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
 
-		ExpireDelaySec: int32(10 * time.Minute / time.Second),
+		ExpireDelaySec:       int32(10 * time.Minute / time.Second),
+		InternalRoutingCache: int32(5 * time.Minute / time.Second),
 
 		Buckets: 10,
 		Graphite: GraphiteConfig{
@@ -120,6 +121,7 @@ type Common struct {
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
 
 	ExpireDelaySec             int32   `yaml:"expireDelaySec"`
+	InternalRoutingCache       int32   `yaml:"internalRoutingCache"`
 	GraphiteWeb09Compatibility bool    `yaml:"graphite09compat"`
 	CorruptionThreshold        float64 `yaml:"corruptionThreshold"`
 

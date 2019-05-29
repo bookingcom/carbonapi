@@ -56,7 +56,7 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 		config:            config,
 		prometheusMetrics: NewPrometheusMetrics(config),
 		backends:          bs,
-		probeTicker:       time.NewTicker(300 * time.Second),
+		probeTicker:       time.NewTicker(time.Duration(config.InternalRoutingCache) * time.Second),
 		ProbeQuit:         make(chan struct{}),
 		ProbeForce:        make(chan int),
 	}
@@ -199,6 +199,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			Timeout:            config.Timeouts.AfterStarted,
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			TLDExpirySec:       uint32(config.InternalRoutingCache),
 			Logger:             logger,
 		})
 

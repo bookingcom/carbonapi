@@ -64,15 +64,16 @@ func ContextCancelCause(err error) string {
 
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
-	address        string
-	scheme         string
-	client         *http.Client
-	timeout        time.Duration
-	limiter        chan struct{}
-	logger         *zap.Logger
-	cache          *expirecache.Cache
-	tldCache       *expirecache.Cache
-	cacheExpirySec int32
+	address           string
+	scheme            string
+	client            *http.Client
+	timeout           time.Duration
+	limiter           chan struct{}
+	logger            *zap.Logger
+	cache             *expirecache.Cache
+	tldCache          *expirecache.Cache
+	cacheExpirySec    int32
+	cacheTLDExpirySec int32
 }
 
 // Config configures an HTTP backend.
@@ -88,6 +89,7 @@ type Config struct {
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
+	TLDExpirySec       uint32        // Set time in seconds before items in tld cache expire.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 }
 
@@ -104,6 +106,12 @@ func New(cfg Config) (*Backend, error) {
 		b.cacheExpirySec = int32(cfg.PathCacheExpirySec)
 	} else {
 		b.cacheExpirySec = int32(10 * time.Minute / time.Second)
+	}
+
+	if cfg.TLDExpirySec > 0 {
+		b.cacheTLDExpirySec = int32(cfg.TLDExpirySec)
+	} else {
+		b.cacheTLDExpirySec = 86400
 	}
 
 	address, scheme, err := parseAddress(cfg.Address)
@@ -333,7 +341,7 @@ func (b *Backend) Probe() {
 	for _, m := range matches.Matches {
 		tlds[m.Path] = true
 	}
-	b.tldCache.Set("tlds", tlds, 0, 600)
+	b.tldCache.Set("tlds", tlds, 0, b.cacheTLDExpirySec)
 
 }
 
