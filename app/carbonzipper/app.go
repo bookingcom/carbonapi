@@ -199,7 +199,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			Timeout:            config.Timeouts.AfterStarted,
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
-			TLDExpirySec:       uint32(config.InternalRoutingCache),
+			TLDExpirySec:       uint32(2 * config.InternalRoutingCache),
 			Logger:             logger,
 		})
 
