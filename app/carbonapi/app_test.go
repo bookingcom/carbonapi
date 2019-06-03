@@ -222,7 +222,13 @@ func TestRenderHandlerErrs(t *testing.T) {
 			req:     "/render/?target=max(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1",
 			expCode: http.StatusInternalServerError,
 		},
+		{
+			req:     "/render/?target=foo.bar&from=-5y1d&format=json&noCache=1",
+			expCode: http.StatusBadRequest,
+		},
 	}
+
+	testApp.config.Limits.MaxDuration = 1825 // 5 years + 1 day
 
 	for _, tst := range tests {
 		t.Run(tst.req, func(t *testing.T) {
