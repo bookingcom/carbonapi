@@ -91,6 +91,13 @@ upstreams:
     # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
     # connections on the backend servers which may bump into limits; tune with care.
     maxIdleConnsPerHost: 1030
+
+    limits:
+#    # Limit maximum responce size from upstream (in bytes)
+#        maxSize: 1048576
+#    # Limit maximum time duration for request (beetween from/until) (in DAYS !!)
+#        maxDuration: 1825
+
     backends:
       - http://zipper:8000
 

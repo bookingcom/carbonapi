@@ -68,6 +68,7 @@ type Backend struct {
 	scheme         string
 	client         *http.Client
 	timeout        time.Duration
+	maxsize        int
 	limiter        chan struct{}
 	logger         *zap.Logger
 	cache          *expirecache.Cache
@@ -85,6 +86,7 @@ type Config struct {
 	// Optional fields
 	Client             *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
+	MaxSize            int           // Limit for upstream responce size
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
@@ -116,6 +118,12 @@ func New(cfg Config) (*Backend, error) {
 		b.timeout = cfg.Timeout
 	} else {
 		b.timeout = 0
+	}
+
+	if cfg.MaxSize > 0 {
+		b.maxsize = cfg.MaxSize + 1
+	} else {
+		b.maxsize = 0
 	}
 
 	if cfg.Client != nil {
@@ -244,7 +252,14 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		var bodyErr error
 		if res.resp != nil && res.resp.Body != nil {
 			t1 := time.Now()
-			body, bodyErr = ioutil.ReadAll(res.resp.Body)
+			if b.maxsize > 0 { // Limit maximum responce size
+				body, bodyErr = ioutil.ReadAll(io.LimitReader(res.resp.Body, int64(b.maxsize)))
+				if len(body) == b.maxsize {
+					return "", nil, errors.New("Responce too large")
+				}
+			} else {
+				body, bodyErr = ioutil.ReadAll(res.resp.Body)
+			}
 			res.resp.Body.Close()
 			trace.AddReadBody(t1)
 		}
