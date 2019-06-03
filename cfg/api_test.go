@@ -143,6 +143,9 @@ upstreams:
         connect: "200ms"
         global: "600s"
         afterStarted: "600s"
+    limits:
+        maxSize: 1048576
+        maxDuration: 1825
     concurrencyLimit: 1024
     keepAliveInterval: "30s"
     maxIdleConnsPerHost: 1024
@@ -165,7 +168,8 @@ logger:
 	expected := API{
 		Zipper: Zipper{
 			Common: Common{
-				Listen: ":8081",
+				Listen:         ":8081",
+				ListenInternal: ":7080",
 				Backends: []string{
 					"http://localhost:8000",
 				},
@@ -175,6 +179,10 @@ logger:
 					Global:       10 * time.Minute,
 					AfterStarted: 10 * time.Minute,
 					Connect:      200 * time.Millisecond,
+				},
+				Limits: Limits{
+					MaxSize:     1048576,
+					MaxDuration: 1825 * 24 * 3600,
 				},
 				ConcurrencyLimitPerServer: 1024,
 				KeepAliveInterval:         30 * time.Second,
