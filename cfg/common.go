@@ -46,6 +46,10 @@ func DefaultCommonConfig() Common {
 			AfterStarted: 2 * time.Second,
 			Connect:      200 * time.Millisecond,
 		},
+		Limits: Limits{
+			MaxSize:     0,
+			MaxDuration: 0,
+		},
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
@@ -115,6 +119,7 @@ type Common struct {
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
+	Limits                    Limits        `yaml:"limits"`
 	ConcurrencyLimitPerServer int           `yaml:"concurrencyLimit"`
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
@@ -152,4 +157,10 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
+}
+
+// Limits for query upstream
+type Limits struct {
+	MaxSize     int   `yaml:"maxSize"`
+	MaxDuration int32 `yaml:"maxDuration"`
 }

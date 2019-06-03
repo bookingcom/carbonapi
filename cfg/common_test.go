@@ -75,6 +75,10 @@ monitoring:
 			AfterStarted: 15 * time.Second,
 			Connect:      200 * time.Millisecond,
 		},
+		Limits: Limits{
+			MaxSize:     0,
+			MaxDuration: 0,
+		},
 		ConcurrencyLimitPerServer: 2048,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       1024,
@@ -132,6 +136,7 @@ type comparableCommon struct {
 	Listen                     string
 	MaxProcs                   int
 	Timeouts                   Timeouts
+	Limits                     Limits
 	ConcurrencyLimitPerServer  int
 	KeepAliveInterval          time.Duration
 	MaxIdleConnsPerHost        int
@@ -146,6 +151,7 @@ func toComparableCommon(a Common) comparableCommon {
 		Listen:                     a.Listen,
 		MaxProcs:                   a.MaxProcs,
 		Timeouts:                   a.Timeouts,
+		Limits:                     a.Limits,
 		ConcurrencyLimitPerServer:  a.ConcurrencyLimitPerServer,
 		KeepAliveInterval:          a.KeepAliveInterval,
 		MaxIdleConnsPerHost:        a.MaxIdleConnsPerHost,

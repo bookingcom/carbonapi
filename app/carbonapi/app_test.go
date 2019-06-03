@@ -177,6 +177,20 @@ func setUpRequest(t *testing.T, url string) *http.Request {
 	return req
 }
 
+func TestInitBackends(t *testing.T) {
+	config := cfg.DefaultAPIConfig()
+	c := cfg.GetDefaultLoggerConfig()
+	c.Level = "none"
+	zapwriter.ApplyConfig([]zapwriter.Config{c})
+	logger := zapwriter.Logger("main")
+	config.Zipper.Common.Backends = append(config.Zipper.Common.Backends, "http://127.0.0.1:9090")
+	config.Limits.MaxSize = 1048576
+	_, err := initBackend(config, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRenderHandler(t *testing.T) {
 	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
 	rr := httptest.NewRecorder()
@@ -222,7 +236,13 @@ func TestRenderHandlerErrs(t *testing.T) {
 			req:     "/render/?target=max(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1",
 			expCode: http.StatusInternalServerError,
 		},
+		{
+			req:     "/render/?target=foo.bar&from=-5y1d&format=json&noCache=1",
+			expCode: http.StatusBadRequest,
+		},
 	}
+
+	testApp.config.Limits.MaxDuration = 1825 // 5 years + 1 day
 
 	for _, tst := range tests {
 		t.Run(tst.req, func(t *testing.T) {

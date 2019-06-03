@@ -168,6 +168,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		logAsError = true
 		return
 	}
+	if app.config.Limits.MaxDuration > 0 && form.from32+app.config.Limits.MaxDuration < form.until32 { // Limit duration (from/until)
+		http.Error(w, "Too long time range", http.StatusBadRequest)
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = "Too long time range"
+		logAsError = true
+		return
+	}
 
 	if form.useCache {
 		tc := time.Now()

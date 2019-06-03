@@ -52,6 +52,11 @@ func ParseAPIConfig(r io.Reader) (API, error) {
 		api.Backends = pre.Upstreams.Backends
 	}
 
+	if pre.Upstreams.Limits != defaultCfg.Limits {
+		api.Limits = pre.Upstreams.Limits
+		api.Limits.MaxDuration *= 3600 * 24
+	}
+
 	return api, nil
 }
 

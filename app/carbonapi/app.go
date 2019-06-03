@@ -538,6 +538,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 		Limit:              config.ConcurrencyLimitPerServer,
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
+		MaxSize:            config.Limits.MaxSize,
 	})
 
 	if err != nil {

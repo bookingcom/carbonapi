@@ -292,6 +292,36 @@ func TestDoHTTPError(t *testing.T) {
 	}
 }
 
+func TestDoMaxSize(t *testing.T) {
+	exp := []byte("OK maxSize is reached")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(exp)
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	b, err := New(Config{
+		Address: addr,
+		Client:  server.Client(),
+		MaxSize: 5,
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	req, err := b.request(context.Background(), b.url("/render"), nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, _, err = b.do(context.Background(), types.NewTrace(), req)
+	if err != nil && err.Error() != "Responce too large" {
+		t.Error(err)
+	}
+
+}
+
 func TestRequest(t *testing.T) {
 	b, err := New(Config{Address: "localhost"})
 	if err != nil {
