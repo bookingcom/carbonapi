@@ -106,8 +106,16 @@ upstreams:
 # This parameter controls when it will expire (in seconds)
 # Default: 600 (10 minutes)
 expireDelaySec: 10
+# The path and the name of the file with a list of headers to block. 
+# Based on the value of header you can block requests which are coming to carbonapi
+# This file can be updated via API call to the port specified in listenInternal: config option,
+# like so:
+# curl 'localhost:7081/block-headers/?x-webauth-user=el-diablo&x-real-ip=1.2.3.4'
+# carbonapi needs to have write access to this file/folder
 blockHeaderFile: "block_header_list.yaml"
 blockHeaderUpdatePeriod: "30s"
+# List of HTTP headers to log. This can be usefull to track request to the source of it. 
+# Defaults allow you to find grafana user/dashboard/panel which send a request
 headersToLog:
     - X-Panel-Id
     - X-Dashboard-Id
