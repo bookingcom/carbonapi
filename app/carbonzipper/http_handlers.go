@@ -268,6 +268,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
+	request.Trace.OutDuration = &app.prometheusMetrics.RenderOutDurationExp
 	bs := backend.Filter(app.backends, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
 	err = errorsFanIn(ctx, errs, len(bs))
