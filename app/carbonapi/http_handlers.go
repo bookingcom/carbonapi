@@ -20,7 +20,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/bookingcom/carbonapi/pkg/backend/net"
+	nt "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
@@ -211,6 +211,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		size += metricSize
 	}
 
+	if ctx.Err() != nil {
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"render", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
+
 	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
 	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
 	partiallyFailed = partiallyFailed || (totalErrStr != "")
@@ -325,12 +331,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		for i := 0; i < len(renderRequests); i++ {
 			resp := <-rch
 			if resp.error != nil {
-				// TODO (grzkv) Move this
-				if e, ok := resp.error.(net.ErrContextCancel); ok {
-					app.prometheusMetrics.RequestCancel.WithLabelValues(
-						"render", net.ContextCancelCause(e.Err)).Inc()
-				}
-
 				errs = append(errs, resp.error)
 				continue
 			}
@@ -643,10 +643,6 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
-		if e, ok := err.(net.ErrContextCancel); ok {
-			app.prometheusMetrics.RequestCancel.WithLabelValues("find",
-				net.ContextCancelCause(e.Err)).Inc()
-		}
 		return matches, err
 	}
 
@@ -732,6 +728,13 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	request := dataTypes.NewFindRequest(query)
 	request.IncCall()
 	metrics, err := app.backend.Find(ctx, request)
+
+	if ctx.Err() != nil {
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"find", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
+
 	if err != nil {
 		logger.Warn("zipper returned erro in find request",
 			zap.String("uuid", util.GetUUID(ctx)),
@@ -745,11 +748,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// returned a 404 code to Prometheus.
 			app.prometheusMetrics.FindNotFound.Inc()
 		} else {
-			if e, ok := err.(net.ErrContextCancel); ok {
-				app.prometheusMetrics.RequestCancel.WithLabelValues("find",
-					net.ContextCancelCause(e.Err)).Inc()
-			}
-
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
 
@@ -921,10 +919,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
-		if e, ok := err.(net.ErrContextCancel); ok {
-			app.prometheusMetrics.RequestCancel.WithLabelValues("info", net.ContextCancelCause(e.Err)).Inc()
-		}
-
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		toLog.HttpCode = http.StatusInternalServerError
 		toLog.Reason = err.Error()
