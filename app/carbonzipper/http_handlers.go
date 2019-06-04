@@ -493,36 +493,34 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 		"lbcheck").Inc()
 }
 
-func errorsFanIn(ctx context.Context, errs []error, numBackends int) error {
+func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 	nErrs := len(errs)
 	switch {
 	case (nErrs == 0):
 		return nil
-	case (nErrs < numBackends):
+	case (nErrs < nBackends):
 		return nil
-	case (nErrs > numBackends):
+	case (nErrs > nBackends):
 		return errors.New("got more errors than there are backends. Probably something is broken")
 	default:
-		// how many backends need to fail with other errors for the error to be considered 500
-		minOtherErrs := 3
-
-		// everything failed.
-		// If all the failures are not-founds, it's a not-found
-		nOtherErrors := 0
+		// everything failed, nErrs == nBackends
+		nNotNotFounds := 0
 		for _, e := range errs {
 			if _, ok := e.(types.ErrNotFound); !ok {
-				nOtherErrors += 1
+				nNotNotFounds += 1
 			}
 		}
 
-		if nOtherErrors < minOtherErrs && nOtherErrors < nErrs {
+		nMajority := (nBackends + 1) / 2
+
+		if nNotNotFounds < nMajority {
 			return types.ErrNotFound(fmt.Sprintf(
 				"majority of backends returned not found. %d total errors, %d not found",
-				nErrs, nErrs-nOtherErrors))
+				nErrs, nErrs-nNotNotFounds))
 		}
 
 		return errors.New(fmt.Sprintf(
 			"all backends failed with mixed errors: %d total errors, %d not found",
-			nErrs, nErrs-nOtherErrors))
+			nErrs, nErrs-nNotNotFounds))
 	}
 }
