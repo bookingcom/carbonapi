@@ -65,7 +65,9 @@ func (b Backend) Logger() *zap.Logger {
 }
 
 // Probe is a no-op.
-func (b Backend) Probe() {}
+func (b Backend) Probe() []string {
+	return nil
+}
 
 // New creates a new mock backend.
 func New(cfg Config) Backend {
@@ -104,4 +106,8 @@ func (b Backend) Contains(targets []string) bool {
 
 func (b Backend) GetTLD() map[string]bool {
 	return nil
+}
+
+func (b Backend) GetServerAddress() string {
+	return ""
 }

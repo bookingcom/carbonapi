@@ -176,6 +176,10 @@ func (b Backend) GetTLD() map[string]bool {
 	return nil
 }
 
+func (b Backend) GetServerAddress() string {
+	return b.address
+}
+
 // Logger returns logger for this backend. Needed to satisfy interface.
 func (b Backend) Logger() *zap.Logger {
 	return b.logger
@@ -327,22 +331,21 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 	return b.do(ctx, trace, req)
 }
 
-// Probe performs a single update of the backend's top-level domains.
-func (b *Backend) Probe() {
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+// Probe returns the backend's top-level domains.
+func (b *Backend) Probe() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	request := types.NewFindRequest("*")
 	matches, err := b.Find(ctx, request)
 	if err != nil {
-		return
+		return nil
 	}
-	tlds := make(map[string]bool)
+	var paths []string
 	for _, m := range matches.Matches {
-		tlds[m.Path] = true
+		paths = append(paths, m.Path)
 	}
-	b.tldCache.Set("tlds", tlds, 0, b.cacheTLDExpirySec)
-
+	return paths
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead

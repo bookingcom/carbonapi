@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dgryski/go-expirecache"
+
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -33,12 +35,10 @@ var BuildVersion string
 
 // App represents the main zipper runnable
 type App struct {
-	config            cfg.Zipper
-	prometheusMetrics *PrometheusMetrics
-	backends          []backend.Backend
-	probeTicker       *time.Ticker
-	ProbeQuit         chan struct{}
-	ProbeForce        chan int
+	config              cfg.Zipper
+	prometheusMetrics   *PrometheusMetrics
+	backends            []backend.Backend
+	topLevelDomainCache *expirecache.Cache
 }
 
 // New inits backends and makes a new copy of the app. Does not run the app
@@ -53,29 +53,17 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 	}
 
 	app := App{
-		config:            config,
-		prometheusMetrics: NewPrometheusMetrics(config),
-		backends:          bs,
-		probeTicker:       time.NewTicker(time.Duration(config.InternalRoutingCache) * time.Second),
-		ProbeQuit:         make(chan struct{}),
-		ProbeForce:        make(chan int),
+		config:              config,
+		prometheusMetrics:   NewPrometheusMetrics(config),
+		backends:            bs,
+		topLevelDomainCache: expirecache.New(0),
 	}
 	return &app, nil
 }
 
 // Start start launches the goroutines starts the app execution
 func (app *App) Start() {
-	backends := app.backends
 	logger := zapwriter.Logger("zipper")
-	go func() {
-		probeTicker := time.NewTicker(5 * time.Minute)
-		for {
-			for _, b := range backends {
-				go b.Probe()
-			}
-			<-probeTicker.C
-		}
-	}()
 
 	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
@@ -119,9 +107,8 @@ func (app *App) Start() {
 		initGraphite(app)
 	}
 
-	go app.probeTlds(logger)
+	go app.probeTopLevelDomains(logger)
 	go metricsServer(app, logger)
-	app.ProbeForce <- 1
 
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
@@ -138,21 +125,23 @@ func (app *App) Start() {
 }
 
 func (app *App) doProbe(logger *zap.Logger) {
-	for _, backend := range app.backends {
-		backend.Probe()
+	topLevelDomainCache := make(map[string][]*backend.Backend)
+	for i := 0; i < len(app.backends); i++ {
+		topLevelDomains := app.backends[i].Probe()
+		for _, topLevelDomain := range topLevelDomains {
+			topLevelDomainCache[topLevelDomain] = append(topLevelDomainCache[topLevelDomain], &app.backends[i])
+		}
 	}
+	app.topLevelDomainCache.Set("tlds", topLevelDomainCache, 0, 2*app.config.InternalRoutingCache)
 }
 
-func (app *App) probeTlds(logger *zap.Logger) {
+func (app *App) probeTopLevelDomains(logger *zap.Logger) {
+	app.doProbe(logger)
+	probeTicker := time.NewTicker(time.Duration(app.config.InternalRoutingCache) * time.Second)
 	for {
 		select {
-		case <-app.probeTicker.C:
+		case <-probeTicker.C:
 			app.doProbe(logger)
-		case <-app.ProbeForce:
-			app.doProbe(logger)
-		case <-app.ProbeQuit:
-			app.probeTicker.Stop()
-			return
 		}
 	}
 }
