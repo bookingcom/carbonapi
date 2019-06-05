@@ -661,9 +661,13 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	return matches, nil
 }
 
-func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool, toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
+func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
+	toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		toLog.SendGlobs = true
+		return []string{m.Metric}, nil
+	}
+	if !strings.ContainsAny(m.Metric, "*{") {
 		return []string{m.Metric}, nil
 	}
 

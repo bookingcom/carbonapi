@@ -334,7 +334,7 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	}
 }
 
-func TestRenderMultipleBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
+func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -344,6 +344,16 @@ func TestRenderMultipleBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
+		}),
+		mock.New(mock.Config{
+			Find:   find,
+			Info:   info,
+			Render: renderWithGenericError,
 		}),
 		mock.New(mock.Config{
 			Find:   find,
@@ -501,9 +511,8 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 
 	app.findHandler(w, req)
 
-	// TODO (grzkv): This should be BadRequest
-	if w.Code == http.StatusOK {
-		t.Fatalf("got code %d expected an error", http.StatusOK)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
 	}
 }
 
@@ -582,17 +591,12 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 	}
 }
 
-func TestFindManyBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
+func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
 	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
 	app.backends = []backend.Backend{
-		mock.New(mock.Config{
-			Find:   findWithNotfoundError,
-			Info:   info,
-			Render: render,
-		}),
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -637,7 +641,7 @@ func TestFindManyBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	}
 }
 
-func TestFindManyBackendsAllMixedErrorsBelowThreshold2(t *testing.T) {
+func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -667,12 +671,12 @@ func TestFindManyBackendsAllMixedErrorsBelowThreshold2(t *testing.T) {
 
 	app.findHandler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
 	}
 }
 
-func TestFindManyBackendsAllMixedErrorsSmallAmount(t *testing.T) {
+func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -706,7 +710,8 @@ func TestFindManyBackendsAllMixedErrorsSmallAmount(t *testing.T) {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
 	}
 }
-func TestFindManyBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
+
+func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
@@ -738,12 +743,27 @@ func TestFindManyBackendsAllMixedErrorsAboveThreshold(t *testing.T) {
 			Render: render,
 		}),
 		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
+			Info:   info,
+			Render: render,
+		}),
+		mock.New(mock.Config{
+			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
