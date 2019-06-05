@@ -31,6 +31,20 @@ To build the binaries with debug symbols, run:
 make debug
 ```
 
+Note: build process requires pkg-config to be installed:
+
+### Mac OS X
+
+```
+curl https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.tar.gz -o pkgconfig.tgz
+tar -zxf pkgconfig.tgz && cd pkg-config-0.29
+```
+There is a circular dependency between pkg-config and glib. To break it, pkg-config includes a version of glib, which is enough to break the dependency cycle and compile it with  --with-internal-glib key:
+
+```
+env LDFLAGS="-framework CoreFoundation -framework Carbon" ./configure --with-internal-glib && make install
+```
+
 We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
