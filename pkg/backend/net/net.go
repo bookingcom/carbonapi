@@ -64,15 +64,14 @@ func ContextCancelCause(err error) string {
 
 // Backend represents a host that accepts requests for metrics over HTTP.
 type Backend struct {
-	address           string
-	scheme            string
-	client            *http.Client
-	timeout           time.Duration
-	limiter           chan struct{}
-	logger            *zap.Logger
-	cache             *expirecache.Cache
-	cacheExpirySec    int32
-	cacheTLDExpirySec int32
+	address        string
+	scheme         string
+	client         *http.Client
+	timeout        time.Duration
+	limiter        chan struct{}
+	logger         *zap.Logger
+	cache          *expirecache.Cache
+	cacheExpirySec int32
 }
 
 // Config configures an HTTP backend.
@@ -88,7 +87,6 @@ type Config struct {
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
-	TLDExpirySec       uint32        // Set time in seconds before items in tld cache expire.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 }
 

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -499,7 +500,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backend {
 	targetTlds := make([]string, 0, len(targets))
 	for _, target := range targets {
-		targetTlds = append(targetTlds, backend.GetTLD(target))
+		targetTlds = append(targetTlds, getTopLevelDomain(target))
 	}
 
 	bs := app.filterByTopLevelDomain(app.backends, targetTlds)
@@ -507,6 +508,10 @@ func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backen
 		return bs
 	}
 	return app.backends
+}
+
+func getTopLevelDomain(target string) string {
+	return strings.SplitN(target, ".", 2)[0]
 }
 
 func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []string) []backend.Backend {
