@@ -71,7 +71,6 @@ type Backend struct {
 	limiter           chan struct{}
 	logger            *zap.Logger
 	cache             *expirecache.Cache
-	tldCache          *expirecache.Cache
 	cacheExpirySec    int32
 	cacheTLDExpirySec int32
 }
@@ -98,20 +97,13 @@ var fmtProto = []string{"protobuf"}
 // New creates a new backend from the given configuration.
 func New(cfg Config) (*Backend, error) {
 	b := &Backend{
-		cache:    expirecache.New(0),
-		tldCache: expirecache.New(0),
+		cache: expirecache.New(0),
 	}
 
 	if cfg.PathCacheExpirySec > 0 {
 		b.cacheExpirySec = int32(cfg.PathCacheExpirySec)
 	} else {
 		b.cacheExpirySec = int32(10 * time.Minute / time.Second)
-	}
-
-	if cfg.TLDExpirySec > 0 {
-		b.cacheTLDExpirySec = int32(cfg.TLDExpirySec)
-	} else {
-		b.cacheTLDExpirySec = 86400
 	}
 
 	address, scheme, err := parseAddress(cfg.Address)
@@ -166,14 +158,6 @@ func (b Backend) url(path string) *url.URL {
 		Host:   b.address,
 		Path:   path,
 	}
-}
-
-func (b Backend) GetTLD() map[string]bool {
-	x, _ := b.tldCache.Get("tlds")
-	if y, ok := x.(map[string]bool); ok {
-		return y
-	}
-	return nil
 }
 
 func (b Backend) GetServerAddress() string {

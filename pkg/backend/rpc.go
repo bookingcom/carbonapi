@@ -167,17 +167,3 @@ func filter(backends []Backend, targets []string) []Backend {
 
 	return bs
 }
-
-func filterByTLD(backends []Backend, targetTLDs []string) []Backend {
-	bs := make([]Backend, 0)
-	for _, b := range backends {
-		backendTLDs := b.GetTLD()
-		for _, target := range targetTLDs {
-			if backendTLDs[target] {
-				bs = append(bs, b)
-				break
-			}
-		}
-	}
-	return bs
-}
