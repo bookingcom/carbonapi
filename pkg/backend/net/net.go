@@ -313,23 +313,6 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 	return b.do(ctx, trace, req)
 }
 
-// Probe returns the backend's top-level domains.
-func (b *Backend) Probe() []string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	request := types.NewFindRequest("*")
-	matches, err := b.Find(ctx, request)
-	if err != nil {
-		return nil
-	}
-	var paths []string
-	for _, m := range matches.Matches {
-		paths = append(paths, m.Path)
-	}
-	return paths
-}
-
 // TODO(gmagnusson): Should Contains become something different, where instead
 // of answering yes/no to whether the backend contains any of the given
 // targets, it returns a filtered list of targets that the backend contains?

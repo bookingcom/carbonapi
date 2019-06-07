@@ -1,6 +1,7 @@
 package zipper
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"log"
@@ -127,12 +128,29 @@ func (app *App) Start() {
 func (app *App) doProbe(logger *zap.Logger) {
 	topLevelDomainCache := make(map[string][]*backend.Backend)
 	for i := 0; i < len(app.backends); i++ {
-		topLevelDomains := app.backends[i].Probe()
+		topLevelDomains := getTopLevelDomains(app.backends[i])
 		for _, topLevelDomain := range topLevelDomains {
 			topLevelDomainCache[topLevelDomain] = append(topLevelDomainCache[topLevelDomain], &app.backends[i])
 		}
 	}
 	app.topLevelDomainCache.Set("tlds", topLevelDomainCache, 0, 2*app.config.InternalRoutingCache)
+}
+
+// Returns the backend's top-level domains.
+func getTopLevelDomains(backend backend.Backend) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	request := types.NewFindRequest("*")
+	matches, err := backend.Find(ctx, request)
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, m := range matches.Matches {
+		paths = append(paths, m.Path)
+	}
+	return paths
 }
 
 func (app *App) probeTopLevelDomains(logger *zap.Logger) {

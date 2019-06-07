@@ -31,7 +31,6 @@ type Backend interface {
 
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
-	Probe() []string        // Probe updates internal state of the backend.
 	GetServerAddress() string
 }
 

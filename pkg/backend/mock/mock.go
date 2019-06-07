@@ -64,11 +64,6 @@ func (b Backend) Logger() *zap.Logger {
 	return noLog
 }
 
-// Probe is a no-op.
-func (b Backend) Probe() []string {
-	return nil
-}
-
 // New creates a new mock backend.
 func New(cfg Config) Backend {
 	b := Backend{}
