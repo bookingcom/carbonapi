@@ -31,6 +31,21 @@ To build the binaries with debug symbols, run:
 make debug
 ```
 
+**Note**: build process might require pkg-config to be installed:
+
+### Mac OS X
+
+find pkg-config version on you want to install and run script below with replaced "VERSION_TO_INSTALL":
+```
+PKG_CONFIG_VERSION="VERSION_TO_INSTALL" bash -c 'curl https://pkgconfig.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz -o pkgconfig.tgz'
+mkdir pkg-config && tar -zxf pkgconfig.tgz -C pkg-config --strip-components 1 && cd pkg-config
+```
+There is a circular dependency between pkg-config and glib. To break it, pkg-config includes a version of glib, which is enough to break the dependency cycle and compile it with  --with-internal-glib key:
+
+```
+env LDFLAGS="-framework CoreFoundation -framework Carbon" ./configure --with-internal-glib && make install
+```
+
 We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
