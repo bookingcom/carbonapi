@@ -71,19 +71,8 @@ curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
 
 ## Requirements
 
-We recommend using at least version 1.10 of Go. Booking.com builds its binaries
-with the latest stable release of Go at any time. The binaries likely compile
-on older versions of Go (at least 1.9), but we don't test the build against
-them because of problems with computing test coverage of the whole project.
-
-At the moment, we only guarantee that Carbonapi can talk to the
-[go-carbon](https://github.com/go-graphite/go-carbon)
-Graphite store. We are interested in supporting other stores.
-
-### Cairo support
-
-The current supported `cairo` version is `v1.14.6`.
-
+We officially support `go 1.12`. Booking.com builds its binaries
+with the latest stable release of Go at any time.
 
 ## OSX Build Notes
 
@@ -100,7 +89,15 @@ brew install cairo
 
 Xquartz is a required dependency for cairo.
 
-## Clickhouse support
+## Backend support
+
+### go-carbon
+
+The main supported backend is [go-carbon](https://github.com/go-graphite/go-carbon) Graphite store.
+
+### Clickhouse
+
+Clickhouse support is experimental.
 
 The pair `carbonapi` and `carbonzipper` works with [Clickhouse](https://clickhouse.yandex) via [graphite-clickhouse](https://github.com/lomik/graphite-clickhouse).
 
