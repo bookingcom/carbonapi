@@ -158,6 +158,10 @@ func (b Backend) url(path string) *url.URL {
 	}
 }
 
+func (b Backend) GetServerAddress() string {
+	return b.address
+}
+
 // Logger returns logger for this backend. Needed to satisfy interface.
 func (b Backend) Logger() *zap.Logger {
 	return b.logger
@@ -307,22 +311,6 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 	}
 
 	return b.do(ctx, trace, req)
-}
-
-// Probe performs a single update of the backend's top-level domains.
-func (b *Backend) Probe() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	request := types.NewFindRequest("*")
-	matches, err := b.Find(ctx, request)
-	if err != nil {
-		return
-	}
-
-	for _, m := range matches.Matches {
-		b.cache.Set(m.Path, struct{}{}, 0, b.cacheExpirySec)
-	}
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead
