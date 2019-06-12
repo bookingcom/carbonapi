@@ -1,6 +1,7 @@
 package zipper
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"log"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/dgryski/go-expirecache"
 
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/mstats"
@@ -33,9 +36,10 @@ var BuildVersion string
 
 // App represents the main zipper runnable
 type App struct {
-	config            cfg.Zipper
-	prometheusMetrics *PrometheusMetrics
-	backends          []backend.Backend
+	config              cfg.Zipper
+	prometheusMetrics   *PrometheusMetrics
+	backends            []backend.Backend
+	topLevelDomainCache *expirecache.Cache
 }
 
 // New inits backends and makes a new copy of the app. Does not run the app
@@ -48,23 +52,19 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 		)
 		return nil, err
 	}
-	app := App{config: config, prometheusMetrics: NewPrometheusMetrics(config), backends: bs}
+
+	app := App{
+		config:              config,
+		prometheusMetrics:   NewPrometheusMetrics(config),
+		backends:            bs,
+		topLevelDomainCache: expirecache.New(0),
+	}
 	return &app, nil
 }
 
 // Start start launches the goroutines starts the app execution
 func (app *App) Start() {
-	backends := app.backends
 	logger := zapwriter.Logger("zipper")
-	go func() {
-		probeTicker := time.NewTicker(5 * time.Minute)
-		for {
-			for _, b := range backends {
-				go b.Probe()
-			}
-			<-probeTicker.C
-		}
-	}()
 
 	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
@@ -108,6 +108,7 @@ func (app *App) Start() {
 		initGraphite(app)
 	}
 
+	go app.probeTopLevelDomains(logger)
 	go metricsServer(app, logger)
 
 	err := gracehttp.Serve(&http.Server{
@@ -121,6 +122,45 @@ func (app *App) Start() {
 		log.Fatal("error during gracehttp.Serve()",
 			zap.Error(err),
 		)
+	}
+}
+
+func (app *App) doProbe(logger *zap.Logger) {
+	topLevelDomainCache := make(map[string][]*backend.Backend)
+	for i := 0; i < len(app.backends); i++ {
+		topLevelDomains := getTopLevelDomains(app.backends[i])
+		for _, topLevelDomain := range topLevelDomains {
+			topLevelDomainCache[topLevelDomain] = append(topLevelDomainCache[topLevelDomain], &app.backends[i])
+		}
+	}
+	app.topLevelDomainCache.Set("tlds", topLevelDomainCache, 0, 2*app.config.InternalRoutingCache)
+}
+
+// Returns the backend's top-level domains.
+func getTopLevelDomains(backend backend.Backend) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	request := types.NewFindRequest("*")
+	matches, err := backend.Find(ctx, request)
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, m := range matches.Matches {
+		paths = append(paths, m.Path)
+	}
+	return paths
+}
+
+func (app *App) probeTopLevelDomains(logger *zap.Logger) {
+	app.doProbe(logger)
+	probeTicker := time.NewTicker(time.Duration(app.config.InternalRoutingCache) * time.Second)
+	for {
+		select {
+		case <-probeTicker.C:
+			app.doProbe(logger)
+		}
 	}
 }
 

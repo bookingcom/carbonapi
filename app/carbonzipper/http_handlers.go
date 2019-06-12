@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -80,7 +81,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 
 	request := types.NewFindRequest(originalQuery)
-	bs := backend.Filter(app.backends, []string{originalQuery})
+	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
+	bs = backend.Filter(bs, []string{originalQuery})
 	metrics, errs := backend.Finds(ctx, bs, request)
 	err := errorsFanIn(ctx, errs, len(bs))
 
@@ -269,7 +271,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	request.Trace.OutDuration = &app.prometheusMetrics.RenderOutDurationExp
-	bs := backend.Filter(app.backends, request.Targets)
+	bs := app.filterBackendByTopLevelDomain(request.Targets)
+	bs = backend.Filter(bs, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
 	err = errorsFanIn(ctx, errs, len(bs))
 
@@ -413,7 +416,8 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewInfoRequest(target)
-	bs := backend.Filter(app.backends, []string{target})
+	bs := app.filterBackendByTopLevelDomain([]string{target})
+	bs = backend.Filter(bs, []string{target})
 	infos, errs := backend.Infos(ctx, bs, request)
 	err = errorsFanIn(ctx, errs, len(bs))
 	if err != nil {
@@ -492,6 +496,54 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
 	Metrics.Responses.Add(1)
 	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK),
 		"lbcheck").Inc()
+}
+
+func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backend {
+	targetTlds := make([]string, 0, len(targets))
+	for _, target := range targets {
+		targetTlds = append(targetTlds, getTopLevelDomain(target))
+	}
+
+	bs := app.filterByTopLevelDomain(app.backends, targetTlds)
+	if len(bs) > 0 {
+		return bs
+	}
+	return app.backends
+}
+
+func getTopLevelDomain(target string) string {
+	return strings.SplitN(target, ".", 2)[0]
+}
+
+func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []string) []backend.Backend {
+	bs := make([]backend.Backend, 0)
+	allTLDBackends := make([]*backend.Backend, 0)
+
+	topLevelDomainCache, _ := app.topLevelDomainCache.Get("tlds")
+	tldCache := make(map[string][]*backend.Backend)
+	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
+		tldCache = x
+	}
+
+	if tldCache == nil {
+		return backends
+	}
+	alreadyAddedBackends := make(map[string]bool)
+	for _, target := range targetTLDs {
+		tldBackends := tldCache[target]
+		for _, backend := range tldBackends {
+			a := *backend
+			if !alreadyAddedBackends[a.GetServerAddress()] {
+				alreadyAddedBackends[a.GetServerAddress()] = true
+				allTLDBackends = append(allTLDBackends, backend)
+			}
+		}
+	}
+	for _, tldBackend := range allTLDBackends {
+		bs = append(bs, *tldBackend)
+	}
+
+	return bs
 }
 
 func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {

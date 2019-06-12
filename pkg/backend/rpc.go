@@ -17,7 +17,6 @@ package backend
 
 import (
 	"context"
-	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 
@@ -32,7 +31,7 @@ type Backend interface {
 
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
-	Probe()                 // Probe updates internal state of the backend.
+	GetServerAddress() string
 }
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
@@ -143,25 +142,11 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (
 	return types.MergeMatches(msgs), errs
 }
 
-func getTLD(metric string) string {
-	return strings.SplitN(metric, ".", 2)[0]
-}
-
 // Filter filters the given backends by whether they Contain() the given targets.
 func Filter(backends []Backend, targets []string) []Backend {
 	if bs := filter(backends, targets); len(bs) > 0 {
 		return bs
 	}
-
-	tlds := make([]string, 0, len(targets))
-	for _, target := range targets {
-		tlds = append(tlds, getTLD(target))
-	}
-
-	if bs := filter(backends, tlds); len(bs) > 0 {
-		return bs
-	}
-
 	return backends
 }
 
