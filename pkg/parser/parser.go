@@ -357,9 +357,8 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	}
 
 	name, e := parseName(e)
-	//
+
 	if strings.ToLower(name) == "false" || strings.ToLower(name) == "true" {
-		//b, _ := strconv.ParseBool(name)
 		return &expr{valStr: name, etype: EtString, target: name}, e, nil
 	}
 	if name == "" {

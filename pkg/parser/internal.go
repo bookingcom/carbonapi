@@ -39,7 +39,6 @@ func (e *expr) doGetStringArg() (string, error) {
 }
 
 func (e *expr) doGetBoolArg() (bool, error) {
-	fmt.Println(e.etype)
 	if e.etype != EtString {
 		return false, ErrBadType
 	}
