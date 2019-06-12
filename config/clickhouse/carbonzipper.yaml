@@ -10,8 +10,6 @@ maxProcs: 0
 #     pattern: "{prefix}.{fqdn}"
 # Number of 100ms buckets to track request distribution in. Used to build
 # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
-# Requests beyond the last bucket are logged as slow
-# (default of 10 implies "slow" is >1 second).
 buckets: 10
 
 timeouts:
@@ -65,7 +63,6 @@ logger:
        #   "loadbalancer" - for lb handler
        #   "probe" - for background probes
        #   "render" - for render handler
-       #   "slow" - slow query log ("Slow reuqest" messages)
        #   "access" - access logs (requests, times, etc)
        # Please note that if you want to have all logs going to stdout and access logs going to file, you need to define 2 sections for access logger (file + stdout) + one section for logger ""
        logger: ""
