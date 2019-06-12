@@ -3,6 +3,7 @@ package main
 import (
 	"expvar"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -21,6 +22,12 @@ var timeNow = time.Now
 var BuildVersion = "(development build)"
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "PANIC: %v\n", r)
+		}
+	}()
+
 	err := zapwriter.ApplyConfig([]zapwriter.Config{cfg.GetDefaultLoggerConfig()})
 	if err != nil {
 		log.Fatal("Failed to initialize logger with default configuration")
