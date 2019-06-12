@@ -55,16 +55,17 @@ var Metrics = struct {
 
 // PrometheusMetrics keeps all the metrics exposed on /metrics endpoint
 type PrometheusMetrics struct {
-	Requests          prometheus.Counter
-	Responses         *prometheus.CounterVec
-	FindNotFound      prometheus.Counter
-	RequestCancel     *prometheus.CounterVec
-	DurationExp       prometheus.Histogram
-	DurationLin       prometheus.Histogram
-	RenderDurationExp prometheus.Histogram
-	FindDurationExp   prometheus.Histogram
-	TimeInQueueExp    prometheus.Histogram
-	TimeInQueueLin    prometheus.Histogram
+	Requests             prometheus.Counter
+	Responses            *prometheus.CounterVec
+	FindNotFound         prometheus.Counter
+	RequestCancel        *prometheus.CounterVec
+	DurationExp          prometheus.Histogram
+	DurationLin          prometheus.Histogram
+	RenderDurationExp    prometheus.Histogram
+	RenderOutDurationExp prometheus.Histogram
+	FindDurationExp      prometheus.Histogram
+	TimeInQueueExp       prometheus.Histogram
+	TimeInQueueLin       prometheus.Histogram
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -121,6 +122,18 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Name: "render_request_duration_seconds_exp",
 				Help: "The duration of render requests (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.RenderDurationExp.Start,
+					config.Monitoring.RenderDurationExp.BucketSize,
+					config.Monitoring.RenderDurationExp.BucketsNum),
+			},
+		),
+		RenderOutDurationExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "render_outbound_request_duration_seconds_exp",
+				Help: "The durations of render requests sent to storages (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					// TODO (grzkv) Do we need a separate config?
+					// The buckets should be of comparable size.
 					config.Monitoring.RenderDurationExp.Start,
 					config.Monitoring.RenderDurationExp.BucketSize,
 					config.Monitoring.RenderDurationExp.BucketsNum),
