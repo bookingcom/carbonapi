@@ -159,13 +159,13 @@ func NearlyEqualMetrics(a, b *types.MetricData) bool {
 }
 
 type SummarizeEvalTestItem struct {
-	E     parser.Expr
-	M     map[parser.MetricRequest][]*types.MetricData
-	W     []float64
-	Name  string
-	Step  int32
-	Start int32
-	Stop  int32
+	Target string
+	M      map[parser.MetricRequest][]*types.MetricData
+	W      []float64
+	Name   string
+	Step   int32
+	Start  int32
+	Stop   int32
 }
 
 func InitTestSummarize() (int32, int32, int32) {
@@ -198,7 +198,8 @@ func TestSummarizeEvalExpr(t *testing.T, tt *SummarizeEvalTestItem) {
 
 	t.Run(tt.Name, func(t *testing.T) {
 		originalMetrics := DeepClone(tt.M)
-		g, err := evaluator.EvalExpr(tt.E, 0, 1, tt.M)
+		exp, _, _ := parser.ParseExpr(tt.Target)
+		g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
 		if err != nil {
 			t.Errorf("failed to eval %v: %+v", tt.Name, err)
 			return
@@ -224,7 +225,7 @@ func TestSummarizeEvalExpr(t *testing.T, tt *SummarizeEvalTestItem) {
 }
 
 type MultiReturnEvalTestItem struct {
-	E       parser.Expr
+	Target  string
 	M       map[parser.MetricRequest][]*types.MetricData
 	Name    string
 	Results map[string][]*types.MetricData
@@ -234,7 +235,8 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 	evaluator := metadata.GetEvaluator()
 
 	originalMetrics := DeepClone(tt.M)
-	g, err := evaluator.EvalExpr(tt.E, 0, 1, tt.M)
+	exp, _, err := parser.ParseExpr(tt.Target)
+	g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
 	if err != nil {
 		t.Errorf("failed to eval %v: %+v", tt.Name, err)
 		return
@@ -252,7 +254,7 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 		t.Errorf("missing Step for %+v", g)
 	}
 	if len(g) != len(tt.Results) {
-		t.Errorf("unexpected results len: got %d, want %d", len(g), len(tt.Results))
+		t.Errorf("unexpected results len: got %d, want %d for %s", len(g), len(tt.Results), tt.Target)
 	}
 	for _, gg := range g {
 		r, ok := tt.Results[gg.Name]
@@ -273,16 +275,18 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 }
 
 type EvalTestItem struct {
-	E    parser.Expr
-	M    map[parser.MetricRequest][]*types.MetricData
-	Want []*types.MetricData
+	//E    parser.Expr
+	Target string
+	M      map[parser.MetricRequest][]*types.MetricData
+	Want   []*types.MetricData
 }
 
 func TestEvalExpr(t *testing.T, tt *EvalTestItem) {
 	evaluator := metadata.GetEvaluator()
 	originalMetrics := DeepClone(tt.M)
-	testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
-	g, err := evaluator.EvalExpr(tt.E, 0, 1, tt.M)
+	testName := tt.Target
+	exp, _, err := parser.ParseExpr(tt.Target)
+	g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
 	if err != nil {
 		t.Errorf("failed to eval %s: %+v", testName, err)
 		return
@@ -297,7 +301,7 @@ func TestEvalExpr(t *testing.T, tt *EvalTestItem) {
 	for i, want := range tt.Want {
 		actual := g[i]
 		if actual == nil {
-			t.Errorf("returned no value %v", tt.E.RawArgs())
+			t.Errorf("returned no value %v", tt.Target)
 			return
 		}
 		if actual.StepTime == 0 {

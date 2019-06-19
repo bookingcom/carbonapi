@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,10 +28,7 @@ func TestHighestMultiReturn(t *testing.T) {
 
 	tests := []th.MultiReturnEvalTestItem{
 		{
-			parser.NewExpr("highestCurrent",
-				"metric1",
-				2,
-			),
+			"highestCurrent(metric1,2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metricA", []float64{1, 1, 3, 3, 4, 12}, 1, now32),
@@ -45,9 +43,7 @@ func TestHighestMultiReturn(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("highestCurrent",
-				"metric1",
-			),
+			"highestCurrent(metric1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				parser.MetricRequest{"metric1", 0, 1}: {
 					types.MakeMetricData("metricA", []float64{1, 1, 3, 3, 4, 12}, 1, now32),
@@ -63,7 +59,7 @@ func TestHighestMultiReturn(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestMultiReturnEvalExpr(t, &tt)
 		})
@@ -75,10 +71,7 @@ func TestHighest(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("highestCurrent",
-				"metric1",
-				1,
-			),
+			"highestCurrent(metric1,1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric0", []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}, 1, now32),
@@ -91,10 +84,7 @@ func TestHighest(t *testing.T) {
 				[]float64{1, 1, 3, 3, 4, 15}, 1, now32)},
 		},
 		{
-			parser.NewExpr("highestCurrent",
-				"metric1",
-				4,
-			),
+			"highestCurrent(metric1,4)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric0", []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}, 1, now32),
@@ -113,10 +103,7 @@ func TestHighest(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("highestAverage",
-				"metric1",
-				1,
-			),
+			"highestAverage(metric1,1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metricA", []float64{1, 1, 3, 3, 4, 12}, 1, now32),
@@ -130,7 +117,7 @@ func TestHighest(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})

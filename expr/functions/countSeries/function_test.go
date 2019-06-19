@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,9 +28,7 @@ func TestCountSeries(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("countSeries",
-				"metric1", "metric2", "metric3",
-			),
+			"countSeries(metric1,metric2,metric3)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, math.NaN(), 3, 4, 5, math.NaN()}, 1, now32)},
 				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, math.NaN(), math.NaN(), 5, 6, math.NaN()}, 1, now32)},
@@ -40,7 +39,7 @@ func TestCountSeries(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})

@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,10 +28,7 @@ func TestCactiStyle(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -43,10 +41,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -59,11 +54,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-				parser.ArgValue("carrot"),
-			),
+			"cactiStyle(metric1,\"si\",\"carrot\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -76,10 +67,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -92,10 +80,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -108,9 +93,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-			),
+			"cactiStyle(metric1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -123,12 +106,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.NamedArgs{
-					"units": parser.ArgValue("apples"),
-				},
-			),
+			"cactiStyle(metric1,units=\"apples\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -141,10 +119,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -157,10 +132,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -173,10 +145,7 @@ func TestCactiStyle(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("cactiStyle",
-				"metric1",
-				parser.ArgValue("si"),
-			),
+			"cactiStyle(metric1,\"si\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
@@ -191,7 +160,7 @@ func TestCactiStyle(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})
