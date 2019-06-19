@@ -231,9 +231,9 @@ type requestRes struct {
 }
 
 func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
-	t0 := time.Now()
 
 	ch := make(chan requestRes)
+	t0 := time.Now()
 
 	go func() {
 		resp, err := b.client.Do(req)
@@ -243,6 +243,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	select {
 	case res := <-ch:
 		trace.AddHTTPCall(t0)
+		trace.ObserveOutDuration(time.Now().Sub(t0))
 
 		var body []byte
 		var bodyErr error
@@ -269,6 +270,8 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		return res.resp.Header.Get("Content-Type"), body, nil
 
 	case <-ctx.Done():
+		trace.ObserveOutDuration(time.Now().Sub(t0))
+
 		b.logger.Warn("Request context cancelled",
 			zap.String("host", b.address),
 			zap.String("uuid", util.GetUUID(ctx)),

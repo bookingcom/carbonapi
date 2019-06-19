@@ -481,8 +481,6 @@ func findBucketIndex(buckets []int64, bucket int) int {
 }
 
 func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	logger := zapwriter.Logger("slow")
-
 	ms := t.Nanoseconds() / int64(time.Millisecond)
 
 	bucket := int(ms / 100)
@@ -501,16 +499,6 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
 		app.prometheusMetrics.FindDurationExp.Observe(t.Seconds())
-	}
-
-	// This seems slow enough to count as a slow request
-	if bucket >= app.config.Buckets {
-		referer := req.Header.Get("Referer")
-		logger.Warn("Slow Request",
-			zap.Duration("time", t),
-			zap.String("url", req.URL.String()),
-			zap.String("referer", referer),
-		)
 	}
 }
 

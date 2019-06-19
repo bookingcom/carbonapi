@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -91,6 +92,13 @@ type Trace struct {
 	inHTTPCallNS  *int64
 	inReadBodyNS  *int64
 	inUnmarshalNS *int64
+	OutDuration   *prometheus.Histogram
+}
+
+func (t Trace) ObserveOutDuration(ti time.Duration) {
+	if t.OutDuration != nil {
+		(*t.OutDuration).Observe(ti.Seconds())
+	}
 }
 
 func (t Trace) Report() []int64 {
