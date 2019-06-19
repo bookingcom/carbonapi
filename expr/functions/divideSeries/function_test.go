@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,11 +28,7 @@ func TestDivideSeriesMultiReturn(t *testing.T) {
 
 	tests := []th.MultiReturnEvalTestItem{
 		{
-			parser.NewExpr("divideSeries",
-
-				"metric[12]",
-				"metric2",
-			),
+			"divideSeries(metric[12],metric2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric[12]", 0, 1}: {
 					types.MakeMetricData("metric1", []float64{1, 2, 3, 4, 5}, 1, now32),
@@ -53,7 +50,7 @@ func TestDivideSeriesMultiReturn(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestMultiReturnEvalExpr(t, &tt)
 		})
@@ -66,9 +63,7 @@ func TestDivideSeries(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("divideSeries",
-				"metric1", "metric2",
-			),
+			"divideSeries(metric1,metric2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, now32)},
 				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, math.NaN(), 3, math.NaN(), 0, 6}, 1, now32)},
@@ -77,9 +72,7 @@ func TestDivideSeries(t *testing.T) {
 				[]float64{0.5, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2}, 1, now32)},
 		},
 		{
-			parser.NewExpr("divideSeries",
-				"metric[12]",
-			),
+			"divideSeries(metric[12])",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric[12]", 0, 1}: {
 					types.MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, now32),
@@ -92,7 +85,7 @@ func TestDivideSeries(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})

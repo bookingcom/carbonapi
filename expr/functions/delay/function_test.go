@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,9 +28,7 @@ func TestDelay(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("delay",
-				"metric1", 3,
-			),
+			"delay(metric1,3)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 2, 3, math.NaN(), math.NaN(), math.NaN()}, 1, now32)},
 			},
@@ -39,7 +38,7 @@ func TestDelay(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})
