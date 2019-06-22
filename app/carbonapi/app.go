@@ -3,7 +3,6 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/rewrite"
+	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -36,7 +36,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
@@ -58,10 +57,10 @@ func init() {
 
 // App is the main carbonapi runnable
 type App struct {
-	config           cfg.API
-	queryCache       cache.BytesCache
-	findCache        cache.BytesCache
-	blockHeaderRules atomic.Value
+	config         cfg.API
+	queryCache     cache.BytesCache
+	findCache      cache.BytesCache
+	requestLimiter *limiter.RequestLimiter
 
 	defaultTimeZone *time.Location
 
@@ -83,8 +82,9 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 		findCache:         cache.NullCache{},
 		defaultTimeZone:   time.Local,
 		prometheusMetrics: newPrometheusMetrics(config),
+		requestLimiter:    limiter.NewRequestLimiter(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger),
 	}
-	loadBlockRuleHeaderConfig(app, logger)
+	app.requestLimiter.ReloadRules()
 
 	// TODO(gmagnusson): Setup backends
 	backend, err := initBackend(app.config, logger)
@@ -110,10 +110,9 @@ func (app *App) Start() {
 	handler = recoveryHandler(handler, logger)
 
 	app.registerPrometheusMetrics(logger)
-	if app.config.BlockHeaderUpdatePeriod > 0 {
-		ticker := time.NewTicker(app.config.BlockHeaderUpdatePeriod)
-		go loadTickerBlockRuleHeaderConfig(ticker, logger, app)
-	}
+
+	app.requestLimiter.ScheduleRuleReload()
+
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
 		Handler:      handler,
@@ -172,42 +171,6 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 			)
 		}
 	}()
-}
-
-func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, app *App) {
-	for range ticker.C {
-		loadBlockRuleHeaderConfig(app, logger)
-	}
-}
-
-func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
-	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-	if err != nil {
-		logger.Debug("failed to load header block rules", zap.Error(err))
-		app.blockHeaderRules.Store(RuleConfig{})
-		return
-	}
-
-	var ruleConfig RuleConfig
-	if err := yaml.Unmarshal(fileData, &ruleConfig); err != nil {
-		logger.Error("couldn't unmarshal block rule file data", zap.Error(err))
-		app.blockHeaderRules.Store(RuleConfig{})
-		return
-	}
-
-	app.blockHeaderRules.Store(ruleConfig)
-}
-
-func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
-	fileLock.Lock()
-	defer fileLock.Unlock()
-	if _, err := os.Stat(blockHeaderFile); err == nil {
-		return ioutil.ReadFile(blockHeaderFile)
-	} else if os.IsNotExist(err) {
-		return []byte{}, nil
-	} else {
-		return []byte{}, errors.Wrap(err, "error while checking existense of file")
-	}
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {

@@ -5,12 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,7 +28,6 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -50,22 +46,10 @@ const (
 // TODO (grzkv): Clean up
 var timeNow = time.Now
 
-// Rule is a request blocking rule
-type Rule map[string]string
-
-// RuleConfig represents the request blocking rules
-type RuleConfig struct {
-	Rules []Rule
-}
-
-// TODO (grzkv): Move out of global scope
-var fileLock sync.Mutex
-
 func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		blockingRules := app.blockHeaderRules.Load().(RuleConfig)
-		if shouldBlockRequest(r, blockingRules.Rules) {
+		if app.requestLimiter.ShouldBlockRequest(r) {
 			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			toLog.HttpCode = http.StatusForbidden
 			defer func() {
@@ -1124,8 +1108,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 // Otherwise, it creates the config file with the rule
 func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("logger")
 
 	apiMetrics.Requests.Add(1)
 
@@ -1136,38 +1118,10 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	queryParams := r.URL.Query()
-
-	m := make(Rule)
-	for k, v := range queryParams {
-		if k == "" || v[0] == "" {
-			continue
-		}
-		m[k] = v[0]
-	}
 	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
-	if app.config.BlockHeaderFile == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		toLog.HttpCode = http.StatusBadRequest
-		w.Write(failResponse)
-		return
-	}
-
-	var ruleConfig RuleConfig
-	var err1 error
-	if len(m) == 0 {
-		logger.Error("couldn't create a rule from params")
-	} else {
-		fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-		if err == nil {
-			yaml.Unmarshal(fileData, &ruleConfig)
-		}
-		err1 = appendRuleToConfig(ruleConfig, m, logger, app.config.BlockHeaderFile)
-	}
-
-	if len(m) == 0 || err1 != nil {
+	if !app.requestLimiter.AddNewRules(r.URL.Query()) {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
@@ -1176,26 +1130,6 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"success":"true"}`))
 
 	toLog.HttpCode = http.StatusOK
-}
-
-func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, blockHeaderFile string) error {
-	ruleConfig.Rules = append(ruleConfig.Rules, m)
-	output, err := yaml.Marshal(ruleConfig)
-	if err == nil {
-		logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
-		err = writeBlockRuleToFile(output, blockHeaderFile)
-		if err != nil {
-			logger.Error("couldn't write rule to file")
-		}
-	}
-	return err
-}
-
-func writeBlockRuleToFile(output []byte, blockHeaderFile string) error {
-	fileLock.Lock()
-	defer fileLock.Unlock()
-	err := ioutil.WriteFile(blockHeaderFile, output, 0644)
-	return err
 }
 
 // It deletes the block headers config file
@@ -1212,7 +1146,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
-	err := os.Remove(app.config.BlockHeaderFile)
+	err := app.requestLimiter.Unblock()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
@@ -1222,24 +1156,6 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"success":"true"}`))
 
 	toLog.HttpCode = http.StatusOK
-}
-
-func isBlockingHeaderRule(r *http.Request, rule Rule) bool {
-	for k, v := range rule {
-		if r.Header.Get(k) != v {
-			return false
-		}
-	}
-	return true
-}
-
-func shouldBlockRequest(r *http.Request, rules []Rule) bool {
-	for _, rule := range rules {
-		if isBlockingHeaderRule(r, rule) {
-			return true
-		}
-	}
-	return false
 }
 
 func logStepTimeMismatch(targetMetricFetches []parser.MetricRequest, metricMap map[parser.MetricRequest][]*types.MetricData, logger *zap.Logger, target string) {

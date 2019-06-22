@@ -8,6 +8,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/cache"
 	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
@@ -131,6 +132,8 @@ func setUpTestConfig() *App {
 	})
 
 	app.config.ConcurrencyLimitPerServer = 1024
+
+	app.requestLimiter = limiter.NewRequestLimiter(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger)
 
 	setUpConfig(app, logger)
 	initHandlers(app)
