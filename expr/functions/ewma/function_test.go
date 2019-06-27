@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,10 +28,7 @@ func TestEWMA(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("ewma",
-				"metric1",
-				0.9,
-			),
+			"ewma(metric1,0.9)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{0, 1, 1, 1, math.NaN(), 1, 1}, 1, now32)},
 			},
@@ -39,10 +37,7 @@ func TestEWMA(t *testing.T) {
 			},
 		},
 		{
-			parser.NewExpr("exponentialWeightedMovingAverage",
-				"metric1",
-				0.9,
-			),
+			"exponentialWeightedMovingAverage(metric1,0.9)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{0, 1, 1, 1, math.NaN(), 1, 1}, 1, now32)},
 			},
@@ -53,7 +48,7 @@ func TestEWMA(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})

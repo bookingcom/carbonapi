@@ -1,13 +1,14 @@
 package hitcount
 
 import (
+	"math"
+	"testing"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
-	"testing"
 )
 
 func init() {
@@ -26,11 +27,7 @@ func TestHitcount(t *testing.T) {
 
 	tests := []th.SummarizeEvalTestItem{
 		{
-			parser.NewExpr("hitcount",
-
-				"metric1",
-				parser.ArgValue("30s"),
-			),
+			"hitcount(metric1,\"30s\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{
 					1, 1, 1, 1, 1, 2,
@@ -47,11 +44,7 @@ func TestHitcount(t *testing.T) {
 			now32 + 31*5,
 		},
 		{
-			parser.NewExpr("hitcount",
-
-				"metric1",
-				parser.ArgValue("1h"),
-			),
+			"hitcount(metric1,\"1h\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{
 					1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3,
@@ -65,12 +58,7 @@ func TestHitcount(t *testing.T) {
 			tenFiftyNine + 25*5,
 		},
 		{
-			parser.NewExpr("hitcount",
-
-				"metric1",
-				parser.ArgValue("1h"),
-				parser.ArgName("true"),
-			),
+			"hitcount(metric1,\"1h\",true)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{
 					1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3,
@@ -84,12 +72,7 @@ func TestHitcount(t *testing.T) {
 			tenFiftyNine + 25*5,
 		},
 		{
-			parser.NewExpr("hitcount",
-				"metric1", parser.ArgValue("1h"),
-				parser.NamedArgs{
-					"alignToInterval": parser.ArgName("true"),
-				},
-			),
+			"hitcount(metric1,\"1h\",alignToInterval=true)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{
 					1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3,
@@ -105,7 +88,7 @@ func TestHitcount(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestSummarizeEvalExpr(t, &tt)
 		})

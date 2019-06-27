@@ -39,7 +39,7 @@ func (e *expr) doGetStringArg() (string, error) {
 }
 
 func (e *expr) doGetBoolArg() (bool, error) {
-	if e.etype != EtName {
+	if e.etype != EtString {
 		return false, ErrBadType
 	}
 
