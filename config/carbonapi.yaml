@@ -119,12 +119,6 @@ headersToLog:
     - X-Webauth-User
 logger:
     - logger: ""
-      file: "stderr"
-      level: "debug"
-      encoding: "json"
-#      encodingTime: "iso8601"
-#      encodingDuration: "seconds"
-    - logger: ""
       file: "stdout"
       level: "info"
       encoding: "json"

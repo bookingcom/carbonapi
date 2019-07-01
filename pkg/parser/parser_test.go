@@ -157,7 +157,7 @@ func TestParseExpr(t *testing.T) {
 					{target: "metric"},
 				},
 				namedArgs: map[string]*expr{
-					"key": {etype: EtName, target: "true"},
+					"key": {etype: EtString, target: "true", valStr: "true"},
 				},
 				argString: "metric, key=true",
 			},

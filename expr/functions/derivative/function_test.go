@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"math"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	th "github.com/bookingcom/carbonapi/tests"
-	"math"
 )
 
 func init() {
@@ -27,9 +28,7 @@ func TestDerivative(t *testing.T) {
 
 	tests := []th.EvalTestItem{
 		{
-			parser.NewExpr("derivative",
-				"metric1",
-			),
+			"derivative(metric1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{2, 4, 6, 1, 4, math.NaN(), 8}, 1, now32)},
 			},
@@ -37,9 +36,7 @@ func TestDerivative(t *testing.T) {
 				[]float64{math.NaN(), 2, 2, -5, 3, math.NaN(), 4}, 1, now32)},
 		},
 		{
-			parser.NewExpr("derivative",
-				"metric1",
-			),
+			"derivative(metric1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), 4, 6, 1, 4, math.NaN(), 8}, 1, now32)},
 			},
@@ -49,7 +46,7 @@ func TestDerivative(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		testName := tt.E.Target() + "(" + tt.E.RawArgs() + ")"
+		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
 		})

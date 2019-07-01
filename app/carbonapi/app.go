@@ -100,13 +100,15 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() {
+	logger := zapwriter.Logger("carbonapi")
+
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
 	handler = handlers.CORS()(handler)
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
+	handler = recoveryHandler(handler, logger)
 
-	logger := zapwriter.Logger("carbonapi")
 	app.registerPrometheusMetrics(logger)
 	if app.config.BlockHeaderUpdatePeriod > 0 {
 		ticker := time.NewTicker(app.config.BlockHeaderUpdatePeriod)
@@ -123,6 +125,19 @@ func (app *App) Start() {
 			zap.Error(err),
 		)
 	}
+}
+
+func recoveryHandler(h http.Handler, lg *zap.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if r := recover(); r != nil {
+				http.Error(w, "recovered from panic", http.StatusInternalServerError)
+				lg.Error("recovered from panic", zap.Any("details", r))
+			}
+		}()
+
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
