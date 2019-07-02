@@ -1,4 +1,4 @@
-package limiter
+package blocker
 
 import (
 	"testing"

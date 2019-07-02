@@ -49,7 +49,7 @@ var timeNow = time.Now
 func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if app.requestLimiter.ShouldBlockRequest(r) {
+		if app.requestBlocker.ShouldBlockRequest(r) {
 			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			toLog.HttpCode = http.StatusForbidden
 			defer func() {
@@ -1121,7 +1121,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
-	if !app.requestLimiter.AddNewRules(r.URL.Query()) {
+	if !app.requestBlocker.AddNewRules(r.URL.Query()) {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
@@ -1146,7 +1146,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
-	err := app.requestLimiter.Unblock()
+	err := app.requestBlocker.Unblock()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest

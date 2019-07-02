@@ -1,4 +1,4 @@
-package limiter
+package blocker
 
 import (
 	"io/ioutil"
@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-//iConfigFile interface provides abstraction for managing
-type iConfigFile interface {
+//configFileManager interface provides abstraction for managing config files
+type configFileManager interface {
 	load() ([]byte, error)
 	write(output []byte) error
 	remove() error
@@ -23,7 +23,7 @@ type configFile struct {
 }
 
 //NewConfigFile creates config file instance
-func newConfigFile(blockHeaderFile string) iConfigFile {
+func newConfigFile(blockHeaderFile string) configFileManager {
 	return &configFile{
 		blockRuleConfigName: blockHeaderFile,
 	}

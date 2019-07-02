@@ -1,4 +1,4 @@
-package limiter
+package blocker
 
 import (
 	"errors"
@@ -16,7 +16,7 @@ type configFileMock struct {
 	IsRemoved           bool
 	IsReplaced          bool
 	BinReplace          []byte
-	baseConfigFile      iConfigFile
+	baseConfigFile      configFileManager
 	IsLoaded            bool
 
 	ShouldFailOnWrite bool
@@ -70,7 +70,7 @@ func TestShouldNotBlock(t *testing.T) {
 	req.Header.Add("foo", "bar")
 	r := Rule{"foo": "block"}
 
-	blockrule := NewRequestLimiter("", 0, getTestLogger())
+	blockrule := NewRequestBlocker("", 0, getTestLogger())
 	blockrule.rules.Store(RuleConfig{Rules: []Rule{r}})
 
 	if blockrule.ShouldBlockRequest(req) {
@@ -87,9 +87,9 @@ func TestShouldNotBlockWithoutRule(t *testing.T) {
 	req.Header.Add("foo", "bar")
 	// no rules are set
 
-	requestLimiter := NewRequestLimiter("", 0, getTestLogger())
+	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
 
-	if requestLimiter.ShouldBlockRequest(req) {
+	if requestBlocker.ShouldBlockRequest(req) {
 		t.Error("Req should not be blocked")
 	}
 }
@@ -103,20 +103,20 @@ func TestShouldBlock(t *testing.T) {
 	req.Header.Add("foo", "bar")
 	r := Rule{"foo": "bar"}
 
-	requestLimiter := NewRequestLimiter("", 0, getTestLogger())
-	requestLimiter.rules.Store(RuleConfig{Rules: []Rule{r}})
+	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
+	requestBlocker.rules.Store(RuleConfig{Rules: []Rule{r}})
 
-	if !requestLimiter.ShouldBlockRequest(req) {
+	if !requestBlocker.ShouldBlockRequest(req) {
 		t.Error("Req should be blocked")
 	}
 }
 
 func TestUnblockShouldDeleteFile(t *testing.T) {
 
-	requestLimiter := NewRequestLimiter("", 0, getTestLogger())
+	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
 	configMock := newConfigFileMock("", []byte{})
-	requestLimiter.config = configMock
-	requestLimiter.Unblock()
+	requestBlocker.config = configMock
+	requestBlocker.Unblock()
 	if !configMock.IsRemoved {
 		t.Error("Unblock should delete config file")
 	}
@@ -125,10 +125,10 @@ func TestUnblockShouldDeleteFile(t *testing.T) {
 func TestAddNewRulesForEmptyFileNameDoesNothing(t *testing.T) {
 
 	fileName := ""
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	configMock := newConfigFileMock(fileName, []byte{})
-	requestLimiter.config = configMock
-	if requestLimiter.AddNewRules(make(map[string][]string)) {
+	requestBlocker.config = configMock
+	if requestBlocker.AddNewRules(make(map[string][]string)) {
 		t.Error("Empty config file name should not be sufficient to save rules")
 	}
 }
@@ -136,14 +136,14 @@ func TestAddNewRulesForEmptyFileNameDoesNothing(t *testing.T) {
 func TestAddNewRulesEmptyParamsIgnored(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	configMock := newConfigFileMock(fileName, []byte{})
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
 	params := make(map[string][]string)
 	params[""] = []string{"nonValid"}
 	params["x-non-valid"] = []string{""}
-	if requestLimiter.AddNewRules(params) || configMock.IsReplaced {
+	if requestBlocker.AddNewRules(params) || configMock.IsReplaced {
 		t.Error("When none of header/value pair contains non-empty elements, headers can't be saved")
 	}
 }
@@ -151,7 +151,7 @@ func TestAddNewRulesEmptyParamsIgnored(t *testing.T) {
 func TestAddNewRulesEmptyParamsWithNonEmptyParams_SavesNonEmpty(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	testConf := map[string]string{"header1": "value1", "header2": "value2"}
 	initConfig := RuleConfig{Rules: []Rule{testConf}}
 	retConfValues, err := yaml.Marshal(&initConfig)
@@ -161,13 +161,13 @@ func TestAddNewRulesEmptyParamsWithNonEmptyParams_SavesNonEmpty(t *testing.T) {
 	}
 
 	configMock := newConfigFileMock(fileName, retConfValues)
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
 	params := make(map[string][]string)
 	params[""] = []string{"nonValid"}
 	params["x-non-valid"] = []string{""}
 	params["x-valid"] = []string{"value"}
-	if !requestLimiter.AddNewRules(params) || !configMock.IsLoaded || !configMock.IsReplaced {
+	if !requestBlocker.AddNewRules(params) || !configMock.IsLoaded || !configMock.IsReplaced {
 		t.Error("When none of header/value pair contains non-empty elements, headers can't be saved")
 	}
 
@@ -187,15 +187,15 @@ func TestAddNewRulesEmptyParamsWithNonEmptyParams_SavesNonEmpty(t *testing.T) {
 func TestAddNewRulesFailOnWrite_ReturnsFalse(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	configMock := newConfigFileMock(fileName, []byte{})
 	configMock.ShouldFailOnWrite = true
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
 	params := make(map[string][]string)
 	params[""] = []string{"nonValid"}
 	params["x-valid"] = []string{"value"}
-	if requestLimiter.AddNewRules(params) || configMock.IsReplaced {
+	if requestBlocker.AddNewRules(params) || configMock.IsReplaced {
 		t.Error("Error happens on save causes rules not be updated")
 	}
 }
@@ -203,7 +203,7 @@ func TestAddNewRulesFailOnWrite_ReturnsFalse(t *testing.T) {
 func TestReloadRulesReadFails_ReturnEmptyRules(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	testConf := map[string]string{"header1": "value1", "header2": "value2"}
 	initConfig := RuleConfig{Rules: []Rule{testConf}}
 	retConfValues, err := yaml.Marshal(&initConfig)
@@ -214,10 +214,10 @@ func TestReloadRulesReadFails_ReturnEmptyRules(t *testing.T) {
 
 	configMock := newConfigFileMock(fileName, retConfValues)
 	configMock.ShouldFailOnRead = true
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
-	requestLimiter.ReloadRules()
-	reloadedConf := requestLimiter.rules.Load().(RuleConfig)
+	requestBlocker.ReloadRules()
+	reloadedConf := requestBlocker.rules.Load().(RuleConfig)
 	if reloadedConf.Rules != nil {
 		t.Error("Error happens on load causes rules to be empty")
 	}
@@ -226,7 +226,7 @@ func TestReloadRulesReadFails_ReturnEmptyRules(t *testing.T) {
 func TestReloadRulesUnmarshalFails_ReturnEmptyRules(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	testConf := map[string]string{"header1": "value1", "header2": "value2"}
 	initConfig := RuleConfig{Rules: []Rule{testConf}}
 	retConfValues, err := yaml.Marshal(&initConfig)
@@ -237,10 +237,10 @@ func TestReloadRulesUnmarshalFails_ReturnEmptyRules(t *testing.T) {
 	}
 
 	configMock := newConfigFileMock(fileName, retConfValues)
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
-	requestLimiter.ReloadRules()
-	reloadedConf := requestLimiter.rules.Load().(RuleConfig)
+	requestBlocker.ReloadRules()
+	reloadedConf := requestBlocker.rules.Load().(RuleConfig)
 	if reloadedConf.Rules != nil {
 		t.Error("Error happens on save causes rules not be updated")
 	}
@@ -249,7 +249,7 @@ func TestReloadRulesUnmarshalFails_ReturnEmptyRules(t *testing.T) {
 func TestReloadRulesSuccess_ReturnsRules(t *testing.T) {
 
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
 	testConf := map[string]string{"header1": "value1", "header2": "value2"}
 	initConfig := RuleConfig{Rules: []Rule{testConf}}
 	retConfValues, err := yaml.Marshal(&initConfig)
@@ -259,10 +259,10 @@ func TestReloadRulesSuccess_ReturnsRules(t *testing.T) {
 	}
 
 	configMock := newConfigFileMock(fileName, retConfValues)
-	requestLimiter.config = configMock
+	requestBlocker.config = configMock
 
-	requestLimiter.ReloadRules()
-	reloadedConf := requestLimiter.rules.Load().(RuleConfig)
+	requestBlocker.ReloadRules()
+	reloadedConf := requestBlocker.rules.Load().(RuleConfig)
 	if reloadedConf.Rules != nil && len(reloadedConf.Rules) == 2 {
 		t.Error("Header rules were not loaded")
 	}
@@ -270,16 +270,16 @@ func TestReloadRulesSuccess_ReturnsRules(t *testing.T) {
 
 func TestScheduleRuleReload_UpdatePeriodZero_NotSchedule(t *testing.T) {
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 0, getTestLogger())
-	if requestLimiter.ScheduleRuleReload() {
+	requestBlocker := NewRequestBlocker(fileName, 0, getTestLogger())
+	if requestBlocker.ScheduleRuleReload() {
 		t.Error("Rule update scheduled with empty period")
 	}
 }
 
 func TestScheduleRuleReload_UpdatePeriodNonZero_Schedule(t *testing.T) {
 	fileName := "ConfigName.yaml"
-	requestLimiter := NewRequestLimiter(fileName, 30, getTestLogger())
-	if !requestLimiter.ScheduleRuleReload() {
+	requestBlocker := NewRequestBlocker(fileName, 30, getTestLogger())
+	if !requestBlocker.ScheduleRuleReload() {
 		t.Error("Rule update not scheduled with non-empty period")
 	}
 }

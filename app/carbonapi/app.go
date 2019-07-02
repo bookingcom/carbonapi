@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/bookingcom/carbonapi/blocker"
 	"github.com/bookingcom/carbonapi/cache"
 	"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/bookingcom/carbonapi/cfg"
@@ -20,7 +21,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/rewrite"
-	"github.com/bookingcom/carbonapi/limiter"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -60,7 +60,7 @@ type App struct {
 	config         cfg.API
 	queryCache     cache.BytesCache
 	findCache      cache.BytesCache
-	requestLimiter *limiter.RequestLimiter
+	requestBlocker *blocker.RequestBlocker
 
 	defaultTimeZone *time.Location
 
@@ -82,9 +82,9 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 		findCache:         cache.NullCache{},
 		defaultTimeZone:   time.Local,
 		prometheusMetrics: newPrometheusMetrics(config),
-		requestLimiter:    limiter.NewRequestLimiter(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger),
+		requestBlocker:    blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger),
 	}
-	app.requestLimiter.ReloadRules()
+	app.requestBlocker.ReloadRules()
 
 	// TODO(gmagnusson): Setup backends
 	backend, err := initBackend(app.config, logger)
@@ -111,7 +111,7 @@ func (app *App) Start() {
 
 	app.registerPrometheusMetrics(logger)
 
-	app.requestLimiter.ScheduleRuleReload()
+	app.requestBlocker.ScheduleRuleReload()
 
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
