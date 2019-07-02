@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,19 +24,64 @@ import (
 )
 
 // ErrHTTPCode is a custom error type to distinguish HTTP errors
-type ErrHTTPCode int
+type ErrHTTPCode struct {
+	code int
+	err  string
+}
 
-func (e ErrHTTPCode) Error() string {
-	switch e / 100 {
+func NewErrHTTPCode(code int, err string) error {
+	return &ErrHTTPCode{code, err}
+}
+
+func (e *ErrHTTPCode) Code() int {
+	return e.code
+}
+
+func (e *ErrHTTPCode) Error() string {
+	return e.err
+}
+
+func (e *ErrHTTPCode) Message() string {
+	switch e.code / 100 {
 	case 4:
-		return fmt.Sprintf("HTTP client error %d", e)
+		return fmt.Sprintf("HTTP client error %d: %s", e.code, e.err)
 
 	case 5:
-		return fmt.Sprintf("HTTP server error %d", e)
+		return fmt.Sprintf("HTTP server error %d: %s", e.code, e.err)
 
 	default:
-		return fmt.Sprintf("HTTP unknown error %d", e)
+		return fmt.Sprintf("HTTP unknown error %d: %s", e.code, e.err)
 	}
+}
+
+func StripErrBody(body []byte) string {
+	l := len(body)
+	if l > 50 {
+		l = 50
+	} else if body[l-1] == '\n' {
+		l--
+	}
+	return string(body[0:l])
+}
+
+func ExtractErr(err error) error {
+	netErr, ok := err.(net.Error)
+	var i int
+	if ok {
+		if netErr.Timeout() {
+			return NewErrHTTPCode(http.StatusGatewayTimeout, "timeout")
+		}
+		e := err.Error()
+		if i = strings.Index(e, "dial "); i > 0 {
+			e = e[i:len(e)]
+		} else if i = strings.Index(e, "write"); i > 0 {
+			e = e[i:len(e)]
+		} else if i = strings.Index(e, "read"); i > 0 {
+			e = e[i:len(e)]
+		}
+		return NewErrHTTPCode(http.StatusServiceUnavailable, e)
+	}
+	return err
 }
 
 // ErrContextCancel signifies context cancellation manual or via timeout
@@ -256,7 +302,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 
 		// TODO (grzkv): we should not try to interpret the body if there is an error
 		if res.err != nil {
-			return "", nil, res.err
+			return "", nil, ExtractErr(res.err)
 		}
 
 		if bodyErr != nil {
@@ -264,7 +310,9 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		}
 
 		if res.resp.StatusCode != http.StatusOK {
-			return "", body, ErrHTTPCode(res.resp.StatusCode)
+			return "", body, NewErrHTTPCode(res.resp.StatusCode, StripErrBody(body))
+		} else if len(body) == 0 { // fix for graphite-clickhouse empty response
+			return res.resp.Header.Get("Content-Type"), nil, NewErrHTTPCode(http.StatusNotFound, "empty response")
 		}
 
 		return res.resp.Header.Get("Content-Type"), body, nil
@@ -350,7 +398,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 			return nil, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
+		if code, ok := err.(*ErrHTTPCode); ok && code.code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
 		}
 
@@ -477,7 +525,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 			return types.Matches{}, ErrContextCancel{Err: ctx.Err()}
 		}
 
-		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
+		if code, ok := err.(*ErrHTTPCode); ok && code.code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
 		}
 

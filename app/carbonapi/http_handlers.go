@@ -227,6 +227,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusNotFound
 			logAsError = true
+			return
+		}
+		errOut, ok := totalErr.(*nt.ErrHTTPCode)
+		if ok {
+			writeError(ctx, r, w, errOut.Code(), errOut.Error(), form)
+			toLog.HttpCode = int32(errOut.Code())
+			logAsError = true
 		} else {
 			writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusInternalServerError
@@ -409,20 +416,43 @@ func pessimistFanIn(errs []error) error {
 // returns non-nil error when errors result in an error
 // returns non-empty string when there are *some* errors, even when total err is nil
 // returned string can be used to indicate partial failure
+// returns HTTP error code (for return to client)
 func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	nErrs := len(errs)
 	if nErrs == 0 {
 		return nil, ""
 	}
+	optimisticCode := http.StatusOK
 
 	// everything failed.
 	// If all the failures are not-founds, it's a not-found
 	allErrorsNotFound := true
 	errStr := ""
 	for _, e := range errs {
-		errStr = errStr + e.Error() + ", "
 		if _, ok := e.(dataTypes.ErrNotFound); !ok {
 			allErrorsNotFound = false
+		}
+		eCode, ok := e.(*nt.ErrHTTPCode)
+		var err string
+		if subj == "requests" && ok {
+			err = eCode.Message()
+		} else {
+			err = e.Error()
+		}
+
+		if len(errStr) == 0 {
+			errStr = err
+		} else {
+			if err != errStr {
+				errStr = errStr + ", " + err
+			}
+		}
+		if !ok {
+			if optimisticCode == http.StatusOK {
+				optimisticCode = http.StatusServiceUnavailable
+			}
+		} else if optimisticCode == http.StatusOK || optimisticCode == -1 || optimisticCode > eCode.Code() {
+			optimisticCode = eCode.Code()
 		}
 	}
 
@@ -434,13 +464,23 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 		return nil, errStr
 	}
 
+	var err string
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all " + subj +
-			" not found; merged errs: (" + errStr + ")"), errStr
+		if subj == "requests" {
+			err = "[" + errStr + "]"
+		} else {
+			err = "all " + subj +
+				" not found: (" + errStr + ")"
+		}
+		return dataTypes.ErrNotFound(err), errStr
 	}
-
-	return errors.New("all " + subj +
-		" failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
+	if subj == "requests" {
+		err = "[" + errStr + "]"
+	} else {
+		err = "all " + subj +
+			" failed: (" + errStr + ")"
+	}
+	return nt.NewErrHTTPCode(optimisticCode, err), errStr
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
@@ -752,14 +792,19 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// returned a 404 code to Prometheus.
 			app.prometheusMetrics.FindNotFound.Inc()
 		} else {
-			msg := "error fetching the data"
-			code := http.StatusInternalServerError
+			eCode, ok := err.(*nt.ErrHTTPCode)
+			var code int
+			if ok {
+				code = eCode.Code()
+			} else {
+				code = http.StatusInternalServerError
+			}
 
 			toLog.HttpCode = int32(code)
 			toLog.Reason = err.Error()
 			logAsError = true
 
-			http.Error(w, msg, code)
+			http.Error(w, err.Error(), code)
 			apiMetrics.Errors.Add(1)
 			return
 		}
@@ -792,8 +837,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		toLog.HttpCode = http.StatusInternalServerError
 		toLog.Reason = err.Error()
 		logAsError = true
@@ -923,8 +967,15 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		toLog.HttpCode = http.StatusInternalServerError
+		eCode, ok := err.(*nt.ErrHTTPCode)
+		var code int
+		if ok {
+			code = eCode.Code()
+		} else {
+			code = http.StatusInternalServerError
+		}
+
+		toLog.HttpCode = int32(code)
 		toLog.Reason = err.Error()
 		logAsError = true
 		return
