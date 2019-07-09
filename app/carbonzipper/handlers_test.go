@@ -900,7 +900,7 @@ func TestInfoSingleBackend(t *testing.T) {
 		{
 			path: "/info?target=foo.bar",
 			code: http.StatusOK,
-			body: `{"http://127.0.0.1:8080":{"name":"foo.bar","aggregationMethod":"Average","maxRetention":157680000,"retentions":[{"secondsPerPoint":60,"numberOfPoints":43200}]}}`,
+			body: `{"http://127.0.0.1:8080":{"name":"foo.bar","aggregationMethod":"Average","maxRetention":157680000,"xFilesFactor":0.5,"retentions":[{"secondsPerPoint":60,"numberOfPoints":43200}]}}`,
 		},
 		{
 			path: "/info?target=foo.bar&format=wrongformat",
