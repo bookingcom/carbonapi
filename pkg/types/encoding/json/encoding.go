@@ -91,6 +91,7 @@ type jsonInfo struct {
 	Name              string    `json:"name"`
 	AggregationMethod string    `json:"aggregationMethod"`
 	MaxRetention      int32     `json:"maxRetention"`
+	XFilesFactor      float32   `json:"xFilesFactor"`
 	Retentions        []jsonRet `json:"retentions"`
 }
 
@@ -108,6 +109,7 @@ func InfoEncoder(infos []types.Info) ([]byte, error) {
 			Name:              info.Name,
 			AggregationMethod: info.AggregationMethod,
 			MaxRetention:      info.MaxRetention,
+			XFilesFactor:      info.XFilesFactor,
 			Retentions:        make([]jsonRet, 0, len(info.Retentions)),
 		}
 
@@ -138,6 +140,7 @@ func InfoDecoder(blob []byte) ([]types.Info, error) {
 			Name:              info.Name,
 			AggregationMethod: info.AggregationMethod,
 			MaxRetention:      info.MaxRetention,
+			XFilesFactor:      info.XFilesFactor,
 			Retentions:        make([]types.Retention, 0, len(info.Retentions)),
 		}
 
