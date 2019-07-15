@@ -53,6 +53,8 @@ func DefaultCommonConfig() Common {
 		ExpireDelaySec:       int32(10 * time.Minute / time.Second),
 		InternalRoutingCache: int32(5 * time.Minute / time.Second),
 
+		RenderNotFound: true,
+
 		Buckets: 10,
 		Graphite: GraphiteConfig{
 			Interval: 60 * time.Second,
@@ -124,6 +126,8 @@ type Common struct {
 	InternalRoutingCache       int32   `yaml:"internalRoutingCache"`
 	GraphiteWeb09Compatibility bool    `yaml:"graphite09compat"`
 	CorruptionThreshold        float64 `yaml:"corruptionThreshold"`
+
+	RenderNotFound bool `yaml:"renderNotFound"`
 
 	Buckets  int                `yaml:"buckets"`
 	Graphite GraphiteConfig     `yaml:"graphite"`

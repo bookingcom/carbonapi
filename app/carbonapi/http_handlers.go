@@ -224,22 +224,25 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
-			toLog.HttpCode = http.StatusNotFound
-			logAsError = true
+			if app.config.Common.RenderNotFound {
+				writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
+				toLog.HttpCode = http.StatusNotFound
+				logAsError = true
+				return
+			}
+		} else {
+			errOut, ok := totalErr.(*nt.ErrHTTPCode)
+			if ok {
+				writeError(ctx, r, w, errOut.Code(), errOut.Error(), form)
+				toLog.HttpCode = int32(errOut.Code())
+				logAsError = true
+			} else {
+				writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
+				toLog.HttpCode = http.StatusInternalServerError
+				logAsError = true
+			}
 			return
 		}
-		errOut, ok := totalErr.(*nt.ErrHTTPCode)
-		if ok {
-			writeError(ctx, r, w, errOut.Code(), errOut.Error(), form)
-			toLog.HttpCode = int32(errOut.Code())
-			logAsError = true
-		} else {
-			writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
-			toLog.HttpCode = http.StatusInternalServerError
-			logAsError = true
-		}
-		return
 	}
 
 	body, err := app.renderWriteBody(results, form, r, logger)

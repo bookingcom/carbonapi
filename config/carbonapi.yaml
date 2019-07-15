@@ -49,6 +49,9 @@ maxBatchSize: 100
 
 # alwaysSendGlobsAsIs: false
 
+# If true, return HTTP status 404 if render return no data points
+renderNotFound: false
+
 # functionsConfigs:
 #     graphiteWeb: ./graphiteWeb.example.yaml
 
