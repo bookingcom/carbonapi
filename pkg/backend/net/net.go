@@ -325,7 +325,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(ctx.Err()),
 		)
-		return "", nil, ctx.Err()
+		return "", nil, NewErrHTTPCode(http.StatusGatewayTimeout, ctx.Err().Error())
 	}
 }
 
@@ -395,7 +395,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, ErrContextCancel{Err: ctx.Err()}
+			return nil, NewErrHTTPCode(http.StatusGatewayTimeout, ctx.Err().Error())
 		}
 
 		if code, ok := err.(*ErrHTTPCode); ok && code.code == http.StatusNotFound {
@@ -470,6 +470,9 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 
 	_, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, NewErrHTTPCode(http.StatusGatewayTimeout, ctx.Err().Error())
+		}
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
 
@@ -522,7 +525,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	contentType, resp, err := b.call(ctx, request.Trace, u, body)
 	if err != nil {
 		if ctx.Err() != nil {
-			return types.Matches{}, ErrContextCancel{Err: ctx.Err()}
+			return types.Matches{}, NewErrHTTPCode(http.StatusGatewayTimeout, ctx.Err().Error())
 		}
 
 		if code, ok := err.(*ErrHTTPCode); ok && code.code == http.StatusNotFound {
