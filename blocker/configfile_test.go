@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadBlockRuleHeaderConfigCorruptedFile(t *testing.T) {
-	configFile := newConfigFile("../tests/block_header_files/corrupted_block_header_list.yaml")
+	configFile := newConfigFile("../testdata/block_header_files/corrupted_block_header_list.yaml")
 
 	var rc RuleConfig
 	fileBytes, err := configFile.load()
@@ -19,7 +19,7 @@ func TestLoadBlockRuleHeaderConfigCorruptedFile(t *testing.T) {
 }
 
 func TestLoadBlockRuleHeaderConfigCorrectFile(t *testing.T) {
-	configFile := newConfigFile("../tests/block_header_files/non_empty_block_header_list.yaml")
+	configFile := newConfigFile("../testdata/block_header_files/non_empty_block_header_list.yaml")
 
 	var rc RuleConfig
 	fileBytes, err := configFile.load()
@@ -31,7 +31,7 @@ func TestLoadBlockRuleHeaderConfigCorrectFile(t *testing.T) {
 }
 
 func TestLoadBlockRuleHeaderConfigNotExistingFile(t *testing.T) {
-	configFile := newConfigFile("../tests/block_header_files/non_existing_block_header_list.yaml")
+	configFile := newConfigFile("../testdata/block_header_files/non_existing_block_header_list.yaml")
 
 	var rc RuleConfig
 	fileBytes, err := configFile.load()
