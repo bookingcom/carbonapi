@@ -264,6 +264,7 @@ func TestRenderHandlerNotFoundErrs(t *testing.T) {
 		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, rr.Code)
 	}
 }
+
 func TestFindHandler(t *testing.T) {
 	req := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
 	rr := httptest.NewRecorder()

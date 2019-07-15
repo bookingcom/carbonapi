@@ -452,7 +452,11 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 		}
 		if !ok {
 			if optimisticCode == http.StatusOK {
-				optimisticCode = http.StatusServiceUnavailable
+				if ok {
+					optimisticCode = http.StatusServiceUnavailable
+				} else {
+					optimisticCode = http.StatusInternalServerError
+				}
 			}
 		} else if optimisticCode == http.StatusOK || optimisticCode == -1 || optimisticCode > eCode.Code() {
 			optimisticCode = eCode.Code()
