@@ -659,7 +659,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
 	toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
-	if app.config.AlwaysSendGlobsAsIs {
+	if app.config.AlwaysSendGlobsAsIs || strings.HasPrefix(m.Metric, "seriesByTag(") {
 		toLog.SendGlobs = true
 		return []string{m.Metric}, nil
 	}

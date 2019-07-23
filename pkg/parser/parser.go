@@ -213,6 +213,24 @@ func (e *expr) GetStringArg(n int) (string, error) {
 	return e.args[n].doGetStringArg()
 }
 
+func (e *expr) GetStringArgs(n int) ([]string, error) {
+	if len(e.args) <= n {
+		return nil, ErrMissingArgument
+	}
+
+	var strs []string
+
+	for i := n; i < len(e.args); i++ {
+		a, err := e.GetStringArg(i)
+		if err != nil {
+			return nil, err
+		}
+		strs = append(strs, a)
+	}
+
+	return strs, nil
+}
+
 func (e *expr) GetStringArgDefault(n int, s string) (string, error) {
 	if len(e.args) <= n {
 		return s, nil
@@ -316,6 +334,31 @@ func (e *expr) GetBoolArgDefault(n int, b bool) (bool, error) {
 	return e.args[n].doGetBoolArg()
 }
 
+func (e *expr) GetNodeOrTagArgs(n int) ([]NodeOrTag, error) {
+	if len(e.args) <= n {
+		return nil, ErrMissingArgument
+	}
+
+	var nodeTags []NodeOrTag
+
+	var err error
+	for i := n; i < len(e.args); i++ {
+		var nodeTag NodeOrTag
+		nodeTag.Value, err = e.GetIntArg(i)
+		if err != nil {
+			// Try to parse it as String
+			nodeTag.Value, err = e.GetStringArg(i)
+			if err != nil {
+				return nil, err
+			}
+			nodeTag.IsTag = true
+		}
+		nodeTags = append(nodeTags, nodeTag)
+	}
+
+	return nodeTags, nil
+}
+
 func (e *expr) insertFirstArg(exp *expr) error {
 	if e.etype != EtFunc {
 		return fmt.Errorf("pipe to not a function")
@@ -366,6 +409,12 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	}
 
 	if e != "" && e[0] == '(' {
+		// TODO(civil): Tags: make it a proper Expression
+		if name == "seriesByTag" {
+			argString, _, _, e, err := parseArgList(e)
+			return &expr{target: name + "(" + argString + ")", etype: EtName}, e, err
+		}
+
 		exp := &expr{target: name, etype: EtFunc}
 
 		argString, posArgs, namedArgs, e, err := parseArgList(e)

@@ -235,6 +235,9 @@ func AggregateSeries(e parser.Expr, args []*types.MetricData, function Aggregate
 	return []*types.MetricData{&r}, nil
 }
 
+//Skip "stddev" at now
+var AvailableSummarizers = []string{"sum", "total", "avg", "average", "avg_zero", "max", "min", "last", "range", "median", "multiply", "diff", "count"}
+
 // SummarizeValues summarizes values
 func SummarizeValues(f string, values []float64) float64 {
 	rv := 0.0
@@ -249,7 +252,7 @@ func SummarizeValues(f string, values []float64) float64 {
 			rv += av
 		}
 
-	case "avg":
+	case "avg", "average", "avg_zero":
 		for _, av := range values {
 			rv += av
 		}
@@ -272,7 +275,34 @@ func SummarizeValues(f string, values []float64) float64 {
 		if len(values) > 0 {
 			rv = values[len(values)-1]
 		}
-
+	case "range":
+		vMax := math.Inf(-1)
+		vMin := math.Inf(1)
+		for _, av := range values {
+			if av > vMax {
+				vMax = av
+			}
+			if av < vMin {
+				vMin = av
+			}
+		}
+		rv = vMax - vMin
+	case "median":
+		rv = Percentile(values, 50, true)
+	case "multiply":
+		rv = values[0]
+		for _, av := range values[1:] {
+			rv *= av
+		}
+	case "diff":
+		rv = values[0]
+		for _, av := range values[1:] {
+			rv -= av
+		}
+	case "count":
+		rv = float64(len(values))
+	//case "stddev":
+	//rv = math.Sqrt(VarianceValue(values))
 	default:
 		f = strings.Split(f, "p")[1]
 		percent, err := strconv.ParseFloat(f, 64)
@@ -282,6 +312,35 @@ func SummarizeValues(f string, values []float64) float64 {
 	}
 
 	return rv
+}
+
+// ExtractTags extracts all graphite-style tags out of metric name
+// E.x. cpu.usage_idle;cpu=cpu-total;host=test => {"name": "cpu.usage_idle", "cpu": "cpu-total", "host": "test"}
+func ExtractTags(s string) map[string]string {
+	result := make(map[string]string)
+	idx := strings.IndexRune(s, ';')
+	if idx < 0 {
+		result["name"] = s
+		return result
+	}
+
+	result["name"] = s[:idx]
+
+	newS := s[idx+1:]
+	for {
+		idx := strings.IndexRune(newS, ';')
+		if idx < 0 {
+			kv := strings.Split(newS, "=")
+			result[kv[0]] = kv[1]
+			break
+		}
+
+		kv := strings.Split(newS[:idx], "=")
+		result[kv[0]] = kv[1]
+		newS = newS[idx+1:]
+	}
+
+	return result
 }
 
 // ExtractMetric extracts metric out of function list

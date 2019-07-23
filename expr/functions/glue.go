@@ -8,6 +8,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/alias"
 	"github.com/bookingcom/carbonapi/expr/functions/aliasByMetric"
 	"github.com/bookingcom/carbonapi/expr/functions/aliasByNode"
+	"github.com/bookingcom/carbonapi/expr/functions/aliasByTags"
 	"github.com/bookingcom/carbonapi/expr/functions/aliasSub"
 	"github.com/bookingcom/carbonapi/expr/functions/asPercent"
 	"github.com/bookingcom/carbonapi/expr/functions/averageSeries"
@@ -31,6 +32,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/grep"
 	"github.com/bookingcom/carbonapi/expr/functions/group"
 	"github.com/bookingcom/carbonapi/expr/functions/groupByNode"
+	"github.com/bookingcom/carbonapi/expr/functions/groupByTags"
 	"github.com/bookingcom/carbonapi/expr/functions/highest"
 	"github.com/bookingcom/carbonapi/expr/functions/hitcount"
 	"github.com/bookingcom/carbonapi/expr/functions/holtWintersAberration"
@@ -72,6 +74,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/removeEmptySeries"
 	"github.com/bookingcom/carbonapi/expr/functions/scale"
 	"github.com/bookingcom/carbonapi/expr/functions/scaleToSeconds"
+	"github.com/bookingcom/carbonapi/expr/functions/seriesByTag"
 	"github.com/bookingcom/carbonapi/expr/functions/seriesList"
 	"github.com/bookingcom/carbonapi/expr/functions/sortBy"
 	"github.com/bookingcom/carbonapi/expr/functions/sortByName"
@@ -107,6 +110,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "aliasByMetric", order: aliasByMetric.GetOrder(), f: aliasByMetric.New})
 
 	funcs = append(funcs, initFunc{name: "aliasByNode", order: aliasByNode.GetOrder(), f: aliasByNode.New})
+
+	funcs = append(funcs, initFunc{name: "aliasByTags", order: aliasByTags.GetOrder(), f: aliasByTags.New})
 
 	funcs = append(funcs, initFunc{name: "aliasSub", order: aliasSub.GetOrder(), f: aliasSub.New})
 
@@ -153,6 +158,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "group", order: group.GetOrder(), f: group.New})
 
 	funcs = append(funcs, initFunc{name: "groupByNode", order: groupByNode.GetOrder(), f: groupByNode.New})
+
+	funcs = append(funcs, initFunc{name: "groupByTags", order: groupByTags.GetOrder(), f: groupByTags.New})
 
 	funcs = append(funcs, initFunc{name: "highest", order: highest.GetOrder(), f: highest.New})
 
@@ -235,6 +242,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "scale", order: scale.GetOrder(), f: scale.New})
 
 	funcs = append(funcs, initFunc{name: "scaleToSeconds", order: scaleToSeconds.GetOrder(), f: scaleToSeconds.New})
+
+	funcs = append(funcs, initFunc{name: "seriesByTag", order: seriesByTag.GetOrder(), f: seriesByTag.New})
 
 	funcs = append(funcs, initFunc{name: "seriesList", order: seriesList.GetOrder(), f: seriesList.New})
 
