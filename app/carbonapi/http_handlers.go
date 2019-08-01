@@ -1275,6 +1275,7 @@ supported requests:
 	/info/?target=
 	/functions/
 	/tags/autoComplete/tags
+	/tags/autoComplete/values
 `)
 
 func (app *App) usageHandler(w http.ResponseWriter, r *http.Request) {
@@ -1288,16 +1289,105 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(usageMsg)
 }
 
-//TODO : Fix this handler if and when tag support is added
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
 func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request) {
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
+	t0 := time.Now()
+
+	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
+	defer cancel()
+
+	toLog := carbonapipb.NewAccessLogDetails(r, "tag", &app.config)
+	// TODO (grzkv): Replace with access logger
+	logger := zapwriter.Logger("render").With(
+		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
+		zap.String("username", toLog.Username),
+	)
+
+	logAsError := false
 	defer func() {
 		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "tags", "false").Inc()
+		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
+
+	apiMetrics.Requests.Add(1)
+	app.prometheusMetrics.Requests.Inc()
+
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "incorrect request", http.StatusBadRequest)
+		toLog.HttpCode = http.StatusBadRequest
+		toLog.Reason = err.Error()
+		logAsError = true
+		return
+	}
+
+	prettyStr := r.FormValue("pretty")
+	var limit int64
+	limitStr := r.FormValue("limit")
+	if limitStr != "" {
+		limit, err = strconv.ParseInt(limitStr, 10, 64)
+		if err != nil {
+			logger.Debug("error parsing limit, ignoring",
+				zap.String("limit", r.FormValue("limit")),
+				zap.Error(err),
+			)
+			limit = -1
+		}
+	}
+
+	q := r.URL.Query()
+	q.Del("pretty")
+	rawQuery := q.Encode()
+
+	request := dataTypes.NewTagsRequest(rawQuery)
+	request.IncCall()
+
+	// TODO: Implement caching
+	var res []string
+	if strings.HasSuffix(r.URL.Path, "tags") || strings.HasSuffix(r.URL.Path, "tags/") {
+		res, err = app.backend.TagNames(ctx, request, limit)
+	} else if strings.HasSuffix(r.URL.Path, "values") || strings.HasSuffix(r.URL.Path, "values/") {
+		res, err = app.backend.TagValues(ctx, request, limit)
+	} else {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		toLog.HttpCode = http.StatusBadRequest
+		return
+	}
+
+	// TODO: Implement stats
+	if err != nil {
+		if _, ok := err.(dataTypes.ErrNotFound); !ok {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			toLog.HttpCode = http.StatusInternalServerError
+			toLog.Reason = err.Error()
+			logAsError = true
+			return
+		}
+	}
+
+	var b []byte
+	if prettyStr == "1" {
+		b, err = json.MarshalIndent(res, "", "\t")
+	} else {
+		b, err = json.Marshal(res)
+	}
+
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		toLog.HttpCode = http.StatusInternalServerError
+		toLog.Reason = err.Error()
+		logAsError = true
+		return
+	} else {
+		toLog.HttpCode = http.StatusOK
+	}
+
+	w.Header().Set("Content-Type", contentTypeJSON)
+	w.Write(b)
+	toLog.Runtime = time.Since(t0).Seconds()
 }
 
 func (app *App) debugVersionHandler(w http.ResponseWriter, r *http.Request) {

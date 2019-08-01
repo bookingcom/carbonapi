@@ -22,10 +22,12 @@ import (
 
 // Backend is a mock backend.
 type Backend struct {
-	find     func(context.Context, types.FindRequest) (types.Matches, error)
-	info     func(context.Context, types.InfoRequest) ([]types.Info, error)
-	render   func(context.Context, types.RenderRequest) ([]types.Metric, error)
-	contains func([]string) bool
+	find      func(context.Context, types.FindRequest) (types.Matches, error)
+	info      func(context.Context, types.InfoRequest) ([]types.Info, error)
+	render    func(context.Context, types.RenderRequest) ([]types.Metric, error)
+	tagnames  func(context.Context, types.TagsRequest, int64) ([]string, error)
+	tagvalues func(context.Context, types.TagsRequest, int64) ([]string, error)
+	contains  func([]string) bool
 }
 
 // Config configures a mock Backend. Define ad-hoc functions to return
@@ -33,10 +35,12 @@ type Backend struct {
 // default to one that returns an empty response and nil error.
 // A mock backend contains all targets by default.
 type Config struct {
-	Find     func(context.Context, types.FindRequest) (types.Matches, error)
-	Info     func(context.Context, types.InfoRequest) ([]types.Info, error)
-	Render   func(context.Context, types.RenderRequest) ([]types.Metric, error)
-	Contains func([]string) bool
+	Find      func(context.Context, types.FindRequest) (types.Matches, error)
+	Info      func(context.Context, types.InfoRequest) ([]types.Info, error)
+	Render    func(context.Context, types.RenderRequest) ([]types.Metric, error)
+	TagNames  func(context.Context, types.TagsRequest, int64) ([]string, error)
+	TagValues func(context.Context, types.TagsRequest, int64) ([]string, error)
+	Contains  func([]string) bool
 }
 
 var (
@@ -57,6 +61,14 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 
 func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return b.render(ctx, request)
+}
+
+func (b Backend) TagNames(ctx context.Context, request types.TagsRequest, limits int64) ([]string, error) {
+	return b.tagnames(ctx, request, limits)
+}
+
+func (b Backend) TagValues(ctx context.Context, request types.TagsRequest, limits int64) ([]string, error) {
+	return b.tagvalues(ctx, request, limits)
 }
 
 // Logger returns a no-op logger.

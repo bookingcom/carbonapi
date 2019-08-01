@@ -28,6 +28,8 @@ type Backend interface {
 	Find(context.Context, types.FindRequest) (types.Matches, error)
 	Info(context.Context, types.InfoRequest) ([]types.Info, error)
 	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
+	TagNames(context.Context, types.TagsRequest, int64) ([]string, error)
+	TagValues(context.Context, types.TagsRequest, int64) ([]string, error)
 
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.

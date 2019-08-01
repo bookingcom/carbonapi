@@ -52,7 +52,7 @@ func initHandlers(app *App) http.Handler {
 	r.HandleFunc("/functions", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 	r.HandleFunc("/functions/", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
 
-	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(app.tagsHandler, app.bucketRequestTimes))
+	r.HandleFunc("/tags/autoComplete/", httputil.TimeHandler(app.tagsHandler, app.bucketRequestTimes))
 
 	r.HandleFunc("/", httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes))
 

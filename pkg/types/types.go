@@ -26,6 +26,7 @@ var (
 	ErrMetricsNotFound = ErrNotFound("No metrics returned")
 	ErrMatchesNotFound = ErrNotFound("No matches found")
 	ErrInfoNotFound    = ErrNotFound("No information found")
+	ErrTagsNotFound    = ErrNotFound("No tags found")
 )
 
 // ErrNotFound signals the HTTP not found error
@@ -80,6 +81,18 @@ func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
 		From:    from,
 		Until:   until,
 		Trace:   NewTrace(),
+	}
+}
+
+type TagsRequest struct {
+	Query string
+	Trace
+}
+
+func NewTagsRequest(query string) TagsRequest {
+	return TagsRequest{
+		Query: query,
+		Trace: NewTrace(),
 	}
 }
 
