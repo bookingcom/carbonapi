@@ -56,7 +56,9 @@ func (e *ErrHTTPCode) Message() string {
 
 func StripErrBody(body []byte) string {
 	l := len(body)
-	if l > 50 {
+	if l == 0 {
+		return ""
+	} else if l > 50 {
 		l = 50
 	} else if body[l-1] == '\n' {
 		l--
