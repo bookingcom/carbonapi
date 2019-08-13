@@ -149,7 +149,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	size := 0
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
@@ -192,6 +191,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	var results []*types.MetricData
 	var targetErrs []error
+	size := 0
+	defer func() {
+		if size > 0 {
+			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
+		}
+	}()
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
 		exp, e, err := parser.ParseExpr(target)
@@ -336,11 +341,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			}
 
 			for _, r := range resp.data {
-				size += 8 * len(r.Values) // close enough
+				size += len(r.Values) // close enough
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
-		toLog.CarbonzipperResponseSizeBytes += int64(size)
+		// TODO (grzkv): This is most likely wrong
+		toLog.CarbonzipperResponseSizeBytes += int64(size * 8)
 		close(rch)
 
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")

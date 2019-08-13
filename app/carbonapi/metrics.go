@@ -9,17 +9,18 @@ import (
 
 // PrometheusMetrics are metrix exported via /metrics endpoint for Prom scraping
 type PrometheusMetrics struct {
-	Requests          prometheus.Counter
-	Responses         *prometheus.CounterVec
-	FindNotFound      prometheus.Counter
-	RenderPartialFail prometheus.Counter
-	RequestCancel     *prometheus.CounterVec
-	DurationExp       prometheus.Histogram
-	DurationLin       prometheus.Histogram
-	RenderDurationExp prometheus.Histogram
-	FindDurationExp   prometheus.Histogram
-	TimeInQueueExp    prometheus.Histogram
-	TimeInQueueLin    prometheus.Histogram
+	Requests                  prometheus.Counter
+	Responses                 *prometheus.CounterVec
+	FindNotFound              prometheus.Counter
+	RenderPartialFail         prometheus.Counter
+	RequestCancel             *prometheus.CounterVec
+	DurationExp               prometheus.Histogram
+	DurationLin               prometheus.Histogram
+	RenderDurationExp         prometheus.Histogram
+	RenderDurationPerPointExp prometheus.Histogram
+	FindDurationExp           prometheus.Histogram
+	TimeInQueueExp            prometheus.Histogram
+	TimeInQueueLin            prometheus.Histogram
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -82,6 +83,16 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Help: "The duration of render requests (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
+			},
+		),
+		RenderDurationPerPointExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "render_request_duration_perpoint_milliseconds_exp",
+				Help: "The duration of render requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Zipper.Common.Monitoring.RenderDurationExp.Start/10,
 					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
 					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
 			},
