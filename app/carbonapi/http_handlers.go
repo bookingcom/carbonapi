@@ -674,6 +674,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	}
 
 	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
 	}
