@@ -32,7 +32,7 @@ type AccessLogDetails struct {
 	CarbonzipperResponseSizeBytes int64             `json:"carbonzipper_response_size_bytes,omitempty"`
 	CarbonapiResponseSizeBytes    int64             `json:"carbonapi_response_size_bytes,omitempty"`
 	Reason                        string            `json:"reason,omitempty"`
-	SendGlobs                     bool              `json:"send_globs,omitempty"`
+	SendGlobs                     bool              `json:"send_globs"`
 	From                          int32             `json:"from,omitempty"`
 	Until                         int32             `json:"until,omitempty"`
 	Tz                            string            `json:"tz,omitempty"`
