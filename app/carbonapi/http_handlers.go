@@ -193,8 +193,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	var targetErrs []error
 	size := 0
 	defer func() {
+		//TODO: cleanup RenderDurationPerPointExp
 		if size > 0 {
 			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
+		}
+		//2xx response code is treated as success
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
+			}
 		}
 	}()
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
