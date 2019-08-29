@@ -198,7 +198,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
 		}
 		//2xx response code is treated as success
-		if toLog.HttpCode > 0 && toLog.HttpCode/100 == 2 {
+		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
 				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
 			} else {
