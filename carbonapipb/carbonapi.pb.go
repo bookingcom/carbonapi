@@ -69,6 +69,7 @@ func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) Acces
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
 		Host:          r.Host,
+		SendGlobs:     true,
 		Path:          r.URL.Path,
 		Referer:       r.Referer(),
 		// TODO (grzkv) Do we need this?
