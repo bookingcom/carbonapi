@@ -131,6 +131,7 @@ type renderResponse struct {
 
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
+	size := 0
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
@@ -145,6 +146,18 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
+		//TODO: cleanup RenderDurationPerPointExp
+		if size > 0 {
+			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
+		}
+		//2xx response code is treated as success
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
+			}
+		}
 		// TODO (grzkv) logging duplicated in many places
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
@@ -191,21 +204,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	var results []*types.MetricData
 	var targetErrs []error
-	size := 0
-	defer func() {
-		//TODO: cleanup RenderDurationPerPointExp
-		if size > 0 {
-			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
-		}
-		//2xx response code is treated as success
-		if toLog.HttpCode/100 == 2 {
-			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
-				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
-			} else {
-				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
-			}
-		}
-	}()
+
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
 		exp, e, err := parser.ParseExpr(target)
