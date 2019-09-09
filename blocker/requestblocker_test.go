@@ -44,10 +44,6 @@ func (cf *configFileMock) remove() error {
 	return nil
 }
 
-func (cf *configFileMock) isValid() bool {
-	return cf.baseConfigFile.isValid()
-}
-
 func (cf *configFileMock) write(output []byte) error {
 	if cf.ShouldFailOnWrite {
 		return errors.New("ShouldFailOnWrite")
@@ -108,17 +104,6 @@ func TestShouldBlock(t *testing.T) {
 
 	if !requestBlocker.ShouldBlockRequest(req) {
 		t.Error("Req should be blocked")
-	}
-}
-
-func TestUnblockShouldDeleteFile(t *testing.T) {
-
-	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
-	configMock := newConfigFileMock("", []byte{})
-	requestBlocker.config = configMock
-	requestBlocker.Unblock()
-	if !configMock.IsRemoved {
-		t.Error("Unblock should delete config file")
 	}
 }
 

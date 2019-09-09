@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -21,19 +22,21 @@ type RuleConfig struct {
 
 //RequestBlocker blocks request according to rules that defines which headers are not allowed
 type RequestBlocker struct {
-	config       configFileManager
-	logger       *zap.Logger
-	rules        atomic.Value
-	updatePeriod time.Duration
+	config              configFileManager
+	logger              *zap.Logger
+	rules               atomic.Value
+	updatePeriod        time.Duration
+	blockRuleConfigName string
 }
 
 //NewRequestBlocker creates a new instance of request blocker without any rules
 //and sets name of config files that will be used as storage for rules
 func NewRequestBlocker(blockHeaderFile string, updatePeriod time.Duration, logger *zap.Logger) *RequestBlocker {
 	instance := &RequestBlocker{
-		config:       newConfigFile(blockHeaderFile),
-		logger:       logger,
-		updatePeriod: updatePeriod,
+		config:              newConfigFile(blockHeaderFile),
+		logger:              logger,
+		updatePeriod:        updatePeriod,
+		blockRuleConfigName: blockHeaderFile,
 	}
 	instance.rules.Store(RuleConfig{})
 	return instance
@@ -76,7 +79,7 @@ func (rl *RequestBlocker) ReloadRules() {
 
 //AddNewRules updates rule config file with new rules
 func (rl *RequestBlocker) AddNewRules(queryParams url.Values) bool {
-	if !rl.config.isValid() {
+	if !rl.isValidConfigFileName() {
 		return false
 	}
 
@@ -109,7 +112,7 @@ func (rl *RequestBlocker) AddNewRules(queryParams url.Values) bool {
 //Unblock deletes rule config file with all defined rules.
 //Next time rules will be reloaded, request blocker won't block any request
 func (rl *RequestBlocker) Unblock() error {
-	return rl.config.remove()
+	return os.Remove(rl.blockRuleConfigName)
 }
 
 //ShouldBlockRequest checks request headers against block rules
@@ -143,4 +146,9 @@ func (rl *RequestBlocker) appendRuleToConfig(rc RuleConfig, r Rule) error {
 		}
 	}
 	return err
+}
+
+//isValid checks if file can be used to store rules
+func (rl *RequestBlocker) isValidConfigFileName() bool {
+	return rl.blockRuleConfigName != ""
 }

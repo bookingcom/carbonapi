@@ -12,8 +12,6 @@ import (
 type configFileManager interface {
 	load() ([]byte, error)
 	write(output []byte) error
-	remove() error
-	isValid() bool
 }
 
 //configFile allows to manage configuration file for request block header rules
@@ -40,16 +38,6 @@ func (cf *configFile) load() ([]byte, error) {
 	} else {
 		return []byte{}, errors.Wrap(err, "error while checking existense of file")
 	}
-}
-
-//remove removes block rules config file
-func (cf *configFile) remove() error {
-	return os.Remove(cf.blockRuleConfigName)
-}
-
-//isValid checks if file can be used to store rules
-func (cf *configFile) isValid() bool {
-	return cf.blockRuleConfigName != ""
 }
 
 //write saves rules to file
