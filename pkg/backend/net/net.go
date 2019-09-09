@@ -237,7 +237,10 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 
 	go func() {
 		resp, err := b.client.Do(req)
-		ch <- requestRes{resp: resp, err: err}
+		select {
+		case ch <- requestRes{resp: resp, err: err}:
+		case <-ctx.Done():
+		}
 	}()
 
 	select {
