@@ -107,6 +107,23 @@ func TestShouldBlock(t *testing.T) {
 	}
 }
 
+func TestShouldBlockSecondRule(t *testing.T) {
+	req, err := http.NewRequest("GET", "nothing", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req.Header.Add("zoo", "bar")
+	r := Rule{"foo": "bar", "zoo": "bar"}
+
+	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
+	requestBlocker.rules.Store(RuleConfig{Rules: []Rule{r}})
+
+	if !requestBlocker.ShouldBlockRequest(req) {
+		t.Error("Req should be blocked")
+	}
+}
+
 func TestAddNewRulesForEmptyFileNameDoesNothing(t *testing.T) {
 
 	fileName := ""

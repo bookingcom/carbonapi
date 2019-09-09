@@ -128,11 +128,11 @@ func (rl *RequestBlocker) ShouldBlockRequest(r *http.Request) bool {
 
 func isBlockingHeaderRule(req *http.Request, r Rule) bool {
 	for k, v := range r {
-		if req.Header.Get(k) != v {
-			return false
+		if req.Header.Get(k) == v {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func (rl *RequestBlocker) appendRuleToConfig(rc RuleConfig, r Rule) error {
