@@ -173,7 +173,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		logAsError = true
 		return
 	}
-	if form.from32 == form.until32 {
+	if form.from32 >= form.until32 {
 		writeError(ctx, r, w, http.StatusBadRequest, "Invalid empty time range", form)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
