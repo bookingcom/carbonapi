@@ -107,7 +107,7 @@ func TestShouldBlock(t *testing.T) {
 	}
 }
 
-func TestShouldBlockSecondRule(t *testing.T) {
+func TestShouldBlockSecondSubRule(t *testing.T) {
 	req, err := http.NewRequest("GET", "nothing", nil)
 	if err != nil {
 		t.Error(err)
@@ -118,6 +118,24 @@ func TestShouldBlockSecondRule(t *testing.T) {
 
 	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
 	requestBlocker.rules.Store(RuleConfig{Rules: []Rule{r}})
+
+	if !requestBlocker.ShouldBlockRequest(req) {
+		t.Error("Req should be blocked")
+	}
+}
+
+func TestShouldBlockSecondRule(t *testing.T) {
+	req, err := http.NewRequest("GET", "nothing", nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	req.Header.Add("x-test", "true")
+	r1 := Rule{"foo": "bar", "x-redirect": "no"}
+	r2 := Rule{"x-timeout": "100", "x-test": "true"}
+
+	requestBlocker := NewRequestBlocker("", 0, getTestLogger())
+	requestBlocker.rules.Store(RuleConfig{Rules: []Rule{r1, r2}})
 
 	if !requestBlocker.ShouldBlockRequest(req) {
 		t.Error("Req should be blocked")
