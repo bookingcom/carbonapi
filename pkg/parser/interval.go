@@ -64,6 +64,7 @@ func IntervalString(s string, defaultSign int) (int32, error) {
 	return totalInterval, nil
 }
 
+// TruthyBool evaluates a string into a boolean
 func TruthyBool(s string) bool {
 	switch s {
 	case "", "0", "false", "False", "no", "No":

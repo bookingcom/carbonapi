@@ -1,11 +1,12 @@
 package metadata
 
 import (
+	"sync"
+
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
-	"sync"
 )
 
 // RegisterRewriteFunction registers function for a rewrite phase in metadata and fills out all Description structs
