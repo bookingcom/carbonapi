@@ -2,11 +2,12 @@ package averageSeriesWithWildcards
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"strings"
 )
 
 type averageSeriesWithWildcards struct {

@@ -2,6 +2,7 @@ package lowest
 
 import (
 	"container/heap"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"

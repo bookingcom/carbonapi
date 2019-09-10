@@ -2,12 +2,13 @@ package moving
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"math"
-	"strconv"
 )
 
 type moving struct {
