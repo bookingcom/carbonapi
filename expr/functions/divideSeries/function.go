@@ -3,6 +3,7 @@ package divideSeries
 import (
 	"errors"
 	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"

@@ -1,3 +1,3 @@
 package rewrite
 
-//go:generate go run ../../internal/generateRewriteFuncs/gen.go
+//go:generate go run ../../doc/internal/generateRewriteFuncs/gen.go
