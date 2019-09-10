@@ -111,7 +111,7 @@
   name = "github.com/facebookgo/grace"
   packages = [
     "gracehttp",
-    "gracenet"
+    "gracenet",
   ]
   pruneopts = "UT"
   revision = "75cf19382434e82df4dd84953f566b8ad23d6e9e"
@@ -156,7 +156,7 @@
     "gogoproto",
     "proto",
     "protoc-gen-gogo/descriptor",
-    "sortkeys"
+    "sortkeys",
   ]
   pruneopts = "UT"
   revision = "61dbc136cf5d2f08d68a011382652244990a53a9"
@@ -207,7 +207,7 @@
   name = "github.com/mjibson/go-dsp"
   packages = [
     "dsputils",
-    "fft"
+    "fft",
   ]
   pruneopts = "UT"
   revision = "11479a337f1259210b7c8f93f7bf2b0cc87b066e"
@@ -233,7 +233,7 @@
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
-    "prometheus/promhttp"
+    "prometheus/promhttp",
   ]
   pruneopts = "UT"
   revision = "c5b7fccd204277076155f10851dad72b76a49317"
@@ -254,7 +254,7 @@
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
-    "model"
+    "model",
   ]
   pruneopts = "UT"
   revision = "c7de2306084e37d54b8be01f3541a8464345e9a5"
@@ -267,7 +267,7 @@
     ".",
     "internal/util",
     "nfs",
-    "xfs"
+    "xfs",
   ]
   pruneopts = "UT"
   revision = "418d78d0b9a7b7de3a6bbc8a23def624cc977bb2"
@@ -313,7 +313,7 @@
     "internal/bufferpool",
     "internal/color",
     "internal/exit",
-    "zapcore"
+    "zapcore",
   ]
   pruneopts = "UT"
   revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
@@ -335,7 +335,7 @@
     "lapack",
     "lapack/gonum",
     "lapack/lapack64",
-    "mat"
+    "mat",
   ]
   pruneopts = "UT"
   revision = "a290f01ec470228a325b6e013e3caa635d5fc2f7"
@@ -376,7 +376,7 @@
     "github.com/wangjohn/quickselect",
     "go.uber.org/zap",
     "gonum.org/v1/gonum/mat",
-    "gopkg.in/yaml.v2"
+    "gopkg.in/yaml.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
