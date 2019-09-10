@@ -32,7 +32,7 @@ type AccessLogDetails struct {
 	CarbonzipperResponseSizeBytes int64             `json:"carbonzipper_response_size_bytes,omitempty"`
 	CarbonapiResponseSizeBytes    int64             `json:"carbonapi_response_size_bytes,omitempty"`
 	Reason                        string            `json:"reason,omitempty"`
-	SendGlobs                     bool              `json:"send_globs,omitempty"`
+	SendGlobs                     bool              `json:"send_globs"`
 	From                          int32             `json:"from,omitempty"`
 	Until                         int32             `json:"until,omitempty"`
 	Tz                            string            `json:"tz,omitempty"`
@@ -42,6 +42,7 @@ type AccessLogDetails struct {
 	Uri                           string            `json:"uri,omitempty"`
 	FromCache                     bool              `json:"from_cache"`
 	ZipperRequests                int64             `json:"zipper_requests,omitempty"`
+	TotalMetricCount              int64             `json:"total_metric_count"`
 }
 
 func splitAddr(addr string) (string, string) {
@@ -68,6 +69,7 @@ func NewAccessLogDetails(r *http.Request, handler string, config *cfg.API) Acces
 		PeerIp:        srcIP,
 		PeerPort:      srcPort,
 		Host:          r.Host,
+		SendGlobs:     true,
 		Path:          r.URL.Path,
 		Referer:       r.Referer(),
 		// TODO (grzkv) Do we need this?
