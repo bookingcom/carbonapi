@@ -520,6 +520,14 @@ func parseArgList(e string) (string, []*expr, map[string]*expr, string, error) {
 			e = e[1:]
 		}
 
+		// We've consumed the entire buffer but the argument list isn't complete.
+		if len(e) == 0 {
+			// TODO(asurikov): This probably warrants a separate error, but before we
+			// introduce new errors we should move existing ones to their respective
+			// packages (expr and parser).
+			return "", nil, nil, "", ErrUnexpectedCharacter
+		}
+
 		if e[0] == ')' {
 			return argStringBuffer.String(), posArgs, namedArgs, e[1:], nil
 		}
