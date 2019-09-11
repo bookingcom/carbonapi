@@ -2,12 +2,13 @@ package fft
 
 import (
 	"fmt"
+	"math/cmplx"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	realFFT "github.com/mjibson/go-dsp/fft"
-	"math/cmplx"
 )
 
 type fft struct {

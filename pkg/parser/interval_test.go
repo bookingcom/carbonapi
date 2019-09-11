@@ -18,12 +18,14 @@ func TestInterval(t *testing.T) {
 		{"7d13h45min21s", 7*24*60*60 + 13*60*60 + 45*60 + 21, 1},
 		{"01hours", 60 * 60 * 1, 1},
 		{"2d2d", 4 * 60 * 60 * 24, 1},
+		{"3weeks", 3 * 7 * 24 * 60 * 60, 1},
 
 		{"1s", -1, -1},
 		{"10m10s", 610, 1},
 		{"+2d", 2 * 60 * 60 * 24, -1},
 		{"-10hours", -60 * 60 * 10, -1},
 		{"-360h2min", -360*60*60 - 2*60, -1},
+		{"+2mon1w", 2*30*24*60*60 + 7*24*60*60, -1},
 	}
 
 	for _, tt := range tests {
@@ -48,6 +50,24 @@ func TestInterval(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), tt.err) {
 			t.Errorf("Error of intervalString(%q)=%v, expected to contain %v\n", tt.t, err.Error(), tt.err)
+		}
+	}
+}
+
+func TestTruthyBool(t *testing.T) {
+
+	trueWords := []string{"1", "true", "True", "yes", "Yes"}
+	falseWords := []string{"", "0", "false", "False", "no", "No"}
+
+	for _, word := range trueWords {
+		if TruthyBool(word) != true {
+			t.Errorf("String '%s' should evaluate to '%v', got '%v'", word, true, false)
+		}
+	}
+
+	for _, word := range falseWords {
+		if TruthyBool(word) != false {
+			t.Errorf("String '%s' should evaluate to '%v', got '%v'", word, false, true)
 		}
 	}
 }
