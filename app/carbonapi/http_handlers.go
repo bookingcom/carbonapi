@@ -190,7 +190,14 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if form.from32 >= form.until32 {
-		writeError(ctx, r, w, http.StatusBadRequest, "Invalid empty time range", form)
+		var clientErrMsgFmt string
+		if form.from32 == form.until32 {
+			clientErrMsgFmt = "Parameter from=%s has the same value as parameter until=%s. Result time range is empty"
+		} else {
+			clientErrMsgFmt = "Parameter from=%s greater than parameter until=%s. Result time range is empty"
+		}
+		clientErrMsg := fmt.Sprintf(clientErrMsgFmt, form.from, form.until)
+		writeError(uuid, r, w, http.StatusBadRequest, clientErrMsg, form.format, &toLog, span)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
 		logAsError = true
@@ -610,8 +617,9 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 
 	// normalize from and until values
 	res.qtz = r.FormValue("tz")
-	res.from32 = date.DateParamToEpoch(res.from, res.qtz, timeNow().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
-	res.until32 = date.DateParamToEpoch(res.until, res.qtz, timeNow().Unix(), app.defaultTimeZone)
+	var errFrom, errUntil error
+	res.from32, errFrom = date.DateParamToEpoch(res.from, res.qtz, timeNow().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
+	res.until32, errUntil = date.DateParamToEpoch(res.until, res.qtz, timeNow().Unix(), app.defaultTimeZone)
 
 	accessLogDetails.UseCache = res.useCache
 	accessLogDetails.FromRaw = res.from
@@ -634,6 +642,14 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 		kv.Int32("graphite.cacheTimeout", res.cacheTimeout),
 		kv.String("graphite.format", res.format),
 	)
+
+	if errFrom != nil || errUntil != nil {
+		errFmt := "%s, invalid parameter %s=%s"
+		if errFrom != nil {
+			return res, errors.New(fmt.Sprintf(errFmt, errFrom.Error(), "from", res.from))
+		}
+		return res, errors.New(fmt.Sprintf(errFmt, errUntil.Error(), "until", res.until))
+	}
 
 	return res, nil
 }
