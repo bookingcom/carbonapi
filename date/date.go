@@ -9,7 +9,10 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
 
-var errBadTime = errors.New("bad time")
+var errBadTime = errors.New("Time has incorrect format")
+var errBadRelativeTime = errors.New("Invalid relative timestamp")
+var errTsPartsCount = errors.New("Timestamp has too many parts")
+var errDateFormat = errors.New("Invalid date format")
 var timeNow = time.Now
 
 // parseTime parses a time and returns hours and minutes
@@ -57,7 +60,7 @@ func DateParamToEpoch(s string, qtz string, d int64, defaultTimeZone *time.Locat
 	if s[0] == '-' {
 		offset, err := parser.IntervalString(s, -1)
 		if err != nil {
-			return 0, errBadTime
+			return 0, errBadRelativeTime
 		}
 
 		return int32(timeNow().Add(time.Duration(offset) * time.Second).Unix()), nil
@@ -90,7 +93,7 @@ func DateParamToEpoch(s string, qtz string, d int64, defaultTimeZone *time.Locat
 	case len(split) == 2:
 		ts, ds = split[0], split[1]
 	case len(split) > 2:
-		return 0, errBadTime
+		return 0, errTsPartsCount
 	}
 
 	var tz = defaultTimeZone
@@ -118,7 +121,7 @@ dateStringSwitch:
 			}
 		}
 
-		return 0, errBadTime
+		return 0, errDateFormat
 	}
 
 	var hour, minute int
