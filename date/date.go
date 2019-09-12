@@ -9,10 +9,10 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
 
-var errBadTime = errors.New("Time has incorrect format")
-var errBadRelativeTime = errors.New("Invalid relative timestamp")
-var errTsPartsCount = errors.New("Timestamp has too many parts")
-var errDateFormat = errors.New("Invalid date format")
+var errBadTime = errors.New("time has incorrect format")
+var errBadRelativeTime = errors.New("invalid relative timestamp")
+var errTsPartsCount = errors.New("timestamp has too many parts")
+var errDateFormat = errors.New("invalid date format")
 var timeNow = time.Now
 
 // parseTime parses a time and returns hours and minutes
