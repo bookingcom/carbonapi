@@ -192,9 +192,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	if form.from32 >= form.until32 {
 		var clientErrMsgFmt string
 		if form.from32 == form.until32 {
-			clientErrMsgFmt = "Parameter from=%s has the same value as parameter until=%s. Result time range is empty"
+			clientErrMsgFmt = "parameter from=%s has the same value as parameter until=%s. Result time range is empty"
 		} else {
-			clientErrMsgFmt = "Parameter from=%s greater than parameter until=%s. Result time range is empty"
+			clientErrMsgFmt = "parameter from=%s greater than parameter until=%s. Result time range is empty"
 		}
 		clientErrMsg := fmt.Sprintf(clientErrMsgFmt, form.from, form.until)
 		writeError(uuid, r, w, http.StatusBadRequest, clientErrMsg, form.format, &toLog, span)
