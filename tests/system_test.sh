@@ -25,8 +25,8 @@ docker-compose build || { printf ">>> ERROR: Docker build failed"; exit 2; }
 end_fold docker-build
 
 begin_fold docker-up "Starting containers"
-docker-compose up -d || { printf ">>> ERROR: Launching containers failed"; exit 2; }
-echo # `echo` to work around formatting issues after `docker-compose`
+# `--no-ansi` fixes the console formatting issue of `docker-compose`
+docker-compose --no-ansi up -d || { printf ">>> ERROR: Launching containers failed"; exit 2; }
 end_fold docker-up
 
 # This is guestimate for the time when the system goes up and operational.
