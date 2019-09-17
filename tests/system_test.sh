@@ -18,13 +18,12 @@ echo "test.test.test 123456 $(date +%s)" | nc -q 1 localhost 2003 || { printf ">
 # wait to make sure data got there
 sleep 2
 
-if curl "http://localhost:8081/render?target=test.test.test&format=json" | grep -q "123456"
-then
-    printf ">>> SUCCESS!\\n"
-    docker-compose down
-    exit 0
+if curl "http://localhost:8081/render?target=test.test.test&format=json" | grep -q "123456"; then
+  printf ">>> SUCCESS!\\n"
+  docker-compose down
+  exit 0
 else
-    printf ">>> FAIL!\\n"
-    docker-compose down
-    exit 1
+  printf ">>> FAIL!\\n"
+  docker-compose down
+  exit 1
 fi

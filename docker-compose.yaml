@@ -13,6 +13,7 @@ services:
       dockerfile: docker/carbonapi/Dockerfile
       context: .
     ports:
+      - "7081:7081"
       - "8081:8081"
     links:
       - zipper

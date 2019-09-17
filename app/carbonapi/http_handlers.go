@@ -131,6 +131,7 @@ type renderResponse struct {
 
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
+	size := 0
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
@@ -145,11 +146,22 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
+		//TODO: cleanup RenderDurationPerPointExp
+		if size > 0 {
+			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
+		}
+		//2xx response code is treated as success
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
+			}
+		}
 		// TODO (grzkv) logging duplicated in many places
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	size := 0
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
@@ -192,6 +204,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	var results []*types.MetricData
 	var targetErrs []error
+
 	// TODO (grzkv) Modification of *form* inside the loop is never applied
 	for _, target := range form.targets {
 		exp, e, err := parser.ParseExpr(target)
@@ -346,11 +359,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			}
 
 			for _, r := range resp.data {
-				size += 8 * len(r.Values) // close enough
+				size += len(r.Values) // close enough
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
-		toLog.CarbonzipperResponseSizeBytes += int64(size)
+		// TODO (grzkv): This is most likely wrong
+		toLog.CarbonzipperResponseSizeBytes += int64(size * 8)
 		close(rch)
 
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
@@ -707,7 +721,6 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
 	toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
-		toLog.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 	if !strings.ContainsAny(m.Metric, "*{") {
@@ -715,15 +728,16 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	}
 
 	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
 	}
 
 	if app.sendGlobs(glob) {
-		toLog.SendGlobs = true
 		return []string{m.Metric}, nil
 	}
 
+	toLog.SendGlobs = false
 	renderRequests := make([]string, 0, len(glob.Matches))
 	for _, m := range glob.Matches {
 		if m.IsLeaf {

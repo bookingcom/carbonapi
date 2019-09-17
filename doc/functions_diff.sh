@@ -2,10 +2,9 @@
 #
 # Call /function endpoint of both graphite-web and carbonapi -> compare the results -> get diff
 
-if [[ $# -ne 2 ]]
-then
-    echo "Usage: ./functions_diff.sh graphite-web-URL:PORT carbonapi-URL:PORT"
-    exit 1
+if [[ $# -ne 2 ]]; then
+  echo "Usage: ./functions_diff.sh graphite-web-URL:PORT carbonapi-URL:PORT"
+  exit 1
 fi
 
 gweb="$(curl -s --fail "$1/functions")" || { echo "ERROR: getting graphite-web function list failed"; exit 1; }
