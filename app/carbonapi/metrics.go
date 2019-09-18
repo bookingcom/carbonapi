@@ -92,8 +92,8 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 		),
 		RenderDurationLinSimple: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "render_request_duration_seconds_lin",
-				Help: "The duration of render requests (exponential)",
+				Name: "render_request_duration_seconds_lin_simple",
+				Help: "The duration of render requests (linear)",
 				Buckets: prometheus.LinearBuckets(
 					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
 					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
