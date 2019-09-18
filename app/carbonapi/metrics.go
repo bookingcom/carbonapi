@@ -17,6 +17,7 @@ type PrometheusMetrics struct {
 	DurationExp               prometheus.Histogram
 	DurationLin               prometheus.Histogram
 	RenderDurationExp         prometheus.Histogram
+	RenderDurationLinSimple   prometheus.Histogram
 	RenderDurationExpSimple   prometheus.Histogram
 	RenderDurationExpComplex  prometheus.Histogram
 	RenderDurationPerPointExp prometheus.Histogram
@@ -84,6 +85,16 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Name: "render_request_duration_seconds_exp",
 				Help: "The duration of render requests (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
+					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
+					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
+			},
+		),
+		RenderDurationLinSimple: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "render_request_duration_seconds_lin",
+				Help: "The duration of render requests (exponential)",
+				Buckets: prometheus.LinearBuckets(
 					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
 					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
 					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
