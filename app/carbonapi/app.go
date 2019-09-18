@@ -152,6 +152,7 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
 		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
 		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpSimple)
 		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpComplex)
+		prometheus.MustRegister(app.prometheusMetrics.RenderDurationLinSimple)
 		prometheus.MustRegister(app.prometheusMetrics.RenderDurationPerPointExp)
 		prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
 		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
