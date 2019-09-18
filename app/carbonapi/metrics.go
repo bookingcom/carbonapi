@@ -95,9 +95,9 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Name: "render_request_duration_seconds_lin_simple",
 				Help: "The duration of render requests (linear)",
 				Buckets: prometheus.LinearBuckets(
-					config.Zipper.Common.Monitoring.RenderDurationExp.Start,
-					config.Zipper.Common.Monitoring.RenderDurationExp.BucketSize,
-					config.Zipper.Common.Monitoring.RenderDurationExp.BucketsNum),
+					config.Zipper.Common.Monitoring.RenderDurationLinSimple.Start,
+					config.Zipper.Common.Monitoring.RenderDurationLinSimple.BucketSize,
+					config.Zipper.Common.Monitoring.RenderDurationLinSimple.BucketsNum),
 			},
 		),
 		RenderDurationExpSimple: prometheus.NewHistogram(
