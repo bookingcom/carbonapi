@@ -138,6 +138,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
 				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+				app.prometheusMetrics.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
 				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
 			}

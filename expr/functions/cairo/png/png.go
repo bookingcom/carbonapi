@@ -3,9 +3,10 @@
 package png
 
 import (
+	"net/http"
+
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"net/http"
 )
 
 const HaveGraphSupport = false
