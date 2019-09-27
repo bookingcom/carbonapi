@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bookingcom/carbonapi/blocker"
 	"github.com/bookingcom/carbonapi/cache"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
@@ -131,6 +132,8 @@ func setUpTestConfig() *App {
 	})
 
 	app.config.ConcurrencyLimitPerServer = 1024
+
+	app.requestBlocker = blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger)
 
 	setUpConfig(app, logger)
 	initHandlers(app)

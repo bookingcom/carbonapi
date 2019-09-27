@@ -44,8 +44,8 @@ func (f *linearRegression) Do(e parser.Expr, from, until int32, values map[parse
 		r := *a
 		if len(e.Args()) > 2 {
 			r.Name = fmt.Sprintf("linearRegression(%s,'%s','%s')", a.Name, e.Args()[1].StringValue(), e.Args()[2].StringValue())
-		} else if len(e.Args()) > 1 {
-			r.Name = fmt.Sprintf("linearRegression(%s,'%s')", a.Name, e.Args()[2].StringValue())
+		} else if len(e.Args()) == 2 {
+			r.Name = fmt.Sprintf("linearRegression(%s,'%s')", a.Name, e.Args()[1].StringValue())
 		} else {
 			r.Name = fmt.Sprintf("linearRegression(%s)", a.Name)
 		}

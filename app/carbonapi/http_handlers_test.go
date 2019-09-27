@@ -1,52 +1,11 @@
 package carbonapi
 
 import (
-	"net/http"
 	"testing"
 
 	typ "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/pkg/errors"
 )
-
-func TestShouldNotBlock(t *testing.T) {
-	req, err := http.NewRequest("GET", "nothing", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	req.Header.Add("foo", "bar")
-	rule := Rule{"foo": "block"}
-
-	if shouldBlockRequest(req, []Rule{rule}) {
-		t.Error("Should not have blocked this request")
-	}
-}
-
-func TestShouldNotBlockWithoutRule(t *testing.T) {
-	req, err := http.NewRequest("GET", "nothing", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	req.Header.Add("foo", "bar")
-	// no rules are set
-	if shouldBlockRequest(req, []Rule{}) {
-		t.Error("Req should not be blocked")
-	}
-}
-
-func TestShouldBlock(t *testing.T) {
-	req, err := http.NewRequest("GET", "nothing", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	req.Header.Add("foo", "bar")
-	rule := Rule{"foo": "bar"}
-	if !shouldBlockRequest(req, []Rule{rule}) {
-		t.Error("Req should be blocked")
-	}
-}
 
 func TestGetCompleterQuery(t *testing.T) {
 	metricTestCases := []string{"foo.bar", "foo/bar", "foo.b", "foo.", "/", "", "."}
