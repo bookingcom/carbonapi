@@ -53,7 +53,10 @@ monitoring:
         start: 0.06
         bucketsNum: 60
         bucketSize: 3
-
+    findDurationLinHistogram:
+        start: 0.1
+        bucketsNum: 20
+        bucketSize: 1
 `
 
 	r := strings.NewReader(input)
@@ -119,6 +122,11 @@ monitoring:
 				Start:      0.06,
 				BucketsNum: 60,
 				BucketSize: 3,
+			},
+			FindDurationLin: HistogramConfig{
+				Start:      0.1,
+				BucketsNum: 20,
+				BucketSize: 1,
 			},
 		},
 	}
