@@ -183,6 +183,7 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
 		app.prometheusMetrics.FindDurationExp.Observe(t.Seconds())
+		app.prometheusMetrics.FindDurationLin.Observe(t.Seconds())
 	}
 }
 
@@ -280,6 +281,7 @@ func metricsServer(app *App, logger *zap.Logger) {
 	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
 	prometheus.MustRegister(app.prometheusMetrics.RenderOutDurationExp)
 	prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationLin)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
 
