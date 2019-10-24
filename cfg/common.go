@@ -90,7 +90,7 @@ func DefaultCommonConfig() Common {
 			RenderDurationLinSimple: HistogramConfig{
 				Start:      0.1,
 				BucketSize: 0.1,
-				BucketsNum: 20,
+				BucketsNum: 30,
 			},
 			FindDurationExp: HistogramConfig{
 				Start:      0.05,
