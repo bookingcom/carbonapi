@@ -125,8 +125,9 @@ const (
 )
 
 type renderResponse struct {
-	data  []*types.MetricData
-	error error
+	data        []*types.MetricData
+	limiterTime float64
+	error       error
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
@@ -342,8 +343,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 
 		errs := make([]error, 0)
+		timeInLimiter := 0.0
 		for i := 0; i < len(renderRequests); i++ {
 			resp := <-rch
+			if resp.limiterTime > timeInLimiter {
+				timeInLimiter = resp.limiterTime
+			}
 			if resp.error != nil {
 				errs = append(errs, resp.error)
 				continue
@@ -356,6 +361,11 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 		// TODO (grzkv): This is most likely wrong
 		toLog.CarbonzipperResponseSizeBytes += int64(size * 8)
+		toLog.TimeInLimiter = timeInLimiter
+
+		if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+			app.prometheusMetrics.TimeInQueueSimpleExp.Observe(timeInLimiter)
+		}
 		close(rch)
 
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
@@ -469,8 +479,6 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-
 	metricData := make([]*types.MetricData, 0)
 	for i := range metrics {
 		metricData = append(metricData, &types.MetricData{
@@ -479,8 +487,9 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	}
 
 	ch <- renderResponse{
-		data:  metricData,
-		error: err,
+		data:        metricData,
+		limiterTime: request.Trace.GetLimiterTime(),
+		error:       err,
 	}
 }
 

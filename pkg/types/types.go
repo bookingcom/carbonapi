@@ -88,7 +88,7 @@ func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
 type Trace struct {
 	callCount     *int64
 	inMarshalNS   *int64
-	inLimiterNS   *int64
+	inLimiterNS   *float64
 	inHTTPCallNS  *int64
 	inReadBodyNS  *int64
 	inUnmarshalNS *int64
@@ -111,11 +111,15 @@ func (t Trace) Report() []int64 {
 	return []int64{
 		c,
 		*t.inMarshalNS / n,
-		*t.inLimiterNS / n,
+		*t.inLimiterNS,
 		*t.inHTTPCallNS / n,
 		*t.inReadBodyNS / n,
 		*t.inUnmarshalNS / n,
 	}
+}
+
+func (t Trace) GetLimiterTime() float64 {
+	return *t.inLimiterNS
 }
 
 func (t Trace) IncCall() {
@@ -129,7 +133,9 @@ func (t Trace) AddMarshal(start time.Time) {
 
 func (t Trace) AddLimiter(start time.Time) {
 	d := time.Since(start)
-	atomic.AddInt64(t.inLimiterNS, int64(d))
+	if *t.inLimiterNS < int64(d) {
+		atomic.StoreInt64(t.inLimiterNS, int64(d))
+	}
 }
 
 func (t Trace) AddHTTPCall(start time.Time) {

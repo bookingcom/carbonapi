@@ -28,6 +28,7 @@ type AccessLogDetails struct {
 	Metrics                       []string          `json:"metrics,omitempty"`
 	HaveNonFatalErrors            bool              `json:"have_non_fatal_errors,omitempty"`
 	Runtime                       float64           `json:"runtime,omitempty"`
+	TimeInLimiter                 float64           `json:"trace,omitempty"`
 	HttpCode                      int32             `json:"http_code"`
 	CarbonzipperResponseSizeBytes int64             `json:"carbonzipper_response_size_bytes,omitempty"`
 	CarbonapiResponseSizeBytes    int64             `json:"carbonapi_response_size_bytes,omitempty"`
