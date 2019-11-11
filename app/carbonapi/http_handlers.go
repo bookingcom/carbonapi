@@ -709,6 +709,13 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+				app.prometheusMetrics.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.prometheusMetrics.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
+			}
+		}
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
@@ -731,6 +738,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	request := dataTypes.NewFindRequest(query)
 	request.IncCall()
 	metrics, err := app.backend.Find(ctx, request)
+	if err != nil {
+		toLog.TotalMetricCount = int64(len(metrics.Matches))
+	}
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(

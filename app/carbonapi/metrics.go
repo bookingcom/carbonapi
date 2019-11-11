@@ -23,6 +23,8 @@ type PrometheusMetrics struct {
 	RenderDurationPerPointExp prometheus.Histogram
 	FindDurationExp           prometheus.Histogram
 	FindDurationLin           prometheus.Histogram
+	FindDurationLinSimple     prometheus.Histogram
+	FindDurationLinComplex    prometheus.Histogram
 	TimeInQueueExp            prometheus.Histogram
 	TimeInQueueLin            prometheus.Histogram
 }
@@ -151,6 +153,27 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.FindDurationLin.BucketsNum),
 			},
 		),
+		FindDurationLinSimple: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "find_request_duration_seconds_lin_simple",
+				Help: "The duration of simple find requests (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.FindDurationLinSimple.Start,
+					config.Zipper.Common.Monitoring.FindDurationLinSimple.BucketSize,
+					config.Zipper.Common.Monitoring.FindDurationLinSimple.BucketsNum),
+			},
+		),
+		FindDurationLinComplex: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "find_request_duration_seconds_lin_complex",
+				Help: "The duration of complex find requests (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.FindDurationLinComplex.Start,
+					config.Zipper.Common.Monitoring.FindDurationLinComplex.BucketSize,
+					config.Zipper.Common.Monitoring.FindDurationLinComplex.BucketsNum),
+			},
+		),
+
 		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Name: "time_in_queue_ms_exp",
