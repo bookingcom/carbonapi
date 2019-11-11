@@ -102,6 +102,16 @@ func DefaultCommonConfig() Common {
 				BucketSize: 0.5,
 				BucketsNum: 20,
 			},
+			FindDurationLinSimple: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
+			FindDurationLinComplex: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
 		},
 	}
 }
@@ -150,6 +160,8 @@ type MonitoringConfig struct {
 	RenderDurationLinSimple HistogramConfig `yaml:"renderDurationLinHistogram"`
 	FindDurationExp         HistogramConfig `yaml:"findDurationExpHistogram"`
 	FindDurationLin         HistogramConfig `yaml:"findDurationLinHistogram"`
+	FindDurationLinSimple   HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
+	FindDurationLinComplex  HistogramConfig `yaml:"findDurationComplexLinHistogram"`
 	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
 	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
