@@ -738,7 +738,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	request := dataTypes.NewFindRequest(query)
 	request.IncCall()
 	metrics, err := app.backend.Find(ctx, request)
-	if err != nil {
+	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
 	}
 
