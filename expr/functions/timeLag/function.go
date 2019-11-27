@@ -21,7 +21,7 @@ func GetOrder() interfaces.Order {
 func New(configFile string) []interfaces.FunctionMetadata {
 	res := make([]interfaces.FunctionMetadata, 0)
 	f := &timeLag{}
-	functions := []string{"timeLag"}
+	functions := []string{"timeLagSeries"}
 	for _, n := range functions {
 		res = append(res, interfaces.FunctionMetadata{Name: n, F: f})
 	}
@@ -72,9 +72,9 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 
         r := *consumerMetric
 		if useMetricNames {
-			r.Name = fmt.Sprintf("timeLag(%s,%s)", consumerMetric.Name, producerMetric.Name)
+			r.Name = fmt.Sprintf("timeLagSeries(%s,%s)", consumerMetric.Name, producerMetric.Name)
 		} else {
-			r.Name = fmt.Sprintf("timeLag(%s)", e.RawArgs())
+			r.Name = fmt.Sprintf("timeLagSeries(%s)", e.RawArgs())
 		}
 		r.Values = make([]float64, len(consumerMetric.Values))
 		r.IsAbsent = make([]bool, len(consumerMetric.Values))
@@ -123,12 +123,12 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 
 func (f *timeLag) Description() map[string]types.FunctionDescription {
 	return map[string]types.FunctionDescription{
-		"timeLag": {
-			Description: "Computes time lag of two time series representing the time of processing the same data.\nA constant may *not* be passed.\n\nExample:\n\n.. code-block:: none\n\n  &target=timeLag(service_a.consume.max_offset,service_b.produce.max_offset)",
-			Function:    "timeLag(consumeMaxOffsetSeries, produceMaxOffsetSeries)",
+		"timeLagSeries": {
+			Description: "Computes time lag of two time series representing the time of processing the same data.\nA constant may *not* be passed.\n\nExample:\n\n.. code-block:: none\n\n  &target=timeLagSeries(service_a.consume.max_offset,service_b.produce.max_offset)",
+			Function:    "timeLagSeries(consumeMaxOffsetSeries, produceMaxOffsetSeries)",
 			Group:       "Combine",
 			Module:      "graphite.render.functions",
-			Name:        "timeLag",
+			Name:        "timeLagSeries",
 			Params: []types.FunctionParam{
 				{
 					Name:     "consumeMaxOffsetSeries",
