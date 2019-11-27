@@ -82,6 +82,24 @@ func TestTimeLagSeries(t *testing.T) {
 			[]*types.MetricData{types.MakeMetricData("timeLagSeries(metric[12])",
 				[]float64{math.NaN(), math.NaN(), math.NaN(), 1, 2, 0}, 1, now32)},
 		},
+		{
+			"timeLagSeries(metric1,metric2)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 1, 1, 1, 1, 1}, 1, now32)},
+				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, 2, 2, 2, 2, 2}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("timeLagSeries(metric1,metric2)",
+				[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}, 1, now32)},
+		},
+		{
+			"timeLagSeries(metric1,metric2)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 2, 3, 4, 2, 3}, 1, now32)},
+				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, 3, 4, 5, 6, 7}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("timeLagSeries(metric1,metric2)",
+				[]float64{math.NaN(), 1, 1, 1, 4, 4}, 1, now32)},
+		},
 	}
 
 	for _, tt := range tests {

@@ -41,12 +41,11 @@ func MakeTimeLag(consumerMetric, producerMetric *types.MetricData, name string) 
 	r.IsAbsent = make([]bool, len(consumerMetric.Values))
 
 	var pIndex int32 = 0
-	for producerMetric.IsAbsent[pIndex] && pIndex+1 < pLen {
-		pIndex++
-	}
-
 	for i, v := range consumerMetric.Values {
-
+		// reset producer offset and scan it again if consumer offset decreased
+		if i > 0 && consumerMetric.Values[i-1] > v {
+			pIndex = 0
+		}
 		if consumerMetric.IsAbsent[i] || len(producerMetric.Values) == 0 {
 			r.IsAbsent[i] = true
 			continue
