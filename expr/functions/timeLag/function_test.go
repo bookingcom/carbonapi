@@ -58,7 +58,7 @@ func TestTimeLagSeriesMultiReturn(t *testing.T) {
 
 }
 
-func TesttimeLagSeriesSeries(t *testing.T) {
+func TestTimeLagSeries(t *testing.T) {
 	now32 := int32(time.Now().Unix())
 
 	tests := []th.EvalTestItem{
@@ -88,6 +88,51 @@ func TesttimeLagSeriesSeries(t *testing.T) {
 		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
+		})
+	}
+
+}
+
+func TestTimeLagSeriesLists(t *testing.T) {
+	now32 := int32(time.Now().Unix())
+
+	tests := []th.MultiReturnEvalTestItem{
+		{
+			"timeLagSeriesLists(consumer.*,producer.*)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"consumer.*", 0, 1}: {
+					types.MakeMetricData("consumer.1", []float64{1, 2, 3, 4, 5}, 1, now32),
+					types.MakeMetricData("consumer.2", []float64{2, 4, 6, 8, 10}, 1, now32),
+				},
+				{"consumer.1", 0, 1}: {
+					types.MakeMetricData("consumer.1", []float64{1, 2, 3, 4, 5}, 1, now32),
+				},
+				{"consumer.2", 0, 1}: {
+					types.MakeMetricData("consumer.2", []float64{2, 4, 6, 8, 10}, 1, now32),
+				},
+				{"producer.*", 0, 1}: {
+					types.MakeMetricData("producer.1", []float64{1, 2, 4, 4, 6}, 1, now32),
+					types.MakeMetricData("producer.2", []float64{2, 4, 7, 8, 11}, 1, now32),
+				},
+				{"producer.1", 0, 1}: {
+					types.MakeMetricData("producer.1", []float64{1, 2, 4, 4, 6}, 1, now32),
+				},
+				{"producer.2", 0, 1}: {
+					types.MakeMetricData("producer.2", []float64{2, 4, 7, 8, 11}, 1, now32),
+				},
+			},
+			"timeLagSeriesLists",
+			map[string][]*types.MetricData{
+				"timeLagSeries(consumer.1,producer.1)": {types.MakeMetricData("timeLagSeries(consumer.1,producer.1)", []float64{0, 0, 1, 0, 1}, 1, now32)},
+				"timeLagSeries(consumer.2,producer.2)": {types.MakeMetricData("timeLagSeries(consumer.2,producer.2)", []float64{0, 0, 1, 0, 1}, 1, now32)},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		testName := tt.Target
+		t.Run(testName, func(t *testing.T) {
+			th.TestMultiReturnEvalExpr(t, &tt)
 		})
 	}
 
