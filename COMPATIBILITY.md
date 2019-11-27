@@ -167,7 +167,8 @@ _When `format=png`_ (default if not specified)
 - powSeriesLists
 - removeZeroSeries
 - stdev
-- timeLag
+- timeLagSeries
+- timeLagSeriesLists
 - tukeyAbove
 - tukeyBelow
 
@@ -289,7 +290,8 @@ _When `format=png`_ (default if not specified)
 | summarize(seriesList, intervalString, func='sum', alignToFrom=False)      |
 | threshold(value, label=None, color=None)                                  |
 | timeFunction(name, step=60), Short Alias: time()                          |
-| timeLag(consumeMaxOffsetSeries, produceMaxOffsetSeries)                   |
+| timeLagSeries(consumeMaxOffsetSeries, produceMaxOffsetSeries)             |
+| timeLagSeriesLists(consumeMaxOffsetSeriesLists, produceMaxOffsetSeriesLists) |
 | timeShift(seriesList, timeShift, resetEnd=True)                           |
 | timeStack(seriesList, timeShiftUnit, timeShiftStart, timeShiftEnd)        |
 | [tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
