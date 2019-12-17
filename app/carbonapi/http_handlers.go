@@ -699,7 +699,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.FormValue("query")
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
-
+	toLog.Targets = []string{query}
 	// TODO (grzkv): Pass logger in from above
 	logger := zapwriter.Logger("find").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
