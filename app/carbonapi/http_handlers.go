@@ -190,8 +190,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	var results []*types.MetricData
 	var targetErrs []error
 
-	// TODO (grzkv) Modification of *form* inside the loop is never applied
-	for _, target := range form.targets {
+	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
+		target := form.targets[targetIdx]
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
@@ -364,7 +364,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 	if rewritten {
 		form.targets = append(form.targets, newTargets...)
-
 		return targetErr, size
 	}
 
