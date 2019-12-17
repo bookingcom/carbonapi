@@ -208,6 +208,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		size += metricSize
 	}
+	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
@@ -298,7 +299,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 	for _, m := range exp.Metrics() {
-		size = 0
 		mfetch := m
 		mfetch.From += form.from32
 		mfetch.Until += form.until32
@@ -339,8 +339,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
-		// TODO (grzkv): This is most likely wrong
-		toLog.CarbonzipperResponseSizeBytes += int64(size * 8)
 		close(rch)
 
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
