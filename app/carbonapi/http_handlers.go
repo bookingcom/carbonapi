@@ -298,6 +298,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 	for _, m := range exp.Metrics() {
+		size = 0
 		mfetch := m
 		mfetch.From += form.from32
 		mfetch.Until += form.until32
