@@ -888,6 +888,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(metrics.Matches) > 0 {
+		app.findCache.Set(form.cacheKey, blob, app.config.Cache.DefaultTimeoutSec)
+	}
 	if contentType == jsonFormat && form.jsonp != "" {
 		w.Header().Set("Content-Type", contentTypeJavaScript)
 		w.Write([]byte(form.jsonp))
