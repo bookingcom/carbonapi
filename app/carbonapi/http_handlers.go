@@ -625,11 +625,11 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, bool, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
-			return matches, nil
+			return matches, true, nil
 		}
 	}
 
@@ -641,7 +641,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
-		return matches, err
+		return matches, false, err
 	}
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
@@ -652,7 +652,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
-	return matches, nil
+	return matches, false, nil
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
@@ -664,7 +664,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -735,7 +735,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metrics, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
 	} else {
