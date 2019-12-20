@@ -40,6 +40,7 @@ const (
 	protobufFormat  = "protobuf"
 	protobuf3Format = "protobuf3"
 	pickleFormat    = "pickle"
+	completerFormat = "completer"
 )
 
 // for testing
@@ -696,6 +697,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
 	query := r.FormValue("query")
+	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 	toLog.Targets = []string{query}
@@ -717,7 +719,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	if format == "completer" {
+	if format == completerFormat {
 		query = getCompleterQuery(query)
 	}
 
@@ -733,43 +735,48 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request := dataTypes.NewFindRequest(query)
-	request.IncCall()
-	metrics, err := app.backend.Find(ctx, request)
-	if err == nil {
-		toLog.TotalMetricCount = int64(len(metrics.Matches))
+	var metrics dataTypes.Matches
+	var err error
+	if useCache {
+		metrics, err = app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	} else {
+		request := dataTypes.NewFindRequest(query)
+		request.IncCall()
+		metrics, err = app.backend.Find(ctx, request)
+		if err == nil {
+			toLog.TotalMetricCount = int64(len(metrics.Matches))
+		}
+		if err != nil {
+			logger.Warn("zipper returned erro in find request",
+				zap.String("uuid", util.GetUUID(ctx)),
+				zap.Error(err),
+			)
+			if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
+				// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+				// body to be happy with its life, so we can't 404 a /metrics/find
+				// request that finds nothing. We are however interested in knowing
+				// that we found nothing on the monitoring side, so we claim we
+				// returned a 404 code to Prometheus.
+				app.prometheusMetrics.FindNotFound.Inc()
+			} else {
+				msg := "error fetching the data"
+				code := http.StatusInternalServerError
+
+				toLog.HttpCode = int32(code)
+				toLog.Reason = err.Error()
+				logAsError = true
+
+				http.Error(w, msg, code)
+				apiMetrics.Errors.Add(1)
+				return
+			}
+		}
 	}
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
 			"find", nt.ContextCancelCause(ctx.Err()),
 		).Inc()
-	}
-
-	if err != nil {
-		logger.Warn("zipper returned erro in find request",
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(err),
-		)
-		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
-			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
-			// body to be happy with its life, so we can't 404 a /metrics/find
-			// request that finds nothing. We are however interested in knowing
-			// that we found nothing on the monitoring side, so we claim we
-			// returned a 404 code to Prometheus.
-			app.prometheusMetrics.FindNotFound.Inc()
-		} else {
-			msg := "error fetching the data"
-			code := http.StatusInternalServerError
-
-			toLog.HttpCode = int32(code)
-			toLog.Reason = err.Error()
-			logAsError = true
-
-			http.Error(w, msg, code)
-			apiMetrics.Errors.Add(1)
-			return
-		}
 	}
 
 	var contentType string
@@ -791,7 +798,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	case rawFormat:
 		blob, err = findList(metrics)
 		contentType = rawFormat
-	case "completer":
+	case completerFormat:
 		blob, err = findCompleter(metrics)
 		contentType = jsonFormat
 	default:
