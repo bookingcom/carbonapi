@@ -213,10 +213,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 			zap.Strings("servers", app.config.Cache.MemcachedServers),
 		)
 		app.queryCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
-		// find cache is only used if SendGlobsAsIs is false.
-		if !app.config.SendGlobsAsIs {
-			app.findCache = cache.NewExpireCache(0)
-		}
+		app.findCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
 
 		mcache := app.queryCache.(*cache.MemcachedCache)
 
@@ -227,11 +224,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
-
-		// find cache is only used if SendGlobsAsIs is false.
-		if !app.config.SendGlobsAsIs {
-			app.findCache = cache.NewExpireCache(0)
-		}
+		app.findCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
 
 		qcache := app.queryCache.(*cache.ExpireCache)
 
