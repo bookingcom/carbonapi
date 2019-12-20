@@ -647,7 +647,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
 		tc := time.Now()
-		app.findCache.Set(metric, blob, 5*60)
+		app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
@@ -735,41 +735,32 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var metrics dataTypes.Matches
-	var err error
-	if useCache {
-		metrics, err = app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	metrics, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	if err == nil {
+		toLog.TotalMetricCount = int64(len(metrics.Matches))
 	} else {
-		request := dataTypes.NewFindRequest(query)
-		request.IncCall()
-		metrics, err = app.backend.Find(ctx, request)
-		if err == nil {
-			toLog.TotalMetricCount = int64(len(metrics.Matches))
-		}
-		if err != nil {
-			logger.Warn("zipper returned erro in find request",
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(err),
-			)
-			if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
-				// graphite-web 0.9.12 needs to get a 200 OK response with an empty
-				// body to be happy with its life, so we can't 404 a /metrics/find
-				// request that finds nothing. We are however interested in knowing
-				// that we found nothing on the monitoring side, so we claim we
-				// returned a 404 code to Prometheus.
-				app.prometheusMetrics.FindNotFound.Inc()
-			} else {
-				msg := "error fetching the data"
-				code := http.StatusInternalServerError
+		logger.Warn("zipper returned erro in find request",
+			zap.String("uuid", util.GetUUID(ctx)),
+			zap.Error(err),
+		)
+		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
+			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
+			// body to be happy with its life, so we can't 404 a /metrics/find
+			// request that finds nothing. We are however interested in knowing
+			// that we found nothing on the monitoring side, so we claim we
+			// returned a 404 code to Prometheus.
+			app.prometheusMetrics.FindNotFound.Inc()
+		} else {
+			msg := "error fetching the data"
+			code := http.StatusInternalServerError
 
-				toLog.HttpCode = int32(code)
-				toLog.Reason = err.Error()
-				logAsError = true
+			toLog.HttpCode = int32(code)
+			toLog.Reason = err.Error()
+			logAsError = true
 
-				http.Error(w, msg, code)
-				apiMetrics.Errors.Add(1)
-				return
-			}
+			http.Error(w, msg, code)
+			apiMetrics.Errors.Add(1)
+			return
 		}
 	}
 
