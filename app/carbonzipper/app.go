@@ -199,10 +199,12 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 		}).DialContext,
 	}
 
-	backends := make([]backend.Backend, 0, len(config.Backends))
-	for _, host := range config.Backends {
+	backends := make([]backend.Backend, 0, len(config.GetBackends()))
+	for _, host := range config.GetBackends() {
+		cluster, _ := config.ClusterOfBackend(host)
 		b, err := bnet.New(bnet.Config{
 			Address:            host,
+			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
 			Limit:              config.ConcurrencyLimitPerServer,

@@ -62,7 +62,7 @@ type PrometheusMetrics struct {
 	DurationExp          prometheus.Histogram
 	DurationLin          prometheus.Histogram
 	RenderDurationExp    prometheus.Histogram
-	RenderOutDurationExp prometheus.Histogram
+	RenderOutDurationExp *prometheus.HistogramVec
 	FindDurationExp      prometheus.Histogram
 	FindDurationLin      prometheus.Histogram
 	TimeInQueueExp       prometheus.Histogram
@@ -128,7 +128,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.RenderDurationExp.BucketsNum),
 			},
 		),
-		RenderOutDurationExp: prometheus.NewHistogram(
+		RenderOutDurationExp: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name: "render_outbound_request_duration_seconds_exp",
 				Help: "The durations of render requests sent to storages (exponential)",
@@ -139,6 +139,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.RenderDurationExp.BucketSize,
 					config.Monitoring.RenderDurationExp.BucketsNum),
 			},
+			[]string{"cluster"},
 		),
 		FindDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
