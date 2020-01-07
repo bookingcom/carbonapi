@@ -40,6 +40,7 @@ const (
 	protobufFormat  = "protobuf"
 	protobuf3Format = "protobuf3"
 	pickleFormat    = "pickle"
+	completerFormat = "completer"
 )
 
 // for testing
@@ -624,11 +625,11 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, bool, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
-			return matches, nil
+			return matches, true, nil
 		}
 	}
 
@@ -640,18 +641,18 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
-		return matches, err
+		return matches, false, err
 	}
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
 		tc := time.Now()
-		app.findCache.Set(metric, blob, 5*60)
+		app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
-	return matches, nil
+	return matches, false, nil
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
@@ -663,7 +664,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -696,6 +697,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
 	query := r.FormValue("query")
+	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 	toLog.Targets = []string{query}
@@ -717,7 +719,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	if format == "completer" {
+	if format == completerFormat {
 		query = getCompleterQuery(query)
 	}
 
@@ -733,20 +735,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request := dataTypes.NewFindRequest(query)
-	request.IncCall()
-	metrics, err := app.backend.Find(ctx, request)
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
-	}
-
-	if ctx.Err() != nil {
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", nt.ContextCancelCause(ctx.Err()),
-		).Inc()
-	}
-
-	if err != nil {
+	} else {
 		logger.Warn("zipper returned erro in find request",
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
@@ -772,6 +765,12 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if ctx.Err() != nil {
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"find", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
+
 	var contentType string
 	var blob []byte
 	switch format {
@@ -791,7 +790,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	case rawFormat:
 		blob, err = findList(metrics)
 		contentType = rawFormat
-	case "completer":
+	case completerFormat:
 		blob, err = findCompleter(metrics)
 		contentType = jsonFormat
 	default:
