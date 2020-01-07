@@ -92,12 +92,12 @@ type Trace struct {
 	inHTTPCallNS  *int64
 	inReadBodyNS  *int64
 	inUnmarshalNS *int64
-	OutDuration   *prometheus.Histogram
+	OutDuration   *prometheus.HistogramVec
 }
 
-func (t Trace) ObserveOutDuration(ti time.Duration) {
-	if t.OutDuration != nil {
-		(*t.OutDuration).Observe(ti.Seconds())
+func (t Trace) ObserveOutDuration(ti time.Duration, cluster string) {
+	if t.OutDuration != nil { // TODO: check when it is nil
+		(*t.OutDuration).With(prometheus.Labels{"cluster": cluster}).Observe(ti.Seconds())
 	}
 }
 
