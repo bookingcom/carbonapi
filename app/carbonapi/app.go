@@ -113,6 +113,7 @@ func (app *App) Start() {
 
 	app.requestBlocker.ScheduleRuleReload()
 
+	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
 		Handler:      handler,

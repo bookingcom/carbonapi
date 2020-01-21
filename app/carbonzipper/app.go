@@ -111,6 +111,7 @@ func (app *App) Start() {
 	go app.probeTopLevelDomains(logger)
 	go metricsServer(app, logger)
 
+	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
 		Handler:      handler,
