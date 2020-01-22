@@ -384,12 +384,12 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 	if app.config.PidFile != "" {
 		pidfile.SetPidfilePath(app.config.PidFile)
-		err := pidfile.Write()
-		if err != nil {
-			logger.Fatal("error during pidfile.Write()",
-				zap.Error(err),
-			)
-		}
+	}
+	err := pidfile.Write()
+	if err != nil && !pidfile.IsNotConfigured(err) {
+		logger.Fatal("error during pidfile.Write()",
+			zap.Error(err),
+		)
 	}
 
 	helper.ExtrapolatePoints = app.config.ExtrapolateExperiment
