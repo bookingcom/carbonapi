@@ -270,7 +270,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	request.Trace.OutDuration = &app.prometheusMetrics.RenderOutDurationExp
+	request.Trace.OutDuration = app.prometheusMetrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)

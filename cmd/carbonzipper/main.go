@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bookingcom/carbonapi/app/carbonzipper"
+	zipper "github.com/bookingcom/carbonapi/app/carbonzipper"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
@@ -60,7 +60,8 @@ func main() {
 	if config.MaxProcs != 0 {
 		runtime.GOMAXPROCS(config.MaxProcs)
 	}
-	if len(config.Backends) == 0 {
+
+	if len(config.GetBackends()) == 0 {
 		logger.Fatal("no Backends loaded -- exiting")
 	}
 
