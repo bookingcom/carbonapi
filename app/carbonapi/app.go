@@ -3,7 +3,6 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/bookingcom/carbonapi/blocker"
 	"github.com/bookingcom/carbonapi/cache"
 	"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/bookingcom/carbonapi/cfg"
@@ -36,7 +36,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
@@ -58,10 +57,10 @@ func init() {
 
 // App is the main carbonapi runnable
 type App struct {
-	config           cfg.API
-	queryCache       cache.BytesCache
-	findCache        cache.BytesCache
-	blockHeaderRules atomic.Value
+	config         cfg.API
+	queryCache     cache.BytesCache
+	findCache      cache.BytesCache
+	requestBlocker *blocker.RequestBlocker
 
 	defaultTimeZone *time.Location
 
@@ -83,8 +82,9 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 		findCache:         cache.NullCache{},
 		defaultTimeZone:   time.Local,
 		prometheusMetrics: newPrometheusMetrics(config),
+		requestBlocker:    blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger),
 	}
-	loadBlockRuleHeaderConfig(app, logger)
+	app.requestBlocker.ReloadRules()
 
 	// TODO(gmagnusson): Setup backends
 	backend, err := initBackend(app.config, logger)
@@ -109,17 +109,17 @@ func (app *App) Start() {
 	handler = util.UUIDHandler(handler)
 	handler = recoveryHandler(handler, logger)
 
-	app.registerPrometheusMetrics(logger)
-	if app.config.BlockHeaderUpdatePeriod > 0 {
-		ticker := time.NewTicker(app.config.BlockHeaderUpdatePeriod)
-		go loadTickerBlockRuleHeaderConfig(ticker, logger, app)
-	}
+	prometheusServer := app.registerPrometheusMetrics(logger)
+
+	app.requestBlocker.ScheduleRuleReload()
+
+	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: app.config.Timeouts.Global,
-	})
+	}, prometheusServer)
 	if err != nil {
 		logger.Fatal("gracehttp failed",
 			zap.Error(err),
@@ -140,77 +140,39 @@ func recoveryHandler(h http.Handler, lg *zap.Logger) http.Handler {
 	})
 }
 
-func (app *App) registerPrometheusMetrics(logger *zap.Logger) {
-	go func() {
-		prometheus.MustRegister(app.prometheusMetrics.Requests)
-		prometheus.MustRegister(app.prometheusMetrics.Responses)
-		prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
-		prometheus.MustRegister(app.prometheusMetrics.RenderPartialFail)
-		prometheus.MustRegister(app.prometheusMetrics.RequestCancel)
-		prometheus.MustRegister(app.prometheusMetrics.DurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.DurationLin)
-		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpSimple)
-		prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpComplex)
-		prometheus.MustRegister(app.prometheusMetrics.RenderDurationPerPointExp)
-		prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
-		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
-		prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
+func (app *App) registerPrometheusMetrics(logger *zap.Logger) *http.Server {
+	prometheus.MustRegister(app.prometheusMetrics.Requests)
+	prometheus.MustRegister(app.prometheusMetrics.Responses)
+	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
+	prometheus.MustRegister(app.prometheusMetrics.RenderPartialFail)
+	prometheus.MustRegister(app.prometheusMetrics.RequestCancel)
+	prometheus.MustRegister(app.prometheusMetrics.DurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.DurationLin)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpSimple)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpComplex)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationLinSimple)
+	prometheus.MustRegister(app.prometheusMetrics.RenderDurationPerPointExp)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationLin)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinSimple)
+	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinComplex)
+	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
+	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
 
-		writeTimeout := app.config.Timeouts.Global
-		if writeTimeout < 30*time.Second {
-			writeTimeout = time.Minute
-		}
-
-		s := &http.Server{
-			Addr:         app.config.ListenInternal,
-			Handler:      initHandlersInternal(app),
-			ReadTimeout:  1 * time.Second,
-			WriteTimeout: writeTimeout,
-		}
-
-		if err := s.ListenAndServe(); err != nil {
-			logger.Fatal("Internal handle server failed",
-				zap.Error(err),
-			)
-		}
-	}()
-}
-
-func loadTickerBlockRuleHeaderConfig(ticker *time.Ticker, logger *zap.Logger, app *App) {
-	for range ticker.C {
-		loadBlockRuleHeaderConfig(app, logger)
-	}
-}
-
-func loadBlockRuleHeaderConfig(app *App, logger *zap.Logger) {
-	fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-	if err != nil {
-		logger.Debug("failed to load header block rules", zap.Error(err))
-		app.blockHeaderRules.Store(RuleConfig{})
-		return
+	writeTimeout := app.config.Timeouts.Global
+	if writeTimeout < 30*time.Second {
+		writeTimeout = time.Minute
 	}
 
-	var ruleConfig RuleConfig
-	if err := yaml.Unmarshal(fileData, &ruleConfig); err != nil {
-		logger.Error("couldn't unmarshal block rule file data", zap.Error(err))
-		app.blockHeaderRules.Store(RuleConfig{})
-		return
+	s := &http.Server{
+		Addr:         app.config.ListenInternal,
+		Handler:      initHandlersInternal(app),
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: writeTimeout,
 	}
 
-	app.blockHeaderRules.Store(ruleConfig)
-}
-
-func loadBlockRuleConfig(blockHeaderFile string) ([]byte, error) {
-	fileLock.Lock()
-	defer fileLock.Unlock()
-	if _, err := os.Stat(blockHeaderFile); err == nil {
-		return ioutil.ReadFile(blockHeaderFile)
-	} else if os.IsNotExist(err) {
-		return []byte{}, nil
-	} else {
-		return []byte{}, errors.Wrap(err, "error while checking existense of file")
-	}
+	return s
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
@@ -246,10 +208,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 			zap.Strings("servers", app.config.Cache.MemcachedServers),
 		)
 		app.queryCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
-		// find cache is only used if SendGlobsAsIs is false.
-		if !app.config.SendGlobsAsIs {
-			app.findCache = cache.NewExpireCache(0)
-		}
+		app.findCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
 
 		mcache := app.queryCache.(*cache.MemcachedCache)
 
@@ -260,11 +219,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
-
-		// find cache is only used if SendGlobsAsIs is false.
-		if !app.config.SendGlobsAsIs {
-			app.findCache = cache.NewExpireCache(0)
-		}
+		app.findCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
 
 		qcache := app.queryCache.(*cache.ExpireCache)
 
@@ -423,12 +378,12 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 	if app.config.PidFile != "" {
 		pidfile.SetPidfilePath(app.config.PidFile)
-		err := pidfile.Write()
-		if err != nil {
-			logger.Fatal("error during pidfile.Write()",
-				zap.Error(err),
-			)
-		}
+	}
+	err := pidfile.Write()
+	if err != nil && !pidfile.IsNotConfigured(err) {
+		logger.Fatal("error during pidfile.Write()",
+			zap.Error(err),
+		)
 	}
 
 	helper.ExtrapolatePoints = app.config.ExtrapolateExperiment
@@ -517,6 +472,7 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
 		app.prometheusMetrics.FindDurationExp.Observe(t.Seconds())
+		app.prometheusMetrics.FindDurationLin.Observe(t.Seconds())
 	}
 }
 

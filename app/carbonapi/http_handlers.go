@@ -5,12 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,7 +28,6 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -44,28 +40,17 @@ const (
 	protobufFormat  = "protobuf"
 	protobuf3Format = "protobuf3"
 	pickleFormat    = "pickle"
+	completerFormat = "completer"
 )
 
 // for testing
 // TODO (grzkv): Clean up
 var timeNow = time.Now
 
-// Rule is a request blocking rule
-type Rule map[string]string
-
-// RuleConfig represents the request blocking rules
-type RuleConfig struct {
-	Rules []Rule
-}
-
-// TODO (grzkv): Move out of global scope
-var fileLock sync.Mutex
-
 func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		blockingRules := app.blockHeaderRules.Load().(RuleConfig)
-		if shouldBlockRequest(r, blockingRules.Rules) {
+		if app.requestBlocker.ShouldBlockRequest(r) {
 			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			toLog.HttpCode = http.StatusForbidden
 			defer func() {
@@ -154,6 +139,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
 				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+				app.prometheusMetrics.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
 				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
 			}
@@ -205,8 +191,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	var results []*types.MetricData
 	var targetErrs []error
 
-	// TODO (grzkv) Modification of *form* inside the loop is never applied
-	for _, target := range form.targets {
+	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
+		target := form.targets[targetIdx]
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
@@ -223,6 +209,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		size += metricSize
 	}
+	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
@@ -353,8 +340,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
-		// TODO (grzkv): This is most likely wrong
-		toLog.CarbonzipperResponseSizeBytes += int64(size * 8)
 		close(rch)
 
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
@@ -379,7 +364,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 	if rewritten {
 		form.targets = append(form.targets, newTargets...)
-
 		return targetErr, size
 	}
 
@@ -641,11 +625,11 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, bool, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
-			return matches, nil
+			return matches, true, nil
 		}
 	}
 
@@ -657,18 +641,18 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	request.IncCall()
 	matches, err := app.backend.Find(ctx, request)
 	if err != nil {
-		return matches, err
+		return matches, false, err
 	}
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
 		tc := time.Now()
-		app.findCache.Set(metric, blob, 5*60)
+		app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
-	return matches, nil
+	return matches, false, nil
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
@@ -680,7 +664,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -713,9 +697,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
 	query := r.FormValue("query")
+	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
-
+	toLog.Targets = []string{query}
 	// TODO (grzkv): Pass logger in from above
 	logger := zapwriter.Logger("find").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -724,10 +709,17 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	logAsError := false
 	defer func() {
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+				app.prometheusMetrics.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.prometheusMetrics.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
+			}
+		}
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	if format == "completer" {
+	if format == completerFormat {
 		query = getCompleterQuery(query)
 	}
 
@@ -743,17 +735,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request := dataTypes.NewFindRequest(query)
-	request.IncCall()
-	metrics, err := app.backend.Find(ctx, request)
-
-	if ctx.Err() != nil {
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", nt.ContextCancelCause(ctx.Err()),
-		).Inc()
-	}
-
-	if err != nil {
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	toLog.FromCache = fromCache
+	if err == nil {
+		toLog.TotalMetricCount = int64(len(metrics.Matches))
+	} else {
 		logger.Warn("zipper returned erro in find request",
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
@@ -779,6 +765,12 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if ctx.Err() != nil {
+		app.prometheusMetrics.RequestCancel.WithLabelValues(
+			"find", nt.ContextCancelCause(ctx.Err()),
+		).Inc()
+	}
+
 	var contentType string
 	var blob []byte
 	switch format {
@@ -798,7 +790,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	case rawFormat:
 		blob, err = findList(metrics)
 		contentType = rawFormat
-	case "completer":
+	case completerFormat:
 		blob, err = findCompleter(metrics)
 		contentType = jsonFormat
 	default:
@@ -1138,8 +1130,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 // Otherwise, it creates the config file with the rule
 func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	t0 := time.Now()
-	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("logger")
 
 	apiMetrics.Requests.Add(1)
 
@@ -1150,38 +1140,10 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 		app.deferredAccessLogging(r, &toLog, t0, logAsError)
 	}()
 
-	queryParams := r.URL.Query()
-
-	m := make(Rule)
-	for k, v := range queryParams {
-		if k == "" || v[0] == "" {
-			continue
-		}
-		m[k] = v[0]
-	}
 	w.Header().Set("Content-Type", contentTypeJSON)
 
 	failResponse := []byte(`{"success":"false"}`)
-	if app.config.BlockHeaderFile == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		toLog.HttpCode = http.StatusBadRequest
-		w.Write(failResponse)
-		return
-	}
-
-	var ruleConfig RuleConfig
-	var err1 error
-	if len(m) == 0 {
-		logger.Error("couldn't create a rule from params")
-	} else {
-		fileData, err := loadBlockRuleConfig(app.config.BlockHeaderFile)
-		if err == nil {
-			yaml.Unmarshal(fileData, &ruleConfig)
-		}
-		err1 = appendRuleToConfig(ruleConfig, m, logger, app.config.BlockHeaderFile)
-	}
-
-	if len(m) == 0 || err1 != nil {
+	if !app.requestBlocker.AddNewRules(r.URL.Query()) {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		w.Write(failResponse)
@@ -1190,26 +1152,6 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"success":"true"}`))
 
 	toLog.HttpCode = http.StatusOK
-}
-
-func appendRuleToConfig(ruleConfig RuleConfig, m Rule, logger *zap.Logger, blockHeaderFile string) error {
-	ruleConfig.Rules = append(ruleConfig.Rules, m)
-	output, err := yaml.Marshal(ruleConfig)
-	if err == nil {
-		logger.Info("updating file", zap.String("ruleConfig", string(output[:])))
-		err = writeBlockRuleToFile(output, blockHeaderFile)
-		if err != nil {
-			logger.Error("couldn't write rule to file")
-		}
-	}
-	return err
-}
-
-func writeBlockRuleToFile(output []byte, blockHeaderFile string) error {
-	fileLock.Lock()
-	defer fileLock.Unlock()
-	err := ioutil.WriteFile(blockHeaderFile, output, 0644)
-	return err
 }
 
 // It deletes the block headers config file
@@ -1226,7 +1168,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
-	err := os.Remove(app.config.BlockHeaderFile)
+	err := app.requestBlocker.Unblock()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
@@ -1236,24 +1178,6 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"success":"true"}`))
 
 	toLog.HttpCode = http.StatusOK
-}
-
-func isBlockingHeaderRule(r *http.Request, rule Rule) bool {
-	for k, v := range rule {
-		if r.Header.Get(k) != v {
-			return false
-		}
-	}
-	return true
-}
-
-func shouldBlockRequest(r *http.Request, rules []Rule) bool {
-	for _, rule := range rules {
-		if isBlockingHeaderRule(r, rule) {
-			return true
-		}
-	}
-	return false
 }
 
 func logStepTimeMismatch(targetMetricFetches []parser.MetricRequest, metricMap map[parser.MetricRequest][]*types.MetricData, logger *zap.Logger, target string) {

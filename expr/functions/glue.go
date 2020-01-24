@@ -83,6 +83,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/sumSeriesWithWildcards"
 	"github.com/bookingcom/carbonapi/expr/functions/summarize"
 	"github.com/bookingcom/carbonapi/expr/functions/timeFunction"
+	"github.com/bookingcom/carbonapi/expr/functions/timeLag"
 	"github.com/bookingcom/carbonapi/expr/functions/timeShift"
 	"github.com/bookingcom/carbonapi/expr/functions/timeStack"
 	"github.com/bookingcom/carbonapi/expr/functions/transformNull"
@@ -98,7 +99,7 @@ type initFunc struct {
 }
 
 func New(configs map[string]string) {
-	funcs := make([]initFunc, 0, 83)
+	funcs := make([]initFunc, 0, 84)
 
 	funcs = append(funcs, initFunc{name: "absolute", order: absolute.GetOrder(), f: absolute.New})
 
@@ -257,6 +258,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "summarize", order: summarize.GetOrder(), f: summarize.New})
 
 	funcs = append(funcs, initFunc{name: "timeFunction", order: timeFunction.GetOrder(), f: timeFunction.New})
+
+	funcs = append(funcs, initFunc{name: "timeLag", order: timeLag.GetOrder(), f: timeLag.New})
 
 	funcs = append(funcs, initFunc{name: "timeShift", order: timeShift.GetOrder(), f: timeShift.New})
 
