@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bookingcom/carbonapi/app/carbonzipper"
+	zipper "github.com/bookingcom/carbonapi/app/carbonzipper"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
@@ -25,15 +25,12 @@ func main() {
 	logger := zapwriter.Logger("main")
 
 	configFile := flag.String("config", "", "config file (yaml)")
-	pidFile := flag.String("pid", "", "pidfile (default: empty, don't create pidfile)")
-	if *pidFile != "" {
-		pidfile.SetPidfilePath(*pidFile)
-		err = pidfile.Write()
-		if err != nil {
-			log.Fatalln("error during pidfile.Write():", err)
-		}
-	}
 	flag.Parse()
+
+	err = pidfile.Write()
+	if err != nil && !pidfile.IsNotConfigured(err) {
+		log.Fatalln("error during pidfile.Write():", err)
+	}
 
 	expvar.NewString("GoVersion").Set(runtime.Version())
 
@@ -60,7 +57,8 @@ func main() {
 	if config.MaxProcs != 0 {
 		runtime.GOMAXPROCS(config.MaxProcs)
 	}
-	if len(config.Backends) == 0 {
+
+	if len(config.GetBackends()) == 0 {
 		logger.Fatal("no Backends loaded -- exiting")
 	}
 

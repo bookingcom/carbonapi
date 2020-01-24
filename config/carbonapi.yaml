@@ -136,3 +136,11 @@ monitoring:
         start: 0.0
         bucketsNum: 40
         bucketSize: 0.05
+    findDurationExpHistogram:
+        start: 0.001
+        bucketsNum: 20
+        bucketSize: 2
+    findDurationLinHistogram:
+        start: 0.5
+        bucketsNum: 20
+        bucketSize: 0.5

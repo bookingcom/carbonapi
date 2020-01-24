@@ -66,6 +66,7 @@ func ContextCancelCause(err error) string {
 type Backend struct {
 	address        string
 	scheme         string
+	cluster        string
 	client         *http.Client
 	timeout        time.Duration
 	limiter        chan struct{}
@@ -83,6 +84,7 @@ type Config struct {
 	Address string // The backend address.
 
 	// Optional fields
+	Cluster            string        // The cluster where backend belongs to
 	Client             *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
@@ -111,6 +113,7 @@ func New(cfg Config) (*Backend, error) {
 
 	b.address = address
 	b.scheme = scheme
+	b.cluster = cfg.Cluster
 
 	if cfg.Timeout > 0 {
 		b.timeout = cfg.Timeout
@@ -158,6 +161,7 @@ func (b Backend) url(path string) *url.URL {
 	}
 }
 
+// GetServerAddress returns the server address for this backend.
 func (b Backend) GetServerAddress() string {
 	return b.address
 }
@@ -243,7 +247,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	select {
 	case res := <-ch:
 		trace.AddHTTPCall(t0)
-		trace.ObserveOutDuration(time.Now().Sub(t0))
+		trace.ObserveOutDuration(time.Now().Sub(t0), b.cluster)
 
 		var body []byte
 		var bodyErr error
@@ -270,7 +274,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		return res.resp.Header.Get("Content-Type"), body, nil
 
 	case <-ctx.Done():
-		trace.ObserveOutDuration(time.Now().Sub(t0))
+		trace.ObserveOutDuration(time.Now().Sub(t0), b.cluster)
 
 		b.logger.Warn("Request context cancelled",
 			zap.String("host", b.address),

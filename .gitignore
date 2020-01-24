@@ -11,6 +11,7 @@ TODO
 coverage.txt
 
 .vscode
-
+.idea
+*.swp
 # Docker runs data
 data

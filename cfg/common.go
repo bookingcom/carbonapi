@@ -2,9 +2,11 @@ package cfg
 
 import (
 	"io"
+	"log"
 	"time"
 
 	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -90,11 +92,26 @@ func DefaultCommonConfig() Common {
 			RenderDurationLinSimple: HistogramConfig{
 				Start:      0.1,
 				BucketSize: 0.1,
-				BucketsNum: 20,
+				BucketsNum: 30,
 			},
 			FindDurationExp: HistogramConfig{
 				Start:      0.05,
 				BucketSize: 2,
+				BucketsNum: 20,
+			},
+			FindDurationLin: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
+			FindDurationLinSimple: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
+			FindDurationLinComplex: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
 				BucketsNum: 20,
 			},
 		},
@@ -115,9 +132,10 @@ func GetDefaultLoggerConfig() zapwriter.Config {
 
 // Common is the configuration shared by carbonapi and carbonzipper
 type Common struct {
-	Listen         string   `yaml:"listen"`
-	ListenInternal string   `yaml:"listenInternal"`
-	Backends       []string `yaml:"backends"`
+	Listen            string    `yaml:"listen"`
+	ListenInternal    string    `yaml:"listenInternal"`
+	Backends          []string  `yaml:"backends"`
+	BackendsByCluster []Cluster `yaml:"backendsByCluster"`
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
@@ -137,6 +155,43 @@ type Common struct {
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 }
 
+// GetBackends returns the list of backends from common configuration
+func (common Common) GetBackends() []string {
+	backends := []string{}
+	for _, cluster := range common.BackendsByCluster {
+		backends = append(backends, cluster.Backends...)
+	}
+
+	if (len(common.Backends) > 0) && (len(backends) > 0) {
+		log.Fatal("duplicate backend definition in config -- exiting")
+	}
+
+	if len(common.Backends) > 0 {
+		return common.Backends
+	}
+	return backends
+}
+
+// ClusterOfBackend returns the cluster of a given backend address from common configuration
+func (common Common) ClusterOfBackend(address string) (string, error) {
+	for _, cluster := range common.BackendsByCluster {
+
+		for _, backend := range cluster.Backends {
+			if backend == address {
+				return cluster.Name, nil
+			}
+		}
+	}
+
+	for _, backend := range common.Backends {
+		if backend == address {
+			return "", nil
+		}
+	}
+
+	return "", errors.Errorf("Couldn't find cluster for '%s'", address)
+}
+
 // MonitoringConfig allows setting custom monitoring parameters
 type MonitoringConfig struct {
 	RequestDurationExp      HistogramConfig `yaml:"requestDurationExpHistogram"`
@@ -144,6 +199,9 @@ type MonitoringConfig struct {
 	RenderDurationExp       HistogramConfig `yaml:"renderDurationExpHistogram"`
 	RenderDurationLinSimple HistogramConfig `yaml:"renderDurationLinHistogram"`
 	FindDurationExp         HistogramConfig `yaml:"findDurationExpHistogram"`
+	FindDurationLin         HistogramConfig `yaml:"findDurationLinHistogram"`
+	FindDurationLinSimple   HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
+	FindDurationLinComplex  HistogramConfig `yaml:"findDurationComplexLinHistogram"`
 	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
 	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
@@ -160,4 +218,10 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
+}
+
+// Cluster is a definition for set of backends
+type Cluster struct {
+	Name     string   `yaml:"name"`
+	Backends []string `yaml:"backends"`
 }
