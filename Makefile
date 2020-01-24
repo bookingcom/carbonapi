@@ -14,7 +14,8 @@ PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
 PKG_CARBONZIPPER=github.com/bookingcom/carbonapi/cmd/carbonzipper
 
 # Flags
-GCFLAGS :=
+export GO111MODULE=on
+GCFLAGS := -mod=vendor
 debug: GCFLAGS += -gcflags=all='-l -N'
 
 LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
@@ -35,7 +36,7 @@ build:
 	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
 vet:
-	go vet -composites=false ./...
+	go vet -mod=vendor -composites=false ./...
 
 lint:
 # Show only issues introduced since switching from gometalinter to
@@ -49,7 +50,7 @@ lint-all:
 check: test vet
 
 test:
-	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
+	$(PKGCONF) $(GO) test ./... -mod=vendor -race -coverprofile=coverage.txt -covermode=atomic
 
 clean:
 	rm -f carbonapi carbonzipper

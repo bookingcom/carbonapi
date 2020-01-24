@@ -5,8 +5,7 @@ run:
   skip-dirs: []
   skip-files:
     - ".*\\.pb\\.go$"
-  # activate after switching to go modules (#131, #190)
-  # modules-download-mode: vendor
+   modules-download-mode: vendor
 
 # output configuration options
 output:
