@@ -109,14 +109,15 @@ func (app *App) Start() {
 	}
 
 	go app.probeTopLevelDomains(logger)
-	go metricsServer(app, logger)
+	metricsServer := metricsServer(app, logger)
 
+	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: app.config.Timeouts.Global,
-	})
+	}, metricsServer)
 
 	if err != nil {
 		log.Fatal("error during gracehttp.Serve()",
@@ -199,10 +200,13 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 		}).DialContext,
 	}
 
-	backends := make([]backend.Backend, 0, len(config.Backends))
-	for _, host := range config.Backends {
+	configBackendList := config.GetBackends()
+	backends := make([]backend.Backend, 0, len(configBackendList))
+	for _, host := range configBackendList {
+		cluster, _ := config.ClusterOfBackend(host)
 		b, err := bnet.New(bnet.Config{
 			Address:            host,
+			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
 			Limit:              config.ConcurrencyLimitPerServer,
@@ -271,7 +275,7 @@ func initGraphite(app *App) {
 	graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
 }
 
-func metricsServer(app *App, logger *zap.Logger) {
+func metricsServer(app *App, logger *zap.Logger) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Requests)
 	prometheus.MustRegister(app.prometheusMetrics.Responses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
@@ -299,11 +303,7 @@ func metricsServer(app *App, logger *zap.Logger) {
 		WriteTimeout: writeTimeout,
 	}
 
-	if err := s.ListenAndServe(); err != nil {
-		logger.Fatal("Internal handle server failed",
-			zap.Error(err),
-		)
-	}
+	return s
 }
 
 func publishExpvarz(app *App) {

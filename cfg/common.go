@@ -2,9 +2,11 @@ package cfg
 
 import (
 	"io"
+	"log"
 	"time"
 
 	"github.com/lomik/zapwriter"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -130,9 +132,10 @@ func GetDefaultLoggerConfig() zapwriter.Config {
 
 // Common is the configuration shared by carbonapi and carbonzipper
 type Common struct {
-	Listen         string   `yaml:"listen"`
-	ListenInternal string   `yaml:"listenInternal"`
-	Backends       []string `yaml:"backends"`
+	Listen            string    `yaml:"listen"`
+	ListenInternal    string    `yaml:"listenInternal"`
+	Backends          []string  `yaml:"backends"`
+	BackendsByCluster []Cluster `yaml:"backendsByCluster"`
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
@@ -150,6 +153,43 @@ type Common struct {
 	Logger   []zapwriter.Config `yaml:"logger"`
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
+}
+
+// GetBackends returns the list of backends from common configuration
+func (common Common) GetBackends() []string {
+	backends := []string{}
+	for _, cluster := range common.BackendsByCluster {
+		backends = append(backends, cluster.Backends...)
+	}
+
+	if (len(common.Backends) > 0) && (len(backends) > 0) {
+		log.Fatal("duplicate backend definition in config -- exiting")
+	}
+
+	if len(common.Backends) > 0 {
+		return common.Backends
+	}
+	return backends
+}
+
+// ClusterOfBackend returns the cluster of a given backend address from common configuration
+func (common Common) ClusterOfBackend(address string) (string, error) {
+	for _, cluster := range common.BackendsByCluster {
+
+		for _, backend := range cluster.Backends {
+			if backend == address {
+				return cluster.Name, nil
+			}
+		}
+	}
+
+	for _, backend := range common.Backends {
+		if backend == address {
+			return "", nil
+		}
+	}
+
+	return "", errors.Errorf("Couldn't find cluster for '%s'", address)
 }
 
 // MonitoringConfig allows setting custom monitoring parameters
@@ -178,4 +218,10 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
+}
+
+// Cluster is a definition for set of backends
+type Cluster struct {
+	Name     string   `yaml:"name"`
+	Backends []string `yaml:"backends"`
 }
