@@ -79,7 +79,6 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 		windowSize /= int(arg[0].StepTime)
 		offset = windowSize
 	}
-	fmt.Println(windowSize)
 
 	for _, a := range arg {
 		w := &types.Windowed{Data: make([]float64, windowSize)}
