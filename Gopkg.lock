@@ -178,6 +178,14 @@
   version = "v1.4.0"
 
 [[projects]]
+  digest = "1:cbec35fe4d5a4fba369a656a8cd65e244ea2c743007d8f6c1ccb132acf9d1296"
+  name = "github.com/gorilla/mux"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "00bdffe0f3c77e27d2cf6f5c70232a2d3e4d9c15"
+  version = "v1.7.3"
+
+[[projects]]
   branch = "master"
   digest = "1:57c2cb438edb524e67623c1509d22f3963ee87c5efbc5f8cc1222baddf477a0c"
   name = "github.com/lomik/og-rek"
@@ -365,6 +373,7 @@
     "github.com/facebookgo/pidfile",
     "github.com/go-graphite/protocol/carbonapi_v2_pb",
     "github.com/gorilla/handlers",
+    "github.com/gorilla/mux",
     "github.com/lomik/og-rek",
     "github.com/lomik/zapwriter",
     "github.com/mjibson/go-dsp/fft",
