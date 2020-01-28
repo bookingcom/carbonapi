@@ -349,28 +349,28 @@ func TestEvalExpression(t *testing.T) {
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 1, 1, 1, 2, 2, 2, 4, 6, 4, 6, 8}, 1, now32)},
 			},
-			[]*types.MetricData{types.MakeMetricData("movingAverage(metric1,4)", []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1, 1.25, 1.5, 1.75, 2.5, 3.5, 4, 5}, 1, now32)},
+			[]*types.MetricData{types.MakeMetricData("movingAverage(metric1,4)", []float64{math.NaN(), math.NaN(), math.NaN(), 1, 1.25, 1.5, 1.75, 2.5, 3.5, 4, 5, 6}, 1, now32)},
 		},
 		{
 			"movingSum(metric1,2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 2, 3, 4, 5, 6}, 1, now32)},
 			},
-			[]*types.MetricData{types.MakeMetricData("movingSum(metric1,2)", []float64{math.NaN(), math.NaN(), 3, 5, 7, 9}, 1, now32)},
+			[]*types.MetricData{types.MakeMetricData("movingSum(metric1,2)", []float64{math.NaN(), 3, 5, 7, 9, 11}, 1, now32)},
 		},
 		{
 			"movingMin(metric1,2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 2, 3, 2, 1, 0}, 1, now32)},
 			},
-			[]*types.MetricData{types.MakeMetricData("movingMin(metric1,2)", []float64{math.NaN(), math.NaN(), 1, 2, 2, 1}, 1, now32)},
+			[]*types.MetricData{types.MakeMetricData("movingMin(metric1,2)", []float64{math.NaN(), 1, 2, 2, 1, 0}, 1, now32)},
 		},
 		{
 			"movingMax(metric1,2)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 2, 3, 2, 1, 0}, 1, now32)},
 			},
-			[]*types.MetricData{types.MakeMetricData("movingMax(metric1,2)", []float64{math.NaN(), math.NaN(), 2, 3, 3, 2}, 1, now32)},
+			[]*types.MetricData{types.MakeMetricData("movingMax(metric1,2)", []float64{math.NaN(), 2, 3, 3, 2, 1}, 1, now32)},
 		},
 		{
 			"movingMedian(metric1,4)",
