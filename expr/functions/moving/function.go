@@ -95,15 +95,10 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 				r.Values[i] = math.NaN()
 			}
 		} else {
-			sawNonAbsentValue := false
-			var firstNonAbsentValueIndex int
 			for i, v := range a.Values {
 				if a.IsAbsent[i] {
 					// make sure missing values are ignored
 					v = math.NaN()
-				} else if !sawNonAbsentValue {
-					sawNonAbsentValue = true
-					firstNonAbsentValueIndex = i
 				}
 
 				w.Push(v)
@@ -113,7 +108,7 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 					continue
 				}
 
-				if !sawNonAbsentValue || i < windowSize+firstNonAbsentValueIndex-1 {
+				if w.HasNaN() || i < windowSize-1 {
 					r.Values[ridx] = 0
 					r.IsAbsent[ridx] = true
 					continue

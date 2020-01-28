@@ -75,10 +75,10 @@ func TestMovingSum(t *testing.T) {
 		makeTestItem(
 			"movingSum(metric1,2)", now32, "metric1",
 			[]float64{
-				1, 2, math.NaN(), 3, math.NaN(), math.NaN(), 4,
+				1, 2, math.NaN(), 3, math.NaN(), 2, 4,
 			},
 			[]float64{
-				math.NaN(), 3, 2, 3, 3, 0, 4,
+				math.NaN(), 3, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 6,
 			},
 		),
 	}
