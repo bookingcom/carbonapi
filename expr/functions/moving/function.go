@@ -87,8 +87,6 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 		r.Name = fmt.Sprintf("%s(%s,%s)", e.Target(), a.Name, argstr)
 		r.Values = make([]float64, len(a.Values)-offset)
 		r.IsAbsent = make([]bool, len(a.Values)-offset)
-		r.StartTime = from
-		r.StopTime = until
 
 		if windowSize == 0 {
 			// Fix error on long time ranges (greater than 30 days), sampling to 10 min
