@@ -1,0 +1,53 @@
+# The settings are listed in this file are with their default values.
+
+# WARNING: This is a sample config. You most likely need to tweak it for your use case.
+
+# The port to listen to for incoming connections.
+ListeningPort = 2003
+# The default target port on receiver hosts. Can be overridden in the clusters setup.
+TargetPort = 2004
+
+# The size on main queue between listen and routing. Refer to docs for details.
+MainQueueSize = 100000
+# Each host has it's own queue that contains records to be sent to it. This is the size of it.
+# Refer to docs for more insight.
+HostQueueSize = 50000
+
+# Number of workers processing main queue and putting records into host queues
+WorkerPoolSize = 50
+
+# Timeout for dropping an incoming connection if no data is sent in.
+IncomingConnIdleTimeoutSec = 90
+# Timeout for sending data to target host via TCP connection.
+SendTimeoutSec = 5
+# Timeout for connecting to a target host. Does not influence re-connections with exponential backoffs.
+OutConnTimeoutSec = 5
+# Time to wait for the processing pipeline to terminate when quitting. After this timeout is passed,
+# forced termination is done. This helps when graceful shutdown is stuck or slow.
+TermTimeoutSec = 10
+
+# The size of the buffer for sending data to a target host via a TCP connections.
+TCPOutBufSize = 4096
+
+# The period over which the out TCP buffer for the connections sending to target hosts is flushed.
+# This helps if the traffic is low and records get stuck in the buffer.
+# The value of zero means no flushing.
+TCPOutBufFlushPeriodSec = 2
+
+# Turns on and off the normalization of records path. Described in the docs in detail.
+NormalizeRecords = true
+# Turns on logging for special kinds of records. For now it's recrods with fractional timestamps.
+LogSpecialRecords = true
+
+# Profiling port
+PprofPort = 6000
+# Prometheus port
+PromPort = 9090
+
+# Histogram parameters for the host queue size
+HostQueueLengthBucketFactor = 3.0
+HostQueueLengthBuckets = 10
+
+# Histogram parameters for the processing duration
+ProcessingDurationBucketFactor = 2.0
+ProcessingDurationBuckets = 10

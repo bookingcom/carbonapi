@@ -1,0 +1,7 @@
+[[cluster]]
+name = "a34000"
+type = "jump" # cluster type defines routing inside a cluster
+    [[cluster.hosts]]
+    name = "go-carbon" # FQDN or IP of the host
+    port = 2003 # optional, overrides setting in main config
+    index = 0 # index in the hash ring

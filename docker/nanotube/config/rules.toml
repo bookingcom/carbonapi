@@ -1,0 +1,17 @@
+# Routing rules.
+# - all routing rules are applied to each incoming record;
+# - when regex in the rule matches, the record is sent to the clusters in the "clusters" list;
+# - many rules can be matched to each record;
+# - each record can be sent to a cluster at most once. If two rules send it to same cluster, only one instance will be sent;
+# - cluster names must be from the set defined in the clusters config
+# - Continue is used to signal whether to continue matching next set of rules for a record,
+# - or by default (or when continue is explicitly set to false), stop and move to next record
+
+[[rule]]
+    regexs = [
+        ".*"
+    ]
+    clusters = [
+        "a34000"
+    ]
+    continue = true
