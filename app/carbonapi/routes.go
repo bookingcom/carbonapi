@@ -16,13 +16,13 @@ func initHandlersInternal(app *App) http.Handler {
 
 	r.HandleFunc(handleTrailingSlash("block-headers"), httputil.TimeHandler(app.blockHeaders, app.bucketRequestTimes))
 
-	r.HandleFunc(handleTrailingSlash("/unblock-headers"), httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
+	r.HandleFunc(handleTrailingSlash("unblock-headers"), httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
 
 	r.HandleFunc(handleTrailingSlash("debug/version"), app.debugVersionHandler)
 
 	r.Handle(handleTrailingSlash("debug/vars"), expvar.Handler())
 	r.HandleFunc(handleTrailingSlash("debug/pprof"), pprof.Index)
-	s := r.Host(handleTrailingSlash("debug/pprof")).Subrouter()
+	s := r.PathPrefix(handleTrailingSlash("debug/pprof")).Subrouter()
 	s.HandleFunc(handleTrailingSlash("cmdline"), pprof.Cmdline)
 	s.HandleFunc(handleTrailingSlash("profile"), pprof.Profile)
 	s.HandleFunc(handleTrailingSlash("symbol"), pprof.Symbol)
