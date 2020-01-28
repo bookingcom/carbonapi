@@ -2,10 +2,10 @@ package carbonapi
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/blocker"
@@ -109,12 +109,17 @@ func getMetricGlobResponse(metric string) types.Matches {
 	return types.Matches{}
 }
 
-func TestMain(m *testing.M) {
+func TestAppHandlers(t *testing.T) {
 	testApp, testRouter = setUpTestConfig()
-	testServer := setupTestServer(m, testRouter)
-	testServer.Start()
+	testServer := setupTestServer(testRouter)
 	defer testServer.Close()
-	os.Exit(m.Run())
+	testServer.Start()
+	t.Run("renderHandler", testRenderHandler)
+	t.Run("RenderHandlerErrors", testRenderHandlerErrs)
+	t.Run("RenderHandlerNotFoundErrors", testRenderHandlerNotFoundErrs)
+	t.Run("FindHandler", testFindHandler)
+	t.Run("FindHandlerCompleter", testFindHandlerCompleter)
+	t.Run("RenderHandlerNotFoundErrors", testInfoHandler)
 }
 
 func setUpTestConfig() (*App, http.Handler) {
@@ -177,12 +182,9 @@ func setUpTestConfig() (*App, http.Handler) {
 // 	return app
 // }
 
-func setUpRequest(t *testing.T, url string) *http.Request {
-	return httptest.NewRequest("GET", url, nil)
-}
-
-func TestRenderHandler(t *testing.T) {
-	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+func testRenderHandler(t *testing.T) {
+	req := httptest.NewRequest("GET",
+		"/render?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -205,7 +207,7 @@ func TestRenderHandler(t *testing.T) {
 	}
 }
 
-func TestRenderHandlerErrs(t *testing.T) {
+func testRenderHandlerErrs(t *testing.T) {
 	tests := []struct {
 		req     string
 		expCode int
@@ -230,7 +232,7 @@ func TestRenderHandlerErrs(t *testing.T) {
 
 	for _, tst := range tests {
 		t.Run(tst.req, func(t *testing.T) {
-			req := setUpRequest(t, tst.req)
+			req := httptest.NewRequest("GET", tst.req, nil)
 			rr := httptest.NewRecorder()
 
 			// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -250,8 +252,9 @@ func TestRenderHandlerErrs(t *testing.T) {
 	}
 }
 
-func TestRenderHandlerNotFoundErrs(t *testing.T) {
-	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+func testRenderHandlerNotFoundErrs(t *testing.T) {
+	req := httptest.NewRequest("GET",
+		"/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -269,8 +272,8 @@ func TestRenderHandlerNotFoundErrs(t *testing.T) {
 	}
 }
 
-func TestFindHandler(t *testing.T) {
-	req := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
+func testFindHandler(t *testing.T) {
+	req := httptest.NewRequest("GET", "/metrics/find/?query=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
 	testRouter.ServeHTTP(rr, req)
 
@@ -287,10 +290,10 @@ func TestFindHandler(t *testing.T) {
 	}
 }
 
-func TestFindHandlerCompleter(t *testing.T) {
+func testFindHandlerCompleter(t *testing.T) {
 	testMetrics := []string{"foo.b/", "foo.bar"}
 	for _, testMetric := range testMetrics {
-		req := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
+		req := httptest.NewRequest("GET", "/metrics/find/?query="+testMetric+"&format=completer", nil)
 		rr := httptest.NewRecorder()
 		testRouter.ServeHTTP(rr, req)
 		body := rr.Body.String()
@@ -304,8 +307,8 @@ func TestFindHandlerCompleter(t *testing.T) {
 	}
 }
 
-func TestInfoHandler(t *testing.T) {
-	req := setUpRequest(t, "/info/?target=foo.bar&format=json")
+func testInfoHandler(t *testing.T) {
+	req := httptest.NewRequest("GET", "/info/?target=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
 
 	testRouter.ServeHTTP(rr, req)
@@ -326,10 +329,10 @@ func TestInfoHandler(t *testing.T) {
 	}
 }
 
-func setupTestServer(m *testing.M, testHandler http.Handler) *httptest.Server {
-	testListener, err := net.Listen("tcp", "127.0.0.1" + testApp.config.Listen)
+func setupTestServer(testHandler http.Handler) *httptest.Server {
+	testListener, err := net.Listen("tcp", "127.0.0.1:8080")
 	if err != nil {
-		panic(m)
+		log.Fatal(err)
 	}
 	ts := httptest.NewUnstartedServer(testHandler)
 	ts.Listener.Close()
