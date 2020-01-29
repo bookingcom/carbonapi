@@ -114,12 +114,12 @@ func TestAppHandlers(t *testing.T) {
 	testServer := setupTestServer(testRouter)
 	defer testServer.Close()
 	testServer.Start()
-	t.Run("renderHandler", testRenderHandler)
-	t.Run("RenderHandlerErrors", testRenderHandlerErrs)
-	t.Run("RenderHandlerNotFoundErrors", testRenderHandlerNotFoundErrs)
-	t.Run("FindHandler", testFindHandler)
-	t.Run("FindHandlerCompleter", testFindHandlerCompleter)
-	t.Run("RenderHandlerNotFoundErrors", testInfoHandler)
+	t.Run("RenderHandler", renderHandler)
+	t.Run("RenderHandlerErrors", renderHandlerErrs)
+	t.Run("RenderHandlerNotFoundErrors", renderHandlerNotFoundErrs)
+	t.Run("FindHandler", findHandler)
+	t.Run("FindHandlerCompleter", findHandlerCompleter)
+	t.Run("RenderHandlerNotFoundErrors", infoHandler)
 }
 
 func setUpTestConfig() (*App, http.Handler) {
@@ -182,7 +182,7 @@ func setUpTestConfig() (*App, http.Handler) {
 // 	return app
 // }
 
-func testRenderHandler(t *testing.T) {
+func renderHandler(t *testing.T) {
 	req := httptest.NewRequest("GET",
 		"/render?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
@@ -207,7 +207,7 @@ func testRenderHandler(t *testing.T) {
 	}
 }
 
-func testRenderHandlerErrs(t *testing.T) {
+func renderHandlerErrs(t *testing.T) {
 	tests := []struct {
 		req     string
 		expCode int
@@ -252,7 +252,7 @@ func testRenderHandlerErrs(t *testing.T) {
 	}
 }
 
-func testRenderHandlerNotFoundErrs(t *testing.T) {
+func renderHandlerNotFoundErrs(t *testing.T) {
 	req := httptest.NewRequest("GET",
 		"/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
@@ -272,7 +272,7 @@ func testRenderHandlerNotFoundErrs(t *testing.T) {
 	}
 }
 
-func testFindHandler(t *testing.T) {
+func findHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/metrics/find/?query=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
 	testRouter.ServeHTTP(rr, req)
@@ -290,7 +290,7 @@ func testFindHandler(t *testing.T) {
 	}
 }
 
-func testFindHandlerCompleter(t *testing.T) {
+func findHandlerCompleter(t *testing.T) {
 	testMetrics := []string{"foo.b/", "foo.bar"}
 	for _, testMetric := range testMetrics {
 		req := httptest.NewRequest("GET", "/metrics/find/?query="+testMetric+"&format=completer", nil)
@@ -307,7 +307,7 @@ func testFindHandlerCompleter(t *testing.T) {
 	}
 }
 
-func testInfoHandler(t *testing.T) {
+func infoHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/info/?target=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
 
