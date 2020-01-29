@@ -58,8 +58,6 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		callbackFunc = types.AggSum
 	case "average":
 		callbackFunc = types.AggMean
-	case "first":
-		callbackFunc = types.AggFirst
 	case "last":
 		callbackFunc = types.AggLast
 	// TODO: this implementation does not support diff, median, multiply, range, stddev

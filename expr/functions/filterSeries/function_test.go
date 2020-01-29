@@ -52,7 +52,7 @@ func TestFilterSeriesMultiReturn(t *testing.T) {
 			},
 		},
 		{
-			"filterSeries(metric1.foo.*.baz,\"first\", \"=\",11)",
+			"filterSeries(metric1.foo.*.baz,\"average\", \"<\",14)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1.foo.*.baz", 0, 1}: {
 					types.MakeMetricData("metric1.foo.bar5.baz", []float64{15, 22, 13, 24, 15}, 1, now32),
