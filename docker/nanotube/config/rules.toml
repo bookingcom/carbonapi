@@ -1,0 +1,8 @@
+[[rule]]
+    regexs = [
+        ".*"
+    ]
+    clusters = [
+        "a34000"
+    ]
+    continue = true
