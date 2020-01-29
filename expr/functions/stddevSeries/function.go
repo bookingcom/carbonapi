@@ -20,7 +20,7 @@ func GetOrder() interfaces.Order {
 func New(configFile string) []interfaces.FunctionMetadata {
 	res := make([]interfaces.FunctionMetadata, 0)
 	f := &stddevSeries{}
-	functions := []string{"stddevSeries"}
+	functions := []string{"stddev", "stddevSeries"}
 	for _, n := range functions {
 		res = append(res, interfaces.FunctionMetadata{Name: n, F: f})
 	}
