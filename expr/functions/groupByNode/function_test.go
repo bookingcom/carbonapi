@@ -4,6 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bookingcom/carbonapi/expr/functions/averageSeries"
+	"github.com/bookingcom/carbonapi/expr/functions/diffSeries"
+	"github.com/bookingcom/carbonapi/expr/functions/minMax"
+	"github.com/bookingcom/carbonapi/expr/functions/stddevSeries"
 	"github.com/bookingcom/carbonapi/expr/functions/sum"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
@@ -21,7 +25,22 @@ func init() {
 	for _, m := range md {
 		metadata.RegisterFunction(m.Name, m.F)
 	}
-
+	mm := minMax.New("")
+	for _, m := range mm {
+		metadata.RegisterFunction(m.Name, m.F)
+	}
+	as := averageSeries.New("")
+	for _, m := range as {
+		metadata.RegisterFunction(m.Name, m.F)
+	}
+	stds := stddevSeries.New("")
+	for _, m := range stds {
+		metadata.RegisterFunction(m.Name, m.F)
+	}
+	ds := diffSeries.New("")
+	for _, m := range ds {
+		metadata.RegisterFunction(m.Name, m.F)
+	}
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)
 	helper.SetEvaluator(evaluator)
@@ -31,6 +50,71 @@ func TestGroupByNode(t *testing.T) {
 	now32 := int32(time.Now().Unix())
 
 	tests := []th.MultiReturnEvalTestItem{
+		{
+			"groupByNode(metric1.foo.*.*,3,\"avg\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1.foo.*.*", 0, 1}: {
+					types.MakeMetricData("metric1.foo.bar1.baz", []float64{1, 22, 3, 24, 5}, 1, now32),
+					types.MakeMetricData("metric1.foo.bar2.baz", []float64{11, 12, 13, 14, 15}, 1, now32),
+				},
+			},
+			"groupByNodeAvg",
+			map[string][]*types.MetricData{
+				"baz": {types.MakeMetricData("baz", []float64{6, 17, 8, 19, 10}, 1, now32)},
+			},
+		},
+		{
+			"groupByNode(metric1.foo.*.*,3,\"diff\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1.foo.*.*", 0, 1}: {
+					types.MakeMetricData("metric1.foo.bar1.baz", []float64{1, 22, 3, 24, 5}, 1, now32),
+					types.MakeMetricData("metric1.foo.bar2.baz", []float64{11, 12, 13, 14, 15}, 1, now32),
+				},
+			},
+			"groupByNodeDiff",
+			map[string][]*types.MetricData{
+				"baz": {types.MakeMetricData("baz", []float64{-10, 10, -10, 10, -10}, 1, now32)},
+			},
+		},
+		{
+			"groupByNode(metric1.foo.*.*,3,\"stddev\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1.foo.*.*", 0, 1}: {
+					types.MakeMetricData("metric1.foo.bar1.baz", []float64{1, 22, 3, 24, 5}, 1, now32),
+					types.MakeMetricData("metric1.foo.bar2.baz", []float64{11, 2, 13, 4, 5}, 1, now32),
+				},
+			},
+			"groupByNodeStddev",
+			map[string][]*types.MetricData{
+				"baz": {types.MakeMetricData("baz", []float64{5, 10, 5, 10, 0}, 1, now32)},
+			},
+		},
+		{
+			"groupByNode(metric1.foo.*.*,3,\"max\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1.foo.*.*", 0, 1}: {
+					types.MakeMetricData("metric1.foo.bar1.baz", []float64{1, 22, 3, 24, 5}, 1, now32),
+					types.MakeMetricData("metric1.foo.bar2.baz", []float64{11, 12, 13, 14, 15}, 1, now32),
+				},
+			},
+			"groupByNodeMax",
+			map[string][]*types.MetricData{
+				"baz": {types.MakeMetricData("baz", []float64{11, 22, 13, 24, 15}, 1, now32)},
+			},
+		},
+		{
+			"groupByNode(metric1.foo.*.*,3,\"min\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1.foo.*.*", 0, 1}: {
+					types.MakeMetricData("metric1.foo.bar1.baz", []float64{1, 22, 3, 24, 5}, 1, now32),
+					types.MakeMetricData("metric1.foo.bar2.baz", []float64{11, 12, 13, 14, 15}, 1, now32),
+				},
+			},
+			"groupByNodeMin",
+			map[string][]*types.MetricData{
+				"baz": {types.MakeMetricData("baz", []float64{1, 12, 3, 14, 5}, 1, now32)},
+			},
+		},
 		{
 			"groupByNode(metric1.foo.*.*,3,\"sum\")",
 			map[parser.MetricRequest][]*types.MetricData{
