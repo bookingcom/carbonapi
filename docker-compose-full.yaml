@@ -33,10 +33,3 @@ services:
       context: .
     ports:
       - "2003:2003"
-
-  # crelay:
-  #   build:
-  #     dockerfile: docker/crelay/Dockerfile
-  #     context: .
-  #   ports:
-  #     - "2003:2003"
