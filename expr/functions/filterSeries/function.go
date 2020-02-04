@@ -1,13 +1,13 @@
 package filterSeries
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/pkg/errors"
 )
 
 type filterSeries struct {
@@ -25,15 +25,6 @@ func New(configFile string) []interfaces.FunctionMetadata {
 		res = append(res, interfaces.FunctionMetadata{Name: n, F: f})
 	}
 	return res
-}
-
-var operators = map[string]struct{}{
-	"=":  struct{}{},
-	"!=": struct{}{},
-	">":  struct{}{},
-	">=": struct{}{},
-	"<":  struct{}{},
-	"<=": struct{}{},
 }
 
 // filterSeries(*seriesLists)
@@ -62,7 +53,16 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		callbackFunc = types.AggLast
 	// TODO: this implementation does not support diff, median, multiply, range, stddev
 	default:
-		return nil, errors.New(fmt.Sprintf("unsupported consolidation function %v", callback))
+		return nil, fmt.Errorf("unsupported consolidation function %v", callback)
+	}
+
+	var operators = map[string]struct{}{
+		"=":  {},
+		"!=": {},
+		">":  {},
+		">=": {},
+		"<":  {},
+		"<=": {},
 	}
 
 	operator, err := e.GetStringArg(2)
@@ -72,12 +72,12 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 
 	_, ok := operators[operator]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("unsupported operator %v", operator))
+		return nil, fmt.Errorf("unsupported operator %v", operator)
 	}
 
 	threshold, err := e.GetFloatArg(3)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "deneme")
 	}
 
 	var results []*types.MetricData
