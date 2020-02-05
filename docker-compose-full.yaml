@@ -27,10 +27,9 @@ services:
     links:
       - go-carbon
 
-  crelay:
+  nanotube:
     build:
-      dockerfile: docker/crelay/Dockerfile
+      dockerfile: docker/nanotube/Dockerfile
       context: .
     ports:
       - "2003:2003"
-    

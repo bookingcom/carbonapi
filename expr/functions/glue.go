@@ -28,6 +28,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/exclude"
 	"github.com/bookingcom/carbonapi/expr/functions/fallbackSeries"
 	"github.com/bookingcom/carbonapi/expr/functions/fft"
+	"github.com/bookingcom/carbonapi/expr/functions/filterSeries"
 	"github.com/bookingcom/carbonapi/expr/functions/grep"
 	"github.com/bookingcom/carbonapi/expr/functions/group"
 	"github.com/bookingcom/carbonapi/expr/functions/groupByNode"
@@ -148,6 +149,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "fallbackSeries", order: fallbackSeries.GetOrder(), f: fallbackSeries.New})
 
 	funcs = append(funcs, initFunc{name: "fft", order: fft.GetOrder(), f: fft.New})
+
+	funcs = append(funcs, initFunc{name: "filterSeries", order: filterSeries.GetOrder(), f: filterSeries.New})
 
 	funcs = append(funcs, initFunc{name: "grep", order: grep.GetOrder(), f: grep.New})
 
