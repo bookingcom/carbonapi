@@ -1,0 +1,7 @@
+[[cluster]]
+name = "a34000"
+type = "jump"
+    [[cluster.hosts]]
+    name = "go-carbon"
+    port = 2003
+    index = 0
