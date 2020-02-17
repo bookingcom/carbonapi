@@ -236,7 +236,7 @@ type requestRes struct {
 
 func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
 
-	ch := make(chan requestRes)
+	ch := make(chan requestRes, 1)
 	t0 := time.Now()
 
 	go func() {
