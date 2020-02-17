@@ -207,15 +207,23 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		logger.Info("memcached configured",
 			zap.Strings("servers", app.config.Cache.MemcachedServers),
 		)
-		app.queryCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
-		app.findCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
 
-		mcache := app.queryCache.(*cache.MemcachedCache)
+		if app.config.Cache.Replicated {
+			app.queryCache = cache.NewReplicatedMemcached("capi", app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+			app.findCache = cache.NewReplicatedMemcached("capi", app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
 
-		apiMetrics.MemcacheTimeouts = expvar.Func(func() interface{} {
-			return mcache.Timeouts()
-		})
-		expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
+		} else {
+			app.queryCache = cache.NewMemcached("capi", app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+			app.findCache = cache.NewMemcached("capi", app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+
+			mcache := app.queryCache.(*cache.MemcachedCache)
+
+			// TODO (grzkv) Move to conventional Prom metrics.
+			apiMetrics.MemcacheTimeouts = expvar.Func(func() interface{} {
+				return mcache.Timeouts()
+			})
+			expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
+		}
 
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))

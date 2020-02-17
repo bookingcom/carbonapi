@@ -30,14 +30,14 @@ func info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) 
 
 func getMockInfoResponse() []types.Info {
 	return []types.Info{
-		types.Info{
+		{
 			Host:              "http://127.0.0.1:8080",
 			Name:              "foo.bar",
 			AggregationMethod: "Average",
 			MaxRetention:      157680000,
 			XFilesFactor:      0.5,
 			Retentions: []types.Retention{
-				types.Retention{
+				{
 					SecondsPerPoint: 60,
 					NumberOfPoints:  43200,
 				},
@@ -48,7 +48,7 @@ func getMockInfoResponse() []types.Info {
 
 func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
-		types.Metric{
+		{
 			Name:      "foo.bar",
 			StartTime: 1510913280,
 			StopTime:  1510913880,
@@ -61,13 +61,13 @@ func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, e
 
 func renderErr(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
-		types.Metric{},
+		{},
 	}, errors.New("error during render")
 }
 
 func renderErrNotFound(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
-		types.Metric{},
+		{},
 	}, types.ErrMetricsNotFound
 }
 
@@ -95,7 +95,7 @@ func getMetricGlobResponse(metric string) types.Matches {
 			Name: "foo.b",
 			Matches: []types.Match{
 				match,
-				types.Match{
+				{
 					Path:   "foo.bat",
 					IsLeaf: true,
 				},
@@ -121,7 +121,7 @@ func setUpTestConfig() *App {
 	// TODO (grzkv): Should use New
 	app := &App{
 		config:            config,
-		queryCache:        cache.NewMemcached("capi", ``),
+		queryCache:        cache.NewMemcached("capi", 50, ""),
 		findCache:         cache.NewExpireCache(1000),
 		prometheusMetrics: newPrometheusMetrics(config),
 	}

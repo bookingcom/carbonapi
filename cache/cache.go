@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -55,14 +56,19 @@ func (ec ExpireCache) Items() int { return ec.ec.Items() }
 
 func (ec ExpireCache) Size() uint64 { return ec.ec.Size() }
 
-func NewMemcached(prefix string, servers ...string) BytesCache {
-	return &MemcachedCache{prefix: prefix, client: memcache.New(servers...)}
+func NewMemcached(prefix string, timeoutMs uint64, servers ...string) BytesCache {
+	return &MemcachedCache{
+		prefix:         prefix,
+		queryTimeoutMs: timeoutMs,
+		client:         memcache.New(servers...),
+	}
 }
 
 type MemcachedCache struct {
-	prefix   string
-	client   *memcache.Client
-	timeouts uint64
+	prefix         string
+	client         *memcache.Client
+	timeouts       uint64
+	queryTimeoutMs uint64
 }
 
 func (m *MemcachedCache) Get(k string) ([]byte, error) {
@@ -78,7 +84,7 @@ func (m *MemcachedCache) Get(k string) ([]byte, error) {
 		done <- true
 	}()
 
-	timeout := time.After(50 * time.Millisecond)
+	timeout := time.After(time.Duration(m.queryTimeoutMs) * time.Millisecond)
 
 	select {
 	case <-timeout:
@@ -95,6 +101,10 @@ func (m *MemcachedCache) Get(k string) ([]byte, error) {
 		return nil, err
 	}
 
+	if item == nil {
+		// in case if memcached client returns (nil, nil)
+		return nil, nil
+	}
 	return item.Value, nil
 }
 
@@ -106,4 +116,96 @@ func (m *MemcachedCache) Set(k string, v []byte, expire int32) {
 
 func (m *MemcachedCache) Timeouts() uint64 {
 	return atomic.LoadUint64(&m.timeouts)
+}
+
+type ReplicatedMemcached struct {
+	prefix    string
+	instances []*memcache.Client
+
+	// was 50 ms
+	timeoutMs uint64 // timeout for getting data
+	// TODO (grzkv) Scrape this metric
+	timeouts uint64 // timeouts counter
+}
+
+// NewReplicatedMemcached creates a set of identical memcached instances.
+func NewReplicatedMemcached(prefix string, timeout uint64, servers ...string) BytesCache {
+	m := ReplicatedMemcached{
+		prefix:    prefix,
+		timeoutMs: timeout,
+	}
+
+	for _, s := range servers {
+		m.instances = append(m.instances, memcache.New(s))
+	}
+
+	return &m
+}
+
+// Get gets value for the key from the replicated memcached.
+// It sends the request to all replicas and picks the first valid answer
+// (event if it's a not-found) or times out.
+func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
+	resCh := make(chan cacheResponse)
+
+	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
+	cacheErrs := ""
+	for i := 0; i < len(m.instances); i++ {
+		select {
+		case res := <-resCh:
+			if res.err != nil {
+				cacheErrs = cacheErrs + "; " + res.err.Error()
+			} else if !res.found {
+				return nil, ErrNotFound
+			}
+
+			return res.data, nil
+		case <-tout:
+			atomic.AddUint64(&m.timeouts, 1)
+			return nil, ErrTimeout
+		}
+	}
+
+	// if this point is reached, it means that all caches returned errors
+	return nil, errors.New("all caches failed with errors: " + cacheErrs)
+}
+
+// Set sets the key-value pair for all cache instances.
+func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
+	key := sha1.Sum([]byte(k))
+	hk := hex.EncodeToString(key[:])
+	for _, m := range rm.instances {
+		go func(k_ string, val_ []byte, expire_ int32, m_ *memcache.Client) {
+			m_.Set(&memcache.Item{
+				Key:        rm.prefix + k_,
+				Value:      val_,
+				Expiration: expire,
+			})
+		}(hk, val, expire, m)
+	}
+}
+
+type cacheResponse struct {
+	found bool
+	data  []byte
+	err   error
+}
+
+func getFromReplica(m *memcache.Client, k string, prefix string, res chan<- cacheResponse, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	key := sha1.Sum([]byte(k))
+	hk := hex.EncodeToString(key[:])
+
+	item, err := m.Get(prefix + hk)
+
+	if err != nil {
+		if err == memcache.ErrCacheMiss {
+			res <- cacheResponse{found: false, data: nil}
+			return
+		}
+		return
+	}
+
+	res <- cacheResponse{found: true, data: item.Value}
 }
