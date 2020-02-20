@@ -220,7 +220,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
 	case "memcacheReplicated":
 		if len(app.config.Cache.MemcachedServers) == 0 {
-			logger.Fatal("replicatred memcache cache requested but no memcache servers provided")
+			logger.Fatal("replicated memcache cache requested but no memcache servers provided")
 		}
 		logger.Info("replicated memcached configured",
 			zap.Strings("servers", app.config.Cache.MemcachedServers))
