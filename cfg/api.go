@@ -68,6 +68,7 @@ func DefaultAPIConfig() API {
 			Type:              "mem",
 			DefaultTimeoutSec: 60,
 			QueryTimeoutMs:    50,
+			Prefix:            "capi",
 		},
 	}
 
@@ -106,13 +107,14 @@ type API struct {
 
 // CacheConfig configs the cache
 type CacheConfig struct {
+	// possible values are: null, mem, memcache, replicatedMemcache
 	Type             string   `yaml:"type"`
 	Size             int      `yaml:"size_mb"`
 	MemcachedServers []string `yaml:"memcachedServers"`
 	// TODO (grzkv): This looks to be used as expiration time for cache
 	DefaultTimeoutSec int32  `yaml:"defaultTimeoutSec"`
-	Replicated        bool   `yaml:"replicated"`
 	QueryTimeoutMs    uint64 `yaml:"queryTimeoutMs"`
+	Prefix            string `yaml:"prefix"`
 }
 
 type preAPI struct {

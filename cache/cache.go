@@ -118,14 +118,19 @@ func (m *MemcachedCache) Timeouts() uint64 {
 	return atomic.LoadUint64(&m.timeouts)
 }
 
+// ReplicatedMemcached represents the caching setup when all the memcached instances
+// are identical. Each read and write refers to all of them.
 type ReplicatedMemcached struct {
 	prefix    string
-	instances []*memcache.Client
+	instances []Cache
 
-	// was 50 ms
 	timeoutMs uint64 // timeout for getting data
-	// TODO (grzkv) Scrape this metric
-	timeouts uint64 // timeouts counter
+}
+
+// Cache is a cache interface. Mainly for testing abilities.
+type Cache interface {
+	Get(string) (*memcache.Item, error)
+	Set(*memcache.Item) error
 }
 
 // NewReplicatedMemcached creates a set of identical memcached instances.
@@ -148,6 +153,10 @@ func NewReplicatedMemcached(prefix string, timeout uint64, servers ...string) By
 func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	resCh := make(chan cacheResponse)
 
+	for _, replica := range m.instances {
+		go getFromReplica(replica, k, m.prefix, resCh)
+	}
+
 	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
 	cacheErrs := ""
 	for i := 0; i < len(m.instances); i++ {
@@ -161,7 +170,6 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 
 			return res.data, nil
 		case <-tout:
-			atomic.AddUint64(&m.timeouts, 1)
 			return nil, ErrTimeout
 		}
 	}
@@ -174,15 +182,21 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
 	key := sha1.Sum([]byte(k))
 	hk := hex.EncodeToString(key[:])
+
+	var wg sync.WaitGroup
 	for _, m := range rm.instances {
-		go func(k_ string, val_ []byte, expire_ int32, m_ *memcache.Client) {
+		wg.Add(1)
+		go func(k_ string, val_ []byte, expire_ int32, m_ Cache) {
 			m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
 				Expiration: expire,
 			})
+			wg.Done()
 		}(hk, val, expire, m)
 	}
+
+	wg.Wait()
 }
 
 type cacheResponse struct {
@@ -191,9 +205,7 @@ type cacheResponse struct {
 	err   error
 }
 
-func getFromReplica(m *memcache.Client, k string, prefix string, res chan<- cacheResponse, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) {
 	key := sha1.Sum([]byte(k))
 	hk := hex.EncodeToString(key[:])
 
