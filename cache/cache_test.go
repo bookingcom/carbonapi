@@ -92,9 +92,7 @@ func TestReplicatedMemcacheTimeout(t *testing.T) {
 	m.Set("a", aData, 0)
 	m.Set("b", bData, 0)
 
-	t0 := time.Now()
 	aRes, err := m.Get("a")
-	t.Logf("Get took %d ms\n", (time.Now().Sub(t0)).Milliseconds())
 	if err != ErrTimeout {
 		t.Fatalf("Expected timeout, got val %v, err %v", aRes, err)
 	}
