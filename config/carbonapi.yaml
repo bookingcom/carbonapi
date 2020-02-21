@@ -14,13 +14,17 @@ listenInternal: ":7081"
 concurrencyLimitPerServer: 1025
 concurrencyLimit: 1024
 cache:
-   # Type of caching. Valid: "mem", "memcache", "null"
+   # Type of caching. Valid: "mem", "memcache", "null", "memcacheReplicated"
    type: "mem"
    # Cache limit in megabytes
    size_mb: 0
-   # Default cache timeout value. Identical to DEFAULT_CACHE_DURATION in graphite-web.
+   # Cache entries expiration time. Identical to DEFAULT_CACHE_DURATION in graphite-web.
    defaultTimeoutSec: 60
-   # Only used by memcache type of cache. List of memcache servers.
+   # timeout for cache request. Applies to memcache and memcacheReplicated.
+   queryTimeoutMs: 50
+   # prefix is added to every key in memcache
+   prefix: "capi"
+   # Only used by "memcache" or "memcacheReplicated" type of cache. List of memcache servers.
    memcachedServers:
        - "127.0.0.1:11211"
 # Amount of CPUs to use. 0 - unlimited

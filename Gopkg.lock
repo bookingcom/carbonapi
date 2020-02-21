@@ -170,6 +170,20 @@
   version = "v1.2.0"
 
 [[projects]]
+  digest = "1:0aeda02073125667ac6c9df50c7921cb22c08a4accdc54589c697a7e76be65c2"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/flags",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = "UT"
+  revision = "5a6f75716e1203a923a78c9efb94089d857df0f6"
+  version = "v0.4.0"
+
+[[projects]]
   digest = "1:664d37ea261f0fc73dd17f4a1f5f46d01fbb0b0d75f6375af064824424109b7d"
   name = "github.com/gorilla/handlers"
   packages = ["."]
@@ -364,6 +378,7 @@
     "github.com/facebookgo/grace/gracehttp",
     "github.com/facebookgo/pidfile",
     "github.com/go-graphite/protocol/carbonapi_v2_pb",
+    "github.com/google/go-cmp/cmp",
     "github.com/gorilla/handlers",
     "github.com/lomik/og-rek",
     "github.com/lomik/zapwriter",
