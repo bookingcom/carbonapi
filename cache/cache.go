@@ -151,7 +151,8 @@ func NewReplicatedMemcached(prefix string, timeout uint64, servers ...string) By
 // It sends the request to all replicas and picks the first valid answer
 // (event if it's a not-found) or times out.
 func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
-	resCh := make(chan cacheResponse)
+	// chan size is selected so that timeouts do not block getFromReplica goroutines
+	resCh := make(chan cacheResponse, len(m.instances))
 
 	for _, replica := range m.instances {
 		go getFromReplica(replica, k, m.prefix, resCh)
