@@ -203,9 +203,10 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))
 	for _, host := range configBackendList {
-		cluster, _ := config.ClusterOfBackend(host)
+		dc, cluster, _ := config.InfoOfBackend(host)
 		b, err := bnet.New(bnet.Config{
 			Address:            host,
+			DC:                 dc,
 			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
