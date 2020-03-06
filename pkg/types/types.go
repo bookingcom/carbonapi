@@ -95,9 +95,9 @@ type Trace struct {
 	OutDuration   *prometheus.HistogramVec
 }
 
-func (t Trace) ObserveOutDuration(ti time.Duration, cluster string) {
+func (t Trace) ObserveOutDuration(ti time.Duration, dc string, cluster string) {
 	if t.OutDuration != nil { // TODO: check when it is nil
-		(*t.OutDuration).With(prometheus.Labels{"cluster": cluster}).Observe(ti.Seconds())
+		(*t.OutDuration).With(prometheus.Labels{"cluster": cluster, "dc": dc}).Observe(ti.Seconds())
 	}
 }
 

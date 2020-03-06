@@ -41,11 +41,18 @@ expireDelaySec: 120
 
 # "http://host:port" array of instances of carbonserver stores
 # This is the *ONLY* config element that MUST be specified.
-backendsByCluster:
-    - name: "sys"
-      backends:
-      - "http://go-carbon:8080"
+backendsByDC:
+    - name: "dc1"
+      clusters:
+          - name: "sys"
+            backends:
+            - "http://go-carbon:8080"
 
+#backendsByCluster:
+#    - name: "sys"
+#      backends:
+#      - "http://go-carbon:8080"
+    
 #backends:
 #    - "http://go-carbon:8080"
 
