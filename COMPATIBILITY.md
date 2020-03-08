@@ -123,7 +123,6 @@ _When `format=png`_ (default if not specified)
 - highest
 - holtWintersConfidenceArea
 - identity
-- integralByInterval
 - interpolate
 - lowest
 - minMax
@@ -226,6 +225,7 @@ _When `format=png`_ (default if not specified)
 | holtWintersForecast(seriesList)                                           |
 | [ifft](https://en.wikipedia.org/wiki/Fast_Fourier_transform)(absSeriesList, phaseSeriesList) |
 | integral(seriesList)                                                      |
+| integralByInterval(seriesList, intervalString)                                                      |
 | invert(seriesList)                                                        |
 | isNonNull(seriesList)                                                     |
 | keepLastValue(seriesList, limit=inf)                                      |

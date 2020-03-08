@@ -39,6 +39,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/holtWintersForecast"
 	"github.com/bookingcom/carbonapi/expr/functions/ifft"
 	"github.com/bookingcom/carbonapi/expr/functions/integral"
+	"github.com/bookingcom/carbonapi/expr/functions/integralByInterval"
 	"github.com/bookingcom/carbonapi/expr/functions/invert"
 	"github.com/bookingcom/carbonapi/expr/functions/isNotNull"
 	"github.com/bookingcom/carbonapi/expr/functions/keepLastValue"
@@ -171,6 +172,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "ifft", order: ifft.GetOrder(), f: ifft.New})
 
 	funcs = append(funcs, initFunc{name: "integral", order: integral.GetOrder(), f: integral.New})
+
+	funcs = append(funcs, initFunc{name: "integralByInterval", order: integralByInterval.GetOrder(), f: integralByInterval.New})
 
 	funcs = append(funcs, initFunc{name: "invert", order: invert.GetOrder(), f: invert.New})
 
