@@ -54,7 +54,7 @@ func (f *integralByInterval) Do(e parser.Expr, from, until int32, values map[par
 		result := &types.MetricData{
 			Metric: dataTypes.Metric{
 				Name:      name,
-				Values:    arg.Values,
+				Values:    make([]float64, len(arg.Values)),
 				IsAbsent:  arg.IsAbsent,
 				StepTime:  arg.StepTime,
 				StartTime: arg.StartTime,
@@ -106,4 +106,3 @@ func (f *integralByInterval) Description() map[string]types.FunctionDescription 
 		},
 	}
 }
-
