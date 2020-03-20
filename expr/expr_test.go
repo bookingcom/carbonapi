@@ -1192,7 +1192,7 @@ func TestRewriteExpr(t *testing.T) {
 			parser.NewExpr("applyByNode",
 
 				"metric*",
-				1,
+				0,
 				parser.ArgValue("%.count"),
 			),
 			map[parser.MetricRequest][]*types.MetricData{
@@ -1211,7 +1211,7 @@ func TestRewriteExpr(t *testing.T) {
 			parser.NewExpr("applyByNode",
 
 				"metric*",
-				1,
+				0,
 				parser.ArgValue("%.count"),
 				parser.ArgValue("% count"),
 			),
@@ -1231,7 +1231,7 @@ func TestRewriteExpr(t *testing.T) {
 			parser.NewExpr("applyByNode",
 
 				"foo.metric*",
-				2,
+				1,
 				parser.ArgValue("%.count"),
 			),
 			map[parser.MetricRequest][]*types.MetricData{
@@ -1393,7 +1393,7 @@ func TestEvalMultipleReturns(t *testing.T) {
 		{
 			"lowestCurrent(metric1)",
 			map[parser.MetricRequest][]*types.MetricData{
-				parser.MetricRequest{"metric1", 0, 1}: {
+				{"metric1", 0, 1}: {
 					types.MakeMetricData("metricB", []float64{1, 1, 3, 3, 4, 1}, 1, now32),
 					types.MakeMetricData("metricC", []float64{1, 1, 3, 3, 4, 15}, 1, now32),
 					types.MakeMetricData("metricD", []float64{1, 1, 3, 3, 4, 3}, 1, now32),
