@@ -15,10 +15,12 @@ type integralByInterval struct {
 	interfaces.FunctionBase
 }
 
+// GetOrder define the execution order of functions
 func GetOrder() interfaces.Order {
 	return interfaces.Any
 }
 
+// New create new integralByInterval functions.
 func New(configFile string) []interfaces.FunctionMetadata {
 	res := make([]interfaces.FunctionMetadata, 0)
 	f := &integralByInterval{}
@@ -29,7 +31,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-// integralByInterval(seriesList, intervalString)
+// Do integralByInterval(seriesList, intervalString)
 func (f *integralByInterval) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
 	args, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
 	if err != nil {
@@ -82,7 +84,7 @@ func (f *integralByInterval) Do(e parser.Expr, from, until int32, values map[par
 func (f *integralByInterval) Description() map[string]types.FunctionDescription {
 	return map[string]types.FunctionDescription{
 		"integralByInterval": {
-			Description: "This will do the same as integralByInterval() funcion, except resetting the total to 0 at the given time in the parameter “from” Useful for finding totals per hour/day/week/..",
+			Description: "This will do the same as integral() funcion, except resetting the total to 0 at the given time in the parameter “from” Useful for finding totals per hour/day/week/..",
 			Function:    "integralByInterval(seriesList, intervalString)",
 			Group:       "Transform",
 			Module:      "graphite.render.functions",
