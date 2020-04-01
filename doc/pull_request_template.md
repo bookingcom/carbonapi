@@ -4,4 +4,3 @@
 
 ## How can we be sure this works as expected?
 
-## What feedback would you like, if any?
