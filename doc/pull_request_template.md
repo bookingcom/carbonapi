@@ -1,4 +1,4 @@
-## What issue is this change attempting to solve?
+## Link to the issue this PR resolves
 
 ## How does this change solve the problem? Why is this the best approach?
 
