@@ -1,4 +1,4 @@
-## ## What issue is this change attempting to solve?
+## What issue is this change attempting to solve?
 
 ## How does this change solve the problem? Why is this the best approach?
 
