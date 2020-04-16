@@ -87,41 +87,50 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 		r.Name = fmt.Sprintf("%s(%s,%s)", e.Target(), a.Name, argstr)
 		r.Values = make([]float64, len(a.Values)-offset)
 		r.IsAbsent = make([]bool, len(a.Values)-offset)
-		r.StartTime = from
-		r.StopTime = until
 
-		for i, v := range a.Values {
-			if windowSize == 0 {
-				// Fix error on long time ranges (greater than 30 days), sampling to 10 min
-				r.Values = make([]float64, len(a.Values))
-				for i := range a.Values {
-					r.Values[i] = math.NaN()
-				}
-			} else {
+		if windowSize == 0 {
+			// Fix error on long time ranges (greater than 30 days), sampling to 10 min
+			r.Values = make([]float64, len(a.Values))
+			for i := range a.Values {
+				r.Values[i] = math.NaN()
+			}
+		} else {
+			for i, v := range a.Values {
 				if a.IsAbsent[i] {
 					// make sure missing values are ignored
 					v = math.NaN()
 				}
 
-				if ridx := i - offset; ridx >= 0 {
-					switch e.Target() {
-					case "movingAverage":
-						r.Values[ridx] = w.Mean()
-					case "movingSum":
-						r.Values[ridx] = w.Sum()
-						//TODO(cldellow): consider a linear time min/max-heap for these,
-						// e.g. http://stackoverflow.com/questions/8905525/computing-a-moving-maximum/8905575#8905575
-					case "movingMin":
-						r.Values[ridx] = w.Min()
-					case "movingMax":
-						r.Values[ridx] = w.Max()
-					}
-					if i < windowSize || math.IsNaN(r.Values[ridx]) {
-						r.Values[ridx] = 0
-						r.IsAbsent[ridx] = true
-					}
-				}
 				w.Push(v)
+
+				ridx := i - offset
+				if ridx < 0 {
+					continue
+				}
+
+				if w.HasNaN() || i < windowSize-1 {
+					r.Values[ridx] = 0
+					r.IsAbsent[ridx] = true
+					continue
+				}
+
+				switch e.Target() {
+				case "movingAverage":
+					r.Values[ridx] = w.Mean()
+				case "movingSum":
+					r.Values[ridx] = w.Sum()
+					//TODO(cldellow): consider a linear time min/max-heap for these,
+					// e.g. http://stackoverflow.com/questions/8905525/computing-a-moving-maximum/8905575#8905575
+				case "movingMin":
+					r.Values[ridx] = w.Min()
+				case "movingMax":
+					r.Values[ridx] = w.Max()
+				}
+
+				if math.IsNaN(r.Values[ridx]) {
+					r.Values[ridx] = 0
+					r.IsAbsent[ridx] = true
+				}
 			}
 		}
 		result = append(result, &r)
