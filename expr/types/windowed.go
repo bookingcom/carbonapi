@@ -103,8 +103,3 @@ func (w *Windowed) Min() float64 {
 	}
 	return rv
 }
-
-// HasNaN returns true when at least one NaN is in the window
-func (w *Windowed) HasNaN() bool {
-	return w.nans > 0
-}
