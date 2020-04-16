@@ -207,15 +207,26 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		logger.Info("memcached configured",
 			zap.Strings("servers", app.config.Cache.MemcachedServers),
 		)
-		app.queryCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
-		app.findCache = cache.NewMemcached("capi", app.config.Cache.MemcachedServers...)
+
+		app.queryCache = cache.NewMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+		app.findCache = cache.NewMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
 
 		mcache := app.queryCache.(*cache.MemcachedCache)
 
+		// TODO (grzkv) Move to conventional Prom metrics.
 		apiMetrics.MemcacheTimeouts = expvar.Func(func() interface{} {
 			return mcache.Timeouts()
 		})
 		expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
+	case "memcacheReplicated":
+		if len(app.config.Cache.MemcachedServers) == 0 {
+			logger.Fatal("replicated memcache cache requested but no memcache servers provided")
+		}
+		logger.Info("replicated memcached configured",
+			zap.Strings("servers", app.config.Cache.MemcachedServers))
+
+		app.queryCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+		app.findCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
 
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))

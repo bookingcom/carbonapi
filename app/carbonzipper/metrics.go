@@ -139,7 +139,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.RenderDurationExp.BucketSize,
 					config.Monitoring.RenderDurationExp.BucketsNum),
 			},
-			[]string{"cluster"},
+			[]string{"dc", "cluster"},
 		),
 		FindDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{

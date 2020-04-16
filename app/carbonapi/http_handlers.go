@@ -248,6 +248,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(results) != 0 {
 		tc := time.Now()
+		// TODO (grzkv): Timeout is passed as "expire" argument.
+		// Looks like things are mixed.
 		app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)

@@ -136,6 +136,7 @@ type Common struct {
 	ListenInternal    string    `yaml:"listenInternal"`
 	Backends          []string  `yaml:"backends"`
 	BackendsByCluster []Cluster `yaml:"backendsByCluster"`
+	BackendsByDC      []DC      `yaml:"backendsByDC"`
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
@@ -158,11 +159,22 @@ type Common struct {
 // GetBackends returns the list of backends from common configuration
 func (common Common) GetBackends() []string {
 	backends := []string{}
-	for _, cluster := range common.BackendsByCluster {
-		backends = append(backends, cluster.Backends...)
+	hasDCBackends := false
+	hasClusterBackends := false
+
+	for _, dc := range common.BackendsByDC {
+		hasDCBackends = true
+		for _, cluster := range dc.Clusters {
+			backends = append(backends, cluster.Backends...)
+		}
 	}
 
-	if (len(common.Backends) > 0) && (len(backends) > 0) {
+	for _, cluster := range common.BackendsByCluster {
+		hasClusterBackends = true
+		backends = append(backends, cluster.Backends...)
+	}
+	// TODO: GV - check w/BackendsByDC
+	if (hasDCBackends && hasClusterBackends) || (len(common.Backends) > 0) && (len(backends) > 0) {
 		log.Fatal("duplicate backend definition in config -- exiting")
 	}
 
@@ -172,24 +184,35 @@ func (common Common) GetBackends() []string {
 	return backends
 }
 
-// ClusterOfBackend returns the cluster of a given backend address from common configuration
-func (common Common) ClusterOfBackend(address string) (string, error) {
+// InfoOfBackend returns the dc and cluster of a given backend address from common configuration
+func (common Common) InfoOfBackend(address string) (string, string, error) {
+	for _, dc := range common.BackendsByDC {
+		for _, cluster := range dc.Clusters {
+
+			for _, backend := range cluster.Backends {
+				if backend == address {
+					return dc.Name, cluster.Name, nil
+				}
+			}
+		}
+	}
+
 	for _, cluster := range common.BackendsByCluster {
 
 		for _, backend := range cluster.Backends {
 			if backend == address {
-				return cluster.Name, nil
+				return "", cluster.Name, nil
 			}
 		}
 	}
 
 	for _, backend := range common.Backends {
 		if backend == address {
-			return "", nil
+			return "", "", nil
 		}
 	}
 
-	return "", errors.Errorf("Couldn't find cluster for '%s'", address)
+	return "", "", errors.Errorf("Couldn't find cluster for '%s'", address)
 }
 
 // MonitoringConfig allows setting custom monitoring parameters
@@ -224,4 +247,10 @@ type Timeouts struct {
 type Cluster struct {
 	Name     string   `yaml:"name"`
 	Backends []string `yaml:"backends"`
+}
+
+// DC is a definition for data-cemter with set of clusters
+type DC struct {
+	Name     string    `yaml:"name"`
+	Clusters []Cluster `yaml:"clusters"`
 }

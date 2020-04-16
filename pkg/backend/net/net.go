@@ -66,6 +66,7 @@ func ContextCancelCause(err error) string {
 type Backend struct {
 	address        string
 	scheme         string
+	dc             string
 	cluster        string
 	client         *http.Client
 	timeout        time.Duration
@@ -84,6 +85,7 @@ type Config struct {
 	Address string // The backend address.
 
 	// Optional fields
+	DC                 string        // The DC where backend belongs to
 	Cluster            string        // The cluster where backend belongs to
 	Client             *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
@@ -114,6 +116,7 @@ func New(cfg Config) (*Backend, error) {
 	b.address = address
 	b.scheme = scheme
 	b.cluster = cfg.Cluster
+	b.dc = cfg.DC
 
 	if cfg.Timeout > 0 {
 		b.timeout = cfg.Timeout
@@ -236,7 +239,7 @@ type requestRes struct {
 
 func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
 
-	ch := make(chan requestRes)
+	ch := make(chan requestRes, 1)
 	t0 := time.Now()
 
 	go func() {
@@ -247,7 +250,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	select {
 	case res := <-ch:
 		trace.AddHTTPCall(t0)
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.cluster)
+		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
 
 		var body []byte
 		var bodyErr error
@@ -274,7 +277,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		return res.resp.Header.Get("Content-Type"), body, nil
 
 	case <-ctx.Done():
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.cluster)
+		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
 
 		b.logger.Warn("Request context cancelled",
 			zap.String("host", b.address),
