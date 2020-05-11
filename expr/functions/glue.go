@@ -88,6 +88,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/timeLag"
 	"github.com/bookingcom/carbonapi/expr/functions/timeShift"
 	"github.com/bookingcom/carbonapi/expr/functions/timeStack"
+	"github.com/bookingcom/carbonapi/expr/functions/transformNonNull"
 	"github.com/bookingcom/carbonapi/expr/functions/transformNull"
 	"github.com/bookingcom/carbonapi/expr/functions/tukey"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -272,6 +273,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "timeStack", order: timeStack.GetOrder(), f: timeStack.New})
 
 	funcs = append(funcs, initFunc{name: "transformNull", order: transformNull.GetOrder(), f: transformNull.New})
+
+	funcs = append(funcs, initFunc{name: "transformNonNull", order: transformNonNull.GetOrder(), f: transformNonNull.New})
 
 	funcs = append(funcs, initFunc{name: "tukey", order: tukey.GetOrder(), f: tukey.New})
 

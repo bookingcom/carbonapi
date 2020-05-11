@@ -603,6 +603,14 @@ func TestEvalExpression(t *testing.T) {
 				[]float64{1, 0, 0, 3, 4, 12}, 1, now32)},
 		},
 		{
+			"transformNonNull(metric1)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("transformNonNull(metric1)",
+				[]float64{1, math.NaN(), math.NaN(), 1, 1, 1}, 1, now32)},
+		},
+		{
 			"reduceSeries(mapSeries(devops.service.*.filter.received.*.count,2), \"asPercent\", 5,\"valid\",\"total\")",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"devops.service.*.filter.received.*.count", 0, 1}: {

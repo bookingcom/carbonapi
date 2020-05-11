@@ -140,7 +140,6 @@ func NearlyEqual(a []float64, absent []bool, b []float64) bool {
 }
 
 func NearlyEqualMetrics(a, b *types.MetricData) bool {
-
 	if len(a.IsAbsent) != len(b.IsAbsent) {
 		return false
 	}

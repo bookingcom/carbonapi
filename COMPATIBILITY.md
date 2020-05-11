@@ -170,6 +170,7 @@ _When `format=png`_ (default if not specified)
 - timeLagSeriesLists
 - tukeyAbove
 - tukeyBelow
+- transformNonNull
 
 ## Function short docs
 
@@ -297,3 +298,4 @@ _When `format=png`_ (default if not specified)
 | [tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
 | [tukeyBelow](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
 | transformNull(seriesList, default=0)                                      |
+| transformNonNull(seriesList, default=1)                                   |
