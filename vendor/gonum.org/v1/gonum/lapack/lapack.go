@@ -29,6 +29,7 @@ type Float64 interface {
 	Dormlq(side blas.Side, trans blas.Transpose, m, n, k int, a []float64, lda int, tau, c []float64, ldc int, work []float64, lwork int)
 	Dpocon(uplo blas.Uplo, n int, a []float64, lda int, anorm float64, work []float64, iwork []int) float64
 	Dpotrf(ul blas.Uplo, n int, a []float64, lda int) (ok bool)
+	Dpotri(ul blas.Uplo, n int, a []float64, lda int) (ok bool)
 	Dpotrs(ul blas.Uplo, n, nrhs int, a []float64, lda int, b []float64, ldb int)
 	Dsyev(jobz EVJob, uplo blas.Uplo, n int, a []float64, lda int, w, work []float64, lwork int) (ok bool)
 	Dtrcon(norm MatrixNorm, uplo blas.Uplo, diag blas.Diag, n int, a []float64, lda int, work []float64, iwork []int) float64
@@ -64,22 +65,22 @@ const (
 type MatrixNorm byte
 
 const (
-	MaxAbs       MatrixNorm = 'M' // max(abs(A(i,j)))  ('M')
-	MaxColumnSum MatrixNorm = 'O' // Maximum column sum (one norm) ('1', 'O')
-	MaxRowSum    MatrixNorm = 'I' // Maximum row sum (infinity norm) ('I', 'i')
-	NormFrob     MatrixNorm = 'F' // Frobenius norm (sqrt of sum of squares) ('F', 'f', E, 'e')
+	MaxAbs       MatrixNorm = 'M' // max(abs(A(i,j)))
+	MaxColumnSum MatrixNorm = 'O' // Maximum absolute column sum (one norm)
+	MaxRowSum    MatrixNorm = 'I' // Maximum absolute row sum (infinity norm)
+	Frobenius    MatrixNorm = 'F' // Frobenius norm (sqrt of sum of squares)
 )
 
 // MatrixType represents the kind of matrix represented in the data.
 type MatrixType byte
 
 const (
-	General  MatrixType = 'G' // A dense matrix (like blas64.General).
+	General  MatrixType = 'G' // A general dense matrix.
 	UpperTri MatrixType = 'U' // An upper triangular matrix.
 	LowerTri MatrixType = 'L' // A lower triangular matrix.
 )
 
-// Pivot specifies the pivot type for plane rotations
+// Pivot specifies the pivot type for plane rotations.
 type Pivot byte
 
 const (
@@ -92,15 +93,15 @@ const (
 type ApplyOrtho byte
 
 const (
-	ApplyP ApplyOrtho = 'P' // Apply P or P^T.
-	ApplyQ ApplyOrtho = 'Q' // Apply Q or Q^T.
+	ApplyP ApplyOrtho = 'P' // Apply P or Pᵀ.
+	ApplyQ ApplyOrtho = 'Q' // Apply Q or Qᵀ.
 )
 
 // GenOrtho specifies which orthogonal matrix is generated in Dorgbr.
 type GenOrtho byte
 
 const (
-	GeneratePT GenOrtho = 'P' // Generate P^T.
+	GeneratePT GenOrtho = 'P' // Generate Pᵀ.
 	GenerateQ  GenOrtho = 'Q' // Generate Q.
 )
 
@@ -108,21 +109,21 @@ const (
 type SVDJob byte
 
 const (
-	SVDAll       SVDJob = 'A' // Compute all singular vectors
-	SVDInPlace   SVDJob = 'S' // Compute the first singular vectors and store them in provided storage.
-	SVDOverwrite SVDJob = 'O' // Compute the singular vectors and store them in input matrix
-	SVDNone      SVDJob = 'N' // Do not compute singular vectors
+	SVDAll       SVDJob = 'A' // Compute all columns of the orthogonal matrix U or V.
+	SVDStore     SVDJob = 'S' // Compute the singular vectors and store them in the orthogonal matrix U or V.
+	SVDOverwrite SVDJob = 'O' // Compute the singular vectors and overwrite them on the input matrix A.
+	SVDNone      SVDJob = 'N' // Do not compute singular vectors.
 )
 
 // GSVDJob specifies the singular vector computation type for Generalized SVD.
 type GSVDJob byte
 
 const (
-	GSVDU    GSVDJob = 'U' // Compute orthogonal matrix U
-	GSVDV    GSVDJob = 'V' // Compute orthogonal matrix V
-	GSVDQ    GSVDJob = 'Q' // Compute orthogonal matrix Q
-	GSVDUnit GSVDJob = 'I' // Use unit-initialized matrix
-	GSVDNone GSVDJob = 'N' // Do not compute orthogonal matrix
+	GSVDU    GSVDJob = 'U' // Compute orthogonal matrix U.
+	GSVDV    GSVDJob = 'V' // Compute orthogonal matrix V.
+	GSVDQ    GSVDJob = 'Q' // Compute orthogonal matrix Q.
+	GSVDUnit GSVDJob = 'I' // Use unit-initialized matrix.
+	GSVDNone GSVDJob = 'N' // Do not compute orthogonal matrix.
 )
 
 // EVComp specifies how eigenvectors are computed in Dsteqr.
@@ -138,24 +139,24 @@ const (
 type EVJob byte
 
 const (
-	EVCompute EVJob = 'V' // Eigenvectors are computed.
-	EVNone    EVJob = 'N' // Eigenvectors are not computed.
+	EVCompute EVJob = 'V' // Compute eigenvectors.
+	EVNone    EVJob = 'N' // Do not compute eigenvectors.
 )
 
 // LeftEVJob specifies whether left eigenvectors are computed in Dgeev.
 type LeftEVJob byte
 
 const (
-	LeftEVCompute LeftEVJob = 'V' // Left eigenvectors are computed.
-	LeftEVNone    LeftEVJob = 'N' // Left eigenvectors are not computed.
+	LeftEVCompute LeftEVJob = 'V' // Compute left eigenvectors.
+	LeftEVNone    LeftEVJob = 'N' // Do not compute left eigenvectors.
 )
 
 // RightEVJob specifies whether right eigenvectors are computed in Dgeev.
 type RightEVJob byte
 
 const (
-	RightEVCompute RightEVJob = 'V' // Right eigenvectors are computed.
-	RightEVNone    RightEVJob = 'N' // Right eigenvectors are not computed.
+	RightEVCompute RightEVJob = 'V' // Compute right eigenvectors.
+	RightEVNone    RightEVJob = 'N' // Do not compute right eigenvectors.
 )
 
 // BalanceJob specifies matrix balancing operation.
@@ -180,26 +181,26 @@ const (
 type SchurComp byte
 
 const (
-	SchurNone SchurComp = 'N' // Schur vectors are not computed.
-	SchurHess SchurComp = 'I' // Schur vectors of the upper Hessenberg marix are computed.
-	SchurOrig SchurComp = 'V' // Schur vectors of the original matrix are computed.
+	SchurOrig SchurComp = 'V' // Compute Schur vectors of the original matrix.
+	SchurHess SchurComp = 'I' // Compute Schur vectors of the upper Hessenberg matrix.
+	SchurNone SchurComp = 'N' // Do not compute Schur vectors.
 )
 
 // UpdateSchurComp specifies whether the matrix of Schur vectors is updated in Dtrexc.
 type UpdateSchurComp byte
 
 const (
-	UpdateSchur     UpdateSchurComp = 'V' // The matrix of Schur vectors is updated.
-	UpdateSchurNone UpdateSchurComp = 'N' // The matrix of Schur vectors is not updated.
+	UpdateSchur     UpdateSchurComp = 'V' // Update the matrix of Schur vectors.
+	UpdateSchurNone UpdateSchurComp = 'N' // Do not update the matrix of Schur vectors.
 )
 
 // EVSide specifies what eigenvectors are computed in Dtrevc3.
 type EVSide byte
 
 const (
-	EVRight     EVSide = 'R' // Only right eigenvectors are computed.
-	EVLeft      EVSide = 'L' // Only left eigenvectors are computed.
-	EVRightLeft EVSide = 'B' // Both right and left eigenvectors are computed.
+	EVRight EVSide = 'R' // Compute only right eigenvectors.
+	EVLeft  EVSide = 'L' // Compute only left eigenvectors.
+	EVBoth  EVSide = 'B' // Compute both right and left eigenvectors.
 )
 
 // EVHowMany specifies which eigenvectors are computed in Dtrevc3 and how.
