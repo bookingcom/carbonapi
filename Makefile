@@ -6,6 +6,9 @@ else
 	PKGCONF =
 endif
 
+export GOFLAGS=-mod=vendor
+export GO111MODULE=on
+
 GO ?= go
 VERSION ?= $(shell git rev-parse --short HEAD)
 
