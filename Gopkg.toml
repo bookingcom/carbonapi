@@ -74,7 +74,7 @@
   branch = "master"
 
 [[constraint]]
-  branch = "master"
+  version = "0.7.0"
   name = "gonum.org/v1/gonum"
 
 [[constraint]]

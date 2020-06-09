@@ -152,14 +152,10 @@ func Distance(s, t []float64, L float64) float64 {
 	if len(s) == 0 {
 		return 0
 	}
-	var norm float64
 	if L == 2 {
-		for i, v := range s {
-			diff := t[i] - v
-			norm = math.Hypot(norm, diff)
-		}
-		return norm
+		return f64.L2DistanceUnitary(s, t)
 	}
+	var norm float64
 	if L == 1 {
 		for i, v := range s {
 			norm += math.Abs(t[i] - v)
@@ -648,11 +644,7 @@ func Norm(s []float64, L float64) float64 {
 		return 0
 	}
 	if L == 2 {
-		twoNorm := math.Abs(s[0])
-		for i := 1; i < len(s); i++ {
-			twoNorm = math.Hypot(twoNorm, s[i])
-		}
-		return twoNorm
+		return f64.L2NormUnitary(s)
 	}
 	var norm float64
 	if L == 1 {
@@ -809,6 +801,17 @@ func Scale(c float64, dst []float64) {
 	}
 }
 
+// ScaleTo multiplies the elements in s by c and stores the result in dst.
+func ScaleTo(dst []float64, c float64, s []float64) []float64 {
+	if len(dst) != len(s) {
+		panic("floats: lengths of slices do not match")
+	}
+	if len(dst) > 0 {
+		f64.ScalUnitaryTo(dst, c, s)
+	}
+	return dst
+}
+
 // Span returns a set of N equally spaced points between l and u, where N
 // is equal to the length of the destination. The first element of the destination
 // is l, the final element of the destination is u.
@@ -897,11 +900,7 @@ func SubTo(dst, s, t []float64) []float64 {
 
 // Sum returns the sum of the elements of the slice.
 func Sum(s []float64) float64 {
-	var sum float64
-	for _, val := range s {
-		sum += val
-	}
-	return sum
+	return f64.Sum(s)
 }
 
 // Within returns the first index i where s[i] <= v < s[i+1]. Within panics if:

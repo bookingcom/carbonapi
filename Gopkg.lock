@@ -334,17 +334,19 @@
   version = "v1.9.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:781440b25f22c8a932424cf2c2ed6eb74b256b472f3e73501d4c9ac0d3397768"
+  digest = "1:4944bf1311d4e13847dc5b920bac39c5c7212ddc7a9a8dc18f0b5184c7faa2de"
   name = "gonum.org/v1/gonum"
   packages = [
     "blas",
     "blas/blas64",
+    "blas/cblas128",
     "blas/gonum",
     "floats",
     "internal/asm/c128",
+    "internal/asm/c64",
     "internal/asm/f32",
     "internal/asm/f64",
+    "internal/cmplx64",
     "internal/math32",
     "lapack",
     "lapack/gonum",
@@ -352,7 +354,8 @@
     "mat",
   ]
   pruneopts = "UT"
-  revision = "a290f01ec470228a325b6e013e3caa635d5fc2f7"
+  revision = "960a37950cca5ec8d1efe76ed4eec9dfe3065bd6"
+  version = "v0.7.0"
 
 [[projects]]
   digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
