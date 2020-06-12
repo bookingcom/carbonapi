@@ -1,6 +1,6 @@
 module github.com/bookingcom/carbonapi
 
-go 1.12
+go 1.14
 
 require (
 	bitbucket.org/tebeka/strftime v0.0.0-20121209190902-af5e0ef38369
