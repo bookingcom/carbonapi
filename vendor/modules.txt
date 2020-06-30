@@ -64,6 +64,7 @@ github.com/facebookgo/stats
 ## explicit
 github.com/go-graphite/protocol/carbonapi_v2_pb
 # github.com/gogo/protobuf v1.3.1
+## explicit
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
@@ -82,7 +83,7 @@ github.com/google/go-cmp/cmp/internal/value
 github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.4
 github.com/gorilla/mux
-# github.com/grpc-ecosystem/grpc-gateway v1.14.6
+# github.com/kr/pretty v0.2.0
 ## explicit
 # github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 ## explicit
@@ -123,8 +124,6 @@ github.com/prometheus/procfs/xfs
 # github.com/satori/go.uuid v1.2.0
 ## explicit
 github.com/satori/go.uuid
-# github.com/stretchr/testify v1.6.1
-## explicit
 # github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 ## explicit
 github.com/wangjohn/quickselect
@@ -147,6 +146,7 @@ go.opentelemetry.io/otel/api/propagation
 go.opentelemetry.io/otel/api/standard
 go.opentelemetry.io/otel/api/trace
 go.opentelemetry.io/otel/api/unit
+go.opentelemetry.io/otel/exporters/trace/stdout
 go.opentelemetry.io/otel/internal/trace/parent
 go.opentelemetry.io/otel/sdk
 go.opentelemetry.io/otel/sdk/export/trace
@@ -155,8 +155,6 @@ go.opentelemetry.io/otel/sdk/internal
 go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/internal
-# go.opentelemetry.io/otel/exporters/otlp v0.7.0
-## explicit
 # go.opentelemetry.io/otel/exporters/trace/jaeger v0.7.0
 ## explicit
 go.opentelemetry.io/otel/exporters/trace/jaeger
@@ -175,14 +173,8 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/net v0.0.0-20200625001655-4c5254603344
-## explicit
 # golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
-## explicit
-# golang.org/x/text v0.3.3
-## explicit
 # gonum.org/v1/gonum v0.6.2
 ## explicit
 gonum.org/v1/gonum/blas

@@ -38,11 +38,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+	tracestdout "go.opentelemetry.io/otel/exporters/trace/stdout"
 
 	//otlp "go.opentelemetry.io/otel/exporters/otlp"
-	//oteltracestdout "go.opentelemetry.io/otel/exporters/trace/stdout"
 
+	"go.opentelemetry.io/otel/api/global"
 	"go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
@@ -114,6 +116,7 @@ func initTracer() func() {
 	if endpoint == "" {
 		endpoint = "http://localhost:14268/api/traces"
 	}
+
 	_, flush, err := jaeger.NewExportPipeline(
 		jaeger.WithCollectorEndpoint(endpoint),
 		jaeger.WithProcess(jaeger.Process{
@@ -135,11 +138,29 @@ func initTracer() func() {
 	}
 }
 
+// initStdoutTracer creates and registers trace provider instance.
+func initStdoutTracer() {
+	var err error
+	exp, err := tracestdout.NewExporter(tracestdout.Options{PrettyPrint: false})
+	if err != nil {
+		log.Panicf("failed to initialize trace stdout exporter %v", err)
+		return
+	}
+	tp, err := sdktrace.NewProvider(sdktrace.WithSyncer(exp),
+		sdktrace.WithConfig(sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+		sdktrace.WithResource(resource.New(kv.String("rk1", "rv11"), kv.Int64("rk2", 5))))
+	if err != nil {
+		log.Panicf("failed to initialize trace provider %v", err)
+	}
+	global.SetTraceProvider(tp)
+}
+
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
 
 	flush := initTracer()
+	//initStdoutTracer()
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
