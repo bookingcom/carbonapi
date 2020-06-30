@@ -3,6 +3,7 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -35,6 +36,12 @@ import (
 	"github.com/peterbourgon/g2g"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
+	otelglobal "go.opentelemetry.io/otel/api/global"
+	otlp "go.opentelemetry.io/otel/exporters/otlp"
+	//oteltracestdout "go.opentelemetry.io/otel/exporters/trace/stdout"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
@@ -98,9 +105,33 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 	return app, nil
 }
 
+func initTracer() {
+	exporter, err := otlp.NewExporter(otlp.WithInsecure(), otlp.WithAddress("otel-agent-jaeger-compact-thrift.zipkin2.svc.bplatform-eu-nl-prod-c.booking.com:8080"))
+	//exporter, err := oteltracestdout.NewExporter(oteltracestdout.Options{PrettyPrint: true})
+	if err != nil {
+		log.Fatal(err)
+	}
+	cfg := sdktrace.Config{
+		DefaultSampler: sdktrace.AlwaysSample(),
+	}
+	tp, err := sdktrace.NewProvider(
+		sdktrace.WithConfig(cfg),
+		sdktrace.WithBatcher(exporter,
+			sdktrace.WithBatchTimeout(5),
+			sdktrace.WithMaxExportBatchSize(10),
+		))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	otelglobal.SetTraceProvider(tp)
+}
+
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() {
 	logger := zapwriter.Logger("carbonapi")
+
+	initTracer()
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
@@ -108,6 +139,9 @@ func (app *App) Start() {
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
 	handler = recoveryHandler(handler, logger)
+
+	traceMiddleware := muxtrace.Middleware("carbonapi")
+	handler = traceMiddleware(handler)
 
 	prometheusServer := app.registerPrometheusMetrics(logger)
 
