@@ -37,10 +37,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
-	otelglobal "go.opentelemetry.io/otel/api/global"
-	otlp "go.opentelemetry.io/otel/exporters/otlp"
+	"go.opentelemetry.io/otel/exporters/trace/jaeger"
+
+	//otlp "go.opentelemetry.io/otel/exporters/otlp"
 	//oteltracestdout "go.opentelemetry.io/otel/exporters/trace/stdout"
 
+	"go.opentelemetry.io/otel/api/kv"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
@@ -105,33 +107,39 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 	return app, nil
 }
 
-func initTracer() {
-	exporter, err := otlp.NewExporter(otlp.WithInsecure(), otlp.WithAddress("otel-agent-jaeger-compact-thrift.zipkin2.svc.bplatform-eu-nl-prod-c.booking.com:8080"))
-	//exporter, err := oteltracestdout.NewExporter(oteltracestdout.Options{PrettyPrint: true})
+// initTracer creates a new trace provider instance and registers it as global trace provider.
+func initTracer() func() {
+	// Create and install Jaeger export pipeline
+	endpoint := os.Getenv("JAEGER_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "http://localhost:14268/api/traces"
+	}
+	_, flush, err := jaeger.NewExportPipeline(
+		jaeger.WithCollectorEndpoint(endpoint),
+		jaeger.WithProcess(jaeger.Process{
+			ServiceName: "trace-demo",
+			Tags: []kv.KeyValue{
+				kv.String("exporter", "jaeger"),
+				kv.Float64("float", 312.23),
+			},
+		}),
+		jaeger.RegisterAsGlobal(),
+		jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	cfg := sdktrace.Config{
-		DefaultSampler: sdktrace.AlwaysSample(),
-	}
-	tp, err := sdktrace.NewProvider(
-		sdktrace.WithConfig(cfg),
-		sdktrace.WithBatcher(exporter,
-			sdktrace.WithBatchTimeout(5),
-			sdktrace.WithMaxExportBatchSize(10),
-		))
 
-	if err != nil {
-		log.Fatal(err)
+	return func() {
+		flush()
 	}
-	otelglobal.SetTraceProvider(tp)
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start() {
+func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
 
-	initTracer()
+	flush := initTracer()
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
@@ -159,6 +167,7 @@ func (app *App) Start() {
 			zap.Error(err),
 		)
 	}
+	return flush
 }
 
 func recoveryHandler(h http.Handler, lg *zap.Logger) http.Handler {

@@ -64,5 +64,6 @@ func main() {
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
-	app.Start()
+	end := app.Start()
+	defer end()
 }
