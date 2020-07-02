@@ -3,7 +3,6 @@ package carbonapi
 import (
 	"expvar"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/bookingcom/carbonapi/util"
 
 	"github.com/facebookgo/grace/gracehttp"
@@ -37,16 +37,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
-	"go.opentelemetry.io/otel/exporters/trace/jaeger"
-
-	//otlp "go.opentelemetry.io/otel/exporters/otlp"
-
-	"github.com/motemen/go-loghttp"
-	"go.opentelemetry.io/otel/api/global"
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/propagation"
-	"go.opentelemetry.io/otel/api/trace"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
@@ -110,60 +100,11 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 	return app, nil
 }
 
-// initTracer creates a new trace provider instance and registers it as global trace provider.
-func initTracer(logger *zap.Logger) func() {
-	// TODO timeouts. Default value is 60s!!!
-	client := &http.Client{
-		Transport: &loghttp.Transport{
-			Transport: &http.Transport{
-				Proxy: nil,
-			},
-		},
-	}
-	// Create and install Jaeger export pipeline
-	endpoint := os.Getenv("JAEGER_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "http://localhost:14268/api/traces"
-	}
-
-	logger.Warn("Jeager", zap.String("endpoint", endpoint))
-
-	_, flush, err := jaeger.NewExportPipeline(
-		jaeger.WithCollectorEndpoint(endpoint, jaeger.WithHTTPClient((client))),
-		jaeger.WithProcess(jaeger.Process{
-			ServiceName: "carbonapi",
-			Tags: []kv.KeyValue{
-				kv.String("exporter", "jaeger"),
-			},
-		}),
-		jaeger.RegisterAsGlobal(),
-		jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	propagator := trace.B3{SingleHeader: false}
-	oldProps := global.Propagators()
-	props := propagation.New(
-		propagation.WithExtractors(propagator),
-		propagation.WithExtractors(oldProps.HTTPExtractors()...),
-		propagation.WithInjectors(oldProps.HTTPInjectors()...),
-	)
-	global.SetPropagators(props)
-
-	return func() {
-		flush()
-	}
-}
-
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
 
-	flush := initTracer(logger)
-	//flush := func() {}
-	//initStdoutTracer()
+	flush := trace.InitTracer("carbonapi", logger)
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)

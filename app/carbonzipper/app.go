@@ -19,6 +19,7 @@ import (
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
+	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/util"
 	"github.com/pkg/errors"
@@ -28,6 +29,7 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
+	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 	"go.uber.org/zap"
 )
 
@@ -63,8 +65,10 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 }
 
 // Start start launches the goroutines starts the app execution
-func (app *App) Start() {
+func (app *App) Start() func() {
 	logger := zapwriter.Logger("zipper")
+
+	flush := trace.InitTracer("carbonzipper", logger)
 
 	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
@@ -87,6 +91,8 @@ func (app *App) Start() {
 	r := initHandlers(app)
 
 	handler := util.UUIDHandler(r)
+	traceMiddleware := muxtrace.Middleware("carbonzipper")
+	handler = traceMiddleware(handler)
 
 	// nothing in the app.config? check the environment
 	if app.config.Graphite.Host == "" {
@@ -124,6 +130,7 @@ func (app *App) Start() {
 			zap.Error(err),
 		)
 	}
+	return flush
 }
 
 func (app *App) doProbe(logger *zap.Logger) {
