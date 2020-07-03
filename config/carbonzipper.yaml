@@ -118,3 +118,8 @@ monitoring:
         start: 0.0
         bucketsNum: 40
         bucketSize: 0.05
+
+traces:
+    # Where to send Jeaeger traces. Note that this value can be overriden by the JAEGER_ENDPOINT environment variable.
+    # If empty, no traces will be generated
+    jaegerEndpoint: ""

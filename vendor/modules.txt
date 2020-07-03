@@ -98,12 +98,6 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 ## explicit
 github.com/mjibson/go-dsp/dsputils
 github.com/mjibson/go-dsp/fft
-# github.com/motemen/go-loghttp v0.0.0-20170804080138-974ac5ceac27
-## explicit
-github.com/motemen/go-loghttp
-# github.com/motemen/go-nuts v0.0.0-20200601065735-3df31f16cb2f
-## explicit
-github.com/motemen/go-nuts/roundtime
 # github.com/peterbourgon/g2g v0.0.0-20161124161852-0c2bab2b173d
 ## explicit
 github.com/peterbourgon/g2g

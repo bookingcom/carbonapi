@@ -68,7 +68,7 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("zipper")
 
-	flush := trace.InitTracer("carbonzipper", logger)
+	flush := trace.InitTracer("carbonzipper", logger, app.config.Traces)
 
 	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 

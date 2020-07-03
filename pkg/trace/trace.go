@@ -5,11 +5,12 @@
 package trace
 
 import (
+	"github.com/bookingcom/carbonapi/cfg"
+
 	"log"
 	"net/http"
 	"os"
 
-	"github.com/motemen/go-loghttp"
 	"go.opentelemetry.io/otel/api/global"
 	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/propagation"
@@ -20,28 +21,36 @@ import (
 )
 
 // InitTracer creates a new trace provider instance and registers it as global trace provider.
-func InitTracer(serviceName string, logger *zap.Logger) func() {
-	// TODO timeouts. Default value is 60s!!!
-	client := &http.Client{
-		Transport: &loghttp.Transport{
-			Transport: &http.Transport{
-				Proxy: nil,
-			},
-		},
-	}
+func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func() {
 
-	// Create and install Jaeger export pipeline
 	endpoint := os.Getenv("JAEGER_ENDPOINT")
 	if endpoint == "" {
-		endpoint = "http://localhost:14268/api/traces"
+		endpoint = config.JaegerEndpoint
+	}
+	logger.Info("Traces", zap.String("jaegerEndpoint", endpoint))
+	if endpoint == "" {
+		// create and register NoopTracer
+		provider := trace.NoopProvider{}
+		global.SetTraceProvider(provider)
+		return func() {} // Nothing to flush
 	}
 
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: nil,
+		},
+		Timeout: config.Timeout,
+	}
+
+	fqdn, _ := os.Hostname()
+	// Create and install Jaeger export pipeline
 	_, flush, err := jaeger.NewExportPipeline(
 		jaeger.WithCollectorEndpoint(endpoint, jaeger.WithHTTPClient((client))),
 		jaeger.WithProcess(jaeger.Process{
 			ServiceName: serviceName,
 			Tags: []kv.KeyValue{
 				kv.String("exporter", "jaeger"),
+				kv.String("fqdn", fqdn),
 			},
 		}),
 		jaeger.RegisterAsGlobal(),
@@ -52,6 +61,7 @@ func InitTracer(serviceName string, logger *zap.Logger) func() {
 	}
 
 	propagator := trace.B3{SingleHeader: false}
+	// Grafana propagates traces over b3 headers
 	oldProps := global.Propagators()
 	props := propagation.New(
 		propagation.WithExtractors(propagator),

@@ -33,8 +33,6 @@ require (
 	github.com/lomik/zapwriter v0.0.0-20180906104450-2ec2b9a61680
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
-	github.com/motemen/go-loghttp v0.0.0-20170804080138-974ac5ceac27
-	github.com/motemen/go-nuts v0.0.0-20200601065735-3df31f16cb2f // indirect
 	github.com/peterbourgon/g2g v0.0.0-20161124161852-0c2bab2b173d
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v0.8.0

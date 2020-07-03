@@ -104,7 +104,7 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
 
-	flush := trace.InitTracer("carbonapi", logger)
+	flush := trace.InitTracer("carbonapi", logger, app.config.Traces)
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
