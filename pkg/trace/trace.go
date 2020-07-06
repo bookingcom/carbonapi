@@ -70,7 +70,5 @@ func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func(
 	)
 	global.SetPropagators(props)
 
-	return func() {
-		flush()
-	}
+	return flush
 }
