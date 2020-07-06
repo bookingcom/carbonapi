@@ -25,10 +25,10 @@ require (
 	github.com/facebookgo/stats v0.0.0-20151006221625-1b76add642e4 // indirect
 	github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4 // indirect
 	github.com/go-graphite/protocol v0.4.3-0.20180919144146-ba004f8085ad
-	github.com/gogo/protobuf v1.1.2-0.20180925083612-61dbc136cf5d // indirect
-	github.com/golang/protobuf v1.2.0 // indirect
-	github.com/google/go-cmp v0.4.0
+	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/google/go-cmp v0.5.0
 	github.com/gorilla/handlers v1.4.0
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 	github.com/lomik/zapwriter v0.0.0-20180906104450-2ec2b9a61680
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
@@ -36,16 +36,18 @@ require (
 	github.com/peterbourgon/g2g v0.0.0-20161124161852-0c2bab2b173d
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v0.8.0
-	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910 // indirect
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e // indirect
 	github.com/prometheus/procfs v0.0.0-20180920065004-418d78d0b9a7 // indirect
 	github.com/satori/go.uuid v1.2.0
-	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
+	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
+	go.opentelemetry.io/otel v0.7.0
+	go.opentelemetry.io/otel/exporters/trace/jaeger v0.7.0
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a // indirect
 	gonum.org/v1/gonum v0.6.2
-	gopkg.in/yaml.v2 v2.2.1
+	google.golang.org/genproto v0.0.0-20200626011028-ee7919e894b5 // indirect
+	google.golang.org/protobuf v1.25.0 // indirect
+	gopkg.in/yaml.v2 v2.2.8
 )

@@ -78,5 +78,6 @@ func main() {
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
-	app.Start()
+	flush := app.Start()
+	defer flush()
 }

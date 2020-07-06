@@ -7,6 +7,8 @@ github.com/JaderDias/movingmedian
 # github.com/aclements/go-moremath v0.0.0-20180329182055-b1aff36309c7
 ## explicit
 github.com/aclements/go-moremath/mathx
+# github.com/apache/thrift v0.13.0
+github.com/apache/thrift/lib/go/thrift
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 ## explicit
 github.com/beorn7/perks/quantile
@@ -61,16 +63,15 @@ github.com/facebookgo/stats
 # github.com/go-graphite/protocol v0.4.3-0.20180919144146-ba004f8085ad
 ## explicit
 github.com/go-graphite/protocol/carbonapi_v2_pb
-# github.com/gogo/protobuf v1.1.2-0.20180925083612-61dbc136cf5d
+# github.com/gogo/protobuf v1.3.1
 ## explicit
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
-# github.com/golang/protobuf v1.2.0
-## explicit
+# github.com/golang/protobuf v1.4.2
 github.com/golang/protobuf/proto
-# github.com/google/go-cmp v0.4.0
+# github.com/google/go-cmp v0.5.0
 ## explicit
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -80,6 +81,10 @@ github.com/google/go-cmp/cmp/internal/value
 # github.com/gorilla/handlers v1.4.0
 ## explicit
 github.com/gorilla/handlers
+# github.com/gorilla/mux v1.7.4
+github.com/gorilla/mux
+# github.com/kr/pretty v0.2.0
+## explicit
 # github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 ## explicit
 github.com/lomik/og-rek
@@ -103,8 +108,7 @@ github.com/pkg/errors
 ## explicit
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/promhttp
-# github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
-## explicit
+# github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e
 ## explicit
@@ -120,11 +124,41 @@ github.com/prometheus/procfs/xfs
 # github.com/satori/go.uuid v1.2.0
 ## explicit
 github.com/satori/go.uuid
-# github.com/stretchr/testify v1.6.1
-## explicit
 # github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 ## explicit
 github.com/wangjohn/quickselect
+# go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
+## explicit
+go.opentelemetry.io/contrib/instrumentation/gorilla/mux
+# go.opentelemetry.io/otel v0.7.0
+## explicit
+go.opentelemetry.io/otel/api/correlation
+go.opentelemetry.io/otel/api/global
+go.opentelemetry.io/otel/api/global/internal
+go.opentelemetry.io/otel/api/internal
+go.opentelemetry.io/otel/api/kv
+go.opentelemetry.io/otel/api/kv/value
+go.opentelemetry.io/otel/api/label
+go.opentelemetry.io/otel/api/metric
+go.opentelemetry.io/otel/api/metric/registry
+go.opentelemetry.io/otel/api/oterror
+go.opentelemetry.io/otel/api/propagation
+go.opentelemetry.io/otel/api/standard
+go.opentelemetry.io/otel/api/trace
+go.opentelemetry.io/otel/api/unit
+go.opentelemetry.io/otel/instrumentation/httptrace
+go.opentelemetry.io/otel/internal/trace/parent
+go.opentelemetry.io/otel/sdk
+go.opentelemetry.io/otel/sdk/export/trace
+go.opentelemetry.io/otel/sdk/instrumentation
+go.opentelemetry.io/otel/sdk/internal
+go.opentelemetry.io/otel/sdk/resource
+go.opentelemetry.io/otel/sdk/trace
+go.opentelemetry.io/otel/sdk/trace/internal
+# go.opentelemetry.io/otel/exporters/trace/jaeger v0.7.0
+## explicit
+go.opentelemetry.io/otel/exporters/trace/jaeger
+go.opentelemetry.io/otel/exporters/trace/jaeger/internal/gen-go/jaeger
 # go.uber.org/atomic v1.3.2
 ## explicit
 go.uber.org/atomic
@@ -140,7 +174,7 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 # golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
-## explicit
+golang.org/x/sync/semaphore
 # gonum.org/v1/gonum v0.6.2
 ## explicit
 gonum.org/v1/gonum/blas
@@ -158,6 +192,40 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# gopkg.in/yaml.v2 v2.2.1
+# google.golang.org/api v0.28.0
+google.golang.org/api/support/bundler
+# google.golang.org/genproto v0.0.0-20200626011028-ee7919e894b5
+## explicit
+# google.golang.org/grpc v1.30.0
+google.golang.org/grpc/codes
+# google.golang.org/protobuf v1.25.0
+## explicit
+google.golang.org/protobuf/encoding/prototext
+google.golang.org/protobuf/encoding/protowire
+google.golang.org/protobuf/internal/descfmt
+google.golang.org/protobuf/internal/descopts
+google.golang.org/protobuf/internal/detrand
+google.golang.org/protobuf/internal/encoding/defval
+google.golang.org/protobuf/internal/encoding/messageset
+google.golang.org/protobuf/internal/encoding/tag
+google.golang.org/protobuf/internal/encoding/text
+google.golang.org/protobuf/internal/errors
+google.golang.org/protobuf/internal/fieldsort
+google.golang.org/protobuf/internal/filedesc
+google.golang.org/protobuf/internal/filetype
+google.golang.org/protobuf/internal/flags
+google.golang.org/protobuf/internal/genid
+google.golang.org/protobuf/internal/impl
+google.golang.org/protobuf/internal/mapsort
+google.golang.org/protobuf/internal/pragma
+google.golang.org/protobuf/internal/set
+google.golang.org/protobuf/internal/strs
+google.golang.org/protobuf/internal/version
+google.golang.org/protobuf/proto
+google.golang.org/protobuf/reflect/protoreflect
+google.golang.org/protobuf/reflect/protoregistry
+google.golang.org/protobuf/runtime/protoiface
+google.golang.org/protobuf/runtime/protoimpl
+# gopkg.in/yaml.v2 v2.2.8
 ## explicit
 gopkg.in/yaml.v2

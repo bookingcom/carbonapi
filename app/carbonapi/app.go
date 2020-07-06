@@ -26,6 +26,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/bookingcom/carbonapi/util"
 
 	"github.com/facebookgo/grace/gracehttp"
@@ -35,6 +36,7 @@ import (
 	"github.com/peterbourgon/g2g"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 	"go.uber.org/zap"
 )
 
@@ -99,8 +101,10 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start() {
+func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
+
+	flush := trace.InitTracer("carbonapi", logger, app.config.Traces)
 
 	handler := initHandlers(app)
 	handler = handlers.CompressHandler(handler)
@@ -108,6 +112,9 @@ func (app *App) Start() {
 	handler = handlers.ProxyHeaders(handler)
 	handler = util.UUIDHandler(handler)
 	handler = recoveryHandler(handler, logger)
+
+	traceMiddleware := muxtrace.Middleware("carbonapi")
+	handler = traceMiddleware(handler)
 
 	prometheusServer := app.registerPrometheusMetrics(logger)
 
@@ -125,6 +132,7 @@ func (app *App) Start() {
 			zap.Error(err),
 		)
 	}
+	return flush
 }
 
 func recoveryHandler(h http.Handler, lg *zap.Logger) http.Handler {
