@@ -106,7 +106,7 @@ upstreams:
 # This parameter controls when it will expire (in seconds)
 # Default: 600 (10 minutes)
 expireDelaySec: 10
-# The path and the name of the file with a list of headers to block. 
+# The path and the name of the file with a list of headers to block.
 # Based on the value of header you can block requests which are coming to carbonapi
 # This file can be updated via API call to the port specified in listenInternal: config option,
 # like so:
@@ -114,7 +114,7 @@ expireDelaySec: 10
 # carbonapi needs to have write access to this file/folder
 blockHeaderFile: "block_header_list.yaml"
 blockHeaderUpdatePeriod: "30s"
-# List of HTTP headers to log. This can be usefull to track request to the source of it. 
+# List of HTTP headers to log. This can be usefull to track request to the source of it.
 # Defaults allow you to find grafana user/dashboard/panel which send a request
 headersToLog:
     - X-Panel-Id
@@ -148,3 +148,10 @@ monitoring:
         start: 0.5
         bucketsNum: 20
         bucketSize: 0.5
+
+traces:
+    # Where to send Jeaeger traces. Note that this value can be overriden by the JAEGER_ENDPOINT environment variable.
+    # If empty, no traces will be generated
+    jaegerEndpoint: ""
+    timeout: 10s
+

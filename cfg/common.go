@@ -115,6 +115,9 @@ func DefaultCommonConfig() Common {
 				BucketsNum: 20,
 			},
 		},
+		Traces: Traces{
+			Timeout: 10 * time.Second,
+		},
 	}
 }
 
@@ -154,6 +157,8 @@ type Common struct {
 	Logger   []zapwriter.Config `yaml:"logger"`
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
+
+	Traces Traces `yaml:"traces"`
 }
 
 // GetBackends returns the list of backends from common configuration
@@ -253,4 +258,10 @@ type Cluster struct {
 type DC struct {
 	Name     string    `yaml:"name"`
 	Clusters []Cluster `yaml:"clusters"`
+}
+
+// Traces holds configuration related to tracing
+type Traces struct {
+	JaegerEndpoint string        `yaml:"jaegerEndpoint"`
+	Timeout        time.Duration `yaml:"timeout"`
 }

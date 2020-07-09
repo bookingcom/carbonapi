@@ -318,10 +318,6 @@ func (m *Dense) DiagView() Diagonal {
 // Slice panics with ErrIndexOutOfRange if the slice is outside the capacity
 // of the receiver.
 func (m *Dense) Slice(i, k, j, l int) Matrix {
-	return m.slice(i, k, j, l)
-}
-
-func (m *Dense) slice(i, k, j, l int) *Dense {
 	mr, mc := m.Caps()
 	if i < 0 || mr <= i || j < 0 || mc <= j || k < i || mr < k || l < j || mc < l {
 		if i == k || j == l {
@@ -549,7 +545,7 @@ func (m *Dense) Stack(a, b Matrix) {
 	m.reuseAsNonZeroed(ar+br, ac)
 
 	m.Copy(a)
-	w := m.slice(ar, ar+br, 0, bc)
+	w := m.Slice(ar, ar+br, 0, bc).(*Dense)
 	w.Copy(b)
 }
 
@@ -567,7 +563,7 @@ func (m *Dense) Augment(a, b Matrix) {
 	m.reuseAsNonZeroed(ar, ac+bc)
 
 	m.Copy(a)
-	w := m.slice(0, br, ac, ac+bc)
+	w := m.Slice(0, br, ac, ac+bc).(*Dense)
 	w.Copy(b)
 }
 

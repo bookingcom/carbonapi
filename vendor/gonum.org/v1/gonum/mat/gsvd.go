@@ -265,14 +265,16 @@ func (gsvd *GSVD) ZeroRTo(dst *Dense) {
 		capRows: r,
 		capCols: c,
 	}
-	dst.slice(0, h, c-k-l, c).Copy(a.Slice(0, h, c-k-l, c))
+	dst.Slice(0, h, c-k-l, c).(*Dense).
+		Copy(a.Slice(0, h, c-k-l, c))
 	if r < k+l {
 		b := Dense{
 			mat:     gsvd.b,
 			capRows: gsvd.p,
 			capCols: c,
 		}
-		dst.slice(r, k+l, c+r-k-l, c).Copy(b.Slice(r-k, l, c+r-k-l, c))
+		dst.Slice(r, k+l, c+r-k-l, c).(*Dense).
+			Copy(b.Slice(r-k, l, c+r-k-l, c))
 	}
 }
 
