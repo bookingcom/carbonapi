@@ -27,6 +27,8 @@ import (
 
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 )
 
@@ -120,6 +122,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
+	span := trace.SpanFromContext(ctx)
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
@@ -128,6 +131,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", toLog.Username),
 	)
+	span.SetAttribute("graphite.username", toLog.Username)
 
 	logAsError := false
 	defer func() {
@@ -188,11 +192,15 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
+	tracer := span.Tracer()
 	var results []*types.MetricData
 	var targetErrs []error
-
 	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
 		target := form.targets[targetIdx]
+		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
+			kv.String("graphite.target", target),
+		))
+
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
@@ -200,14 +208,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			toLog.Reason = msg
 			toLog.HttpCode = http.StatusBadRequest
 			logAsError = true
+			span.SetAttribute("error", msg)
 			return
 		}
-		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap,
+		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
 			&results, &form, &toLog, logger, &partiallyFailed)
 		if targetErr != nil {
 			targetErrs = append(targetErrs, targetErr)
 		}
 		size += metricSize
+		targetSpan.End()
+
 	}
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
@@ -220,6 +231,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
 	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
 	partiallyFailed = partiallyFailed || (totalErrStr != "")
+
+	if totalErrStr != "" {
+		span.SetAttribute("error", totalErrStr)
+	}
 
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
@@ -554,6 +569,18 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	accessLogDetails.Format = res.format
 	accessLogDetails.Targets = res.targets
 
+	span := trace.SpanFromContext(r.Context())
+	span.SetAttributes(
+		kv.Bool("graphite.useCache", res.useCache),
+		kv.String("graphite.fromRaw", res.from),
+		kv.Int32("graphite.from", res.from32),
+		kv.String("graphite.untilRaw", res.until),
+		kv.Int32("graphite.until", res.until32),
+		kv.String("graphite.tz", res.qtz),
+		kv.Int32("graphite.cacheTimeout", res.cacheTimeout),
+		kv.String("graphite.format", res.format),
+	)
+
 	return res, nil
 }
 
@@ -692,6 +719,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
+	span := trace.SpanFromContext(ctx)
 
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
@@ -703,6 +731,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 	toLog.Targets = []string{query}
+	span.SetAttributes(
+		kv.String("grahite.target", query),
+		kv.String("graphite.username", toLog.Username),
+	)
 	// TODO (grzkv): Pass logger in from above
 	logger := zapwriter.Logger("find").With(
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -741,6 +773,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
+		span.SetAttribute("graphite.total_metric_count", toLog.TotalMetricCount)
 	} else {
 		logger.Warn("zipper returned erro in find request",
 			zap.String("uuid", util.GetUUID(ctx)),
