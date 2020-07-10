@@ -1,6 +1,6 @@
 package intervalset
 
-// Copy paste from https://github.com/lomik/go-carbon/blob/master/carbonserver/pickle.go
+// Copy paste from https://github.com/go-graphite/go-carbon/blob/master/carbonserver/pickle.go
 // Original license: MIT
 // Original author: Roman Lomonosov
 

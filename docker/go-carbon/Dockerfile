@@ -3,8 +3,8 @@ FROM golang:1.14
 RUN mkdir -p /data/graphite/whisper/
 COPY ./docker/go-carbon/*.conf /etc/
 
-RUN go get github.com/lomik/go-carbon
-RUN go install github.com/lomik/go-carbon
+RUN go get github.com/go-graphite/go-carbon
+RUN go install github.com/go-graphite/go-carbon
 
 EXPOSE 2003 2004 7002 7007 2003/udp
 
