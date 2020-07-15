@@ -27,6 +27,8 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/util"
+	"go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
 
 	"github.com/lomik/zapwriter"
 	"github.com/pkg/errors"
@@ -52,6 +54,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
+	span := trace.SpanFromContext(ctx)
 
 	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("find").With(
@@ -79,7 +82,10 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("target", originalQuery),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
-
+	span.SetAttributes(
+		kv.String("graphite.format", format),
+		kv.String("graphite.target", originalQuery),
+	)
 	request := types.NewFindRequest(originalQuery)
 	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
 	bs = backend.Filter(bs, []string{originalQuery})
@@ -94,6 +100,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err != nil {
+		span.SetAttribute("error", err.Error())
+
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
@@ -129,6 +137,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 		return metrics.Matches[i].Path < metrics.Matches[j].Path
 	})
 
+	span.SetAttribute("graphite.total_metric_count", len(metrics.Matches))
+
 	var contentType string
 	var blob []byte
 	switch format {
@@ -159,6 +169,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
+		span.SetAttribute("error", err.Error())
 		return
 	}
 
@@ -180,6 +191,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
+	span := trace.SpanFromContext(ctx)
 
 	// TODO (grzkv): Pass logger from above
 	logger := zapwriter.Logger("render").With(
@@ -225,7 +237,10 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("format", format),
 		zap.String("target", target),
 	)
-
+	span.SetAttributes(
+		kv.String("graphite.target", target),
+		kv.String("graphite.format", format),
+	)
 	from, err := strconv.Atoi(req.FormValue("from"))
 	if err != nil {
 		http.Error(w, "from is not a integer", http.StatusBadRequest)
@@ -238,6 +253,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		span.SetAttribute("error", "from is not a integer")
 		return
 	}
 
@@ -253,8 +269,14 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		span.SetAttribute("error", "until is not a integer")
 		return
 	}
+
+	span.SetAttributes(
+		kv.Int("graphite.from", from),
+		kv.Int("graphite.until", until),
+	)
 
 	if target == "" {
 		http.Error(w, "empty target", http.StatusBadRequest)
@@ -266,6 +288,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		span.SetAttribute("error", "empty target")
 		return
 	}
 
@@ -285,6 +308,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
 			"find", nt.ContextCancelCause(ctx.Err()),
 		).Inc()
+		span.SetAttribute("error", ctx.Err().Error())
 	}
 
 	if err != nil {
@@ -306,6 +330,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
+		span.SetAttribute("error", err.Error())
+
 		return
 	}
 
@@ -337,6 +363,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
+		span.SetAttribute("error", err.Error())
+
 		return
 	}
 

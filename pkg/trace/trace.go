@@ -50,7 +50,7 @@ func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func(
 			ServiceName: serviceName,
 			Tags: []kv.KeyValue{
 				kv.String("exporter", "jaeger"),
-				kv.String("fqdn", fqdn),
+				kv.String("host.hostname", fqdn),
 			},
 		}),
 		jaeger.RegisterAsGlobal(),
@@ -60,7 +60,7 @@ func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func(
 		log.Fatal(err)
 	}
 
-	propagator := trace.B3{SingleHeader: false}
+	propagator := trace.B3{}
 	// Grafana propagates traces over b3 headers
 	oldProps := global.Propagators()
 	props := propagation.New(
