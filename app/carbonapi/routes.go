@@ -55,6 +55,8 @@ func initHandlers(app *App) http.Handler {
 
 	r.HandleFunc("/", httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes))
 
+	r.NotFoundHandler = httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes)
+
 	return routeMiddleware(r)
 }
 
