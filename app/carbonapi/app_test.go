@@ -2,8 +2,11 @@ package carbonapi
 
 import (
 	"context"
+	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/blocker"
@@ -19,6 +22,7 @@ import (
 
 // TODO (grzkv) Clean this
 var testApp *App
+var testRouter http.Handler
 
 func find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	return getMetricGlobResponse(request.Query), nil
@@ -106,11 +110,26 @@ func getMetricGlobResponse(metric string) types.Matches {
 	return types.Matches{}
 }
 
-func init() {
-	testApp = setUpTestConfig()
+func TestMain(m *testing.M) {
+	testApp, testRouter = SetUpTestConfig()
+	testServer := setupTestServer(testRouter)
+	testServer.Start()
+	code := m.Run()
+	testServer.Close()
+	os.Exit(code)
+
 }
 
-func setUpTestConfig() *App {
+func TestAppHandlers(t *testing.T) {
+	t.Run("RenderHandler", renderHandler)
+	t.Run("RenderHandlerErrors", renderHandlerErrs)
+	t.Run("RenderHandlerNotFoundErrors", renderHandlerNotFoundErrs)
+	t.Run("FindHandler", findHandler)
+	t.Run("FindHandlerCompleter", findHandlerCompleter)
+	t.Run("RenderHandlerNotFoundErrors", infoHandler)
+}
+
+func SetUpTestConfig() (*App, http.Handler) {
 	c := cfg.GetDefaultLoggerConfig()
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
@@ -136,9 +155,8 @@ func setUpTestConfig() *App {
 	app.requestBlocker = blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger)
 
 	setUpConfig(app, logger)
-	initHandlers(app)
-
-	return app
+	handler := initHandlers(app)
+	return app, handler
 }
 
 // TODO (grzkv) Enable this after we get rid of global state
@@ -171,17 +189,9 @@ func setUpTestConfig() *App {
 // 	return app
 // }
 
-func setUpRequest(t *testing.T, url string) *http.Request {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return req
-}
-
-func TestRenderHandler(t *testing.T) {
-	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+func renderHandler(t *testing.T) {
+	req := httptest.NewRequest("GET",
+		"/render?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -192,7 +202,7 @@ func TestRenderHandler(t *testing.T) {
 		Render: render,
 	})
 
-	testApp.renderHandler(rr, req)
+	testRouter.ServeHTTP(rr, req)
 
 	expected := `[{"target":"foo.bar","datapoints":[[null,1510913280],[1510913759,1510913340],[1510913818,1510913400]]}]`
 
@@ -204,7 +214,7 @@ func TestRenderHandler(t *testing.T) {
 	}
 }
 
-func TestRenderHandlerErrs(t *testing.T) {
+func renderHandlerErrs(t *testing.T) {
 	tests := []struct {
 		req     string
 		expCode int
@@ -229,7 +239,7 @@ func TestRenderHandlerErrs(t *testing.T) {
 
 	for _, tst := range tests {
 		t.Run(tst.req, func(t *testing.T) {
-			req := setUpRequest(t, tst.req)
+			req := httptest.NewRequest("GET", tst.req, nil)
 			rr := httptest.NewRecorder()
 
 			// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -240,7 +250,7 @@ func TestRenderHandlerErrs(t *testing.T) {
 				Render: renderErr,
 			})
 
-			testApp.renderHandler(rr, req)
+			testRouter.ServeHTTP(rr, req)
 
 			if rr.Code != tst.expCode {
 				t.Errorf("Expected status code %d, got %d", tst.expCode, rr.Code)
@@ -249,8 +259,9 @@ func TestRenderHandlerErrs(t *testing.T) {
 	}
 }
 
-func TestRenderHandlerNotFoundErrs(t *testing.T) {
-	req := setUpRequest(t, "/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1")
+func renderHandlerNotFoundErrs(t *testing.T) {
+	req := httptest.NewRequest("GET",
+		"/render/?target=fallbackSeries(foo.bar,foo.baz)&from=-10minutes&format=json&noCache=1", nil)
 	rr := httptest.NewRecorder()
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
@@ -261,16 +272,17 @@ func TestRenderHandlerNotFoundErrs(t *testing.T) {
 		Render: renderErrNotFound,
 	})
 
-	testApp.renderHandler(rr, req)
+	testRouter.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, rr.Code)
 	}
 }
-func TestFindHandler(t *testing.T) {
-	req := setUpRequest(t, "/metrics/find/?query=foo.bar&format=json")
+
+func findHandler(t *testing.T) {
+	req := httptest.NewRequest("GET", "/metrics/find/?query=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
-	testApp.findHandler(rr, req)
+	testRouter.ServeHTTP(rr, req)
 
 	body := rr.Body.String()
 	// LOL this test is so fragile
@@ -285,12 +297,12 @@ func TestFindHandler(t *testing.T) {
 	}
 }
 
-func TestFindHandlerCompleter(t *testing.T) {
+func findHandlerCompleter(t *testing.T) {
 	testMetrics := []string{"foo.b/", "foo.bar"}
 	for _, testMetric := range testMetrics {
-		req := setUpRequest(t, "/metrics/find/?query="+testMetric+"&format=completer")
+		req := httptest.NewRequest("GET", "/metrics/find/?query="+testMetric+"&format=completer", nil)
 		rr := httptest.NewRecorder()
-		testApp.findHandler(rr, req)
+		testRouter.ServeHTTP(rr, req)
 		body := rr.Body.String()
 		expectedValue, _ := findCompleter(getMetricGlobResponse(getCompleterQuery(testMetric)))
 		if rr.Code != http.StatusOK {
@@ -302,10 +314,11 @@ func TestFindHandlerCompleter(t *testing.T) {
 	}
 }
 
-func TestInfoHandler(t *testing.T) {
-	req := setUpRequest(t, "/info/?target=foo.bar&format=json")
+func infoHandler(t *testing.T) {
+	req := httptest.NewRequest("GET", "/info/?target=foo.bar&format=json", nil)
 	rr := httptest.NewRecorder()
-	testApp.infoHandler(rr, req)
+
+	testRouter.ServeHTTP(rr, req)
 
 	body := rr.Body.String()
 	expected := getMockInfoResponse()
@@ -321,4 +334,15 @@ func TestInfoHandler(t *testing.T) {
 	if string(expectedJSON) != body {
 		t.Error("Http response should be same.")
 	}
+}
+
+func setupTestServer(testHandler http.Handler) *httptest.Server {
+	testListener, err := net.Listen("tcp", "127.0.0.1:8080")
+	if err != nil {
+		log.Fatal(err)
+	}
+	ts := httptest.NewUnstartedServer(testHandler)
+	ts.Listener.Close()
+	ts.Listener = testListener
+	return ts
 }
