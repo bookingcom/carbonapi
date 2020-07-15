@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/blocker"
@@ -109,11 +110,17 @@ func getMetricGlobResponse(metric string) types.Matches {
 	return types.Matches{}
 }
 
-func TestAppHandlers(t *testing.T) {
-	testApp, testRouter = setUpTestConfig()
+func TestMain(m *testing.M) {
+	testApp, testRouter = SetUpTestConfig()
 	testServer := setupTestServer(testRouter)
-	defer testServer.Close()
 	testServer.Start()
+	code := m.Run()
+	testServer.Close()
+	os.Exit(code)
+
+}
+
+func TestAppHandlers(t *testing.T) {
 	t.Run("RenderHandler", renderHandler)
 	t.Run("RenderHandlerErrors", renderHandlerErrs)
 	t.Run("RenderHandlerNotFoundErrors", renderHandlerNotFoundErrs)
@@ -122,7 +129,7 @@ func TestAppHandlers(t *testing.T) {
 	t.Run("RenderHandlerNotFoundErrors", infoHandler)
 }
 
-func setUpTestConfig() (*App, http.Handler) {
+func SetUpTestConfig() (*App, http.Handler) {
 	c := cfg.GetDefaultLoggerConfig()
 	c.Level = "none"
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
