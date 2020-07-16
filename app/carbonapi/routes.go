@@ -43,17 +43,16 @@ func initHandlers(app *App) http.Handler {
 	r.Use(handlers.CORS())
 	r.Use(handlers.ProxyHeaders)
 	r.Use(util.UUIDHandler)
-
-	tracing := muxtrace.Middleware("carbonapi")
+	r.Use(muxtrace.Middleware("carbonapi"))
 
 	r.HandleFunc("/render", httputil.TimeHandler(
-		app.validateRequest(tracing(http.HandlerFunc(app.renderHandler)), "render"), app.bucketRequestTimes))
+		app.validateRequest(http.HandlerFunc(app.renderHandler), "render"), app.bucketRequestTimes))
 
 	r.HandleFunc("/metrics/find", httputil.TimeHandler(
-		app.validateRequest(tracing(http.HandlerFunc(app.findHandler)), "find"), app.bucketRequestTimes))
+		app.validateRequest(http.HandlerFunc(app.findHandler), "find"), app.bucketRequestTimes))
 
 	r.HandleFunc("/info", httputil.TimeHandler(
-		app.validateRequest(tracing(http.HandlerFunc(app.infoHandler)), "info"), app.bucketRequestTimes))
+		app.validateRequest(http.HandlerFunc(app.infoHandler), "info"), app.bucketRequestTimes))
 
 	r.HandleFunc("/lb_check", httputil.TimeHandler(app.lbcheckHandler, app.bucketRequestTimes))
 
