@@ -1,13 +1,9 @@
-# TODO (rgrytskiv): is PKGCONF used?
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	PKGCONF = PKG_CONFIG_PATH="/opt/X11/lib/pkgconfig"
 else
 	PKGCONF =
 endif
-
-export GOFLAGS=-mod=vendor
-export GO111MODULE=on
 
 GO ?= go
 VERSION ?= $(shell git rev-parse --short HEAD)
