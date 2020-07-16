@@ -6,9 +6,12 @@ import (
 	"net/http/pprof"
 	"strings"
 
+	"github.com/bookingcom/carbonapi/util"
 	"github.com/dgryski/httputil"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 )
 
 func initHandlersInternal(app *App) http.Handler {
@@ -35,6 +38,12 @@ func initHandlersInternal(app *App) http.Handler {
 
 func initHandlers(app *App) http.Handler {
 	r := mux.NewRouter()
+
+	r.Use(handlers.CompressHandler)
+	r.Use(handlers.CORS())
+	r.Use(handlers.ProxyHeaders)
+	r.Use(util.UUIDHandler)
+	r.Use(muxtrace.Middleware("carbonapi"))
 
 	r.HandleFunc("/render", httputil.TimeHandler(
 		app.validateRequest(http.HandlerFunc(app.renderHandler), "render"), app.bucketRequestTimes))

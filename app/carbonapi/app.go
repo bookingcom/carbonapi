@@ -31,12 +31,10 @@ import (
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	"github.com/gorilla/handlers"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 	"go.uber.org/zap"
 )
 
@@ -107,14 +105,6 @@ func (app *App) Start() func() {
 	flush := trace.InitTracer("carbonapi", logger, app.config.Traces)
 
 	handler := initHandlers(app)
-	handler = handlers.CompressHandler(handler)
-	handler = handlers.CORS()(handler)
-	handler = handlers.ProxyHeaders(handler)
-	handler = util.UUIDHandler(handler)
-	handler = recoveryHandler(handler, logger)
-
-	traceMiddleware := muxtrace.Middleware("carbonapi")
-	handler = traceMiddleware(handler)
 
 	prometheusServer := app.registerPrometheusMetrics(logger)
 
