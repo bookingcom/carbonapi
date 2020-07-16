@@ -110,7 +110,7 @@ func getMetricGlobResponse(metric string) types.Matches {
 
 func TestMain(m *testing.M) {
 	testApp, testRouter = SetUpTestConfig()
-	testServer := httptest.NewServer(testHandler)
+	testServer := httptest.NewServer(testRouter)
 	code := m.Run()
 	testServer.Close()
 	os.Exit(code)
