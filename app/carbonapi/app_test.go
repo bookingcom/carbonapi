@@ -2,8 +2,6 @@ package carbonapi
 
 import (
 	"context"
-	"log"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -112,8 +110,7 @@ func getMetricGlobResponse(metric string) types.Matches {
 
 func TestMain(m *testing.M) {
 	testApp, testRouter = SetUpTestConfig()
-	testServer := setupTestServer(testRouter)
-	testServer.Start()
+	testServer := httptest.NewServer(testRouter)
 	code := m.Run()
 	testServer.Close()
 	os.Exit(code)
@@ -334,15 +331,4 @@ func infoHandler(t *testing.T) {
 	if string(expectedJSON) != body {
 		t.Error("Http response should be same.")
 	}
-}
-
-func setupTestServer(testHandler http.Handler) *httptest.Server {
-	testListener, err := net.Listen("tcp", "127.0.0.1:8080")
-	if err != nil {
-		log.Fatal(err)
-	}
-	ts := httptest.NewUnstartedServer(testHandler)
-	ts.Listener.Close()
-	ts.Listener = testListener
-	return ts
 }
