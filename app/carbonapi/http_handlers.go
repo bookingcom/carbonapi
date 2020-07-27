@@ -396,31 +396,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	return nil, size
 }
 
-func pessimistFanIn(errs []error) error {
-	if errs == nil || len(errs) == 0 {
-		return nil
-	}
-
-	errStr := ""
-	allErrorsNotFound := true
-	for _, e := range errs {
-		errStr = errStr + e.Error() + ", "
-		if _, ok := e.(dataTypes.ErrNotFound); !ok {
-			allErrorsNotFound = false
-		}
-	}
-
-	if len(errStr) > 200 {
-		errStr = errStr[0:200]
-	}
-
-	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all not found; merged errs: (" + errStr + ")")
-	}
-
-	return errors.New("all failed with mixed errrors; merged errs: (" + errStr + ")")
-}
-
 // returns non-nil error when errors result in an error
 // returns non-empty string when there are *some* errors, even when total err is nil
 // returned string can be used to indicate partial failure
