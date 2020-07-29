@@ -100,7 +100,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err != nil {
-		span.SetAttribute("error", err.Error())
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", err.Error())
 
 		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
@@ -169,7 +170,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
-		span.SetAttribute("error", err.Error())
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", err.Error())
 		return
 	}
 
@@ -253,7 +255,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", "from is not a integer")
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", "from is not a integer")
 		return
 	}
 
@@ -269,7 +272,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", "until is not a integer")
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", "until is not a integer")
 		return
 	}
 
@@ -288,7 +292,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", "empty target")
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", "empty target")
 		return
 	}
 
@@ -308,7 +313,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
 			"find", nt.ContextCancelCause(ctx.Err()),
 		).Inc()
-		span.SetAttribute("error", ctx.Err().Error())
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", ctx.Err().Error())
 	}
 
 	if err != nil {
@@ -330,8 +336,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
-		span.SetAttribute("error", err.Error())
-
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", err.Error())
 		return
 	}
 
@@ -363,7 +369,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
-		span.SetAttribute("error", err.Error())
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", err.Error())
 
 		return
 	}

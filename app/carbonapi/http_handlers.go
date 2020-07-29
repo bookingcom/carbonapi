@@ -233,11 +233,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	partiallyFailed = partiallyFailed || (totalErrStr != "")
 
 	if totalErrStr != "" {
-		span.SetAttribute("error", totalErrStr)
+		span.SetAttribute("error.message", totalErrStr)
 	}
 
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
+		span.SetAttribute("error", true)
 		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
 			writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusNotFound
