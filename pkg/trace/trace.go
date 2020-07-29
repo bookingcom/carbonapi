@@ -21,7 +21,7 @@ import (
 )
 
 // InitTracer creates a new trace provider instance and registers it as global trace provider.
-func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func() {
+func InitTracer(BuildVersion string, serviceName string, logger *zap.Logger, config cfg.Traces) func() {
 
 	endpoint := os.Getenv("JAEGER_ENDPOINT")
 	if endpoint == "" {
@@ -51,6 +51,7 @@ func InitTracer(serviceName string, logger *zap.Logger, config cfg.Traces) func(
 			Tags: []kv.KeyValue{
 				kv.String("exporter", "jaeger"),
 				kv.String("host.hostname", fqdn),
+				kv.String("service.version", BuildVersion),
 			},
 		}),
 		jaeger.RegisterAsGlobal(),
