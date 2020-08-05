@@ -22,7 +22,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/util"
-	"github.com/pkg/errors"
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
@@ -218,7 +217,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 		})
 
 		if err != nil {
-			return backends, errors.Errorf("Couldn't create backend for '%s'", host)
+			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)
 		}
 
 		backends = append(backends, b)

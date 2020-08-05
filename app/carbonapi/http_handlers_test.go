@@ -1,10 +1,10 @@
 package carbonapi
 
 import (
+	"fmt"
 	"testing"
 
 	typ "github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/pkg/errors"
 )
 
 func TestGetCompleterQuery(t *testing.T) {
@@ -51,7 +51,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 		{
 			name: "1 err, 1 result",
 			in: []error{
-				errors.New("some error"),
+				fmt.Errorf("some error"),
 			},
 			n:          1,
 			isErr:      true,
@@ -76,7 +76,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 		{
 			name: "2 mixed errs, 2 results",
 			in: []error{
-				errors.New("some error"),
+				fmt.Errorf("some error"),
 				typ.ErrMetricsNotFound,
 			},
 			n:          2,
@@ -102,7 +102,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 		{
 			name: "1 arbitrary err, 2 results",
 			in: []error{
-				errors.New("some err"),
+				fmt.Errorf("some err"),
 			},
 			n:          2,
 			isErr:      false,
@@ -146,7 +146,7 @@ func TestPessimistErrsFanIn(t *testing.T) {
 		},
 		{
 			name:        "one in",
-			in:          []error{errors.New("some error")},
+			in:          []error{fmt.Errorf("some error")},
 			outNil:      false,
 			outNotFound: false,
 		},
@@ -159,10 +159,10 @@ func TestPessimistErrsFanIn(t *testing.T) {
 		{
 			name: "many mixed in",
 			in: []error{
-				errors.New("some error"),
-				errors.New("some other error"),
+				fmt.Errorf("some error"),
+				fmt.Errorf("some other error"),
 				typ.ErrMetricsNotFound,
-				errors.New("some other other error"),
+				fmt.Errorf("some other other error"),
 				typ.ErrMetricsNotFound,
 			},
 			outNil:      false,
@@ -171,9 +171,9 @@ func TestPessimistErrsFanIn(t *testing.T) {
 		{
 			name: "many generic in",
 			in: []error{
-				errors.New("error a"),
-				errors.New("error b"),
-				errors.New("error c"),
+				fmt.Errorf("error a"),
+				fmt.Errorf("error b"),
+				fmt.Errorf("error c"),
 			},
 			outNil:      false,
 			outNotFound: false,

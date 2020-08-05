@@ -13,6 +13,7 @@ package zipper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -31,7 +32,6 @@ import (
 	"go.opentelemetry.io/otel/api/trace"
 
 	"github.com/lomik/zapwriter"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -102,8 +102,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
-
-		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+		var notFound types.ErrNotFound
+		if errors.As(err, &notFound) {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -157,7 +157,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 			blob, err = pickle.FindEncoderV1_0(metrics)
 		}
 	default:
-		err = errors.Errorf("Unknown format %s", format)
+		err = fmt.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -320,7 +320,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		msg := "error fetching the data"
 		code := http.StatusInternalServerError
-		if _, ok := errors.Cause(err).(types.ErrNotFound); ok {
+		var notFound types.ErrNotFound
+		if errors.As(err, &notFound) {
 			msg = "not found"
 			code = http.StatusNotFound
 		}
@@ -354,7 +355,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		contentType = contentTypePickle
 		blob, err = pickle.RenderEncoder(metrics)
 	default:
-		err = errors.Errorf("Unknown format %s", format)
+		err = fmt.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
@@ -477,7 +478,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 		contentType = contentTypeJSON
 		blob, err = json.InfoEncoder(infos)
 	default:
-		err = errors.Errorf("Unknown format %s", format)
+		err = fmt.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {

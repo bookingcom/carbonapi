@@ -2,6 +2,7 @@ package carbonapi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
-	"github.com/pkg/errors"
 
 	"github.com/lomik/zapwriter"
 )
@@ -64,7 +64,7 @@ func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, e
 func renderErr(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
 		{},
-	}, errors.New("error during render")
+	}, fmt.Errorf("error during render")
 }
 
 func renderErrNotFound(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {

@@ -1,11 +1,10 @@
 package blocker
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
 //configFileManager interface provides abstraction for managing config files
@@ -36,7 +35,7 @@ func (cf *configFile) load() ([]byte, error) {
 	} else if os.IsNotExist(err) {
 		return []byte{}, nil
 	} else {
-		return []byte{}, errors.Wrap(err, "error while checking existense of file")
+		return []byte{}, fmt.Errorf("error while checking existense of file: %w", err)
 	}
 }
 
