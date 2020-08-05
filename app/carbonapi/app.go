@@ -33,7 +33,6 @@ import (
 	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -498,7 +497,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 
 	// TODO (grzkv): Stop using a list, move to a single value in config
 	if len(config.Backends) == 0 {
-		return nil, errors.New("got empty list of backends from config")
+		return nil, fmt.Errorf("got empty list of backends from config")
 	}
 	host := config.Backends[0]
 
@@ -512,7 +511,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 	})
 
 	if err != nil {
-		return b, errors.Errorf("Couldn't create backend for '%s'", host)
+		return b, fmt.Errorf("Couldn't create backend for '%s'", host)
 	}
 
 	return b, nil

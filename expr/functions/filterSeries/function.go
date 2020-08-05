@@ -7,7 +7,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/pkg/errors"
 )
 
 type filterSeries struct {
@@ -77,7 +76,7 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 
 	threshold, err := e.GetFloatArg(3)
 	if err != nil {
-		return nil, errors.Wrap(err, "deneme")
+		return nil, fmt.Errorf("deneme: %w", err)
 	}
 
 	var results []*types.MetricData
