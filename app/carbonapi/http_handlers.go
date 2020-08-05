@@ -216,9 +216,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			&results, &form, &toLog, logger, &partiallyFailed)
 		if targetErr != nil {
 			// we can have 3 error types here
-			// a) not found -> Continue, at the end we check if all errors are 'not found' and we answer with http 404
-			// b) ParseError -> Return with this error(like above)
-			// c) anything else -> continue for, answer will be 5xx if all targets fail this way
+			// a) dataTypes.ErrNotFound  > Continue, at the end we check if all errors are 'not found' and we answer with http 404
+			// b) parser.ParseError -> Return with this error(like above, but with less details )
+			// c) anything else -> continue, answer will be 5xx if all targets have one error
 			var parseError parser.ParseError
 			if errors.As(targetErr, &parseError) {
 				msg := targetErr.Error()
