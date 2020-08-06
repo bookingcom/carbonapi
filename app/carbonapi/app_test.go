@@ -2,7 +2,7 @@ package carbonapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,7 +64,7 @@ func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, e
 func renderErr(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
 		{},
-	}, fmt.Errorf("error during render")
+	}, errors.New("error during render")
 }
 
 func renderErrNotFound(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {

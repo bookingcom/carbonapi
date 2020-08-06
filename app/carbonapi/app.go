@@ -1,6 +1,7 @@
 package carbonapi
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
@@ -497,7 +498,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 
 	// TODO (grzkv): Stop using a list, move to a single value in config
 	if len(config.Backends) == 0 {
-		return nil, fmt.Errorf("got empty list of backends from config")
+		return nil, errors.New("got empty list of backends from config")
 	}
 	host := config.Backends[0]
 
