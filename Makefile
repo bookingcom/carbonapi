@@ -1,13 +1,9 @@
-# TODO (rgrytskiv): is PKGCONF used?
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	PKGCONF = PKG_CONFIG_PATH="/opt/X11/lib/pkgconfig"
 else
 	PKGCONF =
 endif
-
-export GOFLAGS=-mod=vendor
-export GO111MODULE=on
 
 GO ?= go
 VERSION ?= $(shell git rev-parse --short HEAD)
@@ -34,8 +30,8 @@ nocairo: build
 debug: build
 
 build:
-	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
-	$(PKGCONF) $(GO) build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
+	$(PKGCONF) $(GO) build -mod vendor $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
+	$(PKGCONF) $(GO) build -mod vendor $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
 vet:
 	go vet -composites=false ./...

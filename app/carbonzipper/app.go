@@ -29,7 +29,6 @@ import (
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
-	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 	"go.uber.org/zap"
 )
 
@@ -68,7 +67,7 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("zipper")
 
-	flush := trace.InitTracer("carbonzipper", logger, app.config.Traces)
+	flush := trace.InitTracer(BuildVersion, "carbonzipper", logger, app.config.Traces)
 
 	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
@@ -88,11 +87,7 @@ func (app *App) Start() func() {
 	httputil.PublishTrackedConnections("httptrack")
 	publishExpvarz(app)
 
-	r := initHandlers(app)
-
-	handler := util.UUIDHandler(r)
-	traceMiddleware := muxtrace.Middleware("carbonzipper")
-	handler = traceMiddleware(handler)
+	handler := initHandlers(app)
 
 	// nothing in the app.config? check the environment
 	if app.config.Graphite.Host == "" {
