@@ -2,6 +2,7 @@ package carbonapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
-	"github.com/pkg/errors"
 
 	"github.com/lomik/zapwriter"
 )

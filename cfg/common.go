@@ -1,12 +1,12 @@
 package cfg
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"time"
 
 	"github.com/lomik/zapwriter"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -217,7 +217,7 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 		}
 	}
 
-	return "", "", errors.Errorf("Couldn't find cluster for '%s'", address)
+	return "", "", fmt.Errorf("Couldn't find cluster for '%s'", address)
 }
 
 // MonitoringConfig allows setting custom monitoring parameters

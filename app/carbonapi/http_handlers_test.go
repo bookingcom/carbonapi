@@ -1,10 +1,10 @@
 package carbonapi
 
 import (
+	"errors"
 	"testing"
 
 	typ "github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/pkg/errors"
 )
 
 func TestGetCompleterQuery(t *testing.T) {

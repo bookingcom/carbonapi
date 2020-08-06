@@ -1,6 +1,7 @@
 package carbonapi
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
@@ -33,7 +34,6 @@ import (
 	"github.com/facebookgo/pidfile"
 	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -512,7 +512,7 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 	})
 
 	if err != nil {
-		return b, errors.Errorf("Couldn't create backend for '%s'", host)
+		return b, fmt.Errorf("Couldn't create backend for '%s'", host)
 	}
 
 	return b, nil

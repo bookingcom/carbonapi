@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -29,24 +28,31 @@ const (
 
 var (
 	// ErrMissingExpr is a parse error returned when an expression is missing.
-	ErrMissingExpr = errors.New("missing expression")
+	ErrMissingExpr = ParseError("missing expression")
 	// ErrMissingComma is a parse error returned when an expression is missing a comma.
-	ErrMissingComma = errors.New("missing comma")
+	ErrMissingComma = ParseError("missing comma")
 	// ErrMissingQuote is a parse error returned when an expression is missing a quote.
-	ErrMissingQuote = errors.New("missing quote")
+	ErrMissingQuote = ParseError("missing quote")
 	// ErrUnexpectedCharacter is a parse error returned when an expression contains an unexpected character.
-	ErrUnexpectedCharacter = errors.New("unexpected character")
+	ErrUnexpectedCharacter = ParseError("unexpected character")
 	// ErrBadType is an eval error returned when a argument has wrong type.
-	ErrBadType = errors.New("bad type")
+	ErrBadType = ParseError("bad type")
 	// ErrMissingArgument is an eval error returned when a argument is missing.
-	ErrMissingArgument = errors.New("missing argument")
+	ErrMissingArgument = ParseError("missing argument")
 	// ErrMissingTimeseries is an eval error returned when a time series argument is missing.
-	ErrMissingTimeseries = errors.New("missing time series argument")
+	ErrMissingTimeseries = ParseError("missing time series argument")
 	// ErrSeriesDoesNotExist is an eval error returned when a requested time series argument does not exist.
-	ErrSeriesDoesNotExist = errors.New("no timeseries with that name")
+	ErrSeriesDoesNotExist = ParseError("no timeseries with that name")
 	// ErrUnknownTimeUnits is an eval error returned when a time unit is unknown to system
-	ErrUnknownTimeUnits = errors.New("unknown time units")
+	ErrUnknownTimeUnits = ParseError("unknown time units")
 )
+
+// ParseError is a type of errors returned from the parser
+type ParseError string
+
+func (p ParseError) Error() string {
+	return string(p)
+}
 
 // Expr defines an interface to talk with expressions
 type Expr interface {
@@ -130,11 +136,6 @@ type Expr interface {
 }
 
 var _ Expr = &expr{}
-
-// Parse parses string as an expression.
-func Parse(e string) (Expr, string, error) {
-	return ParseExpr(e)
-}
 
 // NewTargetExpr Creates new expression with specified target only.
 func NewTargetExpr(target string) Expr {

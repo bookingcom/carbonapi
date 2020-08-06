@@ -25,8 +25,9 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/util"
 
+	"errors"
+
 	"github.com/lomik/zapwriter"
-	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
@@ -214,9 +215,23 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
 			&results, &form, &toLog, logger, &partiallyFailed)
 		if targetErr != nil {
+			// we can have 3 error types here
+			// a) dataTypes.ErrNotFound  > Continue, at the end we check if all errors are 'not found' and we answer with http 404
+			// b) parser.ParseError -> Return with this error(like above, but with less details )
+			// c) anything else -> continue, answer will be 5xx if all targets have one error
+			var parseError parser.ParseError
+			if errors.As(targetErr, &parseError) {
+				msg := targetErr.Error()
+				writeError(ctx, r, w, http.StatusBadRequest, msg, form)
+				toLog.HttpCode = http.StatusBadRequest
+				span.SetAttribute("error", msg)
+				logAsError = true
+				return
+			}
 			targetErrs = append(targetErrs, targetErr)
 		}
 		size += metricSize
+
 		targetSpan.End()
 
 	}
@@ -377,7 +392,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
 	rewritten, newTargets, err := expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
 	if err != nil && err != parser.ErrSeriesDoesNotExist {
-		return errors.Wrap(err, "expression rewrite failed"), size
+		return fmt.Errorf("expression rewrite failed: %w", err), size
 	}
 
 	if rewritten {
@@ -391,7 +406,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 	err = evalExprRender(exp, results, metricMap, form)
 	if err != nil && err != parser.ErrSeriesDoesNotExist {
-		return errors.Wrap(err, "expression eval failed"), size
+		return fmt.Errorf("expression eval failed: %w", err), size
 	}
 
 	return nil, size
@@ -574,7 +589,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	case protobufFormat, protobuf3Format:
 		body, err = types.MarshalProtobuf(results)
 		if err != nil {
-			return body, errors.Wrap(err, "error while marshalling protobuf")
+			return body, fmt.Errorf("error while marshalling protobuf: %w", err)
 		}
 	case rawFormat:
 		body = types.MarshalRaw(results)
@@ -755,7 +770,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
 		)
-		if _, ok := errors.Cause(err).(dataTypes.ErrNotFound); ok {
+		var notFound dataTypes.ErrNotFound
+		if errors.As(err, &notFound) {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -805,7 +821,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		blob, err = findCompleter(metrics)
 		contentType = jsonFormat
 	default:
-		err = errors.Errorf("Unknown format %s", format)
+		err = fmt.Errorf("Unknown format %s", format)
 	}
 
 	if err != nil {
