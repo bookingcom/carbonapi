@@ -2,12 +2,13 @@ package types
 
 import (
 	"bytes"
-	"errors"
 	"math"
 	"strconv"
 	"time"
 
+	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/pkg/types"
+
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 
 	pickle "github.com/lomik/og-rek"
@@ -15,9 +16,9 @@ import (
 
 var (
 	// ErrWildcardNotAllowed is an eval error returned when a wildcard/glob argument is found where a single series is required.
-	ErrWildcardNotAllowed = errors.New("found wildcard where series expected")
+	ErrWildcardNotAllowed = parser.ParseError("found wildcard where series expected")
 	// ErrTooManyArguments is an eval error returned when too many arguments are provided.
-	ErrTooManyArguments = errors.New("too many arguments")
+	ErrTooManyArguments = parser.ParseError("too many arguments")
 )
 
 // MetricData contains necessary data to represent parsed metric (ready to be send out or drawn)
