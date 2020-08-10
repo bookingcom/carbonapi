@@ -3,6 +3,7 @@ package divideSeries
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -62,33 +63,56 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		return nil, errors.New("must be called with 2 series or a wildcard that matches exactly 2 series")
 	}
 
-	for _, numerator := range numerators {
-		if numerator.StepTime != denominator.StepTime || len(numerator.Values) != len(denominator.Values) {
-			return nil, errors.New(fmt.Sprintf("series %s must have the same length as %s", numerator.Name, denominator.Name))
-		}
-	}
-
 	var results []*types.MetricData
 	for _, numerator := range numerators {
-		r := *numerator
+		name := fmt.Sprintf("divideSeries(%s)", e.RawArgs())
 		if useMetricNames {
-			r.Name = fmt.Sprintf("divideSeries(%s,%s)", numerator.Name, denominator.Name)
-		} else {
-			r.Name = fmt.Sprintf("divideSeries(%s)", e.RawArgs())
+			name = fmt.Sprintf("divideSeries(%s,%s)", numerator.Name, denominator.Name)
 		}
-		r.Values = make([]float64, len(numerator.Values))
-		r.IsAbsent = make([]bool, len(numerator.Values))
 
-		for i, v := range numerator.Values {
+		step := helper.LCM(numerator.StepTime, denominator.StepTime)
 
-			if numerator.IsAbsent[i] || denominator.IsAbsent[i] || denominator.Values[i] == 0 {
-				r.IsAbsent[i] = true
+		numerator.SetValuesPerPoint(int(step / numerator.StepTime))
+		denominator.SetValuesPerPoint(int(step / denominator.StepTime))
+
+		start := numerator.StartTime
+		if start > denominator.StartTime {
+			start = denominator.StartTime
+		}
+		end := numerator.StopTime
+		if end < denominator.StopTime {
+			end = denominator.StopTime
+		}
+		end -= (end - start) % step
+		length := int((end - start) / step)
+		values := make([]float64, length)
+
+		numeratorAbsent := numerator.AggregatedAbsent()
+		if len(numeratorAbsent) < length {
+			length = len(numeratorAbsent)
+		}
+		numeratorValues := numerator.AggregatedValues()
+		if len(numeratorValues) < length {
+			length = len(numeratorValues)
+		}
+		denominatorAbsent := denominator.AggregatedAbsent()
+		if len(denominatorAbsent) < length {
+			length = len(denominatorAbsent)
+		}
+		denominatorValues := denominator.AggregatedValues()
+		if len(denominatorValues) < length {
+			length = len(denominatorValues)
+		}
+		for i := 0; i < length; i++ {
+			if numeratorAbsent[i] || denominatorAbsent[i] || denominatorValues[i] == 0 {
+				values[i] = math.NaN()
 				continue
 			}
-
-			r.Values[i] = v / denominator.Values[i]
+			values[i] = numeratorValues[i] / denominatorValues[i]
 		}
-		results = append(results, &r)
+
+		result := types.MakeMetricData(name, values, step, start)
+		results = append(results, result)
 	}
 
 	return results, nil
