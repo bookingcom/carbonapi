@@ -468,3 +468,16 @@ func Poly(x float64, coeffs ...float64) float64 {
 	}
 	return y
 }
+
+// GCD computes the Greatest Common Divisor of two numbers
+func GCD(a, b int32) int32 {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
+// LCM computes the Least Commong Multiple of two numbers
+func LCM(a, b int32) int32 {
+	return (a * b) / GCD(a, b)
+}

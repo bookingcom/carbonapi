@@ -82,6 +82,28 @@ func TestDivideSeries(t *testing.T) {
 			[]*types.MetricData{types.MakeMetricData("divideSeries(metric[12])",
 				[]float64{0.5, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2}, 1, now32)},
 		},
+		{
+			"divideSeries(different_length_metric[12])",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"different_length_metric[12]", 0, 1}: {
+					types.MakeMetricData("different_length_metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 5, 6, 7, 8}, 1, now32),
+					types.MakeMetricData("different_length_metric2", []float64{2, math.NaN(), 3, math.NaN(), 2}, 2, now32),
+				},
+			},
+			[]*types.MetricData{types.MakeMetricData("divideSeries(different_length_metric[12])",
+				[]float64{0.5, math.NaN(), 1.5, math.NaN(), 4}, 1, now32)},
+		},
+		{
+			"divideSeries(different_length_metric[12])",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"different_length_metric[12]", 0, 1}: {
+					types.MakeMetricData("different_length_metric1", []float64{1, math.NaN(), 2, 3, 4}, 1, now32),
+					types.MakeMetricData("different_length_metric2", []float64{1, math.NaN(), 2}, 1, now32),
+				},
+			},
+			[]*types.MetricData{types.MakeMetricData("divideSeries(different_length_metric[12])",
+				[]float64{1, math.NaN(), 1, math.NaN(), math.NaN()}, 1, now32)},
+		},
 	}
 
 	for _, tt := range tests {

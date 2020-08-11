@@ -3,6 +3,7 @@ package divideSeries
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -42,7 +43,7 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 	var useMetricNames bool
 
 	var numerators []*types.MetricData
-	var denominator *types.MetricData
+	var originalDenominator *types.MetricData
 	if len(e.Args()) == 2 {
 		useMetricNames = true
 		numerators = firstArg
@@ -54,45 +55,74 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 			return nil, types.ErrWildcardNotAllowed
 		}
 
-		denominator = denominators[0]
+		originalDenominator = denominators[0]
 	} else if len(firstArg) == 2 && len(e.Args()) == 1 {
 		numerators = append(numerators, firstArg[0])
-		denominator = firstArg[1]
+		originalDenominator = firstArg[1]
 	} else {
 		return nil, errors.New("must be called with 2 series or a wildcard that matches exactly 2 series")
 	}
 
-	for _, numerator := range numerators {
-		if numerator.StepTime != denominator.StepTime || len(numerator.Values) != len(denominator.Values) {
-			return nil, errors.New(fmt.Sprintf("series %s must have the same length as %s", numerator.Name, denominator.Name))
-		}
-	}
-
+	denominator := *originalDenominator
 	var results []*types.MetricData
-	for _, numerator := range numerators {
-		r := *numerator
+	for _, originalNumerator := range numerators {
+		numerator := *originalNumerator
+		name := fmt.Sprintf("divideSeries(%s)", e.RawArgs())
 		if useMetricNames {
-			r.Name = fmt.Sprintf("divideSeries(%s,%s)", numerator.Name, denominator.Name)
-		} else {
-			r.Name = fmt.Sprintf("divideSeries(%s)", e.RawArgs())
+			name = fmt.Sprintf("divideSeries(%s,%s)", numerator.Name, denominator.Name)
 		}
-		r.Values = make([]float64, len(numerator.Values))
-		r.IsAbsent = make([]bool, len(numerator.Values))
 
-		for i, v := range numerator.Values {
+		step := helper.LCM(numerator.StepTime, denominator.StepTime)
 
-			if numerator.IsAbsent[i] || denominator.IsAbsent[i] || denominator.Values[i] == 0 {
-				r.IsAbsent[i] = true
+		numerator.SetValuesPerPoint(int(step / numerator.StepTime))
+		denominator.SetValuesPerPoint(int(step / denominator.StepTime))
+
+		start := numerator.StartTime
+		if start > denominator.StartTime {
+			start = denominator.StartTime
+		}
+		end := numerator.StopTime
+		if end < denominator.StopTime {
+			end = denominator.StopTime
+		}
+		end -= (end - start) % step
+		length := int((end - start) / step)
+
+		numeratorAbsent := numerator.AggregatedAbsent()
+		if len(numeratorAbsent) > length {
+			length = len(numeratorAbsent)
+		}
+		numeratorValues := numerator.AggregatedValues()
+		if len(numeratorValues) > length {
+			length = len(numeratorValues)
+		}
+		denominatorAbsent := denominator.AggregatedAbsent()
+		if len(denominatorAbsent) > length {
+			length = len(denominatorAbsent)
+		}
+		denominatorValues := denominator.AggregatedValues()
+		if len(denominatorValues) > length {
+			length = len(denominatorValues)
+		}
+		values := make([]float64, length)
+		for i := 0; i < length; i++ {
+			if i >= len(numeratorAbsent) || i >= len(denominatorAbsent) ||
+				i >= len(numeratorValues) || i >= len(denominatorValues) {
+				values[i] = math.NaN()
 				continue
 			}
-
-			r.Values[i] = v / denominator.Values[i]
+			if numeratorAbsent[i] || denominatorAbsent[i] || denominatorValues[i] == 0 {
+				values[i] = math.NaN()
+				continue
+			}
+			values[i] = numeratorValues[i] / denominatorValues[i]
 		}
-		results = append(results, &r)
+
+		result := types.MakeMetricData(name, values, step, start)
+		results = append(results, result)
 	}
 
 	return results, nil
-
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
