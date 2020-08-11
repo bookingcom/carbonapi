@@ -43,7 +43,7 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 	var useMetricNames bool
 
 	var numerators []*types.MetricData
-	var denominator *types.MetricData
+	var originalDenominator *types.MetricData
 	if len(e.Args()) == 2 {
 		useMetricNames = true
 		numerators = firstArg
@@ -55,16 +55,18 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 			return nil, types.ErrWildcardNotAllowed
 		}
 
-		denominator = denominators[0]
+		originalDenominator = denominators[0]
 	} else if len(firstArg) == 2 && len(e.Args()) == 1 {
 		numerators = append(numerators, firstArg[0])
-		denominator = firstArg[1]
+		originalDenominator = firstArg[1]
 	} else {
 		return nil, errors.New("must be called with 2 series or a wildcard that matches exactly 2 series")
 	}
 
+	denominator := *originalDenominator
 	var results []*types.MetricData
-	for _, numerator := range numerators {
+	for _, originalNumerator := range numerators {
+		numerator := *originalNumerator
 		name := fmt.Sprintf("divideSeries(%s)", e.RawArgs())
 		if useMetricNames {
 			name = fmt.Sprintf("divideSeries(%s,%s)", numerator.Name, denominator.Name)
@@ -85,25 +87,30 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		}
 		end -= (end - start) % step
 		length := int((end - start) / step)
-		values := make([]float64, length)
 
 		numeratorAbsent := numerator.AggregatedAbsent()
-		if len(numeratorAbsent) < length {
+		if len(numeratorAbsent) > length {
 			length = len(numeratorAbsent)
 		}
 		numeratorValues := numerator.AggregatedValues()
-		if len(numeratorValues) < length {
+		if len(numeratorValues) > length {
 			length = len(numeratorValues)
 		}
 		denominatorAbsent := denominator.AggregatedAbsent()
-		if len(denominatorAbsent) < length {
+		if len(denominatorAbsent) > length {
 			length = len(denominatorAbsent)
 		}
 		denominatorValues := denominator.AggregatedValues()
-		if len(denominatorValues) < length {
+		if len(denominatorValues) > length {
 			length = len(denominatorValues)
 		}
+		values := make([]float64, length)
 		for i := 0; i < length; i++ {
+			if i >= len(numeratorAbsent) || i >= len(denominatorAbsent) ||
+				i >= len(numeratorValues) || i >= len(denominatorValues) {
+				values[i] = math.NaN()
+				continue
+			}
 			if numeratorAbsent[i] || denominatorAbsent[i] || denominatorValues[i] == 0 {
 				values[i] = math.NaN()
 				continue
@@ -116,7 +123,6 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 	}
 
 	return results, nil
-
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
