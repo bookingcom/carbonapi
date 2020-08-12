@@ -2,6 +2,8 @@ package expr
 
 import (
 	// Import all known functions
+	"fmt"
+
 	_ "github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/metadata"
@@ -51,7 +53,7 @@ func EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest]
 		return f.Do(e, from, until, values)
 	}
 
-	return nil, helper.ErrUnknownFunction(e.Target())
+	return nil, fmt.Errorf("%w: %s", helper.ErrUnknownFunction, e.Target())
 }
 
 // RewriteExpr expands targets that use applyByNode into a new list of targets.
