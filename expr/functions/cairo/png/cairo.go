@@ -868,7 +868,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 
 	}
 
-	return nil, helper.ErrUnknownFunction(e.Target())
+	return nil, fmt.Errorf("%w: %s", helper.ErrUnknownFunction, e.Target())
 }
 
 func MarshalSVG(params PictureParams, results []*types.MetricData) []byte {

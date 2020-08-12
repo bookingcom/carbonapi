@@ -39,7 +39,7 @@ func (f *seriesList) Do(e parser.Expr, from, until int32, values map[parser.Metr
 	}
 
 	if len(numerators) != len(denominators) {
-		return nil, fmt.Errorf("both %s arguments must have equal length", e.Target())
+		return nil, fmt.Errorf("%w: %s", parser.ErrDifferentCountMetrics, e.Target())
 	}
 
 	var results []*types.MetricData

@@ -22,12 +22,7 @@ var evaluator interfaces.Evaluator
 // Backref is a pre-compiled expression for backref
 var Backref = regexp.MustCompile(`\\(\d+)`)
 
-// ErrUnknownFunction is an error message about unknown function
-type ErrUnknownFunction string
-
-func (e ErrUnknownFunction) Error() string {
-	return fmt.Sprintf("unknown function in evalExpr: %q", string(e))
-}
+var ErrUnknownFunction = parser.ParseError("unknown function")
 
 // SetEvaluator sets evaluator for all helper functions
 func SetEvaluator(e interfaces.Evaluator) {
