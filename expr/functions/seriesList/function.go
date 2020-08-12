@@ -49,7 +49,12 @@ func (f *seriesList) Do(e parser.Expr, from, until int32, values map[parser.Metr
 
 	switch e.Target() {
 	case "divideSeriesLists":
-		compute = func(l, r float64) float64 { return l / r }
+		compute = func(l, r float64) float64 {
+			if r == 0 {
+				return math.NaN()
+			}
+			return l / r
+		}
 	case "multiplySeriesLists":
 		compute = func(l, r float64) float64 { return l * r }
 	case "diffSeriesLists":
@@ -59,31 +64,10 @@ func (f *seriesList) Do(e parser.Expr, from, until int32, values map[parser.Metr
 	}
 	for i, numerator := range numerators {
 		denominator := denominators[i]
-		if numerator.StepTime != denominator.StepTime || len(numerator.Values) != len(denominator.Values) {
-			return nil, fmt.Errorf("series %s must have the same length as %s", numerator.Name, denominator.Name)
-		}
-		r := *numerator
-		r.Name = fmt.Sprintf("%s(%s,%s)", functionName, numerator.Name, denominator.Name)
-		r.Values = make([]float64, len(numerator.Values))
-		r.IsAbsent = make([]bool, len(numerator.Values))
-		for i, v := range numerator.Values {
-			if numerator.IsAbsent[i] || denominator.IsAbsent[i] {
-				r.IsAbsent[i] = true
-				continue
-			}
-
-			switch e.Target() {
-			case "divideSeriesLists":
-				if denominator.Values[i] == 0 {
-					r.IsAbsent[i] = true
-					continue
-				}
-				r.Values[i] = compute(v, denominator.Values[i])
-			default:
-				r.Values[i] = compute(v, denominator.Values[i])
-			}
-		}
-		results = append(results, &r)
+		name := fmt.Sprintf("%s(%s,%s)", functionName, numerator.Name, denominator.Name)
+		fmt.Sprintf("divideSeries(%s)", e.RawArgs())
+		result := helper.CombineSeries(numerator, denominator, name, compute)
+		results = append(results, result)
 	}
 	return results, nil
 }
