@@ -65,7 +65,6 @@ func (f *seriesList) Do(e parser.Expr, from, until int32, values map[parser.Metr
 	for i, numerator := range numerators {
 		denominator := denominators[i]
 		name := fmt.Sprintf("%s(%s,%s)", functionName, numerator.Name, denominator.Name)
-		fmt.Sprintf("divideSeries(%s)", e.RawArgs())
 		result := helper.CombineSeries(numerator, denominator, name, compute)
 		results = append(results, result)
 	}
