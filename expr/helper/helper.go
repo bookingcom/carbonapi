@@ -479,5 +479,5 @@ func GCD(a, b int32) int32 {
 
 // LCM computes the Least Commong Multiple of two numbers
 func LCM(a, b int32) int32 {
-	return (a * b) / GCD(a, b)
+	return a * (b / GCD(a, b))
 }
