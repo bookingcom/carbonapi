@@ -45,6 +45,8 @@ var (
 	ErrSeriesDoesNotExist = ParseError("no timeseries with that name")
 	// ErrUnknownTimeUnits is an eval error returned when a time unit is unknown to system
 	ErrUnknownTimeUnits = ParseError("unknown time units")
+	// ErrBothArgumentsMusthaveSameLenght is an eval error returned when a function that works on pairs of metrics receives arguments having different number of metrics.
+	ErrDifferentCountMetrics = ParseError("both arguments must have the same number of metrics")
 )
 
 // ParseError is a type of errors returned from the parser

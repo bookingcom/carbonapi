@@ -108,7 +108,7 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 			}
 		case "timeLagSeriesLists":
 			if len(producerMetrics) != len(consumerMetrics) {
-				return nil, fmt.Errorf("both %s arguments must have equal length", e.Target())
+				return nil, fmt.Errorf("%w: %s", parser.ErrDifferentCountMetrics, e.Target())
 			}
 		}
 	} else if len(firstArg) == 2 && len(e.Args()) == 1 {
