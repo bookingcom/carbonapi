@@ -118,7 +118,6 @@ func AggregateSeries(e parser.Expr, args []*types.MetricData, function Aggregate
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Series: %+v", seriesList)
 	length := len(seriesList[0].Values)
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
 	result := make([]float64, length)
