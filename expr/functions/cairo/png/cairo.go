@@ -1224,8 +1224,8 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 				stackName = r.StackName
 			}
 
-			absent := r.AggregatedAbsent()
-			vals := r.AggregatedValues()
+			absent := r.IsAbsent
+			vals := r.Values
 			for i, v := range vals {
 
 				if len(total) <= i {
@@ -1245,7 +1245,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 		}
 	}
 
-	consolidateDataPoints(params, results)
+	results = consolidateDataPoints(params, results)
 
 	currentXMin := params.area.xmin
 	currentXMax := params.area.xmax
@@ -1256,7 +1256,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	}
 
 	for currentXMin != params.area.xmin || currentXMax != params.area.xmax {
-		consolidateDataPoints(params, results)
+		results = consolidateDataPoints(params, results)
 		currentXMin = params.area.xmin
 		currentXMax = params.area.xmax
 		if params.secondYAxis {
@@ -1279,11 +1279,12 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	drawLines(cr, params, results)
 }
 
-func consolidateDataPoints(params *Params, results []*types.MetricData) {
+func consolidateDataPoints(params *Params, results []*types.MetricData) []*types.MetricData {
 	numberOfPixels := params.area.xmax - params.area.xmin - (params.lineWidth + 1)
 	params.graphWidth = numberOfPixels
 
-	for _, series := range results {
+	ret := make([]*types.MetricData, len(results))
+	for i, series := range results {
 		numberOfDataPoints := math.Floor(float64(params.timeRange / series.StepTime))
 		// minXStep := params.minXStep
 		minXStep := 1.0
@@ -1293,13 +1294,14 @@ func consolidateDataPoints(params *Params, results []*types.MetricData) {
 			drawableDataPoints := int(numberOfPixels / minXStep)
 			pointsPerPixel := math.Ceil(numberOfDataPoints / float64(drawableDataPoints))
 			// dumb variable naming :(
-			series.SetValuesPerPoint(int(pointsPerPixel))
+			ret[i] = series.Consolidate(int(pointsPerPixel))
 			series.XStep = (numberOfPixels * pointsPerPixel) / numberOfDataPoints
 		} else {
-			series.SetValuesPerPoint(1)
+			ret[i] = series
 			series.XStep = bestXStep
 		}
 	}
+	return ret
 }
 
 func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
@@ -1340,8 +1342,8 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.Met
 			if s.DrawAsInfinite {
 				continue
 			}
-			absent := s.AggregatedAbsent()
-			for i, v := range s.AggregatedValues() {
+			absent := s.IsAbsent
+			for i, v := range s.Values {
 				if absent[i] {
 					continue
 				}
@@ -1360,8 +1362,8 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.Met
 			if s.DrawAsInfinite {
 				continue
 			}
-			absent := s.AggregatedAbsent()
-			for i, v := range s.AggregatedValues() {
+			absent := s.IsAbsent
+			for i, v := range s.Values {
 				if absent[i] {
 					continue
 				}
@@ -1375,8 +1377,8 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.Met
 	var yMaxValueL, yMaxValueR float64
 	yMaxValueL = math.Inf(-1)
 	for _, s := range Ldata {
-		absent := s.AggregatedAbsent()
-		for i, v := range s.AggregatedValues() {
+		absent := s.IsAbsent
+		for i, v := range s.Values {
 			if absent[i] {
 				continue
 			}
@@ -1389,8 +1391,8 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.Met
 
 	yMaxValueR = math.Inf(-1)
 	for _, s := range Rdata {
-		absent := s.AggregatedAbsent()
-		for i, v := range s.AggregatedValues() {
+		absent := s.IsAbsent
+		for i, v := range s.Values {
 			if absent[i] {
 				continue
 			}
@@ -1640,8 +1642,8 @@ func setupYAxis(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 			continue
 		}
 		pushed := false
-		absent := r.AggregatedAbsent()
-		for i, v := range r.AggregatedValues() {
+		absent := r.IsAbsent
+		for i, v := range r.Values {
 			if absent[i] && !pushed {
 				seriesWithMissingValues = append(seriesWithMissingValues, r)
 				pushed = true
@@ -2267,9 +2269,9 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 						Name:      r.Name,
 						StopTime:  r.StopTime,
 						StartTime: r.StartTime,
-						StepTime:  r.AggregatedTimeStep(),
-						Values:    make([]float64, len(r.AggregatedValues())),
-						IsAbsent:  make([]bool, len(r.AggregatedValues())),
+						StepTime:  r.StepTime,
+						Values:    make([]float64, len(r.Values)),
+						IsAbsent:  make([]bool, len(r.Values)),
 					},
 					ValuesPerPoint: 1,
 					GraphOptions: types.GraphOptions{
@@ -2278,8 +2280,8 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 						SecondYAxis: r.SecondYAxis,
 					},
 				}
-				copy(newSeries.Values, r.AggregatedValues())
-				copy(newSeries.IsAbsent, r.AggregatedAbsent())
+				copy(newSeries.Values, r.Values)
+				copy(newSeries.IsAbsent, r.IsAbsent)
 				strokeSeries = append(strokeSeries, &newSeries)
 			}
 		}
@@ -2327,9 +2329,9 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 		origX := x
 		startX := x
 
-		absent := series.AggregatedAbsent()
+		absent := series.IsAbsent
 		consecutiveNones := 0
-		for index, value := range series.AggregatedValues() {
+		for index, value := range series.Values {
 			x = origX + (float64(index) * series.XStep)
 
 			if absent[index] {

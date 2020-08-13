@@ -10,14 +10,11 @@ type Operator func(l, r float64) float64
 
 // CombineSeries applied operator() on two series. If they do not have the same length, series are consolidated with a Lower Common Multiple step.
 func CombineSeries(originalA, originalB *types.MetricData, name string, operator Operator) *types.MetricData {
-	// TODO: rewrite consolidation API: https://github.com/bookingcom/carbonapi/issues/278
-	a := *originalA
-	b := *originalB
 
-	step := LCM(a.StepTime, b.StepTime)
+	step := LCM(originalA.StepTime, originalB.StepTime)
 
-	a.SetValuesPerPoint(int(step / a.StepTime))
-	b.SetValuesPerPoint(int(step / b.StepTime))
+	a := originalA.Consolidate(int(step / originalA.StepTime))
+	b := originalB.Consolidate(int(step / originalB.StepTime))
 
 	start := a.StartTime
 	if start > b.StartTime {
@@ -30,34 +27,30 @@ func CombineSeries(originalA, originalB *types.MetricData, name string, operator
 	end -= (end - start) % step
 	length := int((end - start) / step)
 
-	aAbsent := a.AggregatedAbsent()
-	if len(aAbsent) > length {
-		length = len(aAbsent)
+	if len(a.IsAbsent) > length {
+		length = len(a.IsAbsent)
 	}
-	aValues := a.AggregatedValues()
-	if len(aValues) > length {
-		length = len(aValues)
+	if len(a.Values) > length {
+		length = len(a.Values)
 	}
-	bAbsent := b.AggregatedAbsent()
-	if len(bAbsent) > length {
-		length = len(bAbsent)
+	if len(b.IsAbsent) > length {
+		length = len(b.IsAbsent)
 	}
-	bValues := b.AggregatedValues()
-	if len(bValues) > length {
-		length = len(bValues)
+	if len(b.Values) > length {
+		length = len(b.Values)
 	}
 	values := make([]float64, length)
 	for i := 0; i < length; i++ {
-		if i >= len(aAbsent) || i >= len(bAbsent) ||
-			i >= len(aValues) || i >= len(bValues) {
+		if i >= len(a.IsAbsent) || i >= len(b.IsAbsent) ||
+			i >= len(a.Values) || i >= len(b.Values) {
 			values[i] = math.NaN()
 			continue
 		}
-		if aAbsent[i] || bAbsent[i] {
+		if a.IsAbsent[i] || b.IsAbsent[i] {
 			values[i] = math.NaN()
 			continue
 		}
-		values[i] = operator(aValues[i], bValues[i])
+		values[i] = operator(a.Values[i], b.Values[i])
 	}
 
 	return types.MakeMetricData(name, values, step, start)

@@ -582,7 +582,7 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	switch form.format {
 	case jsonFormat:
 		if maxDataPoints, _ := strconv.Atoi(r.FormValue("maxDataPoints")); maxDataPoints != 0 {
-			types.ConsolidateJSON(maxDataPoints, results)
+			results = types.ConsolidateJSON(maxDataPoints, results)
 		}
 
 		body = types.MarshalJSON(results)

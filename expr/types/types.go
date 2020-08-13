@@ -28,12 +28,10 @@ type MetricData struct {
 	GraphOptions
 
 	ValuesPerPoint    int
-	aggregatedValues  []float64
-	aggregatedAbsent  []bool
 	AggregateFunction func([]float64, []bool) (float64, bool)
 }
 
-// MakeMetricData creates new metrics data with given metric timeseries
+// MakeMetricData creates new metrics data with given metric timeseries. values have math.NaN() for absent
 func MakeMetricData(name string, values []float64, step, start int32) *MetricData {
 
 	absent := make([]bool, len(values))
@@ -90,7 +88,7 @@ func MarshalCSV(results []*MetricData, location *time.Location) []byte {
 }
 
 // ConsolidateJSON consolidates values to maxDataPoints size
-func ConsolidateJSON(maxDataPoints int, results []*MetricData) {
+func ConsolidateJSON(maxDataPoints int, results []*MetricData) (consolidated []*MetricData) {
 	var startTime int32 = -1
 	var endTime int32 = -1
 
@@ -111,13 +109,17 @@ func ConsolidateJSON(maxDataPoints int, results []*MetricData) {
 		return
 	}
 
-	for _, r := range results {
+	ret := make([]*MetricData, len(results))
+	for i, r := range results {
 		numberOfDataPoints := math.Floor(float64(timeRange) / float64(r.StepTime))
 		if numberOfDataPoints > float64(maxDataPoints) {
 			valuesPerPoint := math.Ceil(numberOfDataPoints / float64(maxDataPoints))
-			r.SetValuesPerPoint(int(valuesPerPoint))
+			ret[i] = r.Consolidate(int(valuesPerPoint))
+		} else {
+			ret[i] = r
 		}
 	}
+	return ret
 }
 
 // MarshalJSON marshals metric data to JSON
@@ -142,8 +144,8 @@ func MarshalJSON(results []*MetricData) []byte {
 
 		var innerComma bool
 		t := r.StartTime
-		absent := r.AggregatedAbsent()
-		for i, v := range r.AggregatedValues() {
+		absent := r.IsAbsent
+		for i, v := range r.Values {
 			if innerComma {
 				b = append(b, ',')
 			}
@@ -163,7 +165,7 @@ func MarshalJSON(results []*MetricData) []byte {
 
 			b = append(b, ']')
 
-			t += r.AggregatedTimeStep()
+			t += r.StepTime
 		}
 
 		b = append(b, `]}`...)
@@ -251,75 +253,48 @@ func MarshalRaw(results []*MetricData) []byte {
 	return b
 }
 
-// SetValuesPerPoint sets value per point coefficient.
-func (r *MetricData) SetValuesPerPoint(v int) {
-	r.ValuesPerPoint = v
-	r.aggregatedValues = nil
-	r.aggregatedAbsent = nil
-}
-
-// AggregatedTimeStep aggregates time step
-func (r *MetricData) AggregatedTimeStep() int32 {
-	if r.ValuesPerPoint == 1 || r.ValuesPerPoint == 0 {
-		return r.StepTime
+// Consolidate returns a consolidated copy of this MetricData.
+func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
+	ret := *r
+	if valuesPerPoint == 1 || valuesPerPoint == 0 {
+		ret.Values = make([]float64, len(r.Values))
+		ret.IsAbsent = make([]bool, len(r.IsAbsent))
+		copy(ret.Values, r.Values)
+		copy(ret.IsAbsent, r.IsAbsent)
+		return &ret
 	}
 
-	return r.StepTime * int32(r.ValuesPerPoint)
-}
-
-// AggregatedValues aggregates values (with cache)
-func (r *MetricData) AggregatedValues() []float64 {
-	if r.aggregatedValues == nil {
-		r.AggregateValues()
-	}
-	return r.aggregatedValues
-}
-
-// AggregatedAbsent aggregates absent values
-func (r *MetricData) AggregatedAbsent() []bool {
-	if r.aggregatedAbsent == nil {
-		r.AggregateValues()
-	}
-	return r.aggregatedAbsent
-}
-
-// AggregateValues aggregates values
-func (r *MetricData) AggregateValues() {
-	if r.ValuesPerPoint == 1 || r.ValuesPerPoint == 0 {
-		r.aggregatedValues = make([]float64, len(r.Values))
-		r.aggregatedAbsent = make([]bool, len(r.Values))
-		copy(r.aggregatedValues, r.Values)
-		copy(r.aggregatedAbsent, r.IsAbsent)
-		return
+	ret.ValuesPerPoint = valuesPerPoint
+	ret.StepTime = r.StepTime * int32(valuesPerPoint)
+	if ret.AggregateFunction == nil {
+		ret.AggregateFunction = AggMean
 	}
 
-	if r.AggregateFunction == nil {
-		r.AggregateFunction = AggMean
-	}
-
-	n := len(r.Values)/r.ValuesPerPoint + 1
+	n := len(r.Values)/valuesPerPoint + 1
 	aggV := make([]float64, 0, n)
 	aggA := make([]bool, 0, n)
 
 	v := r.Values
 	absent := r.IsAbsent
 
-	for len(v) >= r.ValuesPerPoint {
-		val, abs := r.AggregateFunction(v[:r.ValuesPerPoint], absent[:r.ValuesPerPoint])
+	for len(v) >= valuesPerPoint {
+		val, abs := ret.AggregateFunction(v[:valuesPerPoint], absent[:valuesPerPoint])
 		aggV = append(aggV, val)
 		aggA = append(aggA, abs)
-		v = v[r.ValuesPerPoint:]
-		absent = absent[r.ValuesPerPoint:]
+		v = v[valuesPerPoint:]
+		absent = absent[valuesPerPoint:]
 	}
 
 	if len(v) > 0 {
-		val, abs := r.AggregateFunction(v, absent)
+		val, abs := ret.AggregateFunction(v, absent)
 		aggV = append(aggV, val)
 		aggA = append(aggA, abs)
 	}
 
-	r.aggregatedValues = aggV
-	r.aggregatedAbsent = aggA
+	ret.Values = aggV
+	ret.IsAbsent = aggA
+
+	return &ret
 }
 
 // AggMean computes mean (sum(v)/len(v), excluding NaN points) of values
