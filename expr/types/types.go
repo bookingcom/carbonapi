@@ -42,7 +42,6 @@ func MakeMetricData(name string, values []float64, step, start int32) *MetricDat
 			absent[i] = true
 		}
 	}
-
 	stop := start + int32(len(values))*step
 
 	return &MetricData{Metric: types.Metric{
@@ -257,6 +256,7 @@ func MarshalRaw(results []*MetricData) []byte {
 func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
 	ret := *r
 	if valuesPerPoint == 1 || valuesPerPoint == 0 {
+		ret.ValuesPerPoint = 1
 		ret.Values = make([]float64, len(r.Values))
 		ret.IsAbsent = make([]bool, len(r.IsAbsent))
 		copy(ret.Values, r.Values)
@@ -279,6 +279,9 @@ func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
 
 	for len(v) >= valuesPerPoint {
 		val, abs := ret.AggregateFunction(v[:valuesPerPoint], absent[:valuesPerPoint])
+		if math.IsNaN(val) {
+			val = 0
+		}
 		aggV = append(aggV, val)
 		aggA = append(aggA, abs)
 		v = v[valuesPerPoint:]
@@ -287,6 +290,9 @@ func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
 
 	if len(v) > 0 {
 		val, abs := ret.AggregateFunction(v, absent)
+		if math.IsNaN(val) {
+			val = 0
+		}
 		aggV = append(aggV, val)
 		aggA = append(aggA, abs)
 	}
