@@ -395,12 +395,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		)
 	}
 
-	helper.ExtrapolatePoints = app.config.ExtrapolateExperiment
-	if app.config.ExtrapolateExperiment {
-		logger.Warn("extraploation experiment is enabled",
-			zap.String("reason", "this feature is highly experimental and untested"),
-		)
-	}
 }
 
 func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {

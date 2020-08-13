@@ -88,10 +88,9 @@ logger:
 			},
 		},
 
-		ExtrapolateExperiment: false,
-		SendGlobsAsIs:         true,
-		AlwaysSendGlobsAsIs:   false,
-		MaxBatchSize:          100,
+		SendGlobsAsIs:       true,
+		AlwaysSendGlobsAsIs: false,
+		MaxBatchSize:        100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,
@@ -193,10 +192,9 @@ logger:
 			},
 		},
 
-		ExtrapolateExperiment: false,
-		SendGlobsAsIs:         true,
-		AlwaysSendGlobsAsIs:   false,
-		MaxBatchSize:          100,
+		SendGlobsAsIs:       true,
+		AlwaysSendGlobsAsIs: false,
+		MaxBatchSize:        100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,
@@ -227,24 +225,22 @@ func eqAPI(a, b API) bool {
 }
 
 type comparableAPI struct {
-	ExtrapolateExperiment bool
-	SendGlobsAsIs         bool
-	AlwaysSendGlobsAsIs   bool
-	MaxBatchSize          int
-	TimezoneString        string
-	PidFile               string
-	IgnoreClientTimeout   bool
+	SendGlobsAsIs       bool
+	AlwaysSendGlobsAsIs bool
+	MaxBatchSize        int
+	TimezoneString      string
+	PidFile             string
+	IgnoreClientTimeout bool
 }
 
 func toComparableAPI(a API) comparableAPI {
 	return comparableAPI{
-		ExtrapolateExperiment: a.ExtrapolateExperiment,
-		SendGlobsAsIs:         a.SendGlobsAsIs,
-		AlwaysSendGlobsAsIs:   a.AlwaysSendGlobsAsIs,
-		MaxBatchSize:          a.MaxBatchSize,
-		TimezoneString:        a.TimezoneString,
-		PidFile:               a.PidFile,
-		IgnoreClientTimeout:   a.IgnoreClientTimeout,
+		SendGlobsAsIs:       a.SendGlobsAsIs,
+		AlwaysSendGlobsAsIs: a.AlwaysSendGlobsAsIs,
+		MaxBatchSize:        a.MaxBatchSize,
+		TimezoneString:      a.TimezoneString,
+		PidFile:             a.PidFile,
+		IgnoreClientTimeout: a.IgnoreClientTimeout,
 	}
 }
 
