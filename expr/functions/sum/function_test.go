@@ -103,9 +103,10 @@ func TestSum(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		copy := tt
 		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
-			th.TestEvalExpr(t, &tt)
+			th.TestEvalExpr(t, &copy)
 		})
 	}
 }
