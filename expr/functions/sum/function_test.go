@@ -68,11 +68,37 @@ func TestSum(t *testing.T) {
 					types.MakeMetricData("m1", []float64{1, 2, 3, 4}, 2, now32),
 				},
 				{"resolution", 0, 1}: {
-					types.MakeMetricData("m2", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 1, now32),
+					types.MakeMetricData("m2", []float64{1, 2, 3, 4, 5, 6, 7, 8}, 1, now32),
 				},
 			},
 			[]*types.MetricData{types.MakeMetricData("sumSeries(different,resolution)",
 				[]float64{2.5, 5.5, 8.5, 11.5}, 2, now32)},
+		},
+		{
+			"sumSeries(different,length)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"different", 0, 1}: {
+					types.MakeMetricData("m1", []float64{1, 2, 3, 4}, 1, now32),
+				},
+				{"length", 0, 1}: {
+					types.MakeMetricData("m2", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 1, now32),
+				},
+			},
+			[]*types.MetricData{types.MakeMetricData("sumSeries(different,length)",
+				[]float64{2, 4, 6, 8, 5, 6, 7, 8, 9, 10}, 2, now32)},
+		},
+		{
+			"sumSeries(different,resolution_and_length)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"different", 0, 1}: {
+					types.MakeMetricData("m1", []float64{1, 2, 3, 4}, 2, now32),
+				},
+				{"resolution_and_length", 0, 1}: {
+					types.MakeMetricData("m2", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 1, now32),
+				},
+			},
+			[]*types.MetricData{types.MakeMetricData("sumSeries(different,resolution_and_length)",
+				[]float64{2.5, 5.5, 8.5, 11.5, 9.5}, 2, now32)},
 		},
 	}
 

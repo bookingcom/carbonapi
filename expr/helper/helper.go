@@ -114,18 +114,18 @@ type AggregateFunc func([]float64) float64
 // AggregateSeries aggregates series
 func AggregateSeries(e parser.Expr, args []*types.MetricData, function AggregateFunc) ([]*types.MetricData, error) {
 
-	seriesList, start, _, step, err := Normalize(args)
+	seriesList, start, end, step, err := Normalize(args)
 	if err != nil {
 		return nil, err
 	}
-	length := len(seriesList[0].Values)
+	length := int((end - start) / step)
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
 	result := make([]float64, length)
 
 	for i := 0; i < length; i++ {
 		var values []float64
 		for _, s := range seriesList {
-			if !s.IsAbsent[i] {
+			if i < len(s.IsAbsent) && !s.IsAbsent[i] {
 				values = append(values, s.Values[i])
 			}
 		}
