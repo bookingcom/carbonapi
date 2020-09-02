@@ -118,6 +118,7 @@ func DefaultCommonConfig() Common {
 		Traces: Traces{
 			Timeout: 10 * time.Second,
 		},
+		PrintErrorStackTrace: false,
 	}
 }
 
@@ -158,7 +159,8 @@ type Common struct {
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 
-	Traces Traces `yaml:"traces"`
+	Traces               Traces `yaml:"traces"`
+	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 }
 
 // GetBackends returns the list of backends from common configuration
