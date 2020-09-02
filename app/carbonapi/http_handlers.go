@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -307,10 +308,13 @@ func writeError(ctx context.Context, r *http.Request, w http.ResponseWriter,
 }
 
 func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,
-	form *renderForm) (retErr error) {
+	form *renderForm, printErrorStackTrace bool) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
-			retErr = fmt.Errorf("panic duting expr eval: %s", r)
+			retErr = fmt.Errorf("panic during expr eval: %s", r)
+			if printErrorStackTrace {
+				debug.PrintStack()
+			}
 		}
 	}()
 
@@ -404,7 +408,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		return targetErr, size
 	}
 
-	err = evalExprRender(exp, results, metricMap, form)
+	err = evalExprRender(exp, results, metricMap, form, app.config.PrintErrorStackTrace)
 	if err != nil && err != parser.ErrSeriesDoesNotExist {
 		return fmt.Errorf("expression eval failed: %w", err), size
 	}
