@@ -20,7 +20,6 @@ import (
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
@@ -395,12 +394,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		)
 	}
 
-	helper.ExtrapolatePoints = app.config.ExtrapolateExperiment
-	if app.config.ExtrapolateExperiment {
-		logger.Warn("extraploation experiment is enabled",
-			zap.String("reason", "this feature is highly experimental and untested"),
-		)
-	}
 }
 
 func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
