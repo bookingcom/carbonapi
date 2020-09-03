@@ -88,6 +88,17 @@ func TestAliasByNode(t *testing.T) {
 				types.MakeMetricData("asPercent(MISSING,Server3.memory.total)", []float64{math.NaN(), math.NaN(), math.NaN()}, 1, now32),
 			},
 		},
+		{
+			"asPercent(not_found,Server{1,3}.memory.total)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"not_found", 0, 1}: {},
+				{"Server{1,3}.memory.total", 0, 1}: {
+					types.MakeMetricData("Server1.memory.total", []float64{4, 4, 8}, 1, now32),
+					types.MakeMetricData("Server3.memory.total", []float64{4, 16, 2}, 1, now32),
+				},
+			},
+			[]*types.MetricData{},
+		},
 	}
 
 	for _, tt := range tests {
