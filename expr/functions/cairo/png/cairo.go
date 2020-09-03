@@ -1245,38 +1245,37 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 		}
 	}
 
-	results = consolidateDataPoints(params, results)
+	consolidated := consolidateDataPoints(params, results)
 
 	currentXMin := params.area.xmin
 	currentXMax := params.area.xmax
 	if params.secondYAxis {
-		setupTwoYAxes(cr, params, results)
+		setupTwoYAxes(cr, params, consolidated)
 	} else {
-		setupYAxis(cr, params, results)
+		setupYAxis(cr, params, consolidated)
 	}
 
 	for currentXMin != params.area.xmin || currentXMax != params.area.xmax {
-		results = consolidateDataPoints(params, results)
+		consolidated = consolidateDataPoints(params, results)
 		currentXMin = params.area.xmin
 		currentXMax = params.area.xmax
 		if params.secondYAxis {
-			setupTwoYAxes(cr, params, results)
+			setupTwoYAxes(cr, params, consolidated)
 		} else {
-			setupYAxis(cr, params, results)
+			setupYAxis(cr, params, consolidated)
 		}
 	}
-
 	setupXAxis(cr, params, results)
 
 	if !params.hideAxes {
 		setColor(cr, params.fgColor)
-		drawLabels(cr, params, results)
+		drawLabels(cr, params, consolidated)
 		if !params.hideGrid {
-			drawGridLines(cr, params, results)
+			drawGridLines(cr, params, consolidated)
 		}
 	}
 
-	drawLines(cr, params, results)
+	drawLines(cr, params, consolidated)
 }
 
 func consolidateDataPoints(params *Params, results []*types.MetricData) []*types.MetricData {
@@ -1295,10 +1294,11 @@ func consolidateDataPoints(params *Params, results []*types.MetricData) []*types
 			pointsPerPixel := math.Ceil(numberOfDataPoints / float64(drawableDataPoints))
 			// dumb variable naming :(
 			ret[i] = series.Consolidate(int(pointsPerPixel))
-			series.XStep = (numberOfPixels * pointsPerPixel) / numberOfDataPoints
+			ret[i].XStep = (numberOfPixels * pointsPerPixel) / numberOfDataPoints
 		} else {
 			ret[i] = series
-			series.XStep = bestXStep
+			ret[i].XStep = bestXStep
+			ret[i].ValuesPerPoint = 1
 		}
 	}
 	return ret
