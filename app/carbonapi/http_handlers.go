@@ -430,8 +430,9 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	allErrorsNotFound := true
 	errStr := ""
 	for _, e := range errs {
+		var notFound dataTypes.ErrNotFound
 		errStr = errStr + e.Error() + ", "
-		if _, ok := e.(dataTypes.ErrNotFound); !ok {
+		if !errors.As(e, &notFound) {
 			allErrorsNotFound = false
 		}
 	}
