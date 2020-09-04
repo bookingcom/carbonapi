@@ -1,7 +1,6 @@
 package perSecond
 
 import (
-	"errors"
 	"fmt"
 	"math"
 
@@ -48,7 +47,7 @@ func (f *perSecond) Do(e parser.Expr, from, until int32, values map[parser.Metri
 	hasMin := !math.IsNaN(minValue)
 
 	if hasMax && hasMin && maxValue <= minValue {
-		return nil, errors.New("minValue must be lower than maxValue")
+		return nil, parser.ParseError("minValue must be lower than maxValue")
 	}
 	if hasMax && !hasMin {
 		minValue = 0

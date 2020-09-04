@@ -1,7 +1,6 @@
 package divideSeries
 
 import (
-	"errors"
 	"fmt"
 	"math"
 
@@ -67,7 +66,7 @@ func (f *divideSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		numerators = append(numerators, firstArg[0])
 		denominator = firstArg[1]
 	} else {
-		return nil, errors.New("must be called with 2 series or a wildcard that matches exactly 2 series")
+		return nil, parser.ParseError("must be called with 2 series or a wildcard that matches exactly 2 series")
 	}
 
 	var results []*types.MetricData

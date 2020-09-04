@@ -2,7 +2,6 @@ package tukey
 
 import (
 	"container/heap"
-	"errors"
 	"sort"
 	"strings"
 
@@ -47,7 +46,7 @@ func (f *tukey) Do(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return nil, err
 	}
 	if n < 1 {
-		return nil, errors.New("n must be larger or equal to 1")
+		return nil, parser.ParseError("n must be larger or equal to 1")
 	}
 
 	var beginInterval int

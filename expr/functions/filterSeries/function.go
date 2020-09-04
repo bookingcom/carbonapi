@@ -52,7 +52,7 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		callbackFunc = types.AggLast
 	// TODO: this implementation does not support diff, median, multiply, range, stddev
 	default:
-		return nil, fmt.Errorf("unsupported consolidation function %v", callback)
+		return nil, fmt.Errorf("%w: unsupported consolidation function %v", parser.ErrInvalidArgumentValue, callback)
 	}
 
 	var operators = map[string]struct{}{
@@ -71,7 +71,7 @@ func (f *filterSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 
 	_, ok := operators[operator]
 	if !ok {
-		return nil, fmt.Errorf("unsupported operator %v", operator)
+		return nil, fmt.Errorf("%w: unsupported operator %v", parser.ErrInvalidArgumentValue, operator)
 	}
 
 	threshold, err := e.GetFloatArg(3)
