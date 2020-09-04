@@ -1708,6 +1708,10 @@ func TestExtractMetric(t *testing.T) {
 			"{something}",
 			"{something}",
 		},
+		{
+			"a.b#c.d",
+			"a.b#c.d",
+		},
 	}
 
 	for _, tt := range tests {
