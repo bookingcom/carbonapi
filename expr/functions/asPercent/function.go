@@ -36,6 +36,9 @@ func (f *asPercent) Do(e parser.Expr, from, until int32, values map[parser.Metri
 	if err != nil {
 		return nil, err
 	}
+	if len(arg) == 0 {
+		return arg, nil
+	}
 
 	var getTotal func(i int) float64
 	var formatName func(a, b string) string
