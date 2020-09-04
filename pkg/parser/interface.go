@@ -47,6 +47,8 @@ var (
 	ErrUnknownTimeUnits = ParseError("unknown time units")
 	// ErrDifferentCountMetrics is an eval error returned when a function that works on pairs of metrics receives arguments having different number of metrics.
 	ErrDifferentCountMetrics = ParseError("both arguments must have the same number of metrics")
+	// ErrInvalidArgumentValue is an eval error returned when a function received an argument that has the right type but invalid value
+	ErrInvalidArgumentValue = ParseError("invalid function argument value")
 )
 
 // ParseError is a type of errors returned from the parser

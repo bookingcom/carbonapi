@@ -65,13 +65,14 @@ func (f *groupByNode) Do(e parser.Expr, from, until int32, values map[parser.Met
 
 	groups := make(map[string][]*types.MetricData)
 	nodeList := []string{}
-
 	for _, a := range args {
-
 		metric := helper.ExtractMetric(a.Name)
 		nodes := strings.Split(metric, ".")
 		nodeKey := make([]string, 0, len(fields))
 		for _, f := range fields {
+			if f < 0 || f >= len(nodes) {
+				return nil, fmt.Errorf("%s: %w: %d", e.Target(), parser.ErrInvalidArgumentValue, f)
+			}
 			nodeKey = append(nodeKey, nodes[f])
 		}
 		node := strings.Join(nodeKey, ".")
