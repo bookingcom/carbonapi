@@ -1,6 +1,8 @@
 package percentileOfSeries
 
 import (
+	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -43,7 +45,8 @@ func (f *percentileOfSeries) Do(e parser.Expr, from, until int32, values map[par
 		return nil, err
 	}
 
-	return helper.AggregateSeries(e, args, func(values []float64) float64 {
+	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
+	return helper.AggregateSeries(name, args, func(values []float64) float64 {
 		return helper.Percentile(values, percent, interpolate)
 	})
 }

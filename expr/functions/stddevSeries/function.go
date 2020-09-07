@@ -1,6 +1,7 @@
 package stddevSeries
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -35,7 +36,8 @@ func (f *stddevSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 	}
 
 	e.SetTarget("stddevSeries")
-	return helper.AggregateSeries(e, args, func(values []float64) float64 {
+	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
+	return helper.AggregateSeries(name, args, func(values []float64) float64 {
 		sum := 0.0
 		diffSqr := 0.0
 		for _, value := range values {

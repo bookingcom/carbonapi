@@ -1,12 +1,10 @@
 package helper
 
 import (
-	"math"
-
 	"github.com/bookingcom/carbonapi/expr/types"
 )
 
-type Operator func(l, r float64) float64
+type Operator func(l, r float64) (float64, bool)
 
 // CombineSeries applied operator() on two series. If they do not have the same length, series are consolidated with a Lower Common Multiple step.
 func CombineSeries(originalA, originalB *types.MetricData, name string, operator Operator) *types.MetricData {
@@ -40,18 +38,19 @@ func CombineSeries(originalA, originalB *types.MetricData, name string, operator
 		length = len(b.Values)
 	}
 	values := make([]float64, length)
+	isAbsent := make([]bool, length)
 	for i := 0; i < length; i++ {
 		if i >= len(a.IsAbsent) || i >= len(b.IsAbsent) ||
 			i >= len(a.Values) || i >= len(b.Values) {
-			values[i] = math.NaN()
+			isAbsent[i] = true
 			continue
 		}
 		if a.IsAbsent[i] || b.IsAbsent[i] {
-			values[i] = math.NaN()
+			isAbsent[i] = true
 			continue
 		}
-		values[i] = operator(a.Values[i], b.Values[i])
+		values[i], isAbsent[i] = operator(a.Values[i], b.Values[i])
 	}
 
-	return types.MakeMetricData(name, values, step, start)
+	return types.New(name, values, isAbsent, step, start)
 }

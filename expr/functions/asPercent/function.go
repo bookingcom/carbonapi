@@ -1,12 +1,11 @@
 package asPercent
 
 import (
-	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 
+	"github.com/bookingcom/carbonapi/expr/functions/sum"
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -30,288 +29,195 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-// asPercent(seriesList, total=None, *nodes)
-func (f *asPercent) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+// asPercentWithNodes handles the case where we have *nodes argument.
+// There are two subcases: total=Node or total is a seriesList with wildcards
+// We support only the second subcase
+func asPercentWithNodes(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
 	if err != nil {
 		return nil, err
 	}
-	if len(arg) == 0 {
-		return arg, nil
+	if len(seriesList) == 0 {
+		return seriesList, nil
+	}
+	total, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := e.GetIntArgs(2)
+	if err != nil {
+		return nil, err
+	}
+	keys := make(map[string]bool)
+	metaSeries, err := groupByNodes(nodes, keys, seriesList)
+	if err != nil {
+		return nil, err
+	}
+	tmpTotalSeries, err := groupByNodes(nodes, keys, total)
+	if err != nil {
+		return nil, err
 	}
 
-	var getTotal func(i int) float64
-	var formatName func(a, b string) string
-	var totalString string
-	var multipleSeries bool
-	var numerators []*types.MetricData
-	var denominators []*types.MetricData
-
-	var results []*types.MetricData
-
-	if len(e.Args()) == 1 {
-		getTotal = func(i int) float64 {
-			var t float64
-			var atLeastOne bool
-			for _, a := range arg {
-				if a.IsAbsent[i] {
-					continue
-				}
-				atLeastOne = true
-				t += a.Values[i]
-			}
-			if !atLeastOne {
-				t = math.NaN()
-			}
-
-			return t
-		}
-		formatName = func(a, b string) string {
-			return fmt.Sprintf("asPercent(%s)", a)
-		}
-	} else if len(e.Args()) == 2 && e.Args()[1].IsConst() {
-		total, err := e.GetFloatArg(1)
-		if err != nil {
-			return nil, err
-		}
-		getTotal = func(i int) float64 { return total }
-		totalString = fmt.Sprintf("%g", total)
-		formatName = func(a, b string) string {
-			return fmt.Sprintf("asPercent(%s,%s)", a, b)
-		}
-	} else if len(e.Args()) == 2 && (e.Args()[1].IsName() || e.Args()[1].IsFunc()) {
-		total, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
-		if err != nil {
-			return nil, err
-		}
-		if len(total) != 1 && len(total) != len(arg) {
-			return nil, types.ErrWildcardNotAllowed
-		}
-		if len(total) == 1 {
-			getTotal = func(i int) float64 {
-				if total[0].IsAbsent[i] {
-					return math.NaN()
-				}
-				return total[0].Values[i]
-			}
-			if e.Args()[1].IsName() {
-				totalString = e.Args()[1].Target()
-			} else {
-				totalString = fmt.Sprintf("%s(%s)", e.Args()[1].Target(), e.Args()[1].RawArgs())
-			}
+	totalSeries := make(map[string]*types.MetricData)
+	for key := range tmpTotalSeries {
+		if len(tmpTotalSeries[key]) == 1 {
+			totalSeries[key] = tmpTotalSeries[key][0]
 		} else {
-			multipleSeries = true
-			numerators = arg
-			denominators = total
-			// Sort lists by name so that they match up.
-			sort.Sort(helper.ByName(numerators))
-			sort.Sort(helper.ByName(denominators))
-		}
-		formatName = func(a, b string) string {
-			return fmt.Sprintf("asPercent(%s,%s)", a, b)
-		}
-	} else if len(e.Args()) >= 3 {
-		total, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(total) != 1 && len(total) != len(arg) {
-			return nil, types.ErrWildcardNotAllowed
-		}
-
-		nodeIndexes, err := e.GetIntArgs(2)
-		if err != nil {
-			return nil, err
-		}
-
-		sumSeries := func(seriesList []*types.MetricData) (*types.MetricData, error) {
-			seriesNames := make([]string, len(seriesList))
-			for i, series := range seriesList {
-				seriesNames[i] = series.Name
-			}
-
-			seriesNameExprs := make([]parser.Expr, len(seriesList))
-			for i, seriesName := range seriesNames {
-				seriesNameExprs[i] = parser.NewTargetExpr(seriesName)
-			}
-
-			result, err := f.Evaluator.EvalExpr(parser.NewExprTyped("sumSeries", seriesNameExprs), from, until, values)
-
+			name := fmt.Sprintf("sumSeries(%s)", e.Args()[1].Target())
+			aggregated, err := helper.AggregateSeries(name, seriesList, sum.SumAggregation)
 			if err != nil {
 				return nil, err
 			}
-
-			// sumSeries uses aggregateSeries function which returns only one series
-			return result[0], nil
+			totalSeries[key] = aggregated[0]
 		}
-
-		groupByNodes := func(seriesList []*types.MetricData, nodeIndexes []int) (map[string][]*types.MetricData, []string) {
-			var nodeKeys []string
-			groups := make(map[string][]*types.MetricData)
-
-			for _, series := range seriesList {
-				metric := helper.ExtractMetric(series.Name)
-				nodes := strings.Split(metric, ".")
-				nodeKey := make([]string, 0, len(nodeIndexes))
-				for _, index := range nodeIndexes {
-					nodeKey = append(nodeKey, nodes[index])
-				}
-				node := strings.Join(nodeKey, ".")
-				_, exist := groups[node]
-
-				if !exist {
-					nodeKeys = append(nodeKeys, node)
-				}
-
-				groups[node] = append(groups[node], series)
-			}
-
-			return groups, nodeKeys
-		}
-
-		distinct := func(slice []string) []string {
-			keys := make(map[string]bool)
-			var list []string
-			for _, entry := range slice {
-				if _, value := keys[entry]; !value {
-					keys[entry] = true
-					list = append(list, entry)
-				}
-			}
-			return list
-		}
-
-		metaSeriesGroup, metaKeys := groupByNodes(arg, nodeIndexes)
-
-		totalSeriesGroup := make(map[string]*types.MetricData)
-		var groups map[string][]*types.MetricData
-		var groupKeys []string
-
-		if len(total) == 0 {
-			groups, groupKeys = metaSeriesGroup, metaKeys
-		} else {
-			groups, groupKeys = groupByNodes(total, nodeIndexes)
-		}
-
-		for _, nodeKey := range groupKeys {
-			if len(groups[nodeKey]) == 1 {
-				totalSeriesGroup[nodeKey] = groups[nodeKey][0]
-			} else {
-				totalSeriesGroup[nodeKey], err = sumSeries(groups[nodeKey])
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		nodeKeys := distinct(append(metaKeys, groupKeys...))
-
-		for _, nodeKey := range nodeKeys {
-			metaSeriesList, existInMeta := metaSeriesGroup[nodeKey]
-			if !existInMeta {
-				totalSeries := totalSeriesGroup[nodeKey]
-				result := *totalSeries
-				result.Name = fmt.Sprintf("asPercent(MISSING,%s)", totalSeries.Name)
-				result.Values = make([]float64, len(totalSeries.Values))
-				result.IsAbsent = make([]bool, len(totalSeries.Values))
-				for i := range result.Values {
-					result.Values[i] = 0
-					result.IsAbsent[i] = true
-				}
-
-				results = append(results, &result)
-				continue
-			}
-
-			for _, metaSeries := range metaSeriesList {
-				result := *metaSeries
-				totalSeries, existInTotal := totalSeriesGroup[nodeKey]
-				if !existInTotal {
-					result.Name = fmt.Sprintf("asPercent(%s,MISSING)", metaSeries.Name)
-					result.Values = make([]float64, len(metaSeries.Values))
-					result.IsAbsent = make([]bool, len(metaSeries.Values))
-					for i := range result.Values {
-						result.Values[i] = 0
-						result.IsAbsent[i] = true
-					}
-				} else {
-					result.Name = fmt.Sprintf("asPercent(%s,%s)", metaSeries.Name, totalSeries.Name)
-					result.Values = make([]float64, len(metaSeries.Values))
-					result.IsAbsent = make([]bool, len(metaSeries.Values))
-					for i := range metaSeries.Values {
-						if metaSeries.IsAbsent[i] || totalSeries.IsAbsent[i] {
-							result.Values[i] = 0
-							result.IsAbsent[i] = true
-							continue
-						}
-						result.Values[i] = (metaSeries.Values[i] / totalSeries.Values[i]) * 100
-					}
-				}
-
-				results = append(results, &result)
-			}
-		}
-
-		return results, nil
-
-	} else {
-		return nil, errors.New("total must be either a constant or a series")
 	}
 
-	if multipleSeries {
-		/* We should have two equal length lists of arguments
-		   First one will be numerators
-		   Second one - denominators
-
-		   For each of them we will compute numerator/denominator
-		*/
-		for i := range numerators {
-			a := numerators[i]
-			b := denominators[i]
-
-			r := *a
-			r.Name = formatName(a.Name, b.Name)
-			r.Values = make([]float64, len(a.Values))
-			r.IsAbsent = make([]bool, len(a.Values))
-			for k := range a.Values {
-				if a.IsAbsent[k] || b.IsAbsent[k] {
-					r.Values[k] = 0
-					r.IsAbsent[k] = true
-					continue
-				}
-				r.Values[k] = (a.Values[k] / b.Values[k]) * 100
+	// Sort keys so we get results in the same order
+	var results []*types.MetricData
+	keysArray := make([]string, 0, len(keys))
+	for k := range keys {
+		keysArray = append(keysArray, k)
+	}
+	sort.Strings(keysArray)
+	for _, key := range keysArray {
+		numerators, ok := metaSeries[key]
+		if !ok {
+			series2 := totalSeries[key]
+			name := fmt.Sprintf("asPercent(MISSING,%s)", series2.Name)
+			values := make([]float64, len(series2.Values))
+			isAbsent := make([]bool, len(series2.Values))
+			for i := 0; i < len(values); i++ {
+				values[i] = 0
+				isAbsent[i] = true
 			}
-			results = append(results, &r)
+			result := types.New(name, values, isAbsent, series2.StepTime, series2.StartTime)
+			results = append(results, result)
+			continue
 		}
-	} else {
-		for _, a := range arg {
-			r := *a
-			r.Name = formatName(a.Name, totalString)
-			r.Values = make([]float64, len(a.Values))
-			r.IsAbsent = make([]bool, len(a.Values))
-			results = append(results, &r)
-		}
-
-		for i := range results[0].Values {
-
-			total := getTotal(i)
-
-			for j := range results {
-				r := results[j]
-				a := arg[j]
-
-				if a.IsAbsent[i] || math.IsNaN(total) || total == 0 {
-					r.Values[i] = 0
-					r.IsAbsent[i] = true
-					continue
+		for _, series1 := range numerators {
+			if _, found := totalSeries[key]; !found {
+				name := fmt.Sprintf("asPercent(%s,MISSING)", series1.Name)
+				values := make([]float64, len(series1.Values))
+				isAbsent := make([]bool, len(series1.Values))
+				for i := 0; i < len(values); i++ {
+					values[i] = 0
+					isAbsent[i] = true
 				}
-
-				r.Values[i] = (a.Values[i] / total) * 100
+				result := types.New(name, values, isAbsent, series1.StepTime, series1.StartTime)
+				results = append(results, result)
+				continue
 			}
+			series2 := totalSeries[key]
+			name := fmt.Sprintf("asPercent(%s,%s)", series1.Name, series2.Name)
+			result := helper.CombineSeries(series1, series2, name, percent)
+			results = append(results, result)
 		}
 	}
 	return results, nil
+}
+
+func asPercentPairs(numerators, denominators []*types.MetricData) ([]*types.MetricData, error) {
+	// Sort lists by name so that they match up.
+	sort.Sort(helper.ByName(numerators))
+	sort.Sort(helper.ByName(denominators))
+
+	var results []*types.MetricData
+	for idx, numerator := range numerators {
+		denominator := denominators[idx]
+		name := fmt.Sprintf("asPercent(%s,%s)", numerator.Name, denominator.Name)
+		result := helper.CombineSeries(numerator, denominator, name, percent)
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// asPercentWithoutNodes handles the cases where we don't have the *nodes argumnt.
+// There are four subcases: total = None, total is constant, total is one series and total is a seriesList with the same length as the first argument
+func asPercentWithoutNodes(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	if err != nil {
+		return nil, err
+	}
+	if len(seriesList) == 0 {
+		return seriesList, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	n := len(seriesList[0].Values)
+
+	var total *types.MetricData
+	var totalText string
+	switch {
+	case len(e.Args()) == 1:
+		name := fmt.Sprintf("sumSeries(%s)", e.Args()[0].Target())
+		aggregated, err := helper.AggregateSeries(name, seriesList, sum.SumAggregation)
+		if err != nil {
+			return nil, err
+		}
+		total = aggregated[0]
+		totalText = name
+	case len(e.Args()) == 2 && e.Args()[1].IsConst():
+		value, err := e.GetFloatArg(1)
+		if err != nil {
+			return nil, err
+		}
+		isAbsent := make([]bool, n)
+		values := make([]float64, n)
+		for i := 0; i < n; i++ {
+			values[i] = value
+			isAbsent[i] = false
+		}
+		totalText = fmt.Sprintf("%0.2f", value)
+		total = types.New(totalText, values, isAbsent, seriesList[0].StepTime, seriesList[0].StartTime)
+	case len(e.Args()) == 2 && (e.Args()[1].IsName() || e.Args()[1].IsFunc()):
+		totalArg, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+		if err != nil {
+			return nil, err
+		}
+		switch len(totalArg) {
+		case 1:
+			total = totalArg[0]
+			if e.Args()[1].IsName() {
+				totalText = e.Args()[1].Target()
+			} else {
+				totalText = fmt.Sprintf("%s(%s)", e.Args()[1].Target(), e.Args()[1].RawArgs())
+			}
+		case len(seriesList):
+			return asPercentPairs(seriesList, totalArg)
+		default:
+			return nil, types.ErrWildcardNotAllowed
+		}
+	default:
+		return nil, parser.ParseError("total must be either a constant or a series")
+	}
+
+	var results []*types.MetricData
+	for _, numerator := range seriesList {
+		name := fmt.Sprintf("asPercent(%s)", numerator.Name)
+		if totalText != "" {
+			name = fmt.Sprintf("asPercent(%s,%s)", numerator.Name, totalText)
+
+		}
+		result := helper.CombineSeries(numerator, total, name, percent)
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// asPercent(seriesList, total=None, *nodes)
+func (f *asPercent) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+
+	switch len(e.Args()) {
+	case 0:
+		// we need at least one argument
+		return nil, parser.ErrMissingArgument
+	case 1, 2:
+		return asPercentWithoutNodes(e, from, until, values)
+	default:
+		return asPercentWithNodes(e, from, until, values)
+	}
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
@@ -341,4 +247,44 @@ func (f *asPercent) Description() map[string]types.FunctionDescription {
 			},
 		},
 	}
+}
+
+func percent(a, b float64) (float64, bool) {
+	if b == 0 {
+		return 0, true
+	}
+	return (a / b) * 100, false
+}
+
+func aggKey(series *types.MetricData, fields []int) (string, error) {
+	metric := helper.ExtractMetric(series.Name)
+	nodes := strings.Split(metric, ".")
+	nodeKey := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if f < 0 || f >= len(nodes) {
+			return "", fmt.Errorf("%w: %d", parser.ErrInvalidArgumentValue, f)
+		}
+		nodeKey = append(nodeKey, nodes[f])
+	}
+	node := strings.Join(nodeKey, ".")
+	return node, nil
+}
+
+func groupByNodes(nodes []int, keys map[string]bool, seriesList []*types.MetricData) (map[string][]*types.MetricData, error) {
+	metaSeries := make(map[string][]*types.MetricData)
+
+	for _, series := range seriesList {
+		key, err := aggKey(series, nodes)
+		if err != nil {
+			return nil, err
+		}
+		if _, found := metaSeries[key]; !found {
+			metaSeries[key] = make([]*types.MetricData, 1)
+			metaSeries[key][0] = series
+		} else {
+			metaSeries[key] = append(metaSeries[key], series)
+		}
+		keys[key] = true
+	}
+	return metaSeries, nil
 }

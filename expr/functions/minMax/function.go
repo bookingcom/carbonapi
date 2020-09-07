@@ -37,10 +37,11 @@ func (f *minMax) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 	if err != nil {
 		return nil, err
 	}
+	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
 
 	switch e.Target() {
 	case "maxSeries", "max":
-		return helper.AggregateSeries(e, args, func(values []float64) float64 {
+		return helper.AggregateSeries(name, args, func(values []float64) float64 {
 			max := math.Inf(-1)
 			for _, value := range values {
 				if value > max {
@@ -50,7 +51,7 @@ func (f *minMax) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 			return max
 		})
 	case "minSeries", "min":
-		return helper.AggregateSeries(e, args, func(values []float64) float64 {
+		return helper.AggregateSeries(name, args, func(values []float64) float64 {
 			min := math.Inf(1)
 			for _, value := range values {
 				if value < min {

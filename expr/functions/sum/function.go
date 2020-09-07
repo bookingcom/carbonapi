@@ -1,6 +1,8 @@
 package sum
 
 import (
+	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -25,6 +27,15 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
+// SumAggregation
+func SumAggregation(values []float64) float64 {
+	sum := 0.0
+	for _, value := range values {
+		sum += value
+	}
+	return sum
+}
+
 // sumSeries(*seriesLists)
 func (f *sum) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
 	// TODO(dgryski): make sure the arrays are all the same 'size'
@@ -34,13 +45,8 @@ func (f *sum) Do(e parser.Expr, from, until int32, values map[parser.MetricReque
 	}
 
 	e.SetTarget("sumSeries")
-	return helper.AggregateSeries(e, args, func(values []float64) float64 {
-		sum := 0.0
-		for _, value := range values {
-			sum += value
-		}
-		return sum
-	})
+	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
+	return helper.AggregateSeries(name, args, SumAggregation)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
