@@ -63,7 +63,7 @@ func (f *removeBelowSeries) Do(e parser.Expr, from, until int32, values map[pars
 				}
 			}
 
-			threshold = helper.Percentile(values, number, true)
+			threshold, _ = helper.Percentile(values, number, true)
 		}
 
 		r := *a

@@ -2,12 +2,11 @@ package helper
 
 import (
 	"github.com/bookingcom/carbonapi/expr/types"
-	allTheTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 func Normalize(args []*types.MetricData) ([]*types.MetricData, int32, int32, int32, error) {
 	if len(args) == 0 {
-		return []*types.MetricData{}, 0, 0, 0, allTheTypes.ErrMetricsNotFound
+		return []*types.MetricData{}, 0, 0, 0, nil
 	}
 	if len(args) == 1 {
 		return args, args[0].StartTime, args[0].StopTime, args[0].StepTime, nil

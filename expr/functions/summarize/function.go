@@ -2,7 +2,6 @@ package summarize
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -132,13 +131,8 @@ func (f *summarize) Do(e parser.Expr, from, until int32, values map[parser.Metri
 			}
 
 			if t >= bucketEnd {
-				rv := helper.SummarizeValues(summarizeFunction, values)
+				r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
 
-				if math.IsNaN(rv) {
-					r.IsAbsent[ridx] = true
-				}
-
-				r.Values[ridx] = rv
 				ridx++
 				bucketEnd += bucketSize
 				bucketItems = 0
@@ -148,14 +142,7 @@ func (f *summarize) Do(e parser.Expr, from, until int32, values map[parser.Metri
 
 		// last partial bucket
 		if bucketItems > 0 {
-			rv := helper.SummarizeValues(summarizeFunction, values)
-			if math.IsNaN(rv) {
-				r.Values[ridx] = 0
-				r.IsAbsent[ridx] = true
-			} else {
-				r.Values[ridx] = rv
-				r.IsAbsent[ridx] = false
-			}
+			r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
 		}
 
 		results = append(results, &r)

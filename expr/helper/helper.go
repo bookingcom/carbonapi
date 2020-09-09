@@ -109,7 +109,7 @@ func ForEachSeriesDo(e parser.Expr, from, until int32, values map[parser.MetricR
 }
 
 // AggregateFunc type that defined aggregate function
-type AggregateFunc func([]float64) float64
+type AggregateFunc func([]float64) (float64, bool)
 
 // AggregateSeries aggregates series
 
@@ -120,6 +120,7 @@ func AggregateSeries(name string, args []*types.MetricData, function AggregateFu
 	}
 	length := int((end - start) / step)
 	result := make([]float64, length)
+	isAbsent := make([]bool, length)
 
 	for i := 0; i < length; i++ {
 		var values []float64
@@ -128,21 +129,22 @@ func AggregateSeries(name string, args []*types.MetricData, function AggregateFu
 				values = append(values, s.Values[i])
 			}
 		}
-		result[i] = math.NaN()
+		result[i] = 0
+		isAbsent[i] = true
 		if len(values) > 0 {
-			result[i] = function(values)
+			result[i], isAbsent[i] = function(values)
 		}
 	}
-	ret := types.MakeMetricData(name, result, step, start)
+	ret := types.New(name, result, isAbsent, step, start)
 	return []*types.MetricData{ret}, nil
 }
 
 // SummarizeValues summarizes values
-func SummarizeValues(f string, values []float64) float64 {
+func SummarizeValues(f string, values []float64) (float64, bool) {
 	rv := 0.0
 
 	if len(values) == 0 {
-		return math.NaN()
+		return 0, true
 	}
 
 	switch f {
@@ -179,11 +181,13 @@ func SummarizeValues(f string, values []float64) float64 {
 		f = strings.Split(f, "p")[1]
 		percent, err := strconv.ParseFloat(f, 64)
 		if err == nil {
-			rv = Percentile(values, percent, true)
+			return Percentile(values, percent, true)
+		} else {
+			return 0, true
 		}
 	}
 
-	return rv
+	return rv, false
 }
 
 // ExtractMetric extracts metric out of function list
@@ -244,12 +248,12 @@ func Contains(a []int, i int) bool {
 }
 
 // Percentile returns percent-th percentile. Can interpolate if needed
-func Percentile(data []float64, percent float64, interpolate bool) float64 {
+func Percentile(data []float64, percent float64, interpolate bool) (float64, bool) {
 	if len(data) == 0 || percent < 0 || percent > 100 {
-		return math.NaN()
+		return 0, true
 	}
 	if len(data) == 1 {
-		return data[0]
+		return data[0], false
 	}
 
 	k := (float64(len(data)-1) * percent) / 100
@@ -266,9 +270,9 @@ func Percentile(data []float64, percent float64, interpolate bool) float64 {
 	}
 	remainder := k - float64(int(k))
 	if remainder == 0 || !interpolate {
-		return top
+		return top, false
 	}
-	return (top * remainder) + (secondTop * (1 - remainder))
+	return (top * remainder) + (secondTop * (1 - remainder)), false
 }
 
 // MaxValue returns maximum from the list

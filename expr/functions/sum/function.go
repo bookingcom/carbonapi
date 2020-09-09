@@ -28,12 +28,12 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // SumAggregation
-func SumAggregation(values []float64) float64 {
+func SumAggregation(values []float64) (float64, bool) {
 	sum := 0.0
 	for _, value := range values {
 		sum += value
 	}
-	return sum
+	return sum, false
 }
 
 // sumSeries(*seriesLists)

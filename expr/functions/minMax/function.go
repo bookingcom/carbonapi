@@ -41,24 +41,24 @@ func (f *minMax) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 
 	switch e.Target() {
 	case "maxSeries", "max":
-		return helper.AggregateSeries(name, args, func(values []float64) float64 {
+		return helper.AggregateSeries(name, args, func(values []float64) (float64, bool) {
 			max := math.Inf(-1)
 			for _, value := range values {
 				if value > max {
 					max = value
 				}
 			}
-			return max
+			return max, false
 		})
 	case "minSeries", "min":
-		return helper.AggregateSeries(name, args, func(values []float64) float64 {
+		return helper.AggregateSeries(name, args, func(values []float64) (float64, bool) {
 			min := math.Inf(1)
 			for _, value := range values {
 				if value < min {
 					min = value
 				}
 			}
-			return min
+			return min, false
 		})
 	}
 

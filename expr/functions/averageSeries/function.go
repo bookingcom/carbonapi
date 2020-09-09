@@ -34,14 +34,13 @@ func (f *averageSeries) Do(e parser.Expr, from, until int32, values map[parser.M
 	}
 
 	e.SetTarget("averageSeries")
-	name := fmt.Sprintf("averageSeries(%s)", e.RawArgs())
-
-	return helper.AggregateSeries(name, args, func(values []float64) float64 {
+	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
+	return helper.AggregateSeries(name, args, func(values []float64) (float64, bool) {
 		sum := 0.0
 		for _, value := range values {
 			sum += value
 		}
-		return sum / float64(len(values))
+		return sum / float64(len(values)), false
 	})
 }
 
