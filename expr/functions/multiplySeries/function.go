@@ -2,13 +2,11 @@ package multiplySeries
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
 
 type multiplySeries struct {
@@ -31,42 +29,19 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // multiplySeries(factorsSeriesList)
 func (f *multiplySeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	r := types.MetricData{
-		Metric: dataTypes.Metric{
-			Name:      fmt.Sprintf("multiplySeries(%s)", e.RawArgs()),
-			StartTime: from,
-			StopTime:  until,
-		},
-	}
-	for _, arg := range e.Args() {
-		series, err := helper.GetSeriesArg(arg, from, until, values)
-		if err != nil {
-			return nil, err
-		}
-
-		if r.Values == nil {
-			r.IsAbsent = make([]bool, len(series[0].IsAbsent))
-			r.StepTime = series[0].StepTime
-			r.Values = make([]float64, len(series[0].Values))
-			copy(r.IsAbsent, series[0].IsAbsent)
-			copy(r.Values, series[0].Values)
-			series = series[1:]
-		}
-
-		for _, factor := range series {
-			for i, v := range r.Values {
-				if r.IsAbsent[i] || factor.IsAbsent[i] {
-					r.IsAbsent[i] = true
-					r.Values[i] = math.NaN()
-					continue
-				}
-
-				r.Values[i] = v * factor.Values[i]
-			}
-		}
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+	if err != nil {
+		return nil, err
 	}
 
-	return []*types.MetricData{&r}, nil
+	name := fmt.Sprintf("multiplySeries(%s)", e.RawArgs())
+	return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+		ret := values[0]
+		for _, value := range values[1:] {
+			ret *= value
+		}
+		return ret, false
+	})
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

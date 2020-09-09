@@ -551,7 +551,7 @@ func TestEvalExpression(t *testing.T) {
 				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, math.NaN(), 3, math.NaN(), 0, 6}, 1, now32)},
 			},
 			[]*types.MetricData{types.MakeMetricData("multiplySeries(metric1,metric2)",
-				[]float64{2, math.NaN(), math.NaN(), math.NaN(), 0, 72}, 1, now32)},
+				[]float64{2, math.NaN(), 3, 3, 0, 72}, 1, now32)},
 		},
 		{
 			"diffSeriesLists(metric1,metric2)",
@@ -570,7 +570,7 @@ func TestEvalExpression(t *testing.T) {
 				{"metric2", 0, 1}: {types.MakeMetricData("metric2", []float64{2, math.NaN(), 3, math.NaN(), 0, 6}, 1, now32)},
 			},
 			[]*types.MetricData{types.MakeMetricData("multiplySeries(metric1,metric2)",
-				[]float64{2, math.NaN(), math.NaN(), math.NaN(), 0, 72}, 1, now32)},
+				[]float64{2, math.NaN(), 3, 3, 0, 72}, 1, now32)},
 		},
 		{
 			"multiplySeries(metric1,metric2,metric3)",
@@ -580,7 +580,7 @@ func TestEvalExpression(t *testing.T) {
 				{"metric3", 0, 1}: {types.MakeMetricData("metric3", []float64{3, math.NaN(), 4, math.NaN(), 7, 8}, 1, now32)},
 			},
 			[]*types.MetricData{types.MakeMetricData("multiplySeries(metric1,metric2,metric3)",
-				[]float64{6, math.NaN(), math.NaN(), math.NaN(), 0, 576}, 1, now32)},
+				[]float64{6, math.NaN(), 12, 3, 0, 576}, 1, now32)},
 		},
 		{
 			"rangeOfSeries(metric*)",
