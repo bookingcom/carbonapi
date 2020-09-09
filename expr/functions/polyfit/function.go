@@ -1,7 +1,6 @@
 package polyfit
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -43,7 +42,7 @@ func (f *polyfit) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 	if err != nil {
 		return nil, err
 	} else if degree < 1 {
-		return nil, errors.New("degree must be larger or equal to 1")
+		return nil, parser.ParseError("degree must be larger or equal to 1")
 	}
 
 	offsStr, err := e.GetStringNamedOrPosArgDefault("offset", 2, "0d")

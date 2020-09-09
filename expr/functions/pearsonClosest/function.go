@@ -2,7 +2,6 @@ package pearsonClosest
 
 import (
 	"container/heap"
-	"errors"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -60,7 +59,7 @@ func (f *pearsonClosest) Do(e parser.Expr, from, until int32, values map[parser.
 		return nil, err
 	}
 	if direction != "pos" && direction != "neg" && direction != "abs" {
-		return nil, errors.New("direction must be one of: pos, neg, abs")
+		return nil, parser.ParseError("direction must be one of: pos, neg, abs")
 	}
 
 	// NOTE: if direction == "abs" && len(compare) <= n : we'll still do the work to rank them

@@ -1,7 +1,6 @@
 package substr
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -60,7 +59,7 @@ func (f *substr) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 				}
 			}
 			if realStartField > len(nodes)-1 {
-				return nil, errors.New("start out of range")
+				return nil, parser.ParseError("start out of range")
 			}
 			nodes = nodes[realStartField:]
 		}
@@ -73,7 +72,7 @@ func (f *substr) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 				}
 			}
 			if realStopField < 0 || realStopField <= realStartField || realStopField-realStartField > len(nodes) {
-				return nil, errors.New("stop out of range")
+				return nil, parser.ParseError("stop out of range")
 			}
 			nodes = nodes[:realStopField-realStartField]
 		}

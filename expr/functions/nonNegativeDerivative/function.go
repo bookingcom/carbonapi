@@ -1,7 +1,6 @@
 package nonNegativeDerivative
 
 import (
-	"errors"
 	"fmt"
 	"math"
 
@@ -47,7 +46,7 @@ func (f *nonNegativeDerivative) Do(e parser.Expr, from, until int32, values map[
 	hasMin := !math.IsNaN(minValue)
 
 	if hasMax && hasMin && maxValue <= minValue {
-		return nil, errors.New("minValue must be lower than maxValue")
+		return nil, parser.ParseError("minValue must be lower than maxValue")
 	}
 	if hasMax && !hasMin {
 		minValue = 0

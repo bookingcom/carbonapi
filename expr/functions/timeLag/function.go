@@ -81,7 +81,7 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 	if len(e.Args()) < 1 {
 		return nil, parser.ErrMissingTimeseries
 	} else if len(e.Args()) < 2 && e.Target() == "timeLagSeriesLists" {
-		return nil, fmt.Errorf("%s must be called with two lists of series", e.Target())
+		return nil, fmt.Errorf("%w: %s must be called with two lists of series", parser.ErrMissingArgument, e.Target())
 	}
 
 	firstArg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
@@ -115,7 +115,7 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 		consumerMetrics = append(consumerMetrics, firstArg[0])
 		producerMetrics = append(producerMetrics, firstArg[1])
 	} else {
-		return nil, fmt.Errorf("%s must be called with 2 series or a wildcard that matches exactly 2 series", e.Target())
+		return nil, fmt.Errorf("%w: %s must be called with 2 series or a wildcard that matches exactly 2 series", parser.ErrDifferentCountMetrics, e.Target())
 	}
 
 	var results []*types.MetricData
