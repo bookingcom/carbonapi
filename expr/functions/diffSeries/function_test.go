@@ -76,7 +76,7 @@ func TestDiffSeries(t *testing.T) {
 				},
 			},
 			[]*types.MetricData{types.MakeMetricData("diffSeries(metric*)",
-				[]float64{-4, -3, math.NaN(), 3, -2, math.NaN()}, 1, now32)},
+				[]float64{-3.5, 3, -2}, 1, now32)},
 		},
 	}
 
