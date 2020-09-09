@@ -1,8 +1,6 @@
 package timeFunction
 
 import (
-	"errors"
-
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
@@ -38,7 +36,7 @@ func (f *timeFunction) Do(e parser.Expr, from, until int32, values map[parser.Me
 		return nil, err
 	}
 	if stepInt <= 0 {
-		return nil, errors.New("step can't be less than 0")
+		return nil, parser.ParseError("step can't be less than 0")
 	}
 	step := int32(stepInt)
 

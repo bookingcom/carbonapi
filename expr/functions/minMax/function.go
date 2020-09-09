@@ -61,7 +61,7 @@ func (f *minMax) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 		})
 	}
 
-	return nil, fmt.Errorf("unsupported target: %v", e.Target())
+	return nil, fmt.Errorf("%w: unsupported target: %v", parser.ErrInvalidArgumentValue, e.Target())
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
