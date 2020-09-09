@@ -2,7 +2,6 @@ package divideSeries
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -28,11 +27,11 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func divide(a, b float64) float64 {
+func divide(a, b float64) (float64, bool) {
 	if b == 0 {
-		return math.NaN()
+		return 0, true
 	}
-	return a / b
+	return a / b, false
 }
 
 // divideSeries(dividendSeriesList, divisorSeriesList)

@@ -99,6 +99,63 @@ func TestAliasByNode(t *testing.T) {
 			},
 			[]*types.MetricData{},
 		},
+		{
+			"asPercent(test-db*)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"test-db*", 0, 1}: {
+					types.MakeMetricData("test-db1", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db2", []float64{math.NaN(), 2, math.NaN(), 4, math.NaN(), 6, math.NaN(), 8, math.NaN(), 10, math.NaN(), 12, math.NaN(), 14, math.NaN(), 16, math.NaN(), 18, math.NaN(), 20}, 1, now32),
+					types.MakeMetricData("test-db3", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+					types.MakeMetricData("test-db4", []float64{1, 2, 3, 4, math.NaN(), 6, math.NaN(), math.NaN(), 9, 10, 11, math.NaN(), 13, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db5", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, math.NaN(), math.NaN()}, 1, now32),
+				},
+			},
+			[]*types.MetricData{
+				types.MakeMetricData("asPercent(test-db1,sumSeries(test-db*))", []float64{25.0, 20.0, 50.0, 33.33333333333, 100.0, 20.0, 33.33333333333, 25.0, 25.0, 20.0, 25.0, 25.0, 25.0, 25.0, 33.33333333333, 25.0, 33.33333333333, 25.0, 50.0, 33.33333333333}, 1, now32),
+				types.MakeMetricData("asPercent(test-db2,sumSeries(test-db*))", []float64{math.NaN(), 20.0, math.NaN(), 33.3333333333, math.NaN(), 20.0, math.NaN(), 25.0, math.NaN(), 20.0, math.NaN(), 25.0, math.NaN(), 25.0, math.NaN(), 25.0, math.NaN(), 25.0, math.NaN(), 33.33333333333}, 1, now32),
+				types.MakeMetricData("asPercent(test-db3,sumSeries(test-db*))", []float64{25.0, 20.0, math.NaN(), math.NaN(), math.NaN(), 20.0, 33.33333333333, 25.0, 25.0, 20.0, 25.0, 25.0, 25.0, 25.0, 33.3333333333, 25.0, 33.3333333333, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+				types.MakeMetricData("asPercent(test-db4,sumSeries(test-db*))", []float64{25.0, 20.0, 50.0, 33.33333333333, math.NaN(), 20.0, math.NaN(), math.NaN(), 25.0, 20.0, 25.0, math.NaN(), 25.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 25.0, 50.0, 33.33333333333}, 1, now32),
+				types.MakeMetricData("asPercent(test-db5,sumSeries(test-db*))", []float64{25.0, 20.0, math.NaN(), math.NaN(), math.NaN(), 20.0, 33.33333333333, 25.0, 25.0, 20.0, 25.0, 25.0, 25.0, 25.0, 33.33333333333, 25.0, 33.33333333333, 25.0, math.NaN(), math.NaN()}, 1, now32),
+			}},
+		{
+			"asPercent(test-db*, 10)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"test-db*", 0, 1}: {
+					types.MakeMetricData("test-db1", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db2", []float64{math.NaN(), 2, math.NaN(), 4, math.NaN(), 6, math.NaN(), 8, math.NaN(), 10, math.NaN(), 12, math.NaN(), 14, math.NaN(), 16, math.NaN(), 18, math.NaN(), 20}, 1, now32),
+					types.MakeMetricData("test-db3", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+					types.MakeMetricData("test-db4", []float64{1, 2, 3, 4, math.NaN(), 6, math.NaN(), math.NaN(), 9, 10, 11, math.NaN(), 13, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db5", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, math.NaN(), math.NaN()}, 1, now32),
+				},
+			},
+			[]*types.MetricData{
+				types.MakeMetricData("asPercent(test-db1,10.00)", []float64{10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db2,10.00)", []float64{math.NaN(), 20.0, math.NaN(), 40.0, math.NaN(), 60.0, math.NaN(), 80.0, math.NaN(), 100.0, math.NaN(), 120.0, math.NaN(), 140.0, math.NaN(), 160.0, math.NaN(), 180.0, math.NaN(), 200.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db3,10.00)", []float64{10.0, 20.0, math.NaN(), math.NaN(), math.NaN(), 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+				types.MakeMetricData("asPercent(test-db4,10.00)", []float64{10.0, 20.0, 30.0, 40.0, math.NaN(), 60.0, math.NaN(), math.NaN(), 90.0, 100.0, 110.0, math.NaN(), 130.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 180.0, 190.0, 200.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db5,10.00)", []float64{10.0, 20.0, math.NaN(), math.NaN(), math.NaN(), 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, math.NaN(), math.NaN()}, 1, now32),
+			}},
+		{
+			"asPercent(test-db*, single)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"test-db*", 0, 1}: {
+					types.MakeMetricData("test-db1", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db2", []float64{math.NaN(), 2, math.NaN(), 4, math.NaN(), 6, math.NaN(), 8, math.NaN(), 10, math.NaN(), 12, math.NaN(), 14, math.NaN(), 16, math.NaN(), 18, math.NaN(), 20}, 1, now32),
+					types.MakeMetricData("test-db3", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+					types.MakeMetricData("test-db4", []float64{1, 2, 3, 4, math.NaN(), 6, math.NaN(), math.NaN(), 9, 10, 11, math.NaN(), 13, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 18, 19, 20}, 1, now32),
+					types.MakeMetricData("test-db5", []float64{1, 2, math.NaN(), math.NaN(), math.NaN(), 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, math.NaN(), math.NaN()}, 1, now32),
+				},
+				{"single", 0, 1}: {
+					types.MakeMetricData("test-db1", []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}, 1, now32),
+				},
+			},
+			[]*types.MetricData{
+				types.MakeMetricData("asPercent(test-db1,single)", []float64{100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db2,single)", []float64{math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0, math.NaN(), 100.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db3,single)", []float64{100.0, 100.0, math.NaN(), math.NaN(), math.NaN(), 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, math.NaN(), math.NaN(), math.NaN()}, 1, now32),
+				types.MakeMetricData("asPercent(test-db4,single)", []float64{100.0, 100.0, 100.0, 100.0, math.NaN(), 100.0, math.NaN(), math.NaN(), 100.0, 100.0, 100.0, math.NaN(), 100.0, math.NaN(), math.NaN(), math.NaN(), math.NaN(), 100.0, 100.0, 100.0}, 1, now32),
+				types.MakeMetricData("asPercent(test-db5,single)", []float64{100.0, 100.0, math.NaN(), math.NaN(), math.NaN(), 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, math.NaN(), math.NaN()}, 1, now32),
+			}},
 	}
 
 	for _, tt := range tests {

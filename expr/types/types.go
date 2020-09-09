@@ -31,6 +31,20 @@ type MetricData struct {
 	AggregateFunction func([]float64, []bool) (float64, bool)
 }
 
+// New creates new MetricData with given metric timeseries values and isAbsent
+func New(name string, values []float64, isAbsent []bool, step, start int32) *MetricData {
+	stop := start + int32(len(values))*step
+
+	return &MetricData{Metric: types.Metric{
+		Name:      name,
+		Values:    values,
+		IsAbsent:  isAbsent,
+		StartTime: start,
+		StepTime:  step,
+		StopTime:  stop,
+	}}
+}
+
 // MakeMetricData creates new metrics data with given metric timeseries. values have math.NaN() for absent
 func MakeMetricData(name string, values []float64, step, start int32) *MetricData {
 

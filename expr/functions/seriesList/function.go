@@ -45,22 +45,22 @@ func (f *seriesList) Do(e parser.Expr, from, until int32, values map[parser.Metr
 	var results []*types.MetricData
 	functionName := e.Target()[:len(e.Target())-len("Lists")]
 
-	var compute func(l, r float64) float64
+	var compute func(l, r float64) (float64, bool)
 
 	switch e.Target() {
 	case "divideSeriesLists":
-		compute = func(l, r float64) float64 {
+		compute = func(l, r float64) (float64, bool) {
 			if r == 0 {
-				return math.NaN()
+				return 0, true
 			}
-			return l / r
+			return l / r, false
 		}
 	case "multiplySeriesLists":
-		compute = func(l, r float64) float64 { return l * r }
+		compute = func(l, r float64) (float64, bool) { return l * r, false }
 	case "diffSeriesLists":
-		compute = func(l, r float64) float64 { return l - r }
+		compute = func(l, r float64) (float64, bool) { return l - r, false }
 	case "powSeriesLists":
-		compute = func(l, r float64) float64 { return math.Pow(l, r) }
+		compute = func(l, r float64) (float64, bool) { return math.Pow(l, r), false }
 	}
 	for i, numerator := range numerators {
 		denominator := denominators[i]

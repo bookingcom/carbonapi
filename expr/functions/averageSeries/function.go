@@ -1,6 +1,8 @@
 package averageSeries
 
 import (
+	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -32,7 +34,9 @@ func (f *averageSeries) Do(e parser.Expr, from, until int32, values map[parser.M
 	}
 
 	e.SetTarget("averageSeries")
-	return helper.AggregateSeries(e, args, func(values []float64) float64 {
+	name := fmt.Sprintf("averageSeries(%s)", e.RawArgs())
+
+	return helper.AggregateSeries(name, args, func(values []float64) float64 {
 		sum := 0.0
 		for _, value := range values {
 			sum += value

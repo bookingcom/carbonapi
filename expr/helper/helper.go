@@ -112,14 +112,13 @@ func ForEachSeriesDo(e parser.Expr, from, until int32, values map[parser.MetricR
 type AggregateFunc func([]float64) float64
 
 // AggregateSeries aggregates series
-func AggregateSeries(e parser.Expr, args []*types.MetricData, function AggregateFunc) ([]*types.MetricData, error) {
 
+func AggregateSeries(name string, args []*types.MetricData, function AggregateFunc) ([]*types.MetricData, error) {
 	seriesList, start, end, step, err := Normalize(args)
 	if err != nil {
 		return nil, err
 	}
 	length := int((end - start) / step)
-	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
 	result := make([]float64, length)
 
 	for i := 0; i < length; i++ {
