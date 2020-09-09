@@ -117,6 +117,9 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 	if err != nil {
 		return nil, err
 	}
+	if len(seriesList) == 0 {
+		return seriesList, nil
+	}
 	length := int((end - start) / step)
 	result := make([]float64, length)
 	isAbsent := make([]bool, length)
@@ -130,7 +133,8 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 		}
 		result[i] = 0
 		isAbsent[i] = true
-		if len(values) > 0 && !(absent_if_first_series_absent && seriesList[0].IsAbsent[i]) {
+		absent := absent_if_first_series_absent && (i >= len(seriesList[0].IsAbsent) || seriesList[0].IsAbsent[i])
+		if len(values) > 0 && !absent {
 			result[i], isAbsent[i] = function(values)
 		}
 	}
