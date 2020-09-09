@@ -1,6 +1,7 @@
 package exclude
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -41,7 +42,7 @@ func (f *exclude) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 
 	patre, err := regexp.Compile(pat)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s %v", parser.ErrInvalidArgumentValue, pat, err)
 	}
 
 	var results []*types.MetricData
