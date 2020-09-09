@@ -112,8 +112,7 @@ func ForEachSeriesDo(e parser.Expr, from, until int32, values map[parser.MetricR
 type AggregateFunc func([]float64) (float64, bool)
 
 // AggregateSeries aggregates series
-
-func AggregateSeries(name string, args []*types.MetricData, function AggregateFunc) ([]*types.MetricData, error) {
+func AggregateSeries(name string, args []*types.MetricData, absent_if_first_series_absent bool, function AggregateFunc) ([]*types.MetricData, error) {
 	seriesList, start, end, step, err := Normalize(args)
 	if err != nil {
 		return nil, err
@@ -131,7 +130,7 @@ func AggregateSeries(name string, args []*types.MetricData, function AggregateFu
 		}
 		result[i] = 0
 		isAbsent[i] = true
-		if len(values) > 0 {
+		if len(values) > 0 && !(absent_if_first_series_absent && seriesList[0].IsAbsent[i]) {
 			result[i], isAbsent[i] = function(values)
 		}
 	}
