@@ -1,6 +1,8 @@
 package aliasSub
 
 import (
+	"fmt"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -44,7 +46,7 @@ func (f *aliasSub) Do(e parser.Expr, from, until int32, values map[parser.Metric
 
 	re, err := regexp.Compile(search)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s %v", parser.ErrInvalidArgumentValue, search, err)
 	}
 
 	replace = helper.Backref.ReplaceAllString(replace, "$${$1}")
