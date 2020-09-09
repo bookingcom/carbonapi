@@ -41,11 +41,12 @@ func (f *sortBy) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 	for i, a := range arg {
 		switch e.Target() {
 		case "sortByTotal":
-			vals[i] = helper.SummarizeValues("sum", a.Values)
+			vals[i], _ = helper.SummarizeValues("sum", a.Values)
 		case "sortByMaxima":
-			vals[i] = helper.SummarizeValues("max", a.Values)
+			vals[i], _ = helper.SummarizeValues("max", a.Values)
 		case "sortByMinima":
-			vals[i] = 1 / helper.SummarizeValues("min", a.Values)
+			min, _ := helper.SummarizeValues("min", a.Values)
+			vals[i] = 1 / min
 		}
 	}
 

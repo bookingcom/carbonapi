@@ -37,7 +37,7 @@ func (f *stddevSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 
 	e.SetTarget("stddevSeries")
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
-	return helper.AggregateSeries(name, args, func(values []float64) float64 {
+	return helper.AggregateSeries(name, args, func(values []float64) (float64, bool) {
 		sum := 0.0
 		diffSqr := 0.0
 		for _, value := range values {
@@ -47,7 +47,7 @@ func (f *stddevSeries) Do(e parser.Expr, from, until int32, values map[parser.Me
 		for _, value := range values {
 			diffSqr += (value - average) * (value - average)
 		}
-		return math.Sqrt(diffSqr / float64(len(values)))
+		return math.Sqrt(diffSqr / float64(len(values))), false
 	})
 }
 

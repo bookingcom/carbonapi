@@ -52,9 +52,10 @@ func (f *nPercentile) Do(e parser.Expr, from, until int32, values map[parser.Met
 			}
 		}
 
-		value := helper.Percentile(values, percent, true)
+		value, absent := helper.Percentile(values, percent, true)
 		for i := range r.Values {
 			r.Values[i] = value
+			r.IsAbsent[i] = absent
 		}
 
 		results = append(results, &r)

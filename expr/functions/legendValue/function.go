@@ -49,7 +49,7 @@ func (f *legendValue) Do(e parser.Expr, from, until int32, values map[parser.Met
 	for _, a := range arg {
 		r := *a
 		for _, method := range methods {
-			summary := helper.SummarizeValues(method, a.Values)
+			summary, _ := helper.SummarizeValues(method, a.Values)
 			r.Name = fmt.Sprintf("%s (%s: %f)", r.Name, method, summary)
 		}
 
