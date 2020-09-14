@@ -1,6 +1,7 @@
 package sortByName
 
 import (
+	"context"
 	"sort"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,8 +29,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // sortByName(seriesList, natural=false)
-func (f *sortByName) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	original, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *sortByName) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	original, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package pow
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -29,8 +30,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // pow(seriesList,factor)
-func (f *pow) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *pow) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

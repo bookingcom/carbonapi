@@ -1,6 +1,7 @@
 package cactiStyle
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -30,9 +31,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // cactiStyle(seriesList, system=None, units=None)
-func (f *cactiStyle) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *cactiStyle) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// Get the series data
-	original, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	original, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

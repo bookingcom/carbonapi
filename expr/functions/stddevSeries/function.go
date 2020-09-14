@@ -1,6 +1,7 @@
 package stddevSeries
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -29,8 +30,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // stddevSeries(*seriesLists)
-func (f *stddevSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+func (f *stddevSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

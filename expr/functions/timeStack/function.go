@@ -1,6 +1,7 @@
 package timeStack
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,7 +29,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // timeStack(seriesList, timeShiftUnit, timeShiftStart, timeShiftEnd)
-func (f *timeStack) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *timeStack) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	unit, err := e.GetIntervalArg(1, -1)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func (f *timeStack) Do(e parser.Expr, from, until int32, values map[parser.Metri
 	var results []*types.MetricData
 	for i := int32(start); i < int32(end); i++ {
 		offs := i * unit
-		arg, err := helper.GetSeriesArg(e.Args()[0], from+offs, until+offs, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from+offs, until+offs, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}

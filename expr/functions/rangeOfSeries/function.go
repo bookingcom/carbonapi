@@ -1,6 +1,7 @@
 package rangeOfSeries
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -29,8 +30,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // rangeOfSeries(*seriesLists)
-func (f *rangeOfSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	series, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *rangeOfSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	series, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

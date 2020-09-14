@@ -1,6 +1,7 @@
 package derivative
 
 import (
+	"context"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,8 +29,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // derivative(seriesList)
-func (f *derivative) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return helper.ForEachSeriesDo(e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
+func (f *derivative) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return helper.ForEachSeriesDo(ctx, e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
 		prev := math.NaN()
 		for i, v := range a.Values {
 			if a.IsAbsent[i] {
@@ -45,7 +46,7 @@ func (f *derivative) Do(e parser.Expr, from, until int32, values map[parser.Metr
 			prev = v
 		}
 		return r
-	})
+	}, getTargetData)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

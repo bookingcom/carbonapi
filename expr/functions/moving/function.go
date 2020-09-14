@@ -1,6 +1,7 @@
 package moving
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
@@ -30,7 +31,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // movingXyz(seriesList, windowSize)
-func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *moving) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	var n int
 	var err error
 
@@ -62,7 +63,7 @@ func (f *moving) Do(e parser.Expr, from, until int32, values map[parser.MetricRe
 		start -= int32(n)
 	}
 
-	arg, err := helper.GetSeriesArg(e.Args()[0], start, until, values)
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], start, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

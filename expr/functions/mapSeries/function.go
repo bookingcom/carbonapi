@@ -1,6 +1,7 @@
 package mapSeries
 
 import (
+	"context"
 	"strings"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -29,8 +30,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // mapSeries(seriesList, *mapNodes)
 // Alias: map
-func (f *mapSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *mapSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

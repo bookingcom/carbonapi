@@ -1,6 +1,8 @@
 package isNotNull
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -27,10 +29,10 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // isNonNull(seriesList)
 // alias: isNotNull(seriesList)
-func (f *isNotNull) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *isNotNull) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	e.SetTarget("isNonNull")
 
-	return helper.ForEachSeriesDo(e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
+	return helper.ForEachSeriesDo(ctx, e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
 		for i := range a.Values {
 			r.IsAbsent[i] = false
 			if a.IsAbsent[i] {
@@ -41,7 +43,7 @@ func (f *isNotNull) Do(e parser.Expr, from, until int32, values map[parser.Metri
 
 		}
 		return r
-	})
+	}, getTargetData)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

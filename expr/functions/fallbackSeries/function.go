@@ -1,6 +1,8 @@
 package fallbackSeries
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -26,13 +28,13 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // fallbackSeries( seriesList, fallback )
-func (f *fallbackSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *fallbackSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	/*
 		Takes a wildcard seriesList, and a second fallback metric.
 		If the wildcard does not match any series, draws the fallback metric.
 	*/
-	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
-	fallback, errFallback := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	seriesList, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
+	fallback, errFallback := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 	if errFallback != nil && err != nil {
 		return nil, errFallback
 	}

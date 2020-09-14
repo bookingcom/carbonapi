@@ -2,6 +2,7 @@ package lowest
 
 import (
 	"container/heap"
+	"context"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -28,8 +29,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // lowestAverage(seriesList, n) , lowestCurrent(seriesList, n)
-func (f *lowest) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *lowest) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

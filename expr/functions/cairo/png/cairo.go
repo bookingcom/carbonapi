@@ -4,6 +4,7 @@ package png
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image/color"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
@@ -667,12 +669,12 @@ func Description() map[string]types.FunctionDescription {
 }
 
 // TODO(civil): Split this into several separate functions.
-func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func EvalExprGraph(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 
 	switch e.Target() {
 
 	case "color": // color(seriesList, theColor)
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -693,7 +695,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return results, nil
 
 	case "stacked": // stacked(seriesList, stackname="__DEFAULT__")
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -715,7 +717,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return results, nil
 
 	case "areaBetween":
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -755,7 +757,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return []*types.MetricData{&lower, &upper}, nil
 
 	case "alpha": // alpha(seriesList, theAlpha)
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -777,7 +779,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return results, nil
 
 	case "dashed", "drawAsInfinite", "secondYAxis":
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -806,7 +808,7 @@ func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricReq
 		return results, nil
 
 	case "lineWidth": // lineWidth(seriesList, width)
-		arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+		arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}

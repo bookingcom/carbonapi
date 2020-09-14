@@ -1,6 +1,7 @@
 package timeLag
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -77,14 +78,14 @@ func MakeTimeLag(consumerMetric, producerMetric *types.MetricData, name string) 
 	return &r
 }
 
-func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *timeLag) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	if len(e.Args()) < 1 {
 		return nil, parser.ErrMissingTimeseries
 	} else if len(e.Args()) < 2 && e.Target() == "timeLagSeriesLists" {
 		return nil, fmt.Errorf("%w: %s must be called with two lists of series", parser.ErrMissingArgument, e.Target())
 	}
 
-	firstArg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	firstArg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (f *timeLag) Do(e parser.Expr, from, until int32, values map[parser.MetricR
 		useMetricNames = true
 		consumerMetrics = firstArg
 		var err error
-		producerMetrics, err = helper.GetSeriesArg(e.Args()[1], from, until, values)
+		producerMetrics, err = helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}

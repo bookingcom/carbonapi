@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/helper"
-	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
@@ -18,7 +18,6 @@ import (
 )
 
 func init() {
-	rewrite.New(make(map[string]string))
 	functions.New(make(map[string]string))
 }
 
@@ -126,6 +125,10 @@ type evalExprTestCase struct {
 	until         int32
 }
 
+func noopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
+	return nil, 0
+}
+
 func TestEvalExpr(t *testing.T) {
 	tests := map[string]evalExprTestCase{
 		"EvalExp with summarize": {
@@ -171,7 +174,7 @@ func TestEvalExpr(t *testing.T) {
 			until:    1437127140,
 		},
 	}
-
+	ctx := context.Background()
 	parser.RangeTables = append(parser.RangeTables, unicode.Cyrillic)
 	for name, test := range tests {
 		t.Run(fmt.Sprintf("%s: %s", "TestEvalExpr", name), func(t *testing.T) {
@@ -202,7 +205,7 @@ func TestEvalExpr(t *testing.T) {
 				&data,
 			}
 
-			EvalExpr(exp, int32(request.From), int32(request.Until), metricMap)
+			EvalExpr(ctx, exp, int32(request.From), int32(request.Until), metricMap, noopGetTargetData)
 		})
 	}
 }
@@ -1160,128 +1163,6 @@ func TestEvalSummarize(t *testing.T) {
 	}
 }
 
-func TestRewriteExpr(t *testing.T) {
-	now32 := int32(time.Now().Unix())
-
-	tests := []struct {
-		name       string
-		e          parser.Expr
-		m          map[parser.MetricRequest][]*types.MetricData
-		rewritten  bool
-		newTargets []string
-	}{
-		{
-			"ignore non-applyByNode",
-			parser.NewExpr("sumSeries",
-
-				"metric*",
-			),
-			map[parser.MetricRequest][]*types.MetricData{
-				{"metric*", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-				{"metric1", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-			},
-			false,
-			[]string{},
-		},
-		{
-			"applyByNode",
-			parser.NewExpr("applyByNode",
-
-				"metric*",
-				0,
-				parser.ArgValue("%.count"),
-			),
-			map[parser.MetricRequest][]*types.MetricData{
-				{"metric*", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-				{"metric1", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-			},
-			true,
-			[]string{"metric1.count"},
-		},
-		{
-			"applyByNode",
-			parser.NewExpr("applyByNode",
-
-				"metric*",
-				0,
-				parser.ArgValue("%.count"),
-				parser.ArgValue("% count"),
-			),
-			map[parser.MetricRequest][]*types.MetricData{
-				{"metric*", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-				{"metric1", 0, 1}: {
-					types.MakeMetricData("metric1", []float64{1, 2, 3}, 1, now32),
-				},
-			},
-			true,
-			[]string{"alias(metric1.count,\"metric1 count\")"},
-		},
-		{
-			"applyByNode",
-			parser.NewExpr("applyByNode",
-
-				"foo.metric*",
-				1,
-				parser.ArgValue("%.count"),
-			),
-			map[parser.MetricRequest][]*types.MetricData{
-				{"foo.metric*", 0, 1}: {
-					types.MakeMetricData("foo.metric1", []float64{1, 2, 3}, 1, now32),
-					types.MakeMetricData("foo.metric2", []float64{1, 2, 3}, 1, now32),
-				},
-				{"foo.metric1", 0, 1}: {
-					types.MakeMetricData("foo.metric1", []float64{1, 2, 3}, 1, now32),
-				},
-				{"foo.metric2", 0, 1}: {
-					types.MakeMetricData("foo.metric2", []float64{1, 2, 3}, 1, now32),
-				},
-			},
-			true,
-			[]string{"foo.metric1.count", "foo.metric2.count"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rewritten, newTargets, err := RewriteExpr(tt.e, 0, 1, tt.m)
-
-			if err != nil {
-				t.Errorf("failed to rewrite %v: %+v", tt.name, err)
-				return
-			}
-
-			if rewritten != tt.rewritten {
-				t.Errorf("failed to rewrite %v: expected rewritten=%v but was %v", tt.name, tt.rewritten, rewritten)
-				return
-			}
-
-			var targetsMatch = true
-			if len(tt.newTargets) != len(newTargets) {
-				targetsMatch = false
-			} else {
-				for i := range tt.newTargets {
-					targetsMatch = targetsMatch && tt.newTargets[i] == newTargets[i]
-				}
-			}
-
-			if !targetsMatch {
-				t.Errorf("failed to rewrite %v: expected newTargets=%v but was %v", tt.name, tt.newTargets, newTargets)
-				return
-			}
-		})
-	}
-}
-
 func TestEvalMultipleReturns(t *testing.T) {
 	now32 := int32(time.Now().Unix())
 
@@ -1743,12 +1624,12 @@ func TestEvalCustomFromUntil(t *testing.T) {
 			4350,
 		},
 	}
-
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			originalMetrics := th.DeepClone(tt.m)
 			exp, _, _ := parser.ParseExpr(tt.target)
-			g, err := EvalExpr(exp, tt.from, tt.until, tt.m)
+			g, err := EvalExpr(ctx, exp, tt.from, tt.until, tt.m, noopGetTargetData)
 			if err != nil {
 				t.Errorf("failed to eval %v: %s", tt.name, err)
 				return

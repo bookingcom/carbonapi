@@ -1,6 +1,7 @@
 package sum
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -37,9 +38,9 @@ func SumAggregation(values []float64) (float64, bool) {
 }
 
 // sumSeries(*seriesLists)
-func (f *sum) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *sum) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// TODO(dgryski): make sure the arrays are all the same 'size'
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

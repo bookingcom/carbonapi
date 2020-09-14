@@ -1,6 +1,7 @@
 package offset
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,8 +29,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // offset(seriesList,factor)
-func (f *offset) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *offset) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

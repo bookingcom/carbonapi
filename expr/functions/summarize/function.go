@@ -1,6 +1,7 @@
 package summarize
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -29,9 +30,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // summarize(seriesList, intervalString, func='sum', alignToFrom=False)
-func (f *summarize) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// TODO(dgryski): make sure the arrays are all the same 'size'
-	args, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

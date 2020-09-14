@@ -2,6 +2,7 @@ package highest
 
 import (
 	"container/heap"
+	"context"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -29,9 +30,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // highestAverage(seriesList, n) , highestCurrent(seriesList, n), highestMax(seriesList, n)
-func (f *highest) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *highest) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 
-	arg, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

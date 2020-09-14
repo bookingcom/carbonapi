@@ -1,6 +1,7 @@
 package pearson
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -30,13 +31,13 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // pearson(series, series, windowSize)
-func (f *pearson) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg1, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *pearson) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	arg1, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
 
-	arg2, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	arg2, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

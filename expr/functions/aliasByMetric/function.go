@@ -1,6 +1,8 @@
 package aliasByMetric
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -26,15 +28,15 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *aliasByMetric) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return helper.ForEachSeriesDo(e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
+func (f *aliasByMetric) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return helper.ForEachSeriesDo(ctx, e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
 		metric := helper.ExtractMetric(a.Name)
 		part := strings.Split(metric, ".")
 		r.Name = part[len(part)-1]
 		r.Values = a.Values
 		r.IsAbsent = a.IsAbsent
 		return r
-	})
+	}, getTargetData)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

@@ -1,6 +1,7 @@
 package minMax
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -32,8 +33,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 //  alias: max
 // minSeries(*seriesLists)
 //  alias: min
-func (f *minMax) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+func (f *minMax) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

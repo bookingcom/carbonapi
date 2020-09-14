@@ -1,6 +1,8 @@
 package group
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -26,8 +28,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // group(*seriesLists)
-func (f *group) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+func (f *group) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

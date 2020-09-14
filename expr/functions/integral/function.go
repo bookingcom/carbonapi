@@ -1,6 +1,8 @@
 package integral
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -26,8 +28,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // integral(seriesList)
-func (f *integral) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return helper.ForEachSeriesDo(e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
+func (f *integral) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return helper.ForEachSeriesDo(ctx, e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
 		current := 0.0
 		for i, v := range a.Values {
 			if a.IsAbsent[i] {
@@ -39,7 +41,7 @@ func (f *integral) Do(e parser.Expr, from, until int32, values map[parser.Metric
 			r.Values[i] = current
 		}
 		return r
-	})
+	}, getTargetData)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

@@ -1,6 +1,7 @@
 package holtWintersAberration
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -30,9 +31,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *holtWintersAberration) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *holtWintersAberration) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	var results []*types.MetricData
-	args, err := helper.GetSeriesArg(e.Args()[0], from-7*86400, until, values)
+	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from-7*86400, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
