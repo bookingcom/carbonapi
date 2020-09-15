@@ -41,7 +41,6 @@ func (f *multiplySeries) Do(ctx context.Context, e parser.Expr, from, until int3
 		for _, value := range values[1:] {
 			ret *= value
 		}
-		fmt.Printf("Values: %v\n", values)
 
 		return ret, false
 	})
