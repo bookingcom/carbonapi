@@ -47,7 +47,7 @@ func (f *percentileOfSeries) Do(ctx context.Context, e parser.Expr, from, until 
 	}
 
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
-	return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+	return helper.AggregateSeries(name, args, false, false, func(values []float64) (float64, bool) {
 		return helper.Percentile(values, percent, interpolate)
 	})
 }

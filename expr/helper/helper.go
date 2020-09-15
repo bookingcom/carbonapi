@@ -113,7 +113,7 @@ func ForEachSeriesDo(ctx context.Context, e parser.Expr, from, until int32, valu
 type AggregateFunc func([]float64) (float64, bool)
 
 // AggregateSeries aggregates series
-func AggregateSeries(name string, args []*types.MetricData, absent_if_first_series_absent bool, function AggregateFunc) ([]*types.MetricData, error) {
+func AggregateSeries(name string, args []*types.MetricData, absent_if_first_series_absent bool, absent_if_any_absent bool, function AggregateFunc) ([]*types.MetricData, error) {
 	seriesList, start, end, step, err := Normalize(args)
 	if err != nil {
 		return nil, err
@@ -124,17 +124,20 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 	length := int((end - start) / step)
 	result := make([]float64, length)
 	isAbsent := make([]bool, length)
-
 	for i := 0; i < length; i++ {
 		var values []float64
+		absent := false
 		for _, s := range seriesList {
 			if i < len(s.IsAbsent) && !s.IsAbsent[i] {
 				values = append(values, s.Values[i])
+			} else {
+				absent ||= absent_if_any_absent
 			}
 		}
 		result[i] = 0
 		isAbsent[i] = true
-		absent := absent_if_first_series_absent && (i >= len(seriesList[0].IsAbsent) || seriesList[0].IsAbsent[i])
+
+		absent ||= absent_if_first_series_absent && (i >= len(seriesList[0].IsAbsent) || seriesList[0].IsAbsent[i])
 		if len(values) > 0 && !absent {
 			result[i], isAbsent[i] = function(values)
 		}

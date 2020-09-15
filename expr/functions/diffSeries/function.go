@@ -36,7 +36,7 @@ func (f *diffSeries) Do(ctx context.Context, e parser.Expr, from, until int32, v
 	}
 
 	name := fmt.Sprintf("diffSeries(%s)", e.RawArgs())
-	return helper.AggregateSeries(name, args, true, func(values []float64) (float64, bool) {
+	return helper.AggregateSeries(name, args, true, false, func(values []float64) (float64, bool) {
 		diff := values[0]
 		for _, value := range values[1:] {
 			diff -= value

@@ -38,7 +38,7 @@ func (f *stddevSeries) Do(ctx context.Context, e parser.Expr, from, until int32,
 
 	e.SetTarget("stddevSeries")
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
-	return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+	return helper.AggregateSeries(name, args, false, false, func(values []float64) (float64, bool) {
 		sum := 0.0
 		diffSqr := 0.0
 		for _, value := range values {

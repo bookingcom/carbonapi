@@ -42,7 +42,7 @@ func (f *minMax) Do(ctx context.Context, e parser.Expr, from, until int32, value
 
 	switch e.Target() {
 	case "maxSeries", "max":
-		return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+		return helper.AggregateSeries(name, args, false, false, func(values []float64) (float64, bool) {
 			max := math.Inf(-1)
 			for _, value := range values {
 				if value > max {
@@ -52,7 +52,7 @@ func (f *minMax) Do(ctx context.Context, e parser.Expr, from, until int32, value
 			return max, false
 		})
 	case "minSeries", "min":
-		return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+		return helper.AggregateSeries(name, args, false, false, func(values []float64) (float64, bool) {
 			min := math.Inf(1)
 			for _, value := range values {
 				if value < min {
