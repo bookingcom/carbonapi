@@ -131,13 +131,13 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 			if i < len(s.IsAbsent) && !s.IsAbsent[i] {
 				values = append(values, s.Values[i])
 			} else {
-				absent ||= absent_if_any_absent
+				absent = absent || absent_if_any_absent
 			}
 		}
 		result[i] = 0
 		isAbsent[i] = true
 
-		absent ||= absent_if_first_series_absent && (i >= len(seriesList[0].IsAbsent) || seriesList[0].IsAbsent[i])
+		absent = absent || (absent_if_first_series_absent && (i >= len(seriesList[0].IsAbsent) || seriesList[0].IsAbsent[i]))
 		if len(values) > 0 && !absent {
 			result[i], isAbsent[i] = function(values)
 		}
