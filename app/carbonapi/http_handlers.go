@@ -221,6 +221,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
 			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed)
 
+		if targetErr == nil {
+			targetErr = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
+		}
+
 		if targetErr != nil {
 			// we can have 3 error types here
 			// a) dataTypes.ErrNotFound  > Continue, at the end we check if all errors are 'not found' and we answer with http 404
@@ -236,20 +240,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			targetErrs = append(targetErrs, targetErr)
-		}
-
-		err = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
-		if err != nil && err != parser.ErrSeriesDoesNotExist {
-			var parseError parser.ParseError
-			if errors.As(targetErr, &parseError) {
-				msg := targetErr.Error()
-				writeError(ctx, r, w, http.StatusBadRequest, msg, form)
-				toLog.HttpCode = http.StatusBadRequest
-				span.SetAttribute("error", msg)
-				logAsError = true
-				return
-			}
-			targetErrs = append(targetErrs, fmt.Errorf("expression eval failed: %w", err))
 		}
 
 		size += metricSize

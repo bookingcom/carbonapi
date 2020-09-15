@@ -67,7 +67,6 @@ func (f *applyByNode) Do(ctx context.Context, e parser.Expr, from, until int32, 
 
 		// retrieve new metrics if required
 		err, _ = getTargetData(ctx, newExpr, from, until, values)
-		// XXX handle not found
 		if err != nil {
 			return nil, err
 		}
