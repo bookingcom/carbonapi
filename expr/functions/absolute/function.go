@@ -1,6 +1,7 @@
 package absolute
 
 import (
+	"context"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -26,8 +27,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *absolute) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return helper.ForEachSeriesDo(e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
+func (f *absolute) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return helper.ForEachSeriesDo(ctx, e, from, until, values, func(a *types.MetricData, r *types.MetricData) *types.MetricData {
 		for i, v := range a.Values {
 			if a.IsAbsent[i] {
 				r.Values[i] = 0
@@ -37,7 +38,7 @@ func (f *absolute) Do(e parser.Expr, from, until int32, values map[parser.Metric
 			r.Values[i] = math.Abs(v)
 		}
 		return r
-	})
+	}, getTargetData)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

@@ -1,6 +1,7 @@
 package countSeries
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,9 +29,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // countSeries(seriesList)
-func (f *countSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *countSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// TODO(civil): Check that series have equal length
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from, until, values)
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

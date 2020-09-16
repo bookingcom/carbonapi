@@ -23,7 +23,7 @@ func init() {
 	}
 }
 
-func TestAliasByNode(t *testing.T) {
+func TestAsPercent(t *testing.T) {
 	now32 := int32(time.Now().Unix())
 
 	tests := []th.EvalTestItem{

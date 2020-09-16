@@ -2,6 +2,7 @@ package pearsonClosest
 
 import (
 	"container/heap"
+	"context"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -30,12 +31,12 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // pearsonClosest(series, seriesList, n, direction=abs)
-func (f *pearsonClosest) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *pearsonClosest) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	if len(e.Args()) > 3 {
 		return nil, types.ErrTooManyArguments
 	}
 
-	ref, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	ref, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (f *pearsonClosest) Do(e parser.Expr, from, until int32, values map[parser.
 		return nil, types.ErrWildcardNotAllowed
 	}
 
-	compare, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	compare, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

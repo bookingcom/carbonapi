@@ -1,6 +1,8 @@
 package reduce
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/helper"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -27,14 +29,14 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *reduce) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *reduce) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	const matchersStartIndex = 3
 
 	if len(e.Args()) < matchersStartIndex+1 {
 		return nil, parser.ErrMissingArgument
 	}
 
-	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+	seriesList, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +97,11 @@ AliasLoop:
 			reducedNodes[i] = parser.NewTargetExpr(matched.Name)
 		}
 
-		result, err := f.Evaluator.EvalExpr(parser.NewExprTyped("alias", []parser.Expr{
-			parser.NewExprTyped(reduceFunction, reducedNodes),
-			parser.NewValueExpr(aliasName),
-		}), from, until, reducedValues)
+		result, err := f.Evaluator.EvalExpr(ctx,
+			parser.NewExprTyped("alias", []parser.Expr{
+				parser.NewExprTyped(reduceFunction, reducedNodes),
+				parser.NewValueExpr(aliasName),
+			}), from, until, reducedValues, getTargetData)
 
 		if err != nil {
 			return nil, err

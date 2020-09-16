@@ -32,7 +32,7 @@ Contains all metadata as a static global variables.
 `expr/expr.go`
 ---
 
-Contains `EvalExpr` - main expression parser, plus `RewriteExpr` - rewrite phase of expression parsing.
+Contains `EvalExpr` - main expression parser
 
 `EvalExpr` always uses `metadata.FunctionMD` to get list of known functions.
 

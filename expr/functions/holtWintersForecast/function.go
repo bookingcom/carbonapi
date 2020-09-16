@@ -1,6 +1,7 @@
 package holtWintersForecast
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -29,9 +30,9 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *holtWintersForecast) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *holtWintersForecast) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	var results []*types.MetricData
-	args, err := helper.GetSeriesArgsAndRemoveNonExisting(e, from-7*86400, until, values)
+	args, err := helper.GetSeriesArgsAndRemoveNonExisting(ctx, e, from-7*86400, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

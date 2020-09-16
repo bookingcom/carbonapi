@@ -1,6 +1,7 @@
 package constantLine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/interfaces"
@@ -27,7 +28,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *constantLine) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *constantLine) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	value, err := e.GetFloatArg(0)
 
 	if err != nil {

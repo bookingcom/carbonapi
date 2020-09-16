@@ -1,9 +1,13 @@
 package interfaces
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
+
+type GetTargetData func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int)
 
 // FunctionBase is a set of base methods that partly satisfy Function interface and most probably nobody will modify
 type FunctionBase struct {
@@ -22,7 +26,7 @@ func (b *FunctionBase) GetEvaluator() Evaluator {
 
 // Evaluator is a interface for any existing expression parser
 type Evaluator interface {
-	EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error)
+	EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData GetTargetData) ([]*types.MetricData, error)
 }
 
 type Order int
@@ -31,12 +35,6 @@ const (
 	Any Order = iota
 	Last
 )
-
-type RewriteFunctionMetadata struct {
-	Name  string
-	Order Order
-	F     RewriteFunction
-}
 
 type FunctionMetadata struct {
 	Name  string
@@ -48,14 +46,6 @@ type FunctionMetadata struct {
 type Function interface {
 	SetEvaluator(evaluator Evaluator)
 	GetEvaluator() Evaluator
-	Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error)
-	Description() map[string]types.FunctionDescription
-}
-
-// Function is interface that all graphite functions should follow
-type RewriteFunction interface {
-	SetEvaluator(evaluator Evaluator)
-	GetEvaluator() Evaluator
-	Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) (bool, []string, error)
+	Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData GetTargetData) ([]*types.MetricData, error)
 	Description() map[string]types.FunctionDescription
 }

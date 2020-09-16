@@ -20,7 +20,6 @@ import (
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/rewrite"
 	"github.com/bookingcom/carbonapi/mstats"
 	"github.com/bookingcom/carbonapi/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -189,7 +188,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 	}
 
-	rewrite.New(app.config.FunctionsConfigs)
 	functions.New(app.config.FunctionsConfigs)
 
 	// TODO (grzkv): Move expvars to init since they are global to the package

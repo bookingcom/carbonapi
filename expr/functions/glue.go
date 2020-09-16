@@ -9,6 +9,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/aliasByMetric"
 	"github.com/bookingcom/carbonapi/expr/functions/aliasByNode"
 	"github.com/bookingcom/carbonapi/expr/functions/aliasSub"
+	"github.com/bookingcom/carbonapi/expr/functions/applyByNode"
 	"github.com/bookingcom/carbonapi/expr/functions/asPercent"
 	"github.com/bookingcom/carbonapi/expr/functions/averageSeries"
 	"github.com/bookingcom/carbonapi/expr/functions/averageSeriesWithWildcards"
@@ -101,7 +102,7 @@ type initFunc struct {
 }
 
 func New(configs map[string]string) {
-	funcs := make([]initFunc, 0, 84)
+	funcs := make([]initFunc, 0, 87)
 
 	funcs = append(funcs, initFunc{name: "absolute", order: absolute.GetOrder(), f: absolute.New})
 
@@ -112,6 +113,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "aliasByNode", order: aliasByNode.GetOrder(), f: aliasByNode.New})
 
 	funcs = append(funcs, initFunc{name: "aliasSub", order: aliasSub.GetOrder(), f: aliasSub.New})
+
+	funcs = append(funcs, initFunc{name: "applyByNode", order: applyByNode.GetOrder(), f: applyByNode.New})
 
 	funcs = append(funcs, initFunc{name: "asPercent", order: asPercent.GetOrder(), f: asPercent.New})
 

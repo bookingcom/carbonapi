@@ -1,6 +1,7 @@
 package removeBelowSeries
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -30,8 +31,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // removeBelowValue(seriesLists, n), removeAboveValue(seriesLists, n), removeBelowPercentile(seriesLists, percent), removeAbovePercentile(seriesLists, percent)
-func (f *removeBelowSeries) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *removeBelowSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

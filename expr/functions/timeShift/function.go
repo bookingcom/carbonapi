@@ -1,6 +1,7 @@
 package timeShift
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -28,7 +29,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // timeShift(seriesList, timeShift, resetEnd=True)
-func (f *timeShift) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *timeShift) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// FIXME(dgryski): support resetEnd=true
 	// FIXME(civil): support alignDst
 	offs, err := e.GetIntervalArg(1, -1)
@@ -36,7 +37,7 @@ func (f *timeShift) Do(e parser.Expr, from, until int32, values map[parser.Metri
 		return nil, err
 	}
 
-	arg, err := helper.GetSeriesArg(e.Args()[0], from+offs, until+offs, values)
+	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from+offs, until+offs, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

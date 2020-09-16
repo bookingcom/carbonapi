@@ -16,6 +16,7 @@ import (
 	"github.com/bookingcom/carbonapi/date"
 	"github.com/bookingcom/carbonapi/expr"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	nt "github.com/bookingcom/carbonapi/pkg/backend/net"
@@ -213,8 +214,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			span.SetAttribute("error", msg)
 			return
 		}
+
+		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
+			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, logger, &partiallyFailed)
+		}
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
-			&results, &form, &toLog, logger, &partiallyFailed)
+			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed)
+
+		if targetErr == nil {
+			targetErr = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
+		}
+
 		if targetErr != nil {
 			// we can have 3 error types here
 			// a) dataTypes.ErrNotFound  > Continue, at the end we check if all errors are 'not found' and we answer with http 404
@@ -231,6 +241,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			targetErrs = append(targetErrs, targetErr)
 		}
+
 		size += metricSize
 
 		targetSpan.End()
@@ -244,7 +255,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		).Inc()
 	}
 
-	// TODO (grzkv): This breaks if targets rewrite breaks (which is broken now)
 	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
 	partiallyFailed = partiallyFailed || (totalErrStr != "")
 
@@ -307,8 +317,9 @@ func writeError(ctx context.Context, r *http.Request, w http.ResponseWriter,
 	}
 }
 
-func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[parser.MetricRequest][]*types.MetricData,
-	form *renderForm, printErrorStackTrace bool) (retErr error) {
+func evalExprRender(ctx context.Context, exp parser.Expr, res *([]*types.MetricData),
+	metricMap map[parser.MetricRequest][]*types.MetricData,
+	form *renderForm, printErrorStackTrace bool, getTargetData interfaces.GetTargetData) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			retErr = fmt.Errorf("panic during expr eval: %s", r)
@@ -318,7 +329,7 @@ func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[p
 		}
 	}()
 
-	exprs, err := expr.EvalExpr(exp, form.from32, form.until32, metricMap)
+	exprs, err := expr.EvalExpr(ctx, exp, form.from32, form.until32, metricMap, getTargetData)
 	if err != nil {
 		return err
 	}
@@ -329,8 +340,8 @@ func evalExprRender(exp parser.Expr, res *([]*types.MetricData), metricMap map[p
 }
 
 func (app *App) getTargetData(ctx context.Context, target string, exp parser.Expr,
-	metricMap map[parser.MetricRequest][]*types.MetricData, results *([]*types.MetricData),
-	form *renderForm, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool) (error, int) {
+	metricMap map[parser.MetricRequest][]*types.MetricData,
+	useCache bool, from, until int32, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool) (error, int) {
 
 	size := 0
 
@@ -338,8 +349,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var metricErrs []error
 	for _, m := range exp.Metrics() {
 		mfetch := m
-		mfetch.From += form.from32
-		mfetch.Until += form.until32
+		mfetch.From += from
+		mfetch.Until += until
 
 		targetMetricFetches = append(targetMetricFetches, mfetch)
 		if _, ok := metricMap[mfetch]; ok {
@@ -348,7 +359,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 
 		// This _sometimes_ sends a *find* request
-		renderRequests, err := app.getRenderRequests(ctx, m, form.useCache, toLog, lg)
+		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog, lg)
 		if err != nil {
 			metricErrs = append(metricErrs, err)
 			continue
@@ -391,26 +402,10 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
 
-	var rewritten bool
-	var newTargets []string
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
-	rewritten, newTargets, err := expr.RewriteExpr(exp, form.from32, form.until32, metricMap)
-	if err != nil && err != parser.ErrSeriesDoesNotExist {
-		return fmt.Errorf("expression rewrite failed: %w", err), size
-	}
-
-	if rewritten {
-		form.targets = append(form.targets, newTargets...)
-		return targetErr, size
-	}
 
 	if targetErr != nil {
 		return targetErr, size
-	}
-
-	err = evalExprRender(exp, results, metricMap, form, app.config.PrintErrorStackTrace)
-	if err != nil && err != parser.ErrSeriesDoesNotExist {
-		return fmt.Errorf("expression eval failed: %w", err), size
 	}
 
 	return nil, size

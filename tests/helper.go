@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"reflect"
@@ -15,10 +16,10 @@ import (
 )
 
 type FuncEvaluator struct {
-	eval func(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error)
+	eval func(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error)
 }
 
-func (evaluator *FuncEvaluator) EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (evaluator *FuncEvaluator) EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	if e.IsName() {
 		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
 	} else if e.IsConst() {
@@ -36,7 +37,7 @@ func (evaluator *FuncEvaluator) EvalExpr(e parser.Expr, from, until int32, value
 		return nil, parser.ErrMissingArgument
 	}
 
-	return evaluator.eval(e, from, until, values)
+	return evaluator.eval(ctx, e, from, until, values, getTargetData)
 }
 
 func EvaluatorFromFunc(function interfaces.Function) interfaces.Evaluator {
@@ -49,9 +50,9 @@ func EvaluatorFromFunc(function interfaces.Function) interfaces.Evaluator {
 
 func EvaluatorFromFuncWithMetadata(metadata map[string]interfaces.Function) interfaces.Evaluator {
 	e := &FuncEvaluator{
-		eval: func(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+		eval: func(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 			if f, ok := metadata[e.Target()]; ok {
-				return f.Do(e, from, until, values)
+				return f.Do(ctx, e, from, until, values, getTargetData)
 			}
 			return nil, fmt.Errorf("unknown function: %v", e.Target())
 		},
@@ -193,13 +194,19 @@ func InitTestSummarize() (int32, int32, int32) {
 	return tenThirtyTwo, tenFiftyNine, tenThirty
 }
 
+func noopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
+	return nil, 0
+}
+
 func TestSummarizeEvalExpr(t *testing.T, tt *SummarizeEvalTestItem) {
 	evaluator := metadata.GetEvaluator()
 
 	t.Run(tt.Name, func(t *testing.T) {
 		originalMetrics := DeepClone(tt.M)
 		exp, _, _ := parser.ParseExpr(tt.Target)
-		g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
+
+		ctx := context.Background()
+		g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
 		if err != nil {
 			t.Errorf("failed to eval %v: %+v", tt.Name, err)
 			return
@@ -235,8 +242,13 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 	evaluator := metadata.GetEvaluator()
 
 	originalMetrics := DeepClone(tt.M)
-	exp, _, err := parser.ParseExpr(tt.Target)
-	g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
+	exp, e, err := parser.ParseExpr(tt.Target)
+	if err != nil {
+		t.Errorf("failed to parse expr %v: %+v. Parsed so far: %s", tt.Name, err, e)
+		return
+	}
+	ctx := context.Background()
+	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
 	if err != nil {
 		t.Errorf("failed to eval %v: %+v", tt.Name, err)
 		return
@@ -286,7 +298,9 @@ func TestEvalExpr(t *testing.T, tt *EvalTestItem) {
 	originalMetrics := DeepClone(tt.M)
 	testName := tt.Target
 	exp, _, err := parser.ParseExpr(tt.Target)
-	g, err := evaluator.EvalExpr(exp, 0, 1, tt.M)
+	ctx := context.Background()
+	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
+
 	if err != nil {
 		t.Errorf("failed to eval %s: %+v", testName, err)
 		return

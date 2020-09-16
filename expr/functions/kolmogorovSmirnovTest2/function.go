@@ -1,6 +1,7 @@
 package kolmogorovSmirnovTest2
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -31,13 +32,13 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // ksTest2(series, series, points|"interval")
 // https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test
-func (f *kolmogorovSmirnovTest2) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	arg1, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *kolmogorovSmirnovTest2) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	arg1, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
 
-	arg2, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	arg2, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

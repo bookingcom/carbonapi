@@ -1,6 +1,7 @@
 package groupByNode
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -30,8 +31,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // groupByNode(seriesList, nodeNum, callback)
 // groupByNodes(seriesList, callback, *nodes)
-func (f *groupByNode) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func (f *groupByNode) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func (f *groupByNode) Do(e parser.Expr, from, until int32, values map[parser.Met
 			}
 		}
 
-		r, _ := f.Evaluator.EvalExpr(nexpr, from, until, nvalues)
+		r, _ := f.Evaluator.EvalExpr(ctx, nexpr, from, until, nvalues, getTargetData)
 		if r != nil {
 			r[0].Name = k
 			results = append(results, r...)

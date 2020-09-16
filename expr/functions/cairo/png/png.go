@@ -3,15 +3,17 @@
 package png
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
 
 const HaveGraphSupport = false
 
-func EvalExprGraph(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func EvalExprGraph(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	return nil, nil
 }
 

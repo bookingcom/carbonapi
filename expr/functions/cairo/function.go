@@ -1,6 +1,8 @@
 package cairo
 
 import (
+	"context"
+
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
@@ -25,8 +27,8 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-func (f *cairo) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return png.EvalExprGraph(e, from, until, values)
+func (f *cairo) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return png.EvalExprGraph(ctx, e, from, until, values, getTargetData)
 }
 
 func (f *cairo) Description() map[string]types.FunctionDescription {

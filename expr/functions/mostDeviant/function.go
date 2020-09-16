@@ -2,6 +2,7 @@ package mostDeviant
 
 import (
 	"container/heap"
+	"context"
 	"math"
 
 	"github.com/bookingcom/carbonapi/expr/helper"
@@ -29,7 +30,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // mostDeviant(seriesList, n) -or- mostDeviant(n, seriesList)
-func (f *mostDeviant) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *mostDeviant) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	var nArg int
 	if !e.Args()[0].IsConst() {
 		// mostDeviant(seriesList, n)
@@ -42,7 +43,7 @@ func (f *mostDeviant) Do(e parser.Expr, from, until int32, values map[parser.Met
 		return nil, err
 	}
 
-	args, err := helper.GetSeriesArg(e.Args()[seriesArg], from, until, values)
+	args, err := helper.GetSeriesArg(ctx, e.Args()[seriesArg], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}

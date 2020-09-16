@@ -1,6 +1,7 @@
 package asPercent
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -32,15 +33,15 @@ func New(configFile string) []interfaces.FunctionMetadata {
 // asPercentWithNodes handles the case where we have *nodes argument.
 // There are two subcases: total=Node or total is a seriesList with wildcards
 // We support only the second subcase
-func asPercentWithNodes(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func asPercentWithNodes(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	seriesList, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
 	if len(seriesList) == 0 {
 		return seriesList, nil
 	}
-	total, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+	total, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +134,8 @@ func asPercentPairs(numerators, denominators []*types.MetricData) ([]*types.Metr
 
 // asPercentWithoutNodes handles the cases where we don't have the *nodes argumnt.
 // There are four subcases: total = None, total is constant, total is one series and total is a seriesList with the same length as the first argument
-func asPercentWithoutNodes(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	seriesList, err := helper.GetSeriesArg(e.Args()[0], from, until, values)
+func asPercentWithoutNodes(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	seriesList, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +173,7 @@ func asPercentWithoutNodes(e parser.Expr, from, until int32, values map[parser.M
 		totalText = fmt.Sprintf("%0.2f", value)
 		total = types.New(totalText, values, isAbsent, seriesList[0].StepTime, seriesList[0].StartTime)
 	case len(e.Args()) == 2 && (e.Args()[1].IsName() || e.Args()[1].IsFunc()):
-		totalArg, err := helper.GetSeriesArg(e.Args()[1], from, until, values)
+		totalArg, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
 		if err != nil {
 			return nil, err
 		}
@@ -207,16 +208,16 @@ func asPercentWithoutNodes(e parser.Expr, from, until int32, values map[parser.M
 }
 
 // asPercent(seriesList, total=None, *nodes)
-func (f *asPercent) Do(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func (f *asPercent) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 
 	switch len(e.Args()) {
 	case 0:
 		// we need at least one argument
 		return nil, parser.ErrMissingArgument
 	case 1, 2:
-		return asPercentWithoutNodes(e, from, until, values)
+		return asPercentWithoutNodes(ctx, e, from, until, values, getTargetData)
 	default:
-		return asPercentWithNodes(e, from, until, values)
+		return asPercentWithNodes(ctx, e, from, until, values, getTargetData)
 	}
 }
 

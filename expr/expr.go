@@ -2,10 +2,12 @@ package expr
 
 import (
 	// Import all known functions
+	"context"
 	"fmt"
 
 	_ "github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/helper"
+	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
@@ -15,8 +17,8 @@ import (
 type evaluator struct{}
 
 // EvalExpr evalualtes expressions
-func (eval evaluator) EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
-	return EvalExpr(e, from, until, values)
+func (eval evaluator) EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return EvalExpr(ctx, e, from, until, values, getTargetData)
 }
 
 var _evaluator = evaluator{}
@@ -27,7 +29,7 @@ func init() {
 }
 
 // EvalExpr is the main expression evaluator
-func EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) ([]*types.MetricData, error) {
+func EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	if e.IsName() {
 		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
 	} else if e.IsConst() {
@@ -50,25 +52,8 @@ func EvalExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest]
 	f, ok := metadata.FunctionMD.Functions[e.Target()]
 	metadata.FunctionMD.RUnlock()
 	if ok {
-		return f.Do(e, from, until, values)
+		return f.Do(ctx, e, from, until, values, getTargetData)
 	}
 
 	return nil, fmt.Errorf("%w: %s", helper.ErrUnknownFunction, e.Target())
-}
-
-// RewriteExpr expands targets that use applyByNode into a new list of targets.
-// eg:
-// applyByNode(foo*, 1, "%") -> (true, ["foo1", "foo2"], nil)
-// sumSeries(foo) -> (false, nil, nil)
-// Assumes that applyByNode only appears as the outermost function.
-func RewriteExpr(e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData) (bool, []string, error) {
-	if e.IsFunc() {
-		metadata.FunctionMD.RLock()
-		f, ok := metadata.FunctionMD.RewriteFunctions[e.Target()]
-		metadata.FunctionMD.RUnlock()
-		if ok {
-			return f.Do(e, from, until, values)
-		}
-	}
-	return false, nil, nil
 }
