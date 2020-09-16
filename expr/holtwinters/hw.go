@@ -116,15 +116,17 @@ func HoltWintersAnalysis(series []float64, step int32) ([]float64, []float64) {
 }
 
 // HoltWintersConfidenceBands do Holt-Winters Confidence Bands
-func HoltWintersConfidenceBands(series []float64, step int32, delta float64) ([]float64, []float64) {
+func HoltWintersConfidenceBands(series []float64, datapoints int, step int32, delta float64) ([]float64, []float64) {
 	var lowerBand, upperBand []float64
 
 	predictions, deviations := HoltWintersAnalysis(series, step)
 
-	windowPoints := 7 * 86400 / step
-
-	predictionsOfInterest := predictions[windowPoints:]
-	deviationsOfInterest := deviations[windowPoints:]
+	start := len(predictions) - datapoints
+	if start < 0 {
+		start = 0
+	}
+	predictionsOfInterest := predictions[start:]
+	deviationsOfInterest := deviations[start:]
 
 	for i := range predictionsOfInterest {
 		if math.IsNaN(predictionsOfInterest[i]) || math.IsNaN(deviationsOfInterest[i]) {
