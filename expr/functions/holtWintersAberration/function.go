@@ -47,8 +47,9 @@ func (f *holtWintersAberration) Do(ctx context.Context, e parser.Expr, from, unt
 		var aberration []float64
 
 		stepTime := arg.StepTime
+		datapoints := int((until - from) / stepTime)
 
-		lowerBand, upperBand := holtwinters.HoltWintersConfidenceBands(arg.Values, stepTime, delta)
+		lowerBand, upperBand := holtwinters.HoltWintersConfidenceBands(arg.Values, datapoints, stepTime, delta)
 
 		windowPoints := 7 * 86400 / stepTime
 		series := arg.Values[windowPoints:]

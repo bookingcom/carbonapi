@@ -45,15 +45,21 @@ func (f *holtWintersConfidenceBands) Do(ctx context.Context, e parser.Expr, from
 
 	for _, arg := range args {
 		stepTime := arg.StepTime
-
-		lowerBand, upperBand := holtwinters.HoltWintersConfidenceBands(arg.Values, stepTime, delta)
-
+		values := make([]float64, len(arg.Values))
+		for i := 0; i < len(values); i++ {
+			values[i] = arg.Values[i]
+			if arg.IsAbsent[i] {
+				values[i] = math.NaN()
+			}
+		}
+		datapoints := int((until - from) / stepTime)
+		lowerBand, upperBand := holtwinters.HoltWintersConfidenceBands(values, datapoints, stepTime, delta)
 		lowerSeries := types.MetricData{Metric: dataTypes.Metric{
 			Name:      fmt.Sprintf("holtWintersConfidenceLower(%s)", arg.Name),
 			Values:    lowerBand,
 			IsAbsent:  make([]bool, len(lowerBand)),
 			StepTime:  arg.StepTime,
-			StartTime: arg.StartTime + 7*86400,
+			StartTime: arg.StopTime - int32(datapoints)*stepTime,
 			StopTime:  arg.StopTime,
 		}}
 
@@ -69,7 +75,7 @@ func (f *holtWintersConfidenceBands) Do(ctx context.Context, e parser.Expr, from
 			Values:    upperBand,
 			IsAbsent:  make([]bool, len(upperBand)),
 			StepTime:  arg.StepTime,
-			StartTime: arg.StartTime + 7*86400,
+			StartTime: arg.StopTime - int32(datapoints)*stepTime,
 			StopTime:  arg.StopTime,
 		}}
 
