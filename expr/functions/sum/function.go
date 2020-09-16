@@ -47,7 +47,7 @@ func (f *sum) Do(ctx context.Context, e parser.Expr, from, until int32, values m
 
 	e.SetTarget("sumSeries")
 	name := fmt.Sprintf("%s(%s)", e.Target(), e.RawArgs())
-	return helper.AggregateSeries(name, args, false, SumAggregation)
+	return helper.AggregateSeries(name, args, false, false, SumAggregation)
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web

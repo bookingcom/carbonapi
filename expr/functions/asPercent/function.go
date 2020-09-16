@@ -65,7 +65,7 @@ func asPercentWithNodes(ctx context.Context, e parser.Expr, from, until int32, v
 			totalSeries[key] = tmpTotalSeries[key][0]
 		} else {
 			name := fmt.Sprintf("sumSeries(%s)", e.Args()[1].Target())
-			aggregated, err := helper.AggregateSeries(name, seriesList, false, sum.SumAggregation)
+			aggregated, err := helper.AggregateSeries(name, seriesList, false, false, sum.SumAggregation)
 			if err != nil {
 				return nil, err
 			}
@@ -153,7 +153,7 @@ func asPercentWithoutNodes(ctx context.Context, e parser.Expr, from, until int32
 	switch {
 	case len(e.Args()) == 1:
 		name := fmt.Sprintf("sumSeries(%s)", e.Args()[0].Target())
-		aggregated, err := helper.AggregateSeries(name, seriesList, false, sum.SumAggregation)
+		aggregated, err := helper.AggregateSeries(name, seriesList, false, false, sum.SumAggregation)
 		if err != nil {
 			return nil, err
 		}

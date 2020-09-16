@@ -36,11 +36,12 @@ func (f *multiplySeries) Do(ctx context.Context, e parser.Expr, from, until int3
 	}
 
 	name := fmt.Sprintf("multiplySeries(%s)", e.RawArgs())
-	return helper.AggregateSeries(name, args, false, func(values []float64) (float64, bool) {
+	return helper.AggregateSeries(name, args, false, true, func(values []float64) (float64, bool) {
 		ret := values[0]
 		for _, value := range values[1:] {
 			ret *= value
 		}
+
 		return ret, false
 	})
 }
