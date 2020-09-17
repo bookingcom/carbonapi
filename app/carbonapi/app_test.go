@@ -271,8 +271,8 @@ func renderHandlerNotFoundErrs(t *testing.T) {
 
 	testRouter.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("Expected status code %d, got %d", http.StatusNotFound, rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, rr.Code)
 	}
 }
 

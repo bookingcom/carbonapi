@@ -265,16 +265,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	if totalErr != nil {
 		toLog.Reason = totalErr.Error()
 		span.SetAttribute("error", true)
-		if _, ok := totalErr.(dataTypes.ErrNotFound); ok {
-			writeError(ctx, r, w, http.StatusNotFound, totalErr.Error(), form)
-			toLog.HttpCode = http.StatusNotFound
-			logAsError = true
-		} else {
+		if _, ok := totalErr.(dataTypes.ErrNotFound); !ok {
 			writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
 			toLog.HttpCode = http.StatusInternalServerError
 			logAsError = true
+			return
 		}
-		return
 	}
 
 	body, err := app.renderWriteBody(results, form, r, logger)
