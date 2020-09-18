@@ -253,6 +253,15 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
 			"render", nt.ContextCancelCause(ctx.Err()),
 		).Inc()
+
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			writeError(r.Context(), r, w, http.StatusUnprocessableEntity, "request too complex", form)
+			toLog.HttpCode = http.StatusUnprocessableEntity
+			logAsError = true
+			span.SetAttribute("error", true)
+			span.SetAttribute("error.message", "request too complex")
+			return
+		}
 	}
 
 	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
