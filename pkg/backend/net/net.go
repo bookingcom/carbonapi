@@ -182,11 +182,6 @@ func (b Backend) enter(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		b.logger.Warn("Request context cancelled",
-			zap.String("host", b.address),
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(ctx.Err()),
-		)
 		return ctx.Err()
 
 	case b.limiter <- struct{}{}:
@@ -280,12 +275,6 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 
 	case <-ctx.Done():
 		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
-
-		b.logger.Warn("Request context cancelled",
-			zap.String("host", b.address),
-			zap.String("uuid", util.GetUUID(ctx)),
-			zap.Error(ctx.Err()),
-		)
 		return "", nil, ctx.Err()
 	}
 }
