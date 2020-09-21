@@ -395,6 +395,13 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 		close(rch)
 
+		// We have to check it here because we don't want to return before closing rch
+		select {
+		case <-ctx.Done():
+			return ctx.Err(), 0
+		default:
+		}
+
 		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
 		*partFail = (*partFail) || (metricErrStr != "")
 		if metricErr != nil {

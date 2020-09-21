@@ -113,7 +113,7 @@ func (app *App) Start() func() {
 		Addr:         app.config.Listen,
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
-		WriteTimeout: app.config.Timeouts.Global * 2,
+		WriteTimeout: app.config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
 	}, prometheusServer)
 	if err != nil {
 		logger.Fatal("gracehttp failed",
