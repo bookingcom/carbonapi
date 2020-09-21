@@ -50,10 +50,12 @@ func (f *holtWintersAberration) Do(ctx context.Context, e parser.Expr, from, unt
 		datapoints := int((until - from) / stepTime)
 
 		lowerBand, upperBand := holtwinters.HoltWintersConfidenceBands(arg.Values, datapoints, stepTime, delta)
-
-		windowPoints := 7 * 86400 / stepTime
-		series := arg.Values[windowPoints:]
-		absent := arg.IsAbsent[windowPoints:]
+		s := int32(len(arg.Values) - datapoints)
+		if s < 0 {
+			s = 0
+		}
+		series := arg.Values[s:]
+		absent := arg.IsAbsent[s:]
 
 		for i := range series {
 			if absent[i] {
@@ -72,7 +74,7 @@ func (f *holtWintersAberration) Do(ctx context.Context, e parser.Expr, from, unt
 			Values:    aberration,
 			IsAbsent:  make([]bool, len(aberration)),
 			StepTime:  arg.StepTime,
-			StartTime: arg.StartTime + 7*86400,
+			StartTime: arg.StopTime - int32(datapoints)*stepTime,
 			StopTime:  arg.StopTime,
 		}}
 
