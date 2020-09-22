@@ -31,7 +31,7 @@ func TestConstantLine(t *testing.T) {
 				{"42.42", 0, 1}: {types.MakeMetricData("constantLine", []float64{12.3, 12.3}, 1, now32)},
 			},
 			[]*types.MetricData{types.MakeMetricData("42.42",
-				[]float64{42.42, 42.42}, 1, now32)},
+				[]float64{42.42, 42.42, 42.42}, 1, now32)},
 		},
 	}
 
