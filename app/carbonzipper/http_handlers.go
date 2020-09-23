@@ -584,6 +584,7 @@ func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []
 
 func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 	nErrs := len(errs)
+	var counts = make(map[string]int)
 	switch {
 	case (nErrs == 0):
 		return nil
@@ -595,6 +596,7 @@ func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 		// everything failed, nErrs == nBackends
 		nNotNotFounds := 0
 		for _, e := range errs {
+			counts[e.Error()] += 1
 			if _, ok := e.(types.ErrNotFound); !ok {
 				nNotNotFounds += 1
 			}
@@ -607,9 +609,7 @@ func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 				"majority of backends returned not found. %d total errors, %d not found",
 				nErrs, nErrs-nNotNotFounds))
 		}
-
-		return errors.New(fmt.Sprintf(
-			"all backends failed with mixed errors: %d total errors, %d not found",
-			nErrs, nErrs-nNotNotFounds))
+		message := fmt.Sprintf("all backends failed with mixed errors: %+v", counts)[:300]
+		return errors.New(message)
 	}
 }
