@@ -609,7 +609,10 @@ func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 				"majority of backends returned not found. %d total errors, %d not found",
 				nErrs, nErrs-nNotNotFounds))
 		}
-		message := fmt.Sprintf("all backends failed with mixed errors: %+v", counts)[:300]
+		message := fmt.Sprintf("all backends failed with mixed errors: %+v", counts)
+		if len(message) > 300 {
+			message = message[:300]
+		}
 		return errors.New(message)
 	}
 }
