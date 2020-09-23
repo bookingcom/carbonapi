@@ -39,9 +39,9 @@ func (f *constantLine) Do(ctx context.Context, e parser.Expr, from, until int32,
 			Name:      fmt.Sprintf("%g", value),
 			StartTime: from,
 			StopTime:  until,
-			StepTime:  until - from,
-			Values:    []float64{value, value},
-			IsAbsent:  []bool{false, false},
+			StepTime:  (until - from) / 2,
+			Values:    []float64{value, value, value},
+			IsAbsent:  []bool{false, false, false},
 		},
 	}
 
