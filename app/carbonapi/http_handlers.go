@@ -19,7 +19,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
-	nt "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
@@ -251,7 +250,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"render", nt.ContextCancelCause(ctx.Err()),
+			"render", ctx.Err().Error(),
 		).Inc()
 
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -778,19 +777,32 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
 		span.SetAttribute("graphite.total_metric_count", toLog.TotalMetricCount)
 	} else {
-		logger.Warn("zipper returned erro in find request",
+		logger.Warn("zipper returned error in find request",
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
 		)
 		var notFound dataTypes.ErrNotFound
-		if errors.As(err, &notFound) {
+
+		switch {
+		case errors.As(err, &notFound):
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
 			app.prometheusMetrics.FindNotFound.Inc()
-		} else {
+		case errors.Is(err, context.DeadlineExceeded):
+			code := http.StatusUnprocessableEntity
+			toLog.HttpCode = int32(code)
+			toLog.Reason = err.Error()
+			logAsError = true
+
+			span.SetAttribute("error", true)
+			span.SetAttribute("error.message", "request too complex")
+			http.Error(w, "request too compelex", code)
+
+			return
+		default:
 			msg := "error fetching the data"
 			code := http.StatusInternalServerError
 
@@ -800,13 +812,15 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 			http.Error(w, msg, code)
 			apiMetrics.Errors.Add(1)
+			span.SetAttribute("error", true)
+			span.SetAttribute("error.message", err.Error())
 			return
 		}
 	}
 
 	if ctx.Err() != nil {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", nt.ContextCancelCause(ctx.Err()),
+			"find", ctx.Err().Error(),
 		).Inc()
 	}
 
