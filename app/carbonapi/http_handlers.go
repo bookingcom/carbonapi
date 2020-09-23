@@ -210,7 +210,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			toLog.Reason = msg
 			toLog.HttpCode = http.StatusBadRequest
 			logAsError = true
-			span.SetAttribute("error", msg)
+			span.SetAttribute("error", true)
+			span.SetAttribute("error.message", msg)
 			return
 		}
 
@@ -234,7 +235,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 				msg := targetErr.Error()
 				writeError(ctx, r, w, http.StatusBadRequest, msg, form)
 				toLog.HttpCode = http.StatusBadRequest
-				span.SetAttribute("error", msg)
+				span.SetAttribute("error", true)
+				span.SetAttribute("error.message", targetErr.Error())
 				logAsError = true
 				return
 			}

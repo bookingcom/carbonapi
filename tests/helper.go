@@ -194,7 +194,7 @@ func InitTestSummarize() (int32, int32, int32) {
 	return tenThirtyTwo, tenFiftyNine, tenThirty
 }
 
-func noopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
+func NoopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
 	return nil, 0
 }
 
@@ -206,7 +206,7 @@ func TestSummarizeEvalExpr(t *testing.T, tt *SummarizeEvalTestItem) {
 		exp, _, _ := parser.ParseExpr(tt.Target)
 
 		ctx := context.Background()
-		g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
+		g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, NoopGetTargetData)
 		if err != nil {
 			t.Errorf("failed to eval %v: %+v", tt.Name, err)
 			return
@@ -248,7 +248,7 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 		return
 	}
 	ctx := context.Background()
-	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
+	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, NoopGetTargetData)
 	if err != nil {
 		t.Errorf("failed to eval %v: %+v", tt.Name, err)
 		return
@@ -299,7 +299,7 @@ func TestEvalExpr(t *testing.T, tt *EvalTestItem) {
 	testName := tt.Target
 	exp, _, err := parser.ParseExpr(tt.Target)
 	ctx := context.Background()
-	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, noopGetTargetData)
+	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, NoopGetTargetData)
 
 	if err != nil {
 		t.Errorf("failed to eval %s: %+v", testName, err)
