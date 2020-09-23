@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
-	nt "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
@@ -95,7 +94,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", nt.ContextCancelCause(ctx.Err()),
+			"find", ctx.Err().Error(),
 		).Inc()
 	}
 
@@ -311,7 +310,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", nt.ContextCancelCause(ctx.Err()),
+			"find", ctx.Err().Error(),
 		).Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", ctx.Err().Error())
