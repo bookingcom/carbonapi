@@ -30,6 +30,15 @@ func init() {
 
 // EvalExpr is the main expression evaluator
 func EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
+	// Check if reached context deadline
+	// We are doing this check here because evaluating expression can be a slow operation and
+	// this place is called for each argument and function evaluation
+	select {
+	case <-ctx.Done():
+		return []*types.MetricData{}, ctx.Err()
+	default:
+	}
+
 	if e.IsName() {
 		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
 	} else if e.IsConst() {
