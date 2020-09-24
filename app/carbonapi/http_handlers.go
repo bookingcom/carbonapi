@@ -183,11 +183,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			apiMetrics.RequestCacheHits.Add(1)
 			writeResponse(ctx, w, response, form.format, form.jsonp)
 			toLog.FromCache = true
+			span.SetAttribute("from_cache", true)
 			toLog.HttpCode = http.StatusOK
 			return
 		}
 		apiMetrics.RequestCacheMisses.Add(1)
 	}
+	span.SetAttribute("from_cache", false)
 
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
@@ -198,7 +200,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
 			kv.String("graphite.target", target),
 		))
-
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
@@ -206,16 +207,20 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			logAsError = true
 			return
 		}
+		targetSpan.AddEvent(targetCtx, "parsed expression")
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
-			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, logger, &partiallyFailed)
+			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, logger, &partiallyFailed, targetSpan)
 		}
+		targetSpan.AddEvent(targetCtx, "retrieved target data")
+
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
-			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed)
+			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed, targetSpan)
 
 		if targetErr == nil {
 			targetErr = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
 		}
+		targetSpan.AddEvent(targetCtx, "evaluated expression")
 
 		if targetErr != nil {
 			// we can have 3 error types here
@@ -325,10 +330,12 @@ func evalExprRender(ctx context.Context, exp parser.Expr, res *([]*types.MetricD
 
 func (app *App) getTargetData(ctx context.Context, target string, exp parser.Expr,
 	metricMap map[parser.MetricRequest][]*types.MetricData,
-	useCache bool, from, until int32, toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool) (error, int) {
+	useCache bool, from, until int32,
+	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool,
+	span trace.Span) (error, int) {
 
 	size := 0
-
+	metrics := 0
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 	for _, m := range exp.Metrics() {
@@ -368,12 +375,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			}
 
 			for _, r := range resp.data {
+				metrics++
 				size += len(r.Values) // close enough
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
 		close(rch)
-
 		// We have to check it here because we don't want to return before closing rch
 		select {
 		case <-ctx.Done():
@@ -390,16 +397,16 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
+	span.SetAttribute("graphite.metrics", metrics)
+	span.SetAttribute("graphite.datapoints", size)
+
 	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
 
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
+	span.SetAttribute("graphite.metric_errors", targetErrStr)
 
-	if targetErr != nil {
-		return targetErr, size
-	}
-
-	return nil, size
+	return targetErr, size
 }
 
 // returns non-nil error when errors result in an error
@@ -749,7 +756,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		logAsError = true
 		return
 	}
-
+	span.SetAttribute("graphite.format", format)
 	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
 	toLog.FromCache = fromCache
 	if err == nil {
