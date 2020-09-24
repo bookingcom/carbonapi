@@ -15,6 +15,8 @@ var DEBUG bool = false
 
 // TODO (grzkv): This type of config does not makes sense, since there is no such entity as graphite
 
+type Tags map[string]string
+
 // GraphiteConfig does not makes real sense
 type GraphiteConfig struct {
 	Pattern  string
@@ -117,6 +119,7 @@ func DefaultCommonConfig() Common {
 		},
 		Traces: Traces{
 			Timeout: 10 * time.Second,
+			Tags:    Tags{},
 		},
 		PrintErrorStackTrace: false,
 	}
@@ -266,4 +269,5 @@ type DC struct {
 type Traces struct {
 	JaegerEndpoint string        `yaml:"jaegerEndpoint"`
 	Timeout        time.Duration `yaml:"timeout"`
+	Tags           Tags          `yaml:"tags"`
 }

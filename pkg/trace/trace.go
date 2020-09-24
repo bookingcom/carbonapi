@@ -44,15 +44,19 @@ func InitTracer(BuildVersion string, serviceName string, logger *zap.Logger, con
 
 	fqdn, _ := os.Hostname()
 	// Create and install Jaeger export pipeline
+	tags := []kv.KeyValue{
+		kv.String("exporter", "jaeger"),
+		kv.String("host.hostname", fqdn),
+		kv.String("service.version", BuildVersion),
+	}
+	for k, v := range config.Tags {
+		tags = append(tags, kv.String(k, v))
+	}
 	_, flush, err := jaeger.NewExportPipeline(
 		jaeger.WithCollectorEndpoint(endpoint, jaeger.WithHTTPClient((client))),
 		jaeger.WithProcess(jaeger.Process{
 			ServiceName: serviceName,
-			Tags: []kv.KeyValue{
-				kv.String("exporter", "jaeger"),
-				kv.String("host.hostname", fqdn),
-				kv.String("service.version", BuildVersion),
-			},
+			Tags:        tags,
 		}),
 		jaeger.RegisterAsGlobal(),
 		jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
