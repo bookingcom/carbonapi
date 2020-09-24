@@ -125,6 +125,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
+	uuid := util.GetUUID(ctx)
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
@@ -159,16 +160,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
-		writeError(ctx, r, w, http.StatusBadRequest, err.Error(), form)
-		toLog.HttpCode = http.StatusBadRequest
-		toLog.Reason = err.Error()
+		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog, span)
 		logAsError = true
 		return
 	}
 	if form.from32 == form.until32 {
-		writeError(ctx, r, w, http.StatusBadRequest, "Invalid empty time range", form)
-		toLog.HttpCode = http.StatusBadRequest
-		toLog.Reason = "invalid empty time range"
+		writeError(uuid, r, w, http.StatusBadRequest, "Invalid empty time range", form.format, &toLog, span)
 		logAsError = true
 		return
 	}
@@ -196,7 +193,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	tracer := span.Tracer()
 	var results []*types.MetricData
-	var targetErrs []error
 	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
 		target := form.targets[targetIdx]
 		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
@@ -206,12 +202,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		exp, e, err := parser.ParseExpr(target)
 		if err != nil || e != "" {
 			msg := buildParseErrorString(target, e, err)
-			writeError(ctx, r, w, http.StatusBadRequest, msg, form)
-			toLog.Reason = msg
-			toLog.HttpCode = http.StatusBadRequest
+			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
 			logAsError = true
-			span.SetAttribute("error", true)
-			span.SetAttribute("error.message", msg)
 			return
 		}
 
@@ -231,22 +223,29 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			// b) parser.ParseError -> Return with this error(like above, but with less details )
 			// c) anything else -> continue, answer will be 5xx if all targets have one error
 			var parseError parser.ParseError
-			if errors.As(targetErr, &parseError) {
-				msg := targetErr.Error()
-				writeError(ctx, r, w, http.StatusBadRequest, msg, form)
-				toLog.HttpCode = http.StatusBadRequest
-				span.SetAttribute("error", true)
-				span.SetAttribute("error.message", targetErr.Error())
+			var notFound dataTypes.ErrNotFound
+			switch {
+			case errors.As(targetErr, &notFound):
+				// When not found, graphite answers with  http 200 and []
+			case errors.As(targetErr, &parseError):
+				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
+				logAsError = true
+				return
+			case errors.Is(err, context.DeadlineExceeded):
+				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog, span)
+				logAsError = true
+				app.prometheusMetrics.RequestCancel.WithLabelValues(
+					"render", ctx.Err().Error(),
+				).Inc()
+				return
+			default:
+				writeError(uuid, r, w, http.StatusInternalServerError, targetErr.Error(), form.format, &toLog, span)
 				logAsError = true
 				return
 			}
-			targetErrs = append(targetErrs, targetErr)
 		}
-
 		size += metricSize
-
 		targetSpan.End()
-
 	}
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
@@ -254,40 +253,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
 			"render", ctx.Err().Error(),
 		).Inc()
-
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			writeError(r.Context(), r, w, http.StatusUnprocessableEntity, "request too complex", form)
-			toLog.HttpCode = http.StatusUnprocessableEntity
-			logAsError = true
-			span.SetAttribute("error", true)
-			span.SetAttribute("error.message", "request too complex")
-			return
-		}
-	}
-
-	totalErr, totalErrStr := optimistFanIn(targetErrs, len(form.targets), "targets")
-	partiallyFailed = partiallyFailed || (totalErrStr != "")
-
-	if totalErrStr != "" {
-		span.SetAttribute("error.message", totalErrStr)
-	}
-
-	if totalErr != nil {
-		toLog.Reason = totalErr.Error()
-		span.SetAttribute("error", true)
-		if _, ok := totalErr.(dataTypes.ErrNotFound); !ok {
-			writeError(ctx, r, w, http.StatusInternalServerError, totalErr.Error(), form)
-			toLog.HttpCode = http.StatusInternalServerError
-			logAsError = true
-			return
-		}
 	}
 
 	body, err := app.renderWriteBody(results, form, r, logger)
 	if err != nil {
-		writeError(ctx, r, w, http.StatusInternalServerError, err.Error(), form)
-		toLog.Reason = err.Error()
-		toLog.HttpCode = http.StatusInternalServerError
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), form.format, &toLog, span)
 		logAsError = true
 		return
 	}
@@ -309,15 +279,23 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 	toLog.HttpCode = http.StatusOK
 }
 
-func writeError(ctx context.Context, r *http.Request, w http.ResponseWriter,
-	code int, s string, form renderForm) {
+func writeError(uuid string,
+	r *http.Request, w http.ResponseWriter,
+	code int, s string, format string,
+	accessLogDetails *carbonapipb.AccessLogDetails,
+	span trace.Span) {
 	// TODO (grzkv) Maybe add SVG format handling
-	if form.format == pngFormat {
+
+	accessLogDetails.HttpCode = int32(code)
+	accessLogDetails.Reason = s
+	span.SetAttribute("error", true)
+	span.SetAttribute("error.message", s)
+	if format == pngFormat {
 		shortErrStr := http.StatusText(code) + " (" + strconv.Itoa(code) + ")"
-		w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
+		w.Header().Set("X-Carbonapi-UUID", uuid)
 		w.Header().Set("Content-Type", contentTypePNG)
 		w.WriteHeader(code)
-		w.Write(png.MarshalPNGRequestErr(r, shortErrStr, form.template))
+		w.Write(png.MarshalPNGRequestErr(r, shortErrStr, "default"))
 	} else {
 		http.Error(w, http.StatusText(code)+" ("+strconv.Itoa(code)+") Details: "+s, code)
 	}
@@ -724,6 +702,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
+	uuid := util.GetUUID(ctx)
 
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
@@ -766,9 +745,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if query == "" {
-		http.Error(w, "missing parameter `query`", http.StatusBadRequest)
-		toLog.HttpCode = http.StatusBadRequest
-		toLog.Reason = "missing parameter `query`"
+		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog, span)
 		logAsError = true
 		return
 	}
@@ -794,28 +771,14 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			// returned a 404 code to Prometheus.
 			app.prometheusMetrics.FindNotFound.Inc()
 		case errors.Is(err, context.DeadlineExceeded):
-			code := http.StatusUnprocessableEntity
-			toLog.HttpCode = int32(code)
-			toLog.Reason = err.Error()
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", "", &toLog, span)
+			apiMetrics.Errors.Add(1)
 			logAsError = true
-
-			span.SetAttribute("error", true)
-			span.SetAttribute("error.message", "request too complex")
-			http.Error(w, "request too compelex", code)
-
 			return
 		default:
-			msg := "error fetching the data"
-			code := http.StatusInternalServerError
-
-			toLog.HttpCode = int32(code)
-			toLog.Reason = err.Error()
-			logAsError = true
-
-			http.Error(w, msg, code)
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog, span)
 			apiMetrics.Errors.Add(1)
-			span.SetAttribute("error", true)
-			span.SetAttribute("error.message", err.Error())
+			logAsError = true
 			return
 		}
 	}
@@ -853,10 +816,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
-		toLog.HttpCode = http.StatusInternalServerError
-		toLog.Reason = err.Error()
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog, span)
 		logAsError = true
 		return
 	}
