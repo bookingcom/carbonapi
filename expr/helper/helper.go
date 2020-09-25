@@ -159,7 +159,6 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 		for _, av := range values {
 			rv += av
 		}
-
 	case "avg", "average":
 		for _, av := range values {
 			rv += av
@@ -185,7 +184,9 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 		}
 	case "count":
 		rv = float64(len(values))
-
+	case "median":
+		val, absent := Percentile(values, 50, true)
+		return val, absent, nil
 	default:
 		if strings.HasPrefix(f, "p") {
 			f = strings.Split(f, "p")[1]
@@ -267,7 +268,6 @@ func Percentile(data []float64, percent float64, interpolate bool) (float64, boo
 	if len(data) == 1 {
 		return data[0], false
 	}
-
 	k := (float64(len(data)-1) * percent) / 100
 	length := int(math.Ceil(k)) + 1
 	quickselect.Float64QuickSelect(data, length)

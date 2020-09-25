@@ -213,6 +213,20 @@ func TestEvalSummarize(t *testing.T) {
 			tenThirtyTwo,
 			tenThirtyTwo + 25*60,
 		},
+		{
+			"summarize(metric1,'10min','median',true)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{
+					1, 1, 1, 1, 1, 2, 2, 2, 2, 2,
+					3, 3, 3, 3, 3, 4, 4, 4, 4, 4,
+					5, 5, 5, 5, 5}, 60, tenThirtyTwo)},
+			},
+			[]float64{1.5, 3.5, 5},
+			"summarize(metric1,'10min','median',true)",
+			600,
+			tenThirtyTwo,
+			tenThirtyTwo + 25*60,
+		},
 	}
 
 	for _, tt := range tests {
