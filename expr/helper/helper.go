@@ -178,7 +178,7 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 				rv = av
 			}
 		}
-	case "last":
+	case "last", "current":
 		if len(values) > 0 {
 			rv = values[len(values)-1]
 		}
