@@ -160,7 +160,7 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 			rv += av
 		}
 
-	case "avg":
+	case "avg", "average":
 		for _, av := range values {
 			rv += av
 		}
