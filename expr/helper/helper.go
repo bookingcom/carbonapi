@@ -188,7 +188,11 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 		val, absent := Percentile(values, 50, true)
 		return val, absent, nil
 	default:
-		if strings.HasPrefix(f, "p") {
+		matched, err := regexp.MatchString(`^p\d`, f)
+		if err != nil {
+			return 0, true, err
+		}
+		if matched {
 			f = strings.Split(f, "p")[1]
 			percent, err := strconv.ParseFloat(f, 64)
 			if err != nil {
