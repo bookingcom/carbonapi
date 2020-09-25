@@ -50,7 +50,10 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 	for _, a := range arg {
 		r := *a
 		for _, method := range methods {
-			summary, _ := helper.SummarizeValues(method, a.Values)
+			err, summary, _ := helper.SummarizeValues(method, a.Values)
+			if err != nil {
+				return []*types.MetricData{}, err
+			}
 			r.Name = fmt.Sprintf("%s (%s: %f)", r.Name, method, summary)
 		}
 

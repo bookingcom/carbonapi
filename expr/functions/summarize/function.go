@@ -132,8 +132,10 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 			}
 
 			if t >= bucketEnd {
-				r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
-
+				err, r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
+				if err != nil {
+					return []*types.MetricData{}, err
+				}
 				ridx++
 				bucketEnd += bucketSize
 				bucketItems = 0
@@ -143,7 +145,10 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 
 		// last partial bucket
 		if bucketItems > 0 {
-			r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
+			err, r.Values[ridx], r.IsAbsent[ridx] = helper.SummarizeValues(summarizeFunction, values)
+			if err != nil {
+				return []*types.MetricData{}, err
+			}
 		}
 
 		results = append(results, &r)

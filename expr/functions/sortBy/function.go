@@ -42,11 +42,11 @@ func (f *sortBy) Do(ctx context.Context, e parser.Expr, from, until int32, value
 	for i, a := range arg {
 		switch e.Target() {
 		case "sortByTotal":
-			vals[i], _ = helper.SummarizeValues("sum", a.Values)
+			_, vals[i], _ = helper.SummarizeValues("sum", a.Values)
 		case "sortByMaxima":
-			vals[i], _ = helper.SummarizeValues("max", a.Values)
+			_, vals[i], _ = helper.SummarizeValues("max", a.Values)
 		case "sortByMinima":
-			min, _ := helper.SummarizeValues("min", a.Values)
+			_, min, _ := helper.SummarizeValues("min", a.Values)
 			vals[i] = 1 / min
 		}
 	}
