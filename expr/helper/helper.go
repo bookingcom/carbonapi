@@ -147,11 +147,11 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 }
 
 // SummarizeValues summarizes values
-func SummarizeValues(f string, values []float64) (error, float64, bool) {
+func SummarizeValues(f string, values []float64) (float64, bool, error) {
 	rv := 0.0
 
 	if len(values) == 0 {
-		return nil, 0, true
+		return 0, true, nil
 	}
 
 	switch f {
@@ -191,15 +191,15 @@ func SummarizeValues(f string, values []float64) (error, float64, bool) {
 			f = strings.Split(f, "p")[1]
 			percent, err := strconv.ParseFloat(f, 64)
 			if err != nil {
-				return parser.ParseError(err.Error()), 0, true
+				return 0, true, parser.ParseError(err.Error())
 			}
 			val, absent := Percentile(values, percent, true)
-			return nil, val, absent
+			return val, absent, nil
 		} else {
-			return parser.ParseError(fmt.Sprintf("unsupported aggregation function: %s", f)), 0, true
+			return 0, true, parser.ParseError(fmt.Sprintf("unsupported aggregation function: %s", f))
 		}
 	}
-	return nil, rv, false
+	return rv, false, nil
 }
 
 // ExtractMetric extracts metric out of function list
