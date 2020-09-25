@@ -302,7 +302,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs = backend.Filter(bs, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
 	err = errorsFanIn(ctx, errs, len(bs))
-
+	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
