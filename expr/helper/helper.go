@@ -147,11 +147,11 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 }
 
 // SummarizeValues summarizes values
-func SummarizeValues(f string, values []float64) (float64, bool) {
+func SummarizeValues(f string, values []float64) (float64, bool, error) {
 	rv := 0.0
 
 	if len(values) == 0 {
-		return 0, true
+		return 0, true, nil
 	}
 
 	switch f {
@@ -159,8 +159,7 @@ func SummarizeValues(f string, values []float64) (float64, bool) {
 		for _, av := range values {
 			rv += av
 		}
-
-	case "avg":
+	case "avg", "average":
 		for _, av := range values {
 			rv += av
 		}
@@ -183,18 +182,29 @@ func SummarizeValues(f string, values []float64) (float64, bool) {
 		if len(values) > 0 {
 			rv = values[len(values)-1]
 		}
-
+	case "count":
+		rv = float64(len(values))
+	case "median":
+		val, absent := Percentile(values, 50, true)
+		return val, absent, nil
 	default:
-		f = strings.Split(f, "p")[1]
-		percent, err := strconv.ParseFloat(f, 64)
-		if err == nil {
-			return Percentile(values, percent, true)
+		looks_like_percentile, err := regexp.MatchString(`^p\d\d?$`, f)
+		if err != nil {
+			return 0, true, err
+		}
+		if looks_like_percentile {
+			f = strings.Split(f, "p")[1]
+			percent, err := strconv.ParseFloat(f, 64)
+			if err != nil {
+				return 0, true, parser.ParseError(err.Error())
+			}
+			val, absent := Percentile(values, percent, true)
+			return val, absent, nil
 		} else {
-			return 0, true
+			return 0, true, parser.ParseError(fmt.Sprintf("unsupported aggregation function: %s", f))
 		}
 	}
-
-	return rv, false
+	return rv, false, nil
 }
 
 // ExtractMetric extracts metric out of function list
@@ -262,7 +272,6 @@ func Percentile(data []float64, percent float64, interpolate bool) (float64, boo
 	if len(data) == 1 {
 		return data[0], false
 	}
-
 	k := (float64(len(data)-1) * percent) / 100
 	length := int(math.Ceil(k)) + 1
 	quickselect.Float64QuickSelect(data, length)
