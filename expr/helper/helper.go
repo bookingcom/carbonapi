@@ -188,7 +188,7 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 		val, absent := Percentile(values, 50, true)
 		return val, absent, nil
 	default:
-		looks_like_percentile, err := regexp.MatchString(`^p\d`, f)
+		looks_like_percentile, err := regexp.MatchString(`^p\d\d?$`, f)
 		if err != nil {
 			return 0, true, err
 		}
