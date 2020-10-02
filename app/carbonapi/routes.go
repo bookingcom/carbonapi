@@ -24,12 +24,7 @@ func initHandlersInternal(app *App) http.Handler {
 	r.HandleFunc("/debug/version", app.debugVersionHandler)
 
 	r.Handle("/debug/vars", expvar.Handler())
-	r.HandleFunc("/debug/pprof", pprof.Index)
-	s := r.PathPrefix("/debug/pprof").Subrouter()
-	s.HandleFunc("/cmdline", pprof.Cmdline)
-	s.HandleFunc("/profile", pprof.Profile)
-	s.HandleFunc("/symbol", pprof.Symbol)
-	s.HandleFunc("/trace", pprof.Trace)
+	r.PathPrefix("/debug/pprof").HandlerFunc(pprof.Index)
 
 	r.Handle("/metrics", promhttp.Handler())
 
