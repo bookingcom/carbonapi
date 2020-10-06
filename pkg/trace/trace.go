@@ -60,6 +60,8 @@ func InitTracer(BuildVersion string, serviceName string, logger *zap.Logger, con
 		}),
 		jaeger.RegisterAsGlobal(),
 		jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+		jaeger.WithBufferMaxCount(config.JaegerBufferMaxCount),
+		jaeger.WithBatchMaxCount(config.JaegerBatchMaxCount),
 	)
 	if err != nil {
 		log.Fatal(err)
