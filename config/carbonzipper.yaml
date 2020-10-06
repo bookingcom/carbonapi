@@ -125,4 +125,7 @@ traces:
     # If empty, no traces will be generated
     jaegerEndpoint: ""
     timeout: 10s
-
+    # Max number of spans that are stored in memory
+    jaegerBufferMaxCount: 500000
+    # Max number of spans sent in one batch
+    jaegerBatchMaxCount: 500

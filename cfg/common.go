@@ -120,6 +120,9 @@ func DefaultCommonConfig() Common {
 		Traces: Traces{
 			Timeout: 10 * time.Second,
 			Tags:    Tags{},
+			JaegerBufferMaxCount: 500000, // If size of one span is 3k, we will hold max ~1.5g in memory
+			JaegerBatchMaxCount: 500, // If size of one span is 3k, total request size will be ~1.5m
+
 		},
 		PrintErrorStackTrace: false,
 	}
@@ -267,7 +270,9 @@ type DC struct {
 
 // Traces holds configuration related to tracing
 type Traces struct {
-	JaegerEndpoint string        `yaml:"jaegerEndpoint"`
-	Timeout        time.Duration `yaml:"timeout"`
-	Tags           Tags          `yaml:"tags"`
+	JaegerEndpoint       string        `yaml:"jaegerEndpoint"`
+	Timeout              time.Duration `yaml:"timeout"`
+	Tags                 Tags          `yaml:"tags"`
+	JaegerBufferMaxCount int           `yaml:"jaegerBufferMaxCount"`
+	JaegerBatchMaxCount  int           `yaml:"jaegerBatchMaxCount"`
 }
