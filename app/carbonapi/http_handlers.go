@@ -951,7 +951,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
-		if _, ok := err.(dataTypes.ErrNotFound); ok {
+		var notFound dataTypes.ErrNotFound
+		if errors.As(err, &notFound) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			toLog.Reason = "info not found"

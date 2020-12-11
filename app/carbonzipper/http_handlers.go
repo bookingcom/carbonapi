@@ -457,7 +457,8 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	err = errorsFanIn(ctx, errs, len(bs))
 	if err != nil {
 
-		if _, ok := err.(types.ErrNotFound); ok {
+		var notFound types.ErrNotFound
+		if errors.As(err, &notFound) {
 			accessLogger.Error("info not found",
 				zap.Int("http_code", http.StatusNotFound),
 				zap.Error(err),
