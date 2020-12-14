@@ -456,6 +456,18 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	infos, errs := backend.Infos(ctx, bs, request)
 	err = errorsFanIn(ctx, errs, len(bs))
 	if err != nil {
+
+		var notFound types.ErrNotFound
+		if errors.As(err, &notFound) {
+			accessLogger.Error("info not found",
+				zap.Int("http_code", http.StatusNotFound),
+				zap.Error(err),
+				zap.Duration("runtime_seconds", time.Since(t0)),
+			)
+			http.Error(w, "info: not found", http.StatusNotFound)
+			return
+		}
+
 		accessLogger.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Error(err),

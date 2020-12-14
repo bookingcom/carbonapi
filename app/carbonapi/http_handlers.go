@@ -951,6 +951,14 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
+		var notFound dataTypes.ErrNotFound
+		if errors.As(err, &notFound) {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			toLog.HttpCode = http.StatusNotFound
+			toLog.Reason = "info not found"
+			logAsError = true
+			return
+		}
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		toLog.HttpCode = http.StatusInternalServerError
 		toLog.Reason = err.Error()

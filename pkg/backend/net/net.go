@@ -392,6 +392,11 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 	request.Trace.AddMarshal(t0)
 
 	_, resp, err := b.call(ctx, request.Trace, u, body)
+
+	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
+		return nil, types.ErrInfoNotFound
+	}
+
 	if err != nil {
 		return nil, errors.Wrap(err, "HTTP call failed")
 	}
