@@ -101,8 +101,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
-		var notFound types.ErrNotFound
-		if errors.As(err, &notFound) {
+		if errors.As(err, &types.ErrNotFoundConst) {
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -319,8 +318,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		msg := "error fetching the data"
 		code := http.StatusInternalServerError
-		var notFound types.ErrNotFound
-		if errors.As(err, &notFound) {
+		if errors.As(err, &types.ErrNotFoundConst) {
 			msg = "not found"
 			code = http.StatusNotFound
 		}
@@ -457,8 +455,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	err = errorsFanIn(ctx, errs, len(bs))
 	if err != nil {
 
-		var notFound types.ErrNotFound
-		if errors.As(err, &notFound) {
+		if errors.As(err, &types.ErrNotFoundConst) {
 			accessLogger.Error("info not found",
 				zap.Int("http_code", http.StatusNotFound),
 				zap.Error(err),
@@ -608,7 +605,7 @@ func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
 		nNotNotFounds := 0
 		for _, e := range errs {
 			counts[e.Error()] += 1
-			if _, ok := e.(types.ErrNotFound); !ok {
+			if ! errors.As(e,&types.ErrNotFoundConst) {
 				nNotNotFounds += 1
 			}
 		}

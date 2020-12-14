@@ -228,9 +228,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			// b) parser.ParseError -> Return with this error(like above, but with less details )
 			// c) anything else -> continue, answer will be 5xx if all targets have one error
 			var parseError parser.ParseError
-			var notFound dataTypes.ErrNotFound
 			switch {
-			case errors.As(targetErr, &notFound):
+			case errors.As(targetErr, &dataTypes.ErrNotFoundConst):
 				// When not found, graphite answers with  http 200 and []
 			case errors.As(targetErr, &parseError):
 				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
@@ -423,9 +422,8 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	allErrorsNotFound := true
 	errStr := ""
 	for _, e := range errs {
-		var notFound dataTypes.ErrNotFound
 		errStr = errStr + e.Error() + ", "
-		if !errors.As(e, &notFound) {
+		if !errors.As(e, &dataTypes.ErrNotFoundConst) {
 			allErrorsNotFound = false
 		}
 	}
@@ -767,10 +765,8 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			zap.String("uuid", util.GetUUID(ctx)),
 			zap.Error(err),
 		)
-		var notFound dataTypes.ErrNotFound
-
 		switch {
-		case errors.As(err, &notFound):
+		case errors.As(err, &dataTypes.ErrNotFoundConst):
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -951,8 +947,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	request.IncCall()
 	infos, err := app.backend.Info(ctx, request)
 	if err != nil {
-		var notFound dataTypes.ErrNotFound
-		if errors.As(err, &notFound) {
+		if errors.As(err, &dataTypes.ErrNotFoundConst) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			toLog.Reason = "info not found"

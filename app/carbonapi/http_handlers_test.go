@@ -119,7 +119,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 					t.Fatal("got err, when none expected")
 				}
 
-				if _, ok := err.(typ.ErrNotFound); ok != tst.isNotFound {
+				if is_not_found := errors.As(err, &typ.ErrNotFoundConst); is_not_found != tst.isNotFound {
 					t.Fatalf("got err *%v* when not found err expected", err)
 				}
 			}

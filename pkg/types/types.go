@@ -28,6 +28,9 @@ var (
 	ErrInfoNotFound    = ErrNotFound("No information found")
 )
 
+// some help testing error types against it
+var ErrNotFoundConst ErrNotFound = ErrNotFound("")
+
 // ErrNotFound signals the HTTP not found error
 type ErrNotFound string
 
