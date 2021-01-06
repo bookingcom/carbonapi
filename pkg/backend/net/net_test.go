@@ -198,9 +198,6 @@ func TestCallTimeoutLeavesLimiter(t *testing.T) {
 		t.Error("Expected to time out")
 	}
 
-	if len(b.limiter) != 0 {
-		t.Error("Expected limiter to be empty")
-	}
 }
 
 func TestDo(t *testing.T) {

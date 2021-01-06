@@ -358,12 +358,16 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
 			continue
 		}
-
+		renderRequestContext := ctx
+		subrequestCount := len(renderRequests)
+		if subrequestCount > 1 {
+			renderRequestContext = util.WithPriority(ctx, subrequestCount)
+		}
 		// TODO(dgryski): group the render requests into batches
 		rch := make(chan renderResponse, len(renderRequests))
 		for _, m := range renderRequests {
 			// TODO (grzkv) Refactor to enable premature cancel
-			go app.sendRenderRequest(ctx, rch, m, mfetch.From, mfetch.Until, toLog)
+			go app.sendRenderRequest(renderRequestContext, rch, m, mfetch.From, mfetch.Until, toLog)
 		}
 
 		errs := make([]error, 0)

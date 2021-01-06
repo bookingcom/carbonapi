@@ -4,7 +4,6 @@ package util
 import (
 	"context"
 	"net/http"
-
 	"github.com/satori/go.uuid"
 )
 
@@ -13,8 +12,23 @@ type key int
 const (
 	ctxHeaderUUID = "X-CTX-CarbonAPI-UUID"
 
-	uuidKey key = 0
+	uuidKey key = iota
+	priorityKey
 )
+
+// GetPriority returns the current request priority. Less is more
+// If not set, returns highest priority(0)
+func GetPriority(ctx context.Context) int {
+	if p := ctx.Value(priorityKey); p != nil {
+		return p.(int)
+	}
+	return 0
+}
+
+// WithPriority returns new context with priority set
+func WithPriority(ctx context.Context, priority int) context.Context {
+	return context.WithValue(ctx, priorityKey, priority)
+}
 
 // GetUUID gets the Carbon UUID of a request.
 func GetUUID(ctx context.Context) string {
