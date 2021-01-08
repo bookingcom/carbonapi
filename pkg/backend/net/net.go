@@ -15,6 +15,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/util"
@@ -71,6 +72,8 @@ type Config struct {
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
+	ActiveRequests     prometheus.Gauge
+	WaitingRequests    prometheus.Gauge
 }
 
 var fmtProto = []string{"protobuf"}
@@ -110,7 +113,11 @@ func New(cfg Config) (*Backend, error) {
 	}
 
 	if cfg.Limit > 0 {
-		b.limiter = prioritylimiter.New(cfg.Limit)
+		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil {
+			b.limiter = prioritylimiter.New(cfg.Limit, prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests))
+		} else {
+			b.limiter = prioritylimiter.New(cfg.Limit)
+		}
 	}
 
 	if cfg.Logger != nil {

@@ -6,11 +6,13 @@ import (
 	"errors"
 	"sync/atomic"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	indexStateActive = -1
-	indexStateNew = -2
+	indexStateActive    = -1
+	indexStateNew       = -2
 	indexStateCancelled = -3
 )
 
@@ -34,20 +36,36 @@ type Limiter struct {
 	limiter       chan struct{}
 	wantToEnter   chan *request
 	cancelRequest chan *request
-	loopCount 	  uint32
+	loopCount     uint32
+	activeGauge   prometheus.Gauge
+	waitingGauge  prometheus.Gauge
 }
 
+type LimiterOption func(*Limiter)
+
 // New creates a new limiter that allows maximum "limit" requests to "Enter"
-func New(limit int) *Limiter {
+func New(limit int, options ...LimiterOption) *Limiter {
 	ret := &Limiter{
 		limiter:       make(chan struct{}, limit),
 		wantToEnter:   make(chan *request),
 		cancelRequest: make(chan *request),
-		loopCount: 		0,
+		loopCount:     0,
 	}
+	for _, option := range options {
+		option(ret)
+	}
+
 	go ret.loop()
 
 	return ret
+}
+
+// WithMetrics adds prometheus metrics to the Limiter instanace
+func WithMetrics(activeGauge, waitingGauge prometheus.Gauge) LimiterOption {
+	return func(l *Limiter) {
+		l.activeGauge = activeGauge
+		l.waitingGauge = waitingGauge
+	}
 }
 
 // Enter blocks this request until it's turn comes
@@ -58,7 +76,7 @@ func (l *Limiter) Enter(ctx context.Context, priority int, uuid string) error {
 		priority: priority,
 		canEnter: canEnter,
 		uuid:     uuid,
-		index: 	  indexStateNew,
+		index:    indexStateNew,
 	}
 
 	l.wantToEnter <- req
@@ -72,7 +90,7 @@ func (l *Limiter) Enter(ctx context.Context, priority int, uuid string) error {
 		select {
 		case <-ctx.Done():
 			l.cancelRequest <- req
-			return ctx.Err()		
+			return ctx.Err()
 		case <-canEnter:
 			return nil
 		}
@@ -105,7 +123,7 @@ func (l *Limiter) loop() {
 					heap.Push(&l.requests, req)
 				}
 			case req := <-l.cancelRequest:
-				index := req.index				
+				index := req.index
 				if index >= 0 {
 					heap.Remove(&l.requests, index)
 				}
@@ -123,33 +141,39 @@ func (l *Limiter) loop() {
 					heap.Push(&l.requests, req)
 				}
 			case req := <-l.cancelRequest:
-				index := req.index				
+				index := req.index
 				if index >= 0 {
 					heap.Remove(&l.requests, index)
 				}
 				if index == indexStateActive {
 					// If we are receiving a cancel request at this point,
-					// it means Enter() returned with error, and the caller will not Leave()					
+					// it means Enter() returned with error, and the caller will not Leave()
 					l.Leave()
 				}
 				req.index = indexStateCancelled
 			case l.limiter <- struct{}{}:
-				req := heap.Pop(&l.requests).(*request)				
+				req := heap.Pop(&l.requests).(*request)
 				close(req.canEnter)
 			}
 		}
 		atomic.AddUint32(&l.loopCount, 1)
+		if l.activeGauge != nil {
+			l.activeGauge.Set(float64(len(l.limiter)))
+		}
+		if l.waitingGauge != nil {
+			l.waitingGauge.Set(float64(len(l.requests)))
+		}
 	}
 }
 
 // used in tests to ensure that loop() processed all the pending messages
-func  (l *Limiter) waitLoopCount(i int) {
+func (l *Limiter) waitLoopCount(i int) {
 	for {
-		count := int(atomic.LoadUint32(&l.loopCount))		
+		count := int(atomic.LoadUint32(&l.loopCount))
 		if count >= i {
-			return			
-		} 
-		time.Sleep(time.Millisecond*50)
+			return
+		}
+		time.Sleep(time.Millisecond * 50)
 	}
 }
 

@@ -27,6 +27,8 @@ type PrometheusMetrics struct {
 	FindDurationLinComplex    prometheus.Histogram
 	TimeInQueueExp            prometheus.Histogram
 	TimeInQueueLin            prometheus.Histogram
+	ActiveUpstreamRequests    prometheus.Gauge
+	WaitingUpstreamRequests   prometheus.Gauge
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -194,6 +196,18 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketsNum),
 			},
 		),
+		ActiveUpstreamRequests: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "active_upstream_requests",
+				Help: "Number of in-flight upstream requests",
+			},
+		),
+		WaitingUpstreamRequests: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "waiting_upstream_requests",
+				Help: "Number of upstream requests waiting on the limiter",
+			},
+		),
 	}
 }
 
@@ -242,6 +256,7 @@ var apiMetrics = struct {
 	FindCacheHits:       expvar.NewInt("find_cache_hits"),
 	FindCacheMisses:     expvar.NewInt("find_cache_misses"),
 	FindCacheOverheadNS: expvar.NewInt("find_cache_overhead_ns"),
+
 }
 
 // TODO (grzkv): Move to Prometheus, as these are not runtime metrics.
