@@ -157,6 +157,8 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinComplex)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
+	prometheus.MustRegister(app.prometheusMetrics.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.prometheusMetrics.WaitingUpstreamRequests)
 
 	writeTimeout := app.config.Timeouts.Global
 	if writeTimeout < 30*time.Second {
