@@ -13,7 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/util"
 
@@ -47,7 +50,7 @@ type Backend struct {
 	cluster        string
 	client         *http.Client
 	timeout        time.Duration
-	limiter        chan struct{}
+	limiter        *prioritylimiter.Limiter
 	logger         *zap.Logger
 	cache          *expirecache.Cache
 	cacheExpirySec int32
@@ -69,6 +72,8 @@ type Config struct {
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
+	ActiveRequests     prometheus.Gauge
+	WaitingRequests    prometheus.Gauge
 }
 
 var fmtProto = []string{"protobuf"}
@@ -108,7 +113,11 @@ func New(cfg Config) (*Backend, error) {
 	}
 
 	if cfg.Limit > 0 {
-		b.limiter = make(chan struct{}, cfg.Limit)
+		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil {
+			b.limiter = prioritylimiter.New(cfg.Limit, prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests))
+		} else {
+			b.limiter = prioritylimiter.New(cfg.Limit)
+		}
 	}
 
 	if cfg.Logger != nil {
@@ -155,32 +164,16 @@ func (b Backend) enter(ctx context.Context) error {
 	if b.limiter == nil {
 		return nil
 	}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-
-	case b.limiter <- struct{}{}:
-		// fallthrough
-	}
-
-	return nil
+	priority := util.GetPriority(ctx)
+	uuid := util.GetUUID(ctx)
+	return b.limiter.Enter(ctx, priority, uuid)
 }
 
 func (b Backend) leave() error {
 	if b.limiter == nil {
 		return nil
 	}
-
-	select {
-	case <-b.limiter:
-		// fallthrough
-	default:
-		// this should never happen, but let's not block forever if it does
-		return errors.New("Unable to return value to limiter")
-	}
-
-	return nil
+	return b.limiter.Leave()
 }
 
 func (b Backend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

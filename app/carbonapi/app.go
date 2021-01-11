@@ -85,7 +85,9 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 	app.requestBlocker.ReloadRules()
 
 	// TODO(gmagnusson): Setup backends
-	backend, err := initBackend(app.config, logger)
+	backend, err := initBackend(app.config, logger,
+		app.prometheusMetrics.ActiveUpstreamRequests,
+		app.prometheusMetrics.WaitingUpstreamRequests)
 	if err != nil {
 		logger.Fatal("couldn't initialize backends", zap.Error(err))
 	}
@@ -155,6 +157,8 @@ func (app *App) registerPrometheusMetrics(logger *zap.Logger) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinComplex)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
+	prometheus.MustRegister(app.prometheusMetrics.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.prometheusMetrics.WaitingUpstreamRequests)
 
 	writeTimeout := app.config.Timeouts.Global
 	if writeTimeout < 30*time.Second {
@@ -476,7 +480,7 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 }
 
-func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
+func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, waitingUpstreamRequests prometheus.Gauge) (backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -500,6 +504,8 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 		Limit:              config.ConcurrencyLimitPerServer,
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
+		ActiveRequests:     activeUpstreamRequests,
+		WaitingRequests:    waitingUpstreamRequests,
 	})
 
 	if err != nil {
