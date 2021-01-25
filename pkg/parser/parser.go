@@ -52,6 +52,8 @@ func (e *expr) ToString() string {
 		s = strings.Replace(s, `\`, `\\`, -1)
 		s = strings.Replace(s, `'`, `\'`, -1)
 		return "'" + s + "'"
+	case EtName:
+		return fmt.Sprint(e.target)
 	}
 
 	return e.target
@@ -180,6 +182,8 @@ func (e *expr) Metrics() []MetricRequest {
 				for i := range r {
 					r[i].From -= offs
 				}
+			default:
+				return nil
 			}
 		}
 		return r
