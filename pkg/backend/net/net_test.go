@@ -401,7 +401,7 @@ func TestURL(t *testing.T) {
 	}
 
 	setups := []setup{
-		setup{
+		{
 			endpoint: "/render",
 			expected: &url.URL{
 				Scheme: "http",

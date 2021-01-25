@@ -241,14 +241,14 @@ monitoring:
 	expected := Common{
 		Listen: ":8000",
 		BackendsByCluster: []Cluster{
-			Cluster{
+			{
 				Name: "cluster1",
 				Backends: []string{
 					"http://10.190.202.31:8080",
 					"http://10.190.197.91:8080",
 				},
 			},
-			Cluster{
+			{
 				Name: "cluster2",
 				Backends: []string{
 					"http://10.190.202.32:8080",
@@ -429,17 +429,17 @@ monitoring:
 	expected := Common{
 		Listen: ":8000",
 		BackendsByDC: []DC{
-			DC{
+			{
 				Name: "dc1",
 				Clusters: []Cluster{
-					Cluster{
+					{
 						Name: "cluster1",
 						Backends: []string{
 							"http://10.190.202.31:8080",
 							"http://10.190.197.91:8080",
 						},
 					},
-					Cluster{
+					{
 						Name: "cluster2",
 						Backends: []string{
 							"http://10.190.202.32:8080",
@@ -448,17 +448,17 @@ monitoring:
 					},
 				},
 			},
-			DC{
+			{
 				Name: "dc2",
 				Clusters: []Cluster{
-					Cluster{
+					{
 						Name: "cluster1",
 						Backends: []string{
 							"http://10.290.202.31:8080",
 							"http://10.290.197.91:8080",
 						},
 					},
-					Cluster{
+					{
 						Name: "cluster2",
 						Backends: []string{
 							"http://10.290.202.32:8080",
