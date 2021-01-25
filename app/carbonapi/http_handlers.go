@@ -817,7 +817,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			blob, err = pickle.FindEncoderV1_0(metrics)
 		}
 	case rawFormat:
-		blob, err = findList(metrics)
+		blob = findList(metrics)
 		contentType = rawFormat
 	case completerFormat:
 		blob, err = findCompleter(metrics)
@@ -902,7 +902,7 @@ func findCompleter(globs dataTypes.Matches) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func findList(globs dataTypes.Matches) ([]byte, error) {
+func findList(globs dataTypes.Matches) []byte {
 	var b bytes.Buffer
 
 	for _, g := range globs.Matches {
@@ -916,7 +916,7 @@ func findList(globs dataTypes.Matches) ([]byte, error) {
 		fmt.Fprintln(&b, g.Path+dot)
 	}
 
-	return b.Bytes(), nil
+	return b.Bytes()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {

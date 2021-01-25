@@ -39,9 +39,8 @@ func (cf *configFileMock) load() ([]byte, error) {
 	return cf.BinToLoad, nil
 }
 
-func (cf *configFileMock) remove() error {
+func (cf *configFileMock) remove() {
 	cf.IsRemoved = true
-	return nil
 }
 
 func (cf *configFileMock) write(output []byte) error {
