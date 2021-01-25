@@ -1828,7 +1828,7 @@ func formatUnits(v, step float64, system string) (float64, string) {
 
 	var condition func(float64) bool
 
-	if step == math.NaN() {
+	if math.IsNaN(step) {
 		condition = func(size float64) bool { return math.Abs(v) >= size }
 	} else {
 		condition = func(size float64) bool { return math.Abs(v) >= size && step >= size }
