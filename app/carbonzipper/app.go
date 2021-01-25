@@ -158,11 +158,8 @@ func getTopLevelDomains(backend backend.Backend) []string {
 func (app *App) probeTopLevelDomains() {
 	app.doProbe()
 	probeTicker := time.NewTicker(time.Duration(app.config.InternalRoutingCache) * time.Second)
-	for {
-		select {
-		case <-probeTicker.C:
-			app.doProbe()
-		}
+	for range probeTicker.C {
+		app.doProbe()
 	}
 }
 

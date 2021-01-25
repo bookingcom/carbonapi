@@ -107,7 +107,7 @@ func TestEvalSummarize(t *testing.T) {
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{1, 0, 0, 0.5, 1, 2, 1, 1, 1.5, 2, 3, 2, 2, 1.5, 3, 4, 3, 2, 3, 4.5, 5, 5, 5, 5, 5}, 1, now32)},
 			},
-			[]float64{0,1, 1.6, 2.2, 5},
+			[]float64{0, 1, 1.6, 2.2, 5},
 			"summarize(metric1,'5s','p5')",
 			5,
 			now32,
@@ -230,6 +230,7 @@ func TestEvalSummarize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		th.TestSummarizeEvalExpr(t, &tt)
 	}
 }

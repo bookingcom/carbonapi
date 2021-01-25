@@ -119,6 +119,7 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 	}
 
 	for _, tst := range tests {
+		tst := tst
 		t.Run(tst.name, func(t *testing.T) {
 			jms := matchesToJSONMatches(tst.in)
 

@@ -412,6 +412,7 @@ func TestURL(t *testing.T) {
 	}
 
 	for i, s := range setups {
+		s := s
 		t.Run(fmt.Sprintf("%d: %s", i, s.endpoint), func(t *testing.T) {
 			got := b.url(s.endpoint)
 

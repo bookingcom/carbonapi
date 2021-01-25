@@ -161,6 +161,7 @@ func TestEvalExpr(t *testing.T) {
 	ctx := context.Background()
 	parser.RangeTables = append(parser.RangeTables, unicode.Cyrillic)
 	for name, test := range tests {
+		test := test
 		t.Run(fmt.Sprintf("%s: %s", "TestEvalExpr", name), func(t *testing.T) {
 			exp, e, err := parser.ParseExpr(test.request)
 			if err != nil || e != "" {
@@ -955,6 +956,7 @@ func TestEvalExpression(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)
@@ -1345,6 +1347,7 @@ func TestEvalMultipleReturns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			th.TestMultiReturnEvalExpr(t, &tt)
 		})
@@ -1395,6 +1398,7 @@ func TestExtractMetric(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.input, func(t *testing.T) {
 			if m := helper.ExtractMetric(tt.input); m != tt.metric {
 				t.Errorf("extractMetric(%q)=%q, want %q", tt.input, m, tt.metric)
@@ -1425,6 +1429,7 @@ func TestEvalCustomFromUntil(t *testing.T) {
 	}
 	ctx := context.Background()
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			originalMetrics := th.DeepClone(tt.m)
 			exp, _, _ := parser.ParseExpr(tt.target)
