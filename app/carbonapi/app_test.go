@@ -235,6 +235,7 @@ func renderHandlerErrs(t *testing.T) {
 	}
 
 	for _, tst := range tests {
+		tst := tst
 		t.Run(tst.req, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tst.req, nil)
 			rr := httptest.NewRecorder()

@@ -108,8 +108,8 @@ func (app *App) Start() func() {
 		initGraphite(app)
 	}
 
-	go app.probeTopLevelDomains(logger)
-	metricsServer := metricsServer(app, logger)
+	go app.probeTopLevelDomains()
+	metricsServer := metricsServer(app)
 
 	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
@@ -127,7 +127,7 @@ func (app *App) Start() func() {
 	return flush
 }
 
-func (app *App) doProbe(logger *zap.Logger) {
+func (app *App) doProbe() {
 	topLevelDomainCache := make(map[string][]*backend.Backend)
 	for i := 0; i < len(app.backends); i++ {
 		topLevelDomains := getTopLevelDomains(app.backends[i])
@@ -155,13 +155,13 @@ func getTopLevelDomains(backend backend.Backend) []string {
 	return paths
 }
 
-func (app *App) probeTopLevelDomains(logger *zap.Logger) {
-	app.doProbe(logger)
+func (app *App) probeTopLevelDomains() {
+	app.doProbe()
 	probeTicker := time.NewTicker(time.Duration(app.config.InternalRoutingCache) * time.Second)
 	for {
 		select {
 		case <-probeTicker.C:
-			app.doProbe(logger)
+			app.doProbe()
 		}
 	}
 }
@@ -277,7 +277,7 @@ func initGraphite(app *App) {
 	graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
 }
 
-func metricsServer(app *App, logger *zap.Logger) *http.Server {
+func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Requests)
 	prometheus.MustRegister(app.prometheusMetrics.Responses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
@@ -296,7 +296,7 @@ func metricsServer(app *App, logger *zap.Logger) *http.Server {
 		writeTimeout = time.Minute
 	}
 
-	r := initMetricHandlers(app)
+	r := initMetricHandlers()
 
 	s := &http.Server{
 		Addr:         app.config.ListenInternal,

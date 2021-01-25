@@ -106,7 +106,7 @@ func (app *App) Start() func() {
 
 	handler := initHandlers(app)
 
-	prometheusServer := app.registerPrometheusMetrics(logger)
+	prometheusServer := app.registerPrometheusMetrics()
 
 	app.requestBlocker.ScheduleRuleReload()
 
@@ -125,20 +125,7 @@ func (app *App) Start() func() {
 	return flush
 }
 
-func recoveryHandler(h http.Handler, lg *zap.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if r := recover(); r != nil {
-				http.Error(w, "recovered from panic", http.StatusInternalServerError)
-				lg.Error("recovered from panic", zap.Any("details", r))
-			}
-		}()
-
-		h.ServeHTTP(w, r)
-	})
-}
-
-func (app *App) registerPrometheusMetrics(logger *zap.Logger) *http.Server {
+func (app *App) registerPrometheusMetrics() *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Requests)
 	prometheus.MustRegister(app.prometheusMetrics.Responses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
@@ -426,14 +413,9 @@ var timeBuckets []int64
 var expTimeBuckets []int64
 
 type bucketEntry int
-type expBucketEntry int
 
 func (b bucketEntry) String() string {
 	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
-}
-
-func (b expBucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
 }
 
 func renderTimeBuckets() interface{} {

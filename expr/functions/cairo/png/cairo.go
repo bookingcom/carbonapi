@@ -999,7 +999,7 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 	cr.context.SetFontOptions(fontOpts)
 
 	setColor(cr, params.bgColor)
-	drawRectangle(cr, &params, 0, 0, params.width, params.height, true)
+	drawRectangle(cr, 0, 0, params.width, params.height, true)
 
 	drawGraph(cr, &params, results, emptyText)
 
@@ -1072,7 +1072,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 			}
 		}
 
-		drawText(cr, params, emptyText, x, y, HAlignCenter, VAlignTop, 0)
+		drawText(cr, emptyText, x, y, HAlignCenter, VAlignTop, 0)
 
 		return
 	}
@@ -1252,7 +1252,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	currentXMin := params.area.xmin
 	currentXMax := params.area.xmax
 	if params.secondYAxis {
-		setupTwoYAxes(cr, params, consolidated)
+		setupTwoYAxes(cr, params)
 	} else {
 		setupYAxis(cr, params, consolidated)
 	}
@@ -1262,18 +1262,18 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 		currentXMin = params.area.xmin
 		currentXMax = params.area.xmax
 		if params.secondYAxis {
-			setupTwoYAxes(cr, params, consolidated)
+			setupTwoYAxes(cr, params)
 		} else {
 			setupYAxis(cr, params, consolidated)
 		}
 	}
-	setupXAxis(cr, params, results)
+	setupXAxis(params)
 
 	if !params.hideAxes {
 		setColor(cr, params.fgColor)
-		drawLabels(cr, params, consolidated)
+		drawLabels(cr, params)
 		if !params.hideGrid {
-			drawGridLines(cr, params, consolidated)
+			drawGridLines(cr, params)
 		}
 	}
 
@@ -1306,7 +1306,7 @@ func consolidateDataPoints(params *Params, results []*types.MetricData) []*types
 	return ret
 }
 
-func setupTwoYAxes(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) {
 
 	var Ldata []*types.MetricData
 	var Rdata []*types.MetricData
@@ -1905,7 +1905,7 @@ func closest(number float64, neighbours []float64) float64 {
 	return closestNeighbor
 }
 
-func setupXAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func setupXAxis(params *Params) {
 
 	/*
 	   if self.userTimeZone:
@@ -1938,16 +1938,16 @@ func setupXAxis(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 	params.xMajorGridStep = int32(params.xConf.majorGridUnit) * params.xConf.majorGridStep
 }
 
-func drawLabels(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func drawLabels(cr *cairoSurfaceContext, params *Params) {
 	if !params.hideYAxis {
-		drawYAxis(cr, params, results)
+		drawYAxis(cr, params)
 	}
 	if !params.hideXAxis {
-		drawXAxis(cr, params, results)
+		drawXAxis(cr, params)
 	}
 }
 
-func drawYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func drawYAxis(cr *cairoSurfaceContext, params *Params) {
 	var x float64
 	if params.secondYAxis {
 
@@ -1959,7 +1959,7 @@ func drawYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 			}
 
 			x = params.area.xmin - float64(params.yLabelWidthL)*0.02
-			drawText(cr, params, label, x, y, HAlignRight, VAlignCenter, 0)
+			drawText(cr, label, x, y, HAlignRight, VAlignCenter, 0)
 
 		}
 
@@ -1971,7 +1971,7 @@ func drawYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 			}
 
 			x = params.area.xmax + float64(params.yLabelWidthR)*0.02 + 3
-			drawText(cr, params, label, x, y, HAlignLeft, VAlignCenter, 0)
+			drawText(cr, label, x, y, HAlignLeft, VAlignCenter, 0)
 		}
 		return
 	}
@@ -1985,10 +1985,10 @@ func drawYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 
 		if params.yAxisSide == YAxisSideLeft {
 			x = params.area.xmin - float64(params.yLabelWidth)*0.02
-			drawText(cr, params, label, x, y, HAlignRight, VAlignCenter, 0)
+			drawText(cr, label, x, y, HAlignRight, VAlignCenter, 0)
 		} else {
 			x = params.area.xmax + float64(params.yLabelWidth)*0.02
-			drawText(cr, params, label, x, y, HAlignLeft, VAlignCenter, 0)
+			drawText(cr, label, x, y, HAlignLeft, VAlignCenter, 0)
 		}
 	}
 }
@@ -2022,7 +2022,7 @@ func findXTimes(start int32, unit TimeUnit, step float64) (int32, int32) {
 	return int32(t.Unix()), int32(d / time.Second)
 }
 
-func drawXAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func drawXAxis(cr *cairoSurfaceContext, params *Params) {
 
 	dt, xDelta := findXTimes(params.startTime, params.xConf.labelUnit, float64(params.xConf.labelStep))
 
@@ -2037,12 +2037,12 @@ func drawXAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 		label, _ := strftime.Format(xFormat, time.Unix(int64(dt), 0).In(params.tz))
 		x := params.area.xmin + float64(dt-params.startTime)*params.xScaleFactor
 		y := params.area.ymax + maxAscent
-		drawText(cr, params, label, x, y, HAlignCenter, VAlignTop, 0)
+		drawText(cr, label, x, y, HAlignCenter, VAlignTop, 0)
 		dt += xDelta
 	}
 }
 
-func drawGridLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func drawGridLines(cr *cairoSurfaceContext, params *Params) {
 	// Horizontal grid lines
 	leftside := params.area.xmin
 	rightside := params.area.xmax
@@ -2350,12 +2350,12 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 					if series.Stacked {
 						if params.secondYAxis {
 							if series.SecondYAxis {
-								fillAreaAndClip(cr, params, x, y, startX, getYCoord(params, 0, YCoordSideRight))
+								fillAreaAndClip(cr, params, x, startX, getYCoord(params, 0, YCoordSideRight))
 							} else {
-								fillAreaAndClip(cr, params, x, y, startX, getYCoord(params, 0, YCoordSideLeft))
+								fillAreaAndClip(cr, params, x, startX, getYCoord(params, 0, YCoordSideLeft))
 							}
 						} else {
-							fillAreaAndClip(cr, params, x, y, startX, getYCoord(params, 0, YCoordSideNone))
+							fillAreaAndClip(cr, params, x, startX, getYCoord(params, 0, YCoordSideNone))
 						}
 					}
 				}
@@ -2423,7 +2423,7 @@ func drawLines(cr *cairoSurfaceContext, params *Params, results []*types.MetricD
 			} else {
 				areaYFrom = getYCoord(params, 0, YCoordSideNone)
 			}
-			fillAreaAndClip(cr, params, x, y, startX, areaYFrom)
+			fillAreaAndClip(cr, params, x, startX, areaYFrom)
 		} else {
 			cr.context.Stroke()
 		}
@@ -2517,12 +2517,12 @@ func drawLegend(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 			setColor(cr, string2RGBA(item.color))
 			if item.secondYAxis {
 				nRight++
-				drawRectangle(cr, params, xRight-padding, yRight, boxSize, boxSize, true)
+				drawRectangle(cr, xRight-padding, yRight, boxSize, boxSize, true)
 				color := colors["darkgray"]
 				setColor(cr, color)
-				drawRectangle(cr, params, xRight-padding, yRight, boxSize, boxSize, false)
+				drawRectangle(cr, xRight-padding, yRight, boxSize, boxSize, false)
 				setColor(cr, params.fgColor)
-				drawText(cr, params, item.name, xRight-boxSize, yRight, HAlignRight, VAlignTop, 0.0)
+				drawText(cr, item.name, xRight-boxSize, yRight, HAlignRight, VAlignTop, 0.0)
 				xRight -= labelWidth
 				if nRight%int(columns) == 0 {
 					xRight = params.area.xmax - params.area.xmin
@@ -2530,12 +2530,12 @@ func drawLegend(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 				}
 			} else {
 				n++
-				drawRectangle(cr, params, x, y, boxSize, boxSize, true)
+				drawRectangle(cr, x, y, boxSize, boxSize, true)
 				color := colors["darkgray"]
 				setColor(cr, color)
-				drawRectangle(cr, params, x, y, boxSize, boxSize, false)
+				drawRectangle(cr, x, y, boxSize, boxSize, false)
 				setColor(cr, params.fgColor)
-				drawText(cr, params, item.name, x+boxSize+padding, y, HAlignLeft, VAlignTop, 0.0)
+				drawText(cr, item.name, x+boxSize+padding, y, HAlignLeft, VAlignTop, 0.0)
 				x += labelWidth
 				if n%int(columns) == 0 {
 					x = params.area.xmin
@@ -2555,20 +2555,20 @@ func drawLegend(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 	for _, item := range legend {
 		setColor(cr, string2RGBA(item.color))
 		if item.secondYAxis {
-			drawRectangle(cr, params, x+labelWidth+padding, y, boxSize, boxSize, true)
+			drawRectangle(cr, x+labelWidth+padding, y, boxSize, boxSize, true)
 			color := colors["darkgray"]
 			setColor(cr, color)
-			drawRectangle(cr, params, x+labelWidth+padding, y, boxSize, boxSize, false)
+			drawRectangle(cr, x+labelWidth+padding, y, boxSize, boxSize, false)
 			setColor(cr, params.fgColor)
-			drawText(cr, params, item.name, x+labelWidth, y, HAlignRight, VAlignTop, 0.0)
+			drawText(cr, item.name, x+labelWidth, y, HAlignRight, VAlignTop, 0.0)
 			x += labelWidth
 		} else {
-			drawRectangle(cr, params, x, y, boxSize, boxSize, true)
+			drawRectangle(cr, x, y, boxSize, boxSize, true)
 			color := colors["darkgray"]
 			setColor(cr, color)
-			drawRectangle(cr, params, x, y, boxSize, boxSize, false)
+			drawRectangle(cr, x, y, boxSize, boxSize, false)
 			setColor(cr, params.fgColor)
-			drawText(cr, params, item.name, x+boxSize+padding, y, HAlignLeft, VAlignTop, 0.0)
+			drawText(cr, item.name, x+boxSize+padding, y, HAlignLeft, VAlignTop, 0.0)
 			x += labelWidth
 		}
 		if (cnt+1)%int(columns) == 0 {
@@ -2587,7 +2587,7 @@ func drawTitle(cr *cairoSurfaceContext, params *Params) {
 	lineHeight := params.fontExtents.Height
 
 	for _, line := range lines {
-		drawText(cr, params, line, x, y, HAlignCenter, VAlignTop, 0.0)
+		drawText(cr, line, x, y, HAlignCenter, VAlignTop, 0.0)
 		y += lineHeight
 	}
 	params.area.ymin = y
@@ -2603,7 +2603,7 @@ func drawVTitle(cr *cairoSurfaceContext, params *Params, title string, rightAlig
 		x := params.area.xmax - lineHeight
 		y := params.height / 2.0
 		for _, line := range strings.Split(title, "\n") {
-			drawText(cr, params, line, x, y, HAlignCenter, VAlignBaseline, 90.0)
+			drawText(cr, line, x, y, HAlignCenter, VAlignBaseline, 90.0)
 			x -= lineHeight
 		}
 		params.area.xmax = x - float64(params.margin) - lineHeight
@@ -2611,7 +2611,7 @@ func drawVTitle(cr *cairoSurfaceContext, params *Params, title string, rightAlig
 		x := params.area.xmin + lineHeight
 		y := params.height / 2.0
 		for _, line := range strings.Split(title, "\n") {
-			drawText(cr, params, line, x, y, HAlignCenter, VAlignBaseline, 270.0)
+			drawText(cr, line, x, y, HAlignCenter, VAlignBaseline, 270.0)
 			x += lineHeight
 		}
 		params.area.xmin = x + float64(params.margin) + lineHeight
@@ -2623,7 +2623,7 @@ func radians(angle float64) float64 {
 	return angle * x
 }
 
-func drawText(cr *cairoSurfaceContext, params *Params, text string, x, y float64, align HAlign, valign VAlign, rotate float64) {
+func drawText(cr *cairoSurfaceContext, text string, x, y float64, align HAlign, valign VAlign, rotate float64) {
 	var hAlign, vAlign float64
 	var textExtents cairo.TextExtents
 	var fontExtents cairo.FontExtents
@@ -2679,7 +2679,7 @@ func setFont(cr *cairoSurfaceContext, params *Params, size float64) {
 	cr.context.FontExtents(&params.fontExtents)
 }
 
-func drawRectangle(cr *cairoSurfaceContext, params *Params, x float64, y float64, w float64, h float64, fill bool) {
+func drawRectangle(cr *cairoSurfaceContext, x float64, y float64, w float64, h float64, fill bool) {
 	if !fill {
 		offset := cr.context.GetLineWidth() / 2.0
 		x += offset
@@ -2696,7 +2696,7 @@ func drawRectangle(cr *cairoSurfaceContext, params *Params, x float64, y float64
 	}
 }
 
-func fillAreaAndClip(cr *cairoSurfaceContext, params *Params, x, y, startX, areaYFrom float64) {
+func fillAreaAndClip(cr *cairoSurfaceContext, params *Params, x, startX, areaYFrom float64) {
 
 	if math.IsNaN(startX) {
 		startX = params.area.xmin

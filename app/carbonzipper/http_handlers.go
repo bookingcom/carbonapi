@@ -89,7 +89,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
 	bs = backend.Filter(bs, []string{originalQuery})
 	metrics, errs := backend.Finds(ctx, bs, request)
-	err := errorsFanIn(ctx, errs, len(bs))
+	err := errorsFanIn(errs, len(bs))
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
@@ -301,7 +301,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs))
+	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -454,7 +454,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain([]string{target})
 	bs = backend.Filter(bs, []string{target})
 	infos, errs := backend.Infos(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs))
+	err = errorsFanIn(errs, len(bs))
 	if err != nil {
 
 		var notFound types.ErrNotFound
@@ -593,7 +593,7 @@ func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []
 	return bs
 }
 
-func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
+func errorsFanIn(errs []error, nBackends int) error {
 	nErrs := len(errs)
 	var counts = make(map[string]int)
 	switch {

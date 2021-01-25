@@ -350,7 +350,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 
 		// This _sometimes_ sends a *find* request
-		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog, lg)
+		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog)
 		if err != nil {
 			metricErrs = append(metricErrs, err)
 			continue
@@ -647,7 +647,7 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, bool, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, bool, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
@@ -678,7 +678,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
-	toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
+	toLog *carbonapipb.AccessLogDetails) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		return []string{m.Metric}, nil
 	}
@@ -686,7 +686,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -761,7 +761,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.SetAttribute("graphite.format", format)
-	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog)
 	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))

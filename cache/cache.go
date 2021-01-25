@@ -191,7 +191,7 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
 			m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
-				Expiration: expire,
+				Expiration: expire_,
 			})
 			wg.Done()
 		}(hk, val, expire, m)

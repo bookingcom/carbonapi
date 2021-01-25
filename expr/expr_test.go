@@ -115,14 +115,13 @@ func TestAlignToInterval(t *testing.T) {
 }
 
 type evalExprTestCase struct {
-	metric        string
-	request       string
-	metricRequest parser.MetricRequest
-	values        []float64
-	isAbsent      []bool
-	stepTime      int32
-	from          int32
-	until         int32
+	metric   string
+	request  string
+	values   []float64
+	isAbsent []bool
+	stepTime int32
+	from     int32
+	until    int32
 }
 
 func noopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
@@ -132,13 +131,8 @@ func noopGetTargetData(ctx context.Context, exp parser.Expr, from, until int32, 
 func TestEvalExpr(t *testing.T) {
 	tests := map[string]evalExprTestCase{
 		"EvalExp with summarize": {
-			metric:  "metric1",
-			request: "summarize(metric1,'1min')",
-			metricRequest: parser.MetricRequest{
-				Metric: "metric1",
-				From:   1437127020,
-				Until:  1437127140,
-			},
+			metric:   "metric1",
+			request:  "summarize(metric1,'1min')",
 			values:   []float64{343, 407, 385},
 			isAbsent: []bool{false, false, false},
 			stepTime: 60,
@@ -146,13 +140,8 @@ func TestEvalExpr(t *testing.T) {
 			until:    1437127140,
 		},
 		"metric name starts with digit": {
-			metric:  "1metric",
-			request: "1metric",
-			metricRequest: parser.MetricRequest{
-				Metric: "1metric",
-				From:   1437127020,
-				Until:  1437127140,
-			},
+			metric:   "1metric",
+			request:  "1metric",
 			values:   []float64{343, 407, 385},
 			isAbsent: []bool{false, false, false},
 			stepTime: 60,
@@ -160,13 +149,8 @@ func TestEvalExpr(t *testing.T) {
 			until:    1437127140,
 		},
 		"metric unicode name starts with digit": {
-			metric:  "1Метрика",
-			request: "1Метрика",
-			metricRequest: parser.MetricRequest{
-				Metric: "1Метрика",
-				From:   1437127020,
-				Until:  1437127140,
-			},
+			metric:   "1Метрика",
+			request:  "1Метрика",
 			values:   []float64{343, 407, 385},
 			isAbsent: []bool{false, false, false},
 			stepTime: 60,

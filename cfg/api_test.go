@@ -215,42 +215,6 @@ logger:
 	}
 }
 
-func eqAPI(a, b API) bool {
-	return eqCommon(a.Common, b.Common) &&
-		toComparableAPI(a) == toComparableAPI(b) &&
-		eqCacheConfig(a.Cache, b.Cache) &&
-		eqStringSlice(a.UnicodeRangeTables, b.UnicodeRangeTables) &&
-		eqMapStringString(a.DefaultColors, b.DefaultColors) &&
-		eqMapStringString(a.FunctionsConfigs, b.FunctionsConfigs)
-}
-
-type comparableAPI struct {
-	SendGlobsAsIs       bool
-	AlwaysSendGlobsAsIs bool
-	MaxBatchSize        int
-	TimezoneString      string
-	PidFile             string
-	IgnoreClientTimeout bool
-}
-
-func toComparableAPI(a API) comparableAPI {
-	return comparableAPI{
-		SendGlobsAsIs:       a.SendGlobsAsIs,
-		AlwaysSendGlobsAsIs: a.AlwaysSendGlobsAsIs,
-		MaxBatchSize:        a.MaxBatchSize,
-		TimezoneString:      a.TimezoneString,
-		PidFile:             a.PidFile,
-		IgnoreClientTimeout: a.IgnoreClientTimeout,
-	}
-}
-
-func eqCacheConfig(a, b CacheConfig) bool {
-	return a.Type == b.Type &&
-		a.Size == b.Size &&
-		eqStringSlice(a.MemcachedServers, b.MemcachedServers) &&
-		a.DefaultTimeoutSec == b.DefaultTimeoutSec
-}
-
 func eqStringSlice(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -258,21 +222,6 @@ func eqStringSlice(a, b []string) bool {
 
 	for i := range a {
 		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
-func eqMapStringString(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for k, va := range a {
-		vb, ok := b[k]
-		if !ok || va != vb {
 			return false
 		}
 	}
