@@ -31,25 +31,25 @@ type HAlign int
 
 const (
 	HAlignLeft   HAlign = 1
-	HAlignCenter        = 2
-	HAlignRight         = 4
+	HAlignCenter HAlign = 2
+	HAlignRight  HAlign = 4
 )
 
 type VAlign int
 
 const (
 	VAlignTop      VAlign = 8
-	VAlignCenter          = 16
-	VAlignBottom          = 32
-	VAlignBaseline        = 64
+	VAlignCenter   VAlign = 16
+	VAlignBottom   VAlign = 32
+	VAlignBaseline VAlign = 64
 )
 
 type YCoordSide int
 
 const (
 	YCoordSideLeft  YCoordSide = 1
-	YCoordSideRight            = 2
-	YCoordSideNone             = 3
+	YCoordSideRight YCoordSide = 2
+	YCoordSideNone  YCoordSide = 3
 )
 
 type TimeUnit int32
