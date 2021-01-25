@@ -215,7 +215,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 	select {
 	case res := <-ch:
 		trace.AddHTTPCall(t0)
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
+		trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 
 		var body []byte
 		var bodyErr error
@@ -242,7 +242,7 @@ func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (
 		return res.resp.Header.Get("Content-Type"), body, nil
 
 	case <-ctx.Done():
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
+		trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 		return "", nil, ctx.Err()
 	}
 }
