@@ -172,14 +172,14 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if form.useCache {
 		tc := time.Now()
-		response, err := app.queryCache.Get(form.cacheKey)
+		response, cacheErr := app.queryCache.Get(form.cacheKey)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 
 		toLog.CarbonzipperResponseSizeBytes = 0
 		toLog.CarbonapiResponseSizeBytes = int64(len(response))
 
-		if err == nil {
+		if cacheErr == nil {
 			apiMetrics.RequestCacheHits.Add(1)
 			writeResponse(ctx, w, response, form.format, form.jsonp)
 			toLog.FromCache = true
@@ -200,9 +200,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
 			kv.String("graphite.target", target),
 		))
-		exp, e, err := parser.ParseExpr(target)
-		if err != nil || e != "" {
-			msg := buildParseErrorString(target, e, err)
+		exp, e, parseErr := parser.ParseExpr(target)
+		if parseErr != nil || e != "" {
+			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
 			logAsError = true
 			return

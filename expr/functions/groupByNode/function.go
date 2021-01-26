@@ -40,7 +40,8 @@ func (f *groupByNode) Do(ctx context.Context, e parser.Expr, from, until int32, 
 	var fields []int
 
 	if e.Target() == "groupByNode" {
-		field, err := e.GetIntArg(1)
+		var field int
+		field, err = e.GetIntArg(1)
 		if err != nil {
 			return nil, err
 		}

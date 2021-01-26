@@ -163,7 +163,7 @@ func TestCallLimiterTimeout(t *testing.T) {
 		return
 	}
 
-	if err := b.enter(context.Background()); err != nil {
+	if b.enter(context.Background()) != nil {
 		t.Error("Expected to enter limiter")
 	}
 

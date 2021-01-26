@@ -263,11 +263,11 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL) (strin
 	}
 
 	defer func() {
-		if err := b.leave(); err != nil {
+		if limiterErr := b.leave(); limiterErr != nil {
 			b.logger.Error("Backend limiter full",
 				zap.String("host", b.address),
 				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(err),
+				zap.Error(limiterErr),
 			)
 		}
 	}()
