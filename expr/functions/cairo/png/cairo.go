@@ -1286,7 +1286,7 @@ func consolidateDataPoints(params *Params, results []*types.MetricData) []*types
 
 	ret := make([]*types.MetricData, len(results))
 	for i, series := range results {
-		numberOfDataPoints := math.Floor(float64(params.timeRange / series.StepTime))
+		numberOfDataPoints := float64(params.timeRange / series.StepTime)
 		// minXStep := params.minXStep
 		minXStep := 1.0
 		divisor := float64(params.timeRange) / float64(series.StepTime)

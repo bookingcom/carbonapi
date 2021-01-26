@@ -160,7 +160,7 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 
 	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
 	cacheErrs := ""
-	for i := 0; i < len(m.instances); i++ {
+	for range m.instances {
 		select {
 		case res := <-resCh:
 			if res.err != nil {

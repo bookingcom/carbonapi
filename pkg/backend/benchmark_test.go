@@ -116,18 +116,25 @@ func BenchmarkRendersStorm(b *testing.B) {
 
 	ctx := context.Background()
 	wg := sync.WaitGroup{}
+	n := 50
+	errs := make(chan []error, n)
+
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < 50; j++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				_, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0))
-				if err != nil {
-					b.Fatal(err)
-				}
+				errs <- err
 			}()
 		}
 
 		wg.Wait()
+		for j := 0; j < n; j++ {
+			err := <-errs
+			if len(err) != 0 {
+				b.Fatal(err)
+			}
+		}
 	}
 }
