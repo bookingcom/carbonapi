@@ -107,8 +107,8 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 		r := types.MetricData{
 			Metric: dataTypes.Metric{
 				Name:      name,
-				Values:    make([]float64, buckets, buckets),
-				IsAbsent:  make([]bool, buckets, buckets),
+				Values:    make([]float64, buckets),
+				IsAbsent:  make([]bool, buckets),
 				StepTime:  bucketSize,
 				StartTime: start,
 				StopTime:  stop,

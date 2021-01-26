@@ -2577,7 +2577,6 @@ func drawLegend(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 		}
 		cnt++
 	}
-	return
 }
 
 func drawTitle(cr *cairoSurfaceContext, params *Params) {
