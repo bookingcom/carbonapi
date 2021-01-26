@@ -175,15 +175,24 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
@@ -376,7 +385,19 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("memory_usage_bytes", memoryUsage),
@@ -384,9 +405,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 		zap.Int64s("trace", request.Trace.Report()),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
@@ -506,15 +524,24 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 }
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {

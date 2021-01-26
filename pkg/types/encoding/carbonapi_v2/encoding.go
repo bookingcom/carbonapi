@@ -111,7 +111,10 @@ func IsInfoResponse(blob []byte) (bool, error) {
 				return false, err
 			}
 
-			r.Seek(int64(i), io.SeekCurrent)
+			_, err = r.Seek(int64(i), io.SeekCurrent)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 

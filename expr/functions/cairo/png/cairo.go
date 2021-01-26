@@ -873,29 +873,29 @@ func EvalExprGraph(ctx context.Context, e parser.Expr, from, until int32, values
 	return nil, fmt.Errorf("%w: %s", helper.ErrUnknownFunction, e.Target())
 }
 
-func MarshalSVG(params PictureParams, results []*types.MetricData) []byte {
+func MarshalSVG(params PictureParams, results []*types.MetricData) ([]byte, error) {
 	return marshalCairo(params, results, cairoSVG, "")
 }
 
-func MarshalPNG(params PictureParams, results []*types.MetricData) []byte {
+func MarshalPNG(params PictureParams, results []*types.MetricData) ([]byte, error) {
 	return marshalCairo(params, results, cairoPNG, "")
 }
 
-func MarshalSVGRequest(r *http.Request, results []*types.MetricData, templateName string) []byte {
+func MarshalSVGRequest(r *http.Request, results []*types.MetricData, templateName string) ([]byte, error) {
 	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoSVG, "")
 }
 
-func MarshalPNGRequest(r *http.Request, results []*types.MetricData, templateName string) []byte {
+func MarshalPNGRequest(r *http.Request, results []*types.MetricData, templateName string) ([]byte, error) {
 	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, results), results, cairoPNG, "")
 }
 
-func MarshalPNGRequestErr(r *http.Request, errStr string, templateName string) []byte {
+func MarshalPNGRequestErr(r *http.Request, errStr string, templateName string) ([]byte, error) {
 	return marshalCairo(GetPictureParamsWithTemplate(r, templateName, make([]*types.MetricData, 0)),
 		make([]*types.MetricData, 0), cairoPNG, errStr)
 }
 
 func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBackend,
-	emptyText string) []byte {
+	emptyText string) ([]byte, error) {
 	var params = Params{
 		pixelRatio:     p.PixelRatio,
 		width:          p.Width,
@@ -981,7 +981,7 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 		var err error
 		tmpfile, err = ioutil.TempFile("/dev/shm", "cairosvg")
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		defer os.Remove(tmpfile.Name())
 		s := svgSurfaceCreate(tmpfile.Name(), params.width, params.height, params.pixelRatio)
@@ -1010,7 +1010,10 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 	switch backend {
 	case cairoPNG:
 		var buf bytes.Buffer
-		surface.WriteToPNG(&buf)
+		err := surface.WriteToPNG(&buf)
+		if err != nil {
+			return nil, err
+		}
 		surface.Finish()
 		b = buf.Bytes()
 	case cairoSVG:
@@ -1024,7 +1027,7 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 		b = bytes.Replace(b, []byte(`pt"`), []byte(`px"`), 2)
 	}
 
-	return b
+	return b, nil
 }
 
 func drawGraph(cr *cairoSurfaceContext, params *Params,

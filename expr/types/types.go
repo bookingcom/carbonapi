@@ -190,7 +190,7 @@ func MarshalJSON(results []*MetricData) []byte {
 }
 
 // MarshalPickle marshals metric data to pickle format
-func MarshalPickle(results []*MetricData) []byte {
+func MarshalPickle(results []*MetricData) ([]byte, error) {
 
 	var p []map[string]interface{}
 
@@ -216,9 +216,9 @@ func MarshalPickle(results []*MetricData) []byte {
 	var buf bytes.Buffer
 
 	penc := pickle.NewEncoder(&buf)
-	penc.Encode(p)
+	err := penc.Encode(p)
 
-	return buf.Bytes()
+	return buf.Bytes(), err
 }
 
 // MarshalProtobuf marshals metric data to protobuf

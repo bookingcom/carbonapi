@@ -33,11 +33,11 @@ linters-settings:
     # [deprecated] comma-separated list of pairs of the form pkg:regex
     # the regex is used to ignore names within pkg. (default "fmt:.*").
     # see https://github.com/kisielk/errcheck#the-deprecated-method for details
-    ignore: fmt:.*,io/ioutil:^Read.*
+    ignore: fmt:.*,io/ioutil:^Read.*,github.com/bradfitz/gomemcache/memcache:^Set,github.com/bookingcom/carbonapi/pkg/prioritylimiter:Leave,github.com/bookingcom/carbonapi/cache:Set
 
     # path to a file containing a list of functions to exclude from checking
     # see https://github.com/kisielk/errcheck#excluding-functions for details
-    # exclude: /path/to/file.txt
+    #exclude:
   govet:
     # report about shadowed variables
     check-shadowing: true
@@ -137,10 +137,10 @@ linters-settings:
       captLocal: # must be valid enabled check name
         paramsOnly: true
       rangeValCopy:
-        sizeThreshold: 32  
+        sizeThreshold: 32
   exhaustive:
     default-signifies-exhaustive: true
-    
+
 linters:
   enable:
     - megacheck
