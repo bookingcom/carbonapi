@@ -523,7 +523,7 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	res.cacheTimeout = app.config.Cache.DefaultTimeoutSec
 
 	if tstr := r.FormValue("cacheTimeout"); tstr != "" {
-		t, err := strconv.Atoi(tstr)
+		t, err := strconv.ParseInt(tstr, 10, 64)
 		if err != nil {
 			logger.Error("failed to parse cacheTimeout",
 				zap.String("cache_string", tstr),

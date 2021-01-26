@@ -242,7 +242,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		kv.String("graphite.target", target),
 		kv.String("graphite.format", format),
 	)
-	from, err := strconv.Atoi(req.FormValue("from"))
+	from, err := strconv.ParseInt(req.FormValue("from"), 10, 64)
 	if err != nil {
 		http.Error(w, "from is not a integer", http.StatusBadRequest)
 		accessLogger.Error("request failed",
@@ -259,7 +259,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	until, err := strconv.Atoi(req.FormValue("until"))
+	until, err := strconv.ParseInt(req.FormValue("until"), 10, 64)
 	if err != nil {
 		http.Error(w, "until is not a integer", http.StatusBadRequest)
 		accessLogger.Error("request failed",
@@ -277,8 +277,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	span.SetAttributes(
-		kv.Int("graphite.from", from),
-		kv.Int("graphite.until", until),
+		kv.Int64("graphite.from", from),
+		kv.Int64("graphite.until", until),
 	)
 
 	if target == "" {

@@ -47,7 +47,7 @@ func (f *randomWalk) Do(ctx context.Context, e parser.Expr, from, until int32, v
 	}}
 
 	for i := 1; i < len(r.Values)-1; i++ {
-		r.Values[i+1] = r.Values[i] + (rand.Float64() - 0.5)
+		r.Values[i+1] = r.Values[i] + (rand.Float64() - 0.5) // #nosec
 	}
 	return []*types.MetricData{&r}, nil
 }

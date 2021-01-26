@@ -14,7 +14,7 @@ import (
 	"encoding/csv"
 
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // #nosec
 
 	"github.com/pkg/errors"
 )
