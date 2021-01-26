@@ -197,54 +197,35 @@ func (b Backend) request(ctx context.Context, u *url.URL) (*http.Request, error)
 	return req, nil
 }
 
-type requestRes struct {
-	resp *http.Response
-	err  error
-}
+func (b Backend) do(trace types.Trace, req *http.Request) (string, []byte, error) {
 
-func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
-
-	ch := make(chan requestRes, 1)
 	t0 := time.Now()
+	resp, err := b.client.Do(req)
+	trace.AddHTTPCall(t0)
+	trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 
-	go func() {
-		resp, err := b.client.Do(req)
-		ch <- requestRes{resp: resp, err: err}
-	}()
+	if err != nil {
+		return "", nil, err
+	}
 
-	select {
-	case res := <-ch:
-		trace.AddHTTPCall(t0)
-		trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
-
-		var body []byte
-		var bodyErr error
-		if res.resp != nil && res.resp.Body != nil {
-			t1 := time.Now()
-			body, bodyErr = ioutil.ReadAll(res.resp.Body)
-			res.resp.Body.Close()
-			trace.AddReadBody(t1)
-		}
-
-		// TODO (grzkv): we should not try to interpret the body if there is an error
-		if res.err != nil {
-			return "", nil, res.err
-		}
-
+	var body []byte
+	var bodyErr error
+	if resp.Body != nil {
+		defer resp.Body.Close()
+		t1 := time.Now()
+		body, bodyErr = ioutil.ReadAll(resp.Body)
 		if bodyErr != nil {
 			return "", nil, bodyErr
 		}
-
-		if res.resp.StatusCode != http.StatusOK {
-			return "", body, ErrHTTPCode(res.resp.StatusCode)
-		}
-
-		return res.resp.Header.Get("Content-Type"), body, nil
-
-	case <-ctx.Done():
-		trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
-		return "", nil, ctx.Err()
+		trace.AddReadBody(t1)
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", body, ErrHTTPCode(resp.StatusCode)
+	}
+
+	return resp.Header.Get("Content-Type"), body, nil
+
 }
 
 // Call makes a call to a backend.
@@ -280,7 +261,7 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL) (strin
 		return "", nil, err
 	}
 
-	return b.do(ctx, trace, req)
+	return b.do(trace, req)
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead

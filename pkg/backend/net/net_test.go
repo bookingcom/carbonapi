@@ -222,7 +222,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, got, err := b.do(context.Background(), types.NewTrace(), req)
+	_, got, err := b.do(types.NewTrace(), req)
 	if err != nil {
 		t.Error(err)
 	}
@@ -257,7 +257,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(ctx, types.NewTrace(), req)
+	_, _, err = b.do(types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -283,7 +283,7 @@ func TestDoHTTPError(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(context.Background(), types.NewTrace(), req)
+	_, _, err = b.do(types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
