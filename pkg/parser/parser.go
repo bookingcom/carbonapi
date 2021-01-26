@@ -570,7 +570,7 @@ func parseName(s string) (string, string) {
 	)
 
 FOR:
-	for braces, i, w = 0, 0, 0; i < len(s); i += w {
+	for braces, i = 0, 0; i < len(s); i += w {
 
 		w = 1
 		if IsNameChar(s[i]) {

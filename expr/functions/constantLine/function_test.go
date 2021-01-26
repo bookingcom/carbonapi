@@ -41,6 +41,9 @@ func TestConstantLine(t *testing.T) {
 		evaluator := metadata.GetEvaluator()
 		originalMetrics := th.DeepClone(tt.M)
 		exp, _, err := parser.ParseExpr(tt.Target)
+		if err != nil {
+			t.Error(err)
+		}
 		ctx := context.Background()
 		g, err := evaluator.EvalExpr(ctx, exp, 1, now32, tt.M, th.NoopGetTargetData)
 

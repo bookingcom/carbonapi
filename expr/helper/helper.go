@@ -220,7 +220,7 @@ func ExtractMetric(s string) string {
 	)
 
 FOR:
-	for braces, i, w = 0, 0, 0; i < len(s); i += w {
+	for braces, i = 0, 0; i < len(s); i += w {
 
 		w = 1
 		if parser.IsNameChar(s[i]) {
