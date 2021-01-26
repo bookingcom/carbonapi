@@ -936,6 +936,9 @@ func TestInfoSingleBackend(t *testing.T) {
 func TestLbCheckNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	if err != nil {
+		t.Fatalf("error creating the app %v", err)
+	}
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/lb_check", nil)
 	if err != nil {

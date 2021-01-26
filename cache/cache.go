@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -159,12 +160,12 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	}
 
 	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
-	cacheErrs := ""
+	var cacheErrs strings.Builder
 	for range m.instances {
 		select {
 		case res := <-resCh:
 			if res.err != nil {
-				cacheErrs = cacheErrs + "; " + res.err.Error()
+				cacheErrs.WriteString("; " + res.err.Error())
 			} else if !res.found {
 				return nil, ErrNotFound
 			}
@@ -176,7 +177,7 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	}
 
 	// if this point is reached, it means that all caches returned errors
-	return nil, errors.New("all caches failed with errors: " + cacheErrs)
+	return nil, errors.New("all caches failed with errors: " + cacheErrs.String())
 }
 
 // Set sets the key-value pair for all cache instances.

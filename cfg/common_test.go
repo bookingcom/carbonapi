@@ -332,6 +332,9 @@ monitoring:
 	}
 
 	_, cluster, err := expected.InfoOfBackend("http://10.190.202.32:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
 	expectedCluster := "cluster2"
 	if cluster != expectedCluster {
 		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
@@ -543,6 +546,9 @@ monitoring:
 	}
 
 	dc, cluster, err := expected.InfoOfBackend("http://10.290.202.32:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
 	expectedCluster := "cluster2"
 	expectedDC := "dc2"
 	if cluster != expectedCluster {
