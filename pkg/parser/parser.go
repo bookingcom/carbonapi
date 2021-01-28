@@ -52,6 +52,8 @@ func (e *expr) ToString() string {
 		s = strings.Replace(s, `\`, `\\`, -1)
 		s = strings.Replace(s, `'`, `\'`, -1)
 		return "'" + s + "'"
+	case EtName:
+		return fmt.Sprint(e.target)
 	}
 
 	return e.target
@@ -180,6 +182,8 @@ func (e *expr) Metrics() []MetricRequest {
 				for i := range r {
 					r[i].From -= offs
 				}
+			default:
+				return nil
 			}
 		}
 		return r
@@ -344,19 +348,19 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	}
 
 	if '0' <= e[0] && e[0] <= '9' || e[0] == '-' || e[0] == '+' {
-		val, e, err := parseConst(e)
-		r, _ := utf8.DecodeRuneInString(e)
+		val, tail, err := parseConst(e)
+		r, _ := utf8.DecodeRuneInString(tail)
 		if !unicode.IsLetter(r) {
-			return &expr{val: val, etype: EtConst}, e, err
+			return &expr{val: val, etype: EtConst}, tail, err
 		}
 	}
 
 	if e[0] == '\'' || e[0] == '"' {
-		val, e, err := parseString(e)
-		return &expr{valStr: val, etype: EtString}, e, err
+		val, tail, err := parseString(e)
+		return &expr{valStr: val, etype: EtString}, tail, err
 	}
-
-	name, e := parseName(e)
+	var name string
+	name, e = parseName(e)
 
 	if strings.ToLower(name) == "false" || strings.ToLower(name) == "true" {
 		return &expr{valStr: name, etype: EtString, target: name}, e, nil
@@ -366,12 +370,10 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	}
 
 	if e != "" && e[0] == '(' {
-		exp := &expr{target: name, etype: EtFunc}
+		var err error
 
-		argString, posArgs, namedArgs, e, err := parseArgList(e)
-		exp.argString = argString
-		exp.args = posArgs
-		exp.namedArgs = namedArgs
+		exp := &expr{target: name, etype: EtFunc}
+		exp.argString, exp.args, exp.namedArgs, e, err = parseArgList(e)
 
 		return exp, e, err
 	}
@@ -568,7 +570,7 @@ func parseName(s string) (string, string) {
 	)
 
 FOR:
-	for braces, i, w = 0, 0, 0; i < len(s); i += w {
+	for braces, i = 0, 0; i < len(s); i += w {
 
 		w = 1
 		if IsNameChar(s[i]) {

@@ -89,7 +89,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
 	bs = backend.Filter(bs, []string{originalQuery})
 	metrics, errs := backend.Finds(ctx, bs, request)
-	err := errorsFanIn(ctx, errs, len(bs))
+	err := errorsFanIn(errs, len(bs))
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
@@ -175,15 +175,24 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 }
 
 func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
@@ -242,7 +251,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		kv.String("graphite.target", target),
 		kv.String("graphite.format", format),
 	)
-	from, err := strconv.Atoi(req.FormValue("from"))
+	from, err := strconv.ParseInt(req.FormValue("from"), 10, 64)
 	if err != nil {
 		http.Error(w, "from is not a integer", http.StatusBadRequest)
 		accessLogger.Error("request failed",
@@ -259,7 +268,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	until, err := strconv.Atoi(req.FormValue("until"))
+	until, err := strconv.ParseInt(req.FormValue("until"), 10, 64)
 	if err != nil {
 		http.Error(w, "until is not a integer", http.StatusBadRequest)
 		accessLogger.Error("request failed",
@@ -277,8 +286,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	span.SetAttributes(
-		kv.Int("graphite.from", from),
-		kv.Int("graphite.until", until),
+		kv.Int64("graphite.from", from),
+		kv.Int64("graphite.until", until),
 	)
 
 	if target == "" {
@@ -301,7 +310,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
 	metrics, errs := backend.Renders(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs))
+	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -376,7 +385,19 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("memory_usage_bytes", memoryUsage),
@@ -384,9 +405,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.Duration("runtime_seconds", time.Since(t0)),
 		zap.Int64s("trace", request.Trace.Report()),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
@@ -454,7 +472,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain([]string{target})
 	bs = backend.Filter(bs, []string{target})
 	infos, errs := backend.Infos(ctx, bs, request)
-	err = errorsFanIn(ctx, errs, len(bs))
+	err = errorsFanIn(errs, len(bs))
 	if err != nil {
 
 		var notFound types.ErrNotFound
@@ -506,15 +524,24 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(blob)
+	_, writeErr := w.Write(blob)
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
+
+	if writeErr != nil {
+		accessLogger.Error("error writing the response",
+			zap.Int("http_code", 499),
+			zap.Duration("runtime_seconds", time.Since(t0)),
+			zap.Error(writeErr),
+		)
+		return
+	}
 
 	accessLogger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
-
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 }
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -593,7 +620,7 @@ func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []
 	return bs
 }
 
-func errorsFanIn(ctx context.Context, errs []error, nBackends int) error {
+func errorsFanIn(errs []error, nBackends int) error {
 	nErrs := len(errs)
 	var counts = make(map[string]int)
 	switch {

@@ -101,7 +101,10 @@ func (rl *RequestBlocker) AddNewRules(queryParams url.Values) bool {
 	} else {
 		fileData, err := rl.config.load()
 		if err == nil {
-			yaml.Unmarshal(fileData, &rc)
+			unmarshalErr := yaml.Unmarshal(fileData, &rc)
+			if unmarshalErr != nil {
+				return false
+			}
 		}
 		err1 = rl.appendRuleToConfig(rc, m)
 	}

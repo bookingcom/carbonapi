@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,7 +73,7 @@ type MemcachedCache struct {
 }
 
 func (m *MemcachedCache) Get(k string) ([]byte, error) {
-	key := sha1.Sum([]byte(k))
+	key := sha256.Sum256([]byte(k))
 	hk := hex.EncodeToString(key[:])
 	done := make(chan bool, 1)
 
@@ -109,7 +110,7 @@ func (m *MemcachedCache) Get(k string) ([]byte, error) {
 }
 
 func (m *MemcachedCache) Set(k string, v []byte, expire int32) {
-	key := sha1.Sum([]byte(k))
+	key := sha256.Sum256([]byte(k))
 	hk := hex.EncodeToString(key[:])
 	go m.client.Set(&memcache.Item{Key: m.prefix + hk, Value: v, Expiration: expire})
 }
@@ -159,12 +160,12 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	}
 
 	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
-	cacheErrs := ""
-	for i := 0; i < len(m.instances); i++ {
+	var cacheErrs strings.Builder
+	for range m.instances {
 		select {
 		case res := <-resCh:
 			if res.err != nil {
-				cacheErrs = cacheErrs + "; " + res.err.Error()
+				cacheErrs.WriteString("; " + res.err.Error())
 			} else if !res.found {
 				return nil, ErrNotFound
 			}
@@ -176,12 +177,12 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	}
 
 	// if this point is reached, it means that all caches returned errors
-	return nil, errors.New("all caches failed with errors: " + cacheErrs)
+	return nil, errors.New("all caches failed with errors: " + cacheErrs.String())
 }
 
 // Set sets the key-value pair for all cache instances.
 func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
-	key := sha1.Sum([]byte(k))
+	key := sha256.Sum256([]byte(k))
 	hk := hex.EncodeToString(key[:])
 
 	var wg sync.WaitGroup
@@ -191,7 +192,7 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
 			m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
-				Expiration: expire,
+				Expiration: expire_,
 			})
 			wg.Done()
 		}(hk, val, expire, m)
@@ -207,7 +208,7 @@ type cacheResponse struct {
 }
 
 func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) {
-	key := sha1.Sum([]byte(k))
+	key := sha256.Sum256([]byte(k))
 	hk := hex.EncodeToString(key[:])
 
 	item, err := m.Get(prefix + hk)

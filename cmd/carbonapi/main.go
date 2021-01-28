@@ -7,16 +7,12 @@ import (
 	"log"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/bookingcom/carbonapi/app/carbonapi"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
-
-// for testing
-var timeNow = time.Now
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion = "(development build)"

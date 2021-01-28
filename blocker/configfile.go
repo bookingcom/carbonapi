@@ -43,6 +43,6 @@ func (cf *configFile) load() ([]byte, error) {
 func (cf *configFile) write(output []byte) error {
 	cf.fileLock.Lock()
 	defer cf.fileLock.Unlock()
-	err := ioutil.WriteFile(cf.blockRuleConfigName, output, 0644)
+	err := ioutil.WriteFile(cf.blockRuleConfigName, output, 0600)
 	return err
 }

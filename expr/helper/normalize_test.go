@@ -69,7 +69,7 @@ func TestNormalize(t *testing.T) {
 		if len(got) != len(test.want) {
 			t.Errorf("Normalize() mismatch for number of metrics. Want: %d. Got: %d", len(test.want), len(got))
 		}
-		for idx, _ := range test.want {
+		for idx := range test.want {
 			if diff := cmp.Diff(test.want[idx].Values, got[idx].Values); diff != "" {
 				t.Errorf("Normalize() mismatch for %s Values (-want +got):\n%s", test.name, diff)
 			}

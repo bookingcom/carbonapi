@@ -936,6 +936,9 @@ func TestInfoSingleBackend(t *testing.T) {
 func TestLbCheckNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	if err != nil {
+		t.Fatalf("error creating the app %v", err)
+	}
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/lb_check", nil)
 	if err != nil {
@@ -973,14 +976,14 @@ func info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) 
 
 func getMockInfoResponse() []types.Info {
 	return []types.Info{
-		types.Info{
+		{
 			Host:              "http://127.0.0.1:8080",
 			Name:              "foo.bar",
 			AggregationMethod: "Average",
 			MaxRetention:      157680000,
 			XFilesFactor:      0.5,
 			Retentions: []types.Retention{
-				types.Retention{
+				{
 					SecondsPerPoint: 60,
 					NumberOfPoints:  43200,
 				},
@@ -991,7 +994,7 @@ func getMockInfoResponse() []types.Info {
 
 func render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	return []types.Metric{
-		types.Metric{
+		{
 			Name:      "foo.bar",
 			StartTime: 1510913280,
 			StopTime:  1510913880,
@@ -1034,7 +1037,7 @@ func getMetricGlobResponse(metric string) types.Matches {
 			Name: "foo.b",
 			Matches: []types.Match{
 				match,
-				types.Match{
+				{
 					Path:   "foo.bat",
 					IsLeaf: true,
 				},

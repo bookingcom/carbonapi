@@ -103,7 +103,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
+	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +128,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"))
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -147,7 +147,7 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), nil)
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"))
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -163,14 +163,14 @@ func TestCallLimiterTimeout(t *testing.T) {
 		return
 	}
 
-	if err := b.enter(context.Background()); err != nil {
+	if b.enter(context.Background()) != nil {
 		t.Error("Expected to enter limiter")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"))
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -193,7 +193,7 @@ func TestCallTimeoutLeavesLimiter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), nil)
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"))
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -217,12 +217,12 @@ func TestDo(t *testing.T) {
 		return
 	}
 
-	req, err := b.request(context.Background(), b.url("/render"), nil)
+	req, err := b.request(context.Background(), b.url("/render"))
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, got, err := b.do(context.Background(), types.NewTrace(), req)
+	_, got, err := b.do(types.NewTrace(), req)
 	if err != nil {
 		t.Error(err)
 	}
@@ -252,12 +252,12 @@ func TestDoHTTPTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 
-	req, err := b.request(ctx, b.url("/render"), nil)
+	req, err := b.request(ctx, b.url("/render"))
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(ctx, types.NewTrace(), req)
+	_, _, err = b.do(types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -278,12 +278,12 @@ func TestDoHTTPError(t *testing.T) {
 		return
 	}
 
-	req, err := b.request(context.Background(), b.url("/render"), nil)
+	req, err := b.request(context.Background(), b.url("/render"))
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(context.Background(), types.NewTrace(), req)
+	_, _, err = b.do(types.NewTrace(), req)
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -296,7 +296,7 @@ func TestRequest(t *testing.T) {
 		return
 	}
 
-	_, err = b.request(context.Background(), b.url("/render"), nil)
+	_, err = b.request(context.Background(), b.url("/render"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -401,7 +401,7 @@ func TestURL(t *testing.T) {
 	}
 
 	setups := []setup{
-		setup{
+		{
 			endpoint: "/render",
 			expected: &url.URL{
 				Scheme: "http",
@@ -412,6 +412,7 @@ func TestURL(t *testing.T) {
 	}
 
 	for i, s := range setups {
+		s := s
 		t.Run(fmt.Sprintf("%d: %s", i, s.endpoint), func(t *testing.T) {
 			got := b.url(s.endpoint)
 
@@ -431,10 +432,7 @@ func TestCarbonapiv2RenderEncoder(t *testing.T) {
 	var until int32 = 200
 	metrics := []string{"foo", "bar"}
 
-	gotURL, gotReader := carbonapiV2RenderEncoder(u, from, until, metrics)
-	if gotReader != nil {
-		t.Error("Expected nil reader")
-	}
+	gotURL := carbonapiV2RenderEncoder(u, from, until, metrics)
 
 	vals := gotURL.Query()
 
@@ -455,10 +453,7 @@ func TestCarbonapiv2RenderEncoder(t *testing.T) {
 func TestCarbonapiv2InfoEncoder(t *testing.T) {
 	u := &url.URL{}
 
-	gotURL, gotReader := carbonapiV2InfoEncoder(u, "foo")
-	if gotReader != nil {
-		t.Error("Expected nil reader")
-	}
+	gotURL := carbonapiV2InfoEncoder(u, "foo")
 
 	vals := gotURL.Query()
 
@@ -471,10 +466,7 @@ func TestCarbonapiv2InfoEncoder(t *testing.T) {
 func TestCarbonapiv2FindEncoder(t *testing.T) {
 	u := &url.URL{}
 
-	gotURL, gotReader := carbonapiV2FindEncoder(u, "foo")
-	if gotReader != nil {
-		t.Error("Expected nil reader")
-	}
+	gotURL := carbonapiV2FindEncoder(u, "foo")
 
 	vals := gotURL.Query()
 

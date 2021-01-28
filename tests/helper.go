@@ -298,6 +298,9 @@ func TestEvalExpr(t *testing.T, tt *EvalTestItem) {
 	originalMetrics := DeepClone(tt.M)
 	testName := tt.Target
 	exp, _, err := parser.ParseExpr(tt.Target)
+	if err != nil {
+		t.Error(err)
+	}
 	ctx := context.Background()
 	g, err := evaluator.EvalExpr(ctx, exp, 0, 1, tt.M, NoopGetTargetData)
 

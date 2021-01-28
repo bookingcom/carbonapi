@@ -37,12 +37,6 @@ vet:
 	go vet -composites=false ./...
 
 lint:
-# Show only issues introduced since switching from gometalinter to
-# golangci-lint.  The commit b5dd153 was the merge-base on master at the time.
-# This is not in .golangci.yml in order to show all the gore when run directly.
-	golangci-lint run --new-from-rev 9ce419bc428b76f1505230e501546e2245374c94
-
-lint-all:
 	golangci-lint run
 
 check: test vet

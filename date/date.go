@@ -73,7 +73,7 @@ func DateParamToEpoch(s string, qtz string, d int64, defaultTimeZone *time.Locat
 		return int32(dt.Unix())
 	}
 
-	sint, err := strconv.Atoi(s)
+	sint, err := strconv.ParseInt(s, 10, 64)
 	// need to check that len(s) > 8 to avoid turning 20060102 into seconds
 	if err == nil && len(s) > 8 {
 		return int32(sint) // We got a timestamp so returning it
@@ -95,7 +95,7 @@ func DateParamToEpoch(s string, qtz string, d int64, defaultTimeZone *time.Locat
 
 	var tz = defaultTimeZone
 	if qtz != "" {
-		if z, err := time.LoadLocation(qtz); err != nil {
+		if z, loadErr := time.LoadLocation(qtz); loadErr != nil {
 			tz = z
 		}
 	}

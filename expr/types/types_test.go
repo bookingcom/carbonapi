@@ -11,7 +11,7 @@ import (
 
 func TestMarshalCSVInUTC(t *testing.T) {
 	results := []*MetricData{
-		&MetricData{
+		{
 			Metric: types.Metric{
 				Name:      "foo",
 				StartTime: 0,
@@ -35,7 +35,7 @@ func TestMarshalCSVInUTC(t *testing.T) {
 
 func TestMarshalCSVNotInUTC(t *testing.T) {
 	results := []*MetricData{
-		&MetricData{
+		{
 			Metric: types.Metric{
 				Name:      "foo",
 				StartTime: 0,

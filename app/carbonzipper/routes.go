@@ -26,7 +26,7 @@ func initHandlers(app *App) http.Handler {
 	return r
 }
 
-func initMetricHandlers(app *App) http.Handler {
+func initMetricHandlers() http.Handler {
 	r := mux.NewRouter()
 
 	r.Handle("/metrics", promhttp.Handler())

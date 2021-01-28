@@ -39,7 +39,7 @@ func (f *fallbackSeries) Do(ctx context.Context, e parser.Expr, from, until int3
 		return nil, errFallback
 	}
 
-	if seriesList != nil && len(seriesList) > 0 {
+	if len(seriesList) > 0 {
 		return seriesList, nil
 	}
 	return fallback, nil

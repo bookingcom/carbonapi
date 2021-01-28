@@ -48,6 +48,7 @@ func TestEWMA(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		testName := tt.Target
 		t.Run(testName, func(t *testing.T) {
 			th.TestEvalExpr(t, &tt)

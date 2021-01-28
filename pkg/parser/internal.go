@@ -60,16 +60,13 @@ func (e *expr) toExpr() interface{} {
 
 func mergeNamedArgs(arg1, arg2 map[string]*expr) map[string]*expr {
 	res := make(map[string]*expr)
-	if arg1 != nil {
-		for k, v := range arg1 {
-			res[k] = v
-		}
+	for k, v := range arg1 {
+		res[k] = v
 	}
-	if arg2 != nil {
-		for k, v := range arg2 {
-			res[k] = v
-		}
+	for k, v := range arg2 {
+		res[k] = v
 	}
+
 	return res
 }
 
@@ -90,8 +87,6 @@ func sliceExpr(args []interface{}) ([]*expr, map[string]*expr) {
 			res = append(res, NewTargetExpr(v).toExpr().(*expr))
 		case Expr:
 			res = append(res, v.toExpr().(*expr))
-		case *expr:
-			res = append(res, v)
 		case NamedArgs:
 			nArgsNew := mapExpr(v)
 			nArgs = mergeNamedArgs(nArgs, nArgsNew)
@@ -122,8 +117,6 @@ func mapExpr(m NamedArgs) map[string]*expr {
 			res[k] = NewTargetExpr(v).toExpr().(*expr)
 		case Expr:
 			res[k] = v.toExpr().(*expr)
-		case *expr:
-			res[k] = v
 		default:
 			return nil
 		}

@@ -67,39 +67,63 @@ func (app *App) validateRequest(h http.Handler, handler string) http.HandlerFunc
 	})
 }
 
-func writeResponse(ctx context.Context, w http.ResponseWriter, b []byte, format string, jsonp string) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, b []byte, format string, jsonp string) error {
+	var err error
 	w.Header().Set("X-Carbonapi-UUID", util.GetUUID(ctx))
 	switch format {
 	case jsonFormat:
 		if jsonp != "" {
 			w.Header().Set("Content-Type", contentTypeJavaScript)
-			w.Write([]byte(jsonp))
-			w.Write([]byte{'('})
-			w.Write(b)
-			w.Write([]byte{')'})
+			if _, err = w.Write([]byte(jsonp)); err != nil {
+				return err
+			}
+			if _, err = w.Write([]byte{'('}); err != nil {
+				return err
+			}
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
+			if _, err = w.Write([]byte{')'}); err != nil {
+				return err
+			}
 		} else {
 			w.Header().Set("Content-Type", contentTypeJSON)
-			w.Write(b)
+			if _, err = w.Write(b); err != nil {
+				return err
+			}
 		}
 	case protobufFormat, protobuf3Format:
 		w.Header().Set("Content-Type", contentTypeProtobuf)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	case rawFormat:
 		w.Header().Set("Content-Type", contentTypeRaw)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	case pickleFormat:
 		w.Header().Set("Content-Type", contentTypePickle)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	case csvFormat:
 		w.Header().Set("Content-Type", contentTypeCSV)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	case pngFormat:
 		w.Header().Set("Content-Type", contentTypePNG)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	case svgFormat:
 		w.Header().Set("Content-Type", contentTypeSVG)
-		w.Write(b)
+		if _, err = w.Write(b); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 const (
@@ -172,16 +196,19 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 
 	if form.useCache {
 		tc := time.Now()
-		response, err := app.queryCache.Get(form.cacheKey)
+		response, cacheErr := app.queryCache.Get(form.cacheKey)
 		td := time.Since(tc).Nanoseconds()
 		apiMetrics.RenderCacheOverheadNS.Add(td)
 
 		toLog.CarbonzipperResponseSizeBytes = 0
 		toLog.CarbonapiResponseSizeBytes = int64(len(response))
 
-		if err == nil {
+		if cacheErr == nil {
 			apiMetrics.RequestCacheHits.Add(1)
-			writeResponse(ctx, w, response, form.format, form.jsonp)
+			writeErr := writeResponse(ctx, w, response, form.format, form.jsonp)
+			if writeErr != nil {
+				logAsError = true
+			}
 			toLog.FromCache = true
 			span.SetAttribute("from_cache", true)
 			toLog.HttpCode = http.StatusOK
@@ -200,9 +227,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
 			kv.String("graphite.target", target),
 		))
-		exp, e, err := parser.ParseExpr(target)
-		if err != nil || e != "" {
-			msg := buildParseErrorString(target, e, err)
+		exp, e, parseErr := parser.ParseExpr(target)
+		if parseErr != nil || e != "" {
+			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
 			logAsError = true
 			return
@@ -267,8 +294,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeResponse(ctx, w, body, form.format, form.jsonp)
-
+	writeErr := writeResponse(ctx, w, body, form.format, form.jsonp)
+	if writeErr != nil {
+		toLog.HttpCode = 499
+	}
 	if len(results) != 0 {
 		tc := time.Now()
 		// TODO (grzkv): Timeout is passed as "expire" argument.
@@ -300,7 +329,14 @@ func writeError(uuid string,
 		w.Header().Set("X-Carbonapi-UUID", uuid)
 		w.Header().Set("Content-Type", contentTypePNG)
 		w.WriteHeader(code)
-		w.Write(png.MarshalPNGRequestErr(r, shortErrStr, "default"))
+		body, pngErr := png.MarshalPNGRequestErr(r, shortErrStr, "default")
+		if pngErr != nil {
+			// #pass
+		}
+		_, err := w.Write(body)
+		if err != nil {
+			accessLogDetails.Reason += " 499"
+		}
 	} else {
 		http.Error(w, http.StatusText(code)+" ("+strconv.Itoa(code)+") Details: "+s, code)
 	}
@@ -350,7 +386,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 
 		// This _sometimes_ sends a *find* request
-		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog, lg)
+		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog)
 		if err != nil {
 			metricErrs = append(metricErrs, err)
 			continue
@@ -523,7 +559,7 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	res.cacheTimeout = app.config.Cache.DefaultTimeoutSec
 
 	if tstr := r.FormValue("cacheTimeout"); tstr != "" {
-		t, err := strconv.Atoi(tstr)
+		t, err := strconv.ParseInt(tstr, 10, 64)
 		if err != nil {
 			logger.Error("failed to parse cacheTimeout",
 				zap.String("cache_string", tstr),
@@ -598,7 +634,8 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 	case csvFormat:
 		tz := app.defaultTimeZone
 		if form.qtz != "" {
-			z, err := time.LoadLocation(form.qtz)
+			var z *time.Location
+			z, err = time.LoadLocation(form.qtz)
 			if err != nil {
 				logger.Warn("Invalid time zone",
 					zap.String("tz", form.qtz),
@@ -609,11 +646,20 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 		}
 		body = types.MarshalCSV(results, tz)
 	case pickleFormat:
-		body = types.MarshalPickle(results)
+		body, err = types.MarshalPickle(results)
+		if err != nil {
+			return body, fmt.Errorf("error while marshalling pickle: %w", err)
+		}
 	case pngFormat:
-		body = png.MarshalPNGRequest(r, results, form.template)
+		body, err = png.MarshalPNGRequest(r, results, form.template)
+		if err != nil {
+			return body, fmt.Errorf("error while marshalling PNG: %w", err)
+		}
 	case svgFormat:
-		body = png.MarshalSVGRequest(r, results, form.template)
+		body, err = png.MarshalSVGRequest(r, results, form.template)
+		if err != nil {
+			return body, fmt.Errorf("error while marshalling SVG: %w", err)
+		}
 	}
 
 	return body, nil
@@ -647,7 +693,7 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (dataTypes.Matches, bool, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, bool, error) {
 	if useCache {
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
@@ -678,7 +724,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
-	toLog *carbonapipb.AccessLogDetails, logger *zap.Logger) ([]string, error) {
+	toLog *carbonapipb.AccessLogDetails) ([]string, error) {
 	if app.config.AlwaysSendGlobsAsIs {
 		return []string{m.Metric}, nil
 	}
@@ -686,7 +732,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, logger)
+	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -761,7 +807,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.SetAttribute("graphite.format", format)
-	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, logger)
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog)
 	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
@@ -817,7 +863,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 			blob, err = pickle.FindEncoderV1_0(metrics)
 		}
 	case rawFormat:
-		blob, err = findList(metrics)
+		blob = findList(metrics)
 		contentType = rawFormat
 	case completerFormat:
 		blob, err = findCompleter(metrics)
@@ -834,13 +880,28 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request) {
 
 	if contentType == jsonFormat && jsonp != "" {
 		w.Header().Set("Content-Type", contentTypeJavaScript)
-		w.Write([]byte(jsonp))
-		w.Write([]byte{'('})
-		w.Write(blob)
-		w.Write([]byte{')'})
+		if _, writeErr := w.Write([]byte(jsonp)); writeErr != nil {
+			toLog.HttpCode = 499
+			return
+		}
+		if _, writeErr := w.Write([]byte{'('}); writeErr != nil {
+			toLog.HttpCode = 499
+			return
+		}
+		if _, writeErr := w.Write(blob); writeErr != nil {
+			toLog.HttpCode = 499
+			return
+		}
+		if _, writeErr := w.Write([]byte{')'}); writeErr != nil {
+			toLog.HttpCode = 499
+			return
+		}
 	} else {
 		w.Header().Set("Content-Type", contentType)
-		w.Write(blob)
+		if _, writeErr := w.Write(blob); writeErr != nil {
+			toLog.HttpCode = 499
+			return
+		}
 	}
 
 	toLog.HttpCode = http.StatusOK
@@ -902,7 +963,7 @@ func findCompleter(globs dataTypes.Matches) ([]byte, error) {
 	return b.Bytes(), err
 }
 
-func findList(globs dataTypes.Matches) ([]byte, error) {
+func findList(globs dataTypes.Matches) []byte {
 	var b bytes.Buffer
 
 	for _, g := range globs.Matches {
@@ -916,7 +977,7 @@ func findList(globs dataTypes.Matches) ([]byte, error) {
 		fmt.Fprintln(&b, g.Path+dot)
 	}
 
-	return b.Bytes(), nil
+	return b.Bytes()
 }
 
 func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
@@ -992,9 +1053,13 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Write(b)
-
+	_, writeErr := w.Write(b)
 	toLog.Runtime = time.Since(t0).Seconds()
+	if writeErr != nil {
+		toLog.HttpCode = 499
+		return
+	}
+
 	toLog.HttpCode = http.StatusOK
 }
 
@@ -1008,11 +1073,14 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "lbcheck", "false").Inc()
 	}()
 
-	w.Write([]byte("Ok\n"))
+	_, writeErr := w.Write([]byte("Ok\n"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	toLog.Runtime = time.Since(t0).Seconds()
 	toLog.HttpCode = http.StatusOK
+	if writeErr != nil {
+		toLog.HttpCode = 499
+	}
 	// TODO (grzkv): Pass logger from above
 	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
 }
@@ -1029,17 +1097,25 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 	// Use a specific version of graphite for grafana
 	// This handler is queried by grafana, and if needed, an override can be provided
 	if app.config.GraphiteVersionForGrafana != "" {
-		w.Write([]byte(app.config.GraphiteVersionForGrafana))
+		_, err := w.Write([]byte(app.config.GraphiteVersionForGrafana))
+		if err != nil {
+			// #pass, do not log
+		}
 		return
 	}
+	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
+	toLog.HttpCode = http.StatusOK
 
 	if app.config.GraphiteWeb09Compatibility {
-		w.Write([]byte("0.9.15\n"))
+		if _, err := w.Write([]byte("0.9.15\n")); err != nil {
+			toLog.HttpCode = 499
+		}
 	} else {
-		w.Write([]byte("1.0.0\n"))
+		if _, err := w.Write([]byte("1.0.0\n")); err != nil {
+			toLog.HttpCode = 499
+		}
 	}
 
-	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
 	toLog.Runtime = time.Since(t0).Seconds()
 	// TODO (grzkv): Pass logger from above
 	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
@@ -1152,9 +1228,12 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(b)
+	_, err = w.Write(b)
 	toLog.Runtime = time.Since(t0).Seconds()
 	toLog.HttpCode = http.StatusOK
+	if err != nil {
+		toLog.HttpCode = 499
+	}
 }
 
 // Add block rules on the basis of headers to block certain requests
@@ -1180,12 +1259,17 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request) {
 	if !app.requestBlocker.AddNewRules(r.URL.Query()) {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
-		w.Write(failResponse)
+		if _, err := w.Write(failResponse); err != nil {
+			toLog.HttpCode = 499
+		}
 		return
 	}
-	w.Write([]byte(`{"success":"true"}`))
+	_, err := w.Write([]byte(`{"success":"true"}`))
 
 	toLog.HttpCode = http.StatusOK
+	if err != nil {
+		toLog.HttpCode = 499
+	}
 }
 
 // It deletes the block headers config file
@@ -1206,12 +1290,17 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
-		w.Write([]byte(`{"success":"false"}`))
+		if _, writeErr := w.Write([]byte(`{"success":"false"}`)); writeErr != nil {
+			toLog.HttpCode = 499
+		}
 		return
 	}
-	w.Write([]byte(`{"success":"true"}`))
-
+	_, err = w.Write([]byte(`{"success":"true"}`))
 	toLog.HttpCode = http.StatusOK
+	if err != nil {
+		toLog.HttpCode = 499
+	}
+
 }
 
 func logStepTimeMismatch(targetMetricFetches []parser.MetricRequest, metricMap map[parser.MetricRequest][]*types.MetricData, logger *zap.Logger, target string) {
@@ -1256,8 +1345,12 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request) {
 		apiMetrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "usage", "false").Inc()
 	}()
-
-	w.Write(usageMsg)
+	toLog := carbonapipb.NewAccessLogDetails(r, "usage", &app.config)
+	toLog.HttpCode = http.StatusOK
+	_, err := w.Write(usageMsg)
+	if err != nil {
+		toLog.HttpCode = 499
+	}
 }
 
 //TODO : Fix this handler if and when tag support is added

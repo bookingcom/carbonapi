@@ -5,7 +5,6 @@ package net
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -184,8 +183,8 @@ func (b Backend) setTimeout(ctx context.Context) (context.Context, context.Cance
 	return context.WithCancel(ctx)
 }
 
-func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest("GET", "", body)
+func (b Backend) request(ctx context.Context, u *url.URL) (*http.Request, error) {
+	req, err := http.NewRequest("GET", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,61 +197,42 @@ func (b Backend) request(ctx context.Context, u *url.URL, body io.Reader) (*http
 	return req, nil
 }
 
-type requestRes struct {
-	resp *http.Response
-	err  error
-}
+func (b Backend) do(trace types.Trace, req *http.Request) (string, []byte, error) {
 
-func (b Backend) do(ctx context.Context, trace types.Trace, req *http.Request) (string, []byte, error) {
-
-	ch := make(chan requestRes, 1)
 	t0 := time.Now()
+	resp, err := b.client.Do(req)
+	trace.AddHTTPCall(t0)
+	trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 
-	go func() {
-		resp, err := b.client.Do(req)
-		ch <- requestRes{resp: resp, err: err}
-	}()
+	if err != nil {
+		return "", nil, err
+	}
 
-	select {
-	case res := <-ch:
-		trace.AddHTTPCall(t0)
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
-
-		var body []byte
-		var bodyErr error
-		if res.resp != nil && res.resp.Body != nil {
-			t1 := time.Now()
-			body, bodyErr = ioutil.ReadAll(res.resp.Body)
-			res.resp.Body.Close()
-			trace.AddReadBody(t1)
-		}
-
-		// TODO (grzkv): we should not try to interpret the body if there is an error
-		if res.err != nil {
-			return "", nil, res.err
-		}
-
+	var body []byte
+	var bodyErr error
+	if resp.Body != nil {
+		defer resp.Body.Close()
+		t1 := time.Now()
+		body, bodyErr = ioutil.ReadAll(resp.Body)
 		if bodyErr != nil {
 			return "", nil, bodyErr
 		}
-
-		if res.resp.StatusCode != http.StatusOK {
-			return "", body, ErrHTTPCode(res.resp.StatusCode)
-		}
-
-		return res.resp.Header.Get("Content-Type"), body, nil
-
-	case <-ctx.Done():
-		trace.ObserveOutDuration(time.Now().Sub(t0), b.dc, b.cluster)
-		return "", nil, ctx.Err()
+		trace.AddReadBody(t1)
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", body, ErrHTTPCode(resp.StatusCode)
+	}
+
+	return resp.Header.Get("Content-Type"), body, nil
+
 }
 
 // Call makes a call to a backend.
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body io.Reader) (string, []byte, error) {
+func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
@@ -264,24 +244,24 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, body i
 	}
 
 	defer func() {
-		if err := b.leave(); err != nil {
+		if limiterErr := b.leave(); limiterErr != nil {
 			b.logger.Error("Backend limiter full",
 				zap.String("host", b.address),
 				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(err),
+				zap.Error(limiterErr),
 			)
 		}
 	}()
 
 	t1 := time.Now()
-	req, err := b.request(ctx, u, body)
+	req, err := b.request(ctx, u)
 
 	trace.AddMarshal(t1)
 	if err != nil {
 		return "", nil, err
 	}
 
-	return b.do(ctx, trace, req)
+	return b.do(trace, req)
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead
@@ -309,10 +289,10 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 
 	t0 := time.Now()
 	u := b.url("/render/")
-	u, body := carbonapiV2RenderEncoder(u, from, until, targets)
+	u = carbonapiV2RenderEncoder(u, from, until, targets)
 	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u, body)
+	contentType, resp, err := b.call(ctx, request.Trace, u)
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
@@ -363,7 +343,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	return metrics, nil
 }
 
-func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) (*url.URL, io.Reader) {
+func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) *url.URL {
 	vals := url.Values{
 		"target": targets,
 		"format": fmtProto,
@@ -372,7 +352,7 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 	}
 	u.RawQuery = vals.Encode()
 
-	return u, nil
+	return u
 }
 
 // Info fetches metadata about a metric from a backend.
@@ -381,10 +361,10 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 
 	t0 := time.Now()
 	u := b.url("/info/")
-	u, body := carbonapiV2InfoEncoder(u, metric)
+	u = carbonapiV2InfoEncoder(u, metric)
 	request.Trace.AddMarshal(t0)
 
-	_, resp, err := b.call(ctx, request.Trace, u, body)
+	_, resp, err := b.call(ctx, request.Trace, u)
 
 	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 		return nil, types.ErrInfoNotFound
@@ -421,14 +401,14 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 	return infos, nil
 }
 
-func carbonapiV2InfoEncoder(u *url.URL, metric string) (*url.URL, io.Reader) {
+func carbonapiV2InfoEncoder(u *url.URL, metric string) *url.URL {
 	vals := url.Values{
 		"target": []string{metric},
 		"format": fmtProto,
 	}
 	u.RawQuery = vals.Encode()
 
-	return u, nil
+	return u
 }
 
 // Find resolves globs and finds metrics in a backend.
@@ -437,10 +417,10 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 
 	t0 := time.Now()
 	u := b.url("/metrics/find/")
-	u, body := carbonapiV2FindEncoder(u, query)
+	u = carbonapiV2FindEncoder(u, query)
 	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u, body)
+	contentType, resp, err := b.call(ctx, request.Trace, u)
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -490,12 +470,12 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	return matches, nil
 }
 
-func carbonapiV2FindEncoder(u *url.URL, query string) (*url.URL, io.Reader) {
+func carbonapiV2FindEncoder(u *url.URL, query string) *url.URL {
 	vals := url.Values{
 		"query":  []string{query},
 		"format": fmtProto,
 	}
 	u.RawQuery = vals.Encode()
 
-	return u, nil
+	return u
 }
