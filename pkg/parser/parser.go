@@ -52,11 +52,9 @@ func (e *expr) ToString() string {
 		s = strings.Replace(s, `\`, `\\`, -1)
 		s = strings.Replace(s, `'`, `\'`, -1)
 		return "'" + s + "'"
-	case EtName:
-		return fmt.Sprint(e.target)
+	default:
+		return e.target
 	}
-
-	return e.target
 }
 
 func (e *expr) SetTarget(target string) {
@@ -173,8 +171,7 @@ func (e *expr) Metrics() []MetricRequest {
 				r[i].From -= 7 * 86400 // starts -7 days from where the original starts
 			}
 		case "movingAverage", "movingMedian", "movingMin", "movingMax", "movingSum":
-			switch e.args[1].etype {
-			case EtString:
+			if e.args[1].etype == EtString {
 				offs, err := e.GetIntervalArg(1, 1)
 				if err != nil {
 					return nil
@@ -182,8 +179,6 @@ func (e *expr) Metrics() []MetricRequest {
 				for i := range r {
 					r[i].From -= offs
 				}
-			default:
-				return nil
 			}
 		}
 		return r
