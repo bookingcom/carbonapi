@@ -354,8 +354,13 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 		val, tail, err := parseString(e)
 		return &expr{valStr: val, etype: EtString}, tail, err
 	}
+
 	var name string
-	name, e = parseName(e)
+	var err error
+	name, e, err = parseName(e)
+	if err != nil {
+		return nil, e, err
+	}
 
 	if strings.ToLower(name) == "false" || strings.ToLower(name) == "true" {
 		return &expr{valStr: name, etype: EtString, target: name}, e, nil
@@ -420,7 +425,6 @@ func IsNameChar(r byte) bool {
 		r == '.' || r == '_' ||
 		r == '-' || r == '*' ||
 		r == '?' || r == ':' ||
-		r == '[' || r == ']' ||
 		r == '^' || r == '$' ||
 		r == '<' || r == '>' ||
 		r == '&' || r == '#'
@@ -557,33 +561,95 @@ func parseConst(s string) (float64, string, error) {
 // RangeTables is an array of *unicode.RangeTable
 var RangeTables []*unicode.RangeTable
 
-func parseName(s string) (string, string) {
-
+// parseName parses the next symbol from s and returns
+// 	* the parsed symbol (function or metric name),
+// 	* the rest of the string from s
+// 	* syntax error
+func parseName(s string) (string, string, error) {
 	var (
-		braces, i, w int
-		r            rune
+		braces, brackets int
+		i, w             int
+		r                rune
 	)
 
 FOR:
-	for braces, i = 0, 0; i < len(s); i += w {
-
+	for i = 0; i < len(s); i += w {
 		w = 1
 		if IsNameChar(s[i]) {
 			continue
 		}
 
+		// Graphite render spec: https://graphite.readthedocs.io/en/latest/render_api.html#graphing-metrics
 		switch s[i] {
 		case '{':
+			// No way escape { in metric names, thus supporting it
+			// in the range brackets should be an error.
+			if brackets > 0 {
+				return s, "", ErrBraceInBrackets
+			}
+
 			braces++
 		case '}':
-			if braces == 0 {
-				break FOR
+			// No way escape } in metric names, thus supporting it
+			// in the range brackets should be an error.
+			if brackets > 0 {
+				return s, "", ErrBraceInBrackets
+			} else if braces == 0 {
+				return s, "", ErrMissinggBrace
 			}
+
 			braces--
+		case '[':
+			// Nested brackets support isn't really necessary as
+			// left bracket [ alone can't be in metric name. And
+			// go-carbon doesn't support it at the moment.
+			//
+			// Before this change, no errors are returned to the
+			// user and no metrics are returned. It's arguably
+			// worse than just return an error.
+			if brackets > 0 {
+				return s, "", ErrNestedBrackets
+			}
+
+			brackets++
+		case ']':
+			// No way to escape braces {} and brackets [] in
+			// graphite query, thus missing open [ means it's a query bug.
+			if brackets == 0 {
+				return s, "", ErrMissinggBracket
+			}
+
+			brackets--
 		case ',':
+			// No way to escape a comma in graphite query, thus
+			// metric name is not allowed to have comma within it,
+			// thus it isn't allowed to query it within [].
+			if brackets > 0 {
+				return s, "", ErrCommaInBrackets
+			}
+
 			if braces == 0 {
 				break FOR
 			}
+		case ' ', '\t', '\n':
+			// Spaces is not allowed in metric name, so it isn't
+			// really needed for us to support it in value list
+			// {} and range list [] queries.
+			//
+			// Although it is nice to allow spaces in value list query,
+			// support in storage layer like go-carbon is also required.
+			//
+			// At the same time, if not using any graphite function,
+			// the current parser also doesn't support spaces in
+			// value list syntax {} and would return an 400 error.
+			if braces > 0 {
+				return s, "", ErrSpacesInBraces
+			}
+			if brackets > 0 {
+				return s, "", ErrSpacesInBrackets
+			}
+
+			break FOR
 		default:
 			r, w = utf8.DecodeRuneInString(s[i:])
 			if unicode.In(r, RangeTables...) {
@@ -591,14 +657,22 @@ FOR:
 			}
 			break FOR
 		}
+	}
 
+	// No way to escape braces {} and brackets [] in graphite query, thus
+	// missing closed }/] means it's a query bug.
+	if braces > 0 {
+		return s, "", ErrMissinggBrace
+	}
+	if brackets > 0 {
+		return s, "", ErrMissinggBracket
 	}
 
 	if i == len(s) {
-		return s, ""
+		return s, "", nil
 	}
 
-	return s[:i], s[i:]
+	return s[:i], s[i:], nil
 }
 
 func parseString(s string) (string, string, error) {
