@@ -35,10 +35,10 @@ var (
 	ErrMissingQuote = ParseError("missing quote")
 	// ErrUnexpectedCharacter is a parse error returned when an expression contains an unexpected character.
 	ErrUnexpectedCharacter = ParseError("unexpected character")
-	// ErrMissinggBracket is a parse error returned when an expression is missing an opening or closing bracket.
-	ErrMissinggBracket = ParseError("missing opening or closing bracket []")
-	// ErrMissinggBrace is a parse error returned when an expression is missing an opening or closing brace.
-	ErrMissinggBrace = ParseError("missing opening or closing brace {}")
+	// ErrMissingBracket is a parse error returned when an expression is missing an opening or closing bracket.
+	ErrMissingBracket = ParseError("missing opening or closing bracket []")
+	// ErrMissingBrace is a parse error returned when an expression is missing an opening or closing brace.
+	ErrMissingBrace = ParseError("missing opening or closing brace {}")
 	// ErrCommaInBrackets is a parse error returned when an expression has comma within brackets.
 	ErrCommaInBrackets = ParseError("comma within brackets")
 	// ErrSpacesInMetricName is a parse error returned when an expression has space in metric name.

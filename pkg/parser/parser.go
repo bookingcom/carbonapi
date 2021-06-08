@@ -582,7 +582,7 @@ FOR:
 		// Graphite render spec: https://graphite.readthedocs.io/en/latest/render_api.html#graphing-metrics
 		switch s[i] {
 		case '{':
-			// No way escape { in metric names, thus supporting it
+			// No way escape { in metric names, thus using it
 			// in the range brackets should be an error.
 			if brackets > 0 {
 				return s, "", ErrBraceInBrackets
@@ -590,12 +590,12 @@ FOR:
 
 			braces++
 		case '}':
-			// No way escape } in metric names, thus supporting it
+			// No way escape } in metric names, thus using it
 			// in the range brackets should be an error.
 			if brackets > 0 {
 				return s, "", ErrBraceInBrackets
 			} else if braces == 0 {
-				return s, "", ErrMissinggBrace
+				return s, "", ErrMissingBrace
 			}
 
 			braces--
@@ -616,7 +616,7 @@ FOR:
 			// No way to escape braces {} and brackets [] in
 			// graphite query, thus missing open [ means it's a query bug.
 			if brackets == 0 {
-				return s, "", ErrMissinggBracket
+				return s, "", ErrMissingBracket
 			}
 
 			brackets--
@@ -662,10 +662,10 @@ FOR:
 	// No way to escape braces {} and brackets [] in graphite query, thus
 	// missing closed }/] means it's a query bug.
 	if braces > 0 {
-		return s, "", ErrMissinggBrace
+		return s, "", ErrMissingBrace
 	}
 	if brackets > 0 {
-		return s, "", ErrMissinggBracket
+		return s, "", ErrMissingBracket
 	}
 
 	if i == len(s) {
