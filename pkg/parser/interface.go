@@ -35,6 +35,22 @@ var (
 	ErrMissingQuote = ParseError("missing quote")
 	// ErrUnexpectedCharacter is a parse error returned when an expression contains an unexpected character.
 	ErrUnexpectedCharacter = ParseError("unexpected character")
+	// ErrMissingBracket is a parse error returned when an expression is missing an opening or closing bracket.
+	ErrMissingBracket = ParseError("missing opening or closing bracket []")
+	// ErrMissingBrace is a parse error returned when an expression is missing an opening or closing brace.
+	ErrMissingBrace = ParseError("missing opening or closing brace {}")
+	// ErrCommaInBrackets is a parse error returned when an expression has comma within brackets.
+	ErrCommaInBrackets = ParseError("comma within brackets")
+	// ErrSpacesInMetricName is a parse error returned when an expression has space in metric name.
+	ErrSpacesInMetricName = ParseError("space in metric name")
+	// ErrSpacesInBraces is a parse error returned when an expression has space in braces.
+	ErrSpacesInBraces = ParseError("space in braces")
+	// ErrSpacesInBrackets is a parse error returned when an expression has space in brackets.
+	ErrSpacesInBrackets = ParseError("space in brackets")
+	// ErrBraceInBrackets is a parse error returned when an expression has brace within brackets.
+	ErrBraceInBrackets = ParseError("brace within brackets")
+	// ErrNestedBrackets is a parse error returned when an expression has nested brackets.
+	ErrNestedBrackets = ParseError("nested brackets")
 	// ErrBadType is an eval error returned when a argument has wrong type.
 	ErrBadType = ParseError("bad type")
 	// ErrMissingArgument is an eval error returned when a argument is missing.

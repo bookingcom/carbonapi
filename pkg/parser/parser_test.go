@@ -2,6 +2,7 @@ package parser
 
 import (
 	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -10,22 +11,25 @@ import (
 func TestParseExpr(t *testing.T) {
 
 	tests := []struct {
-		s string
-		e *expr
+		s   string
+		e   *expr
+		err error
 	}{
-		{"metric",
-			&expr{target: "metric"},
+		{
+			s: "metric",
+			e: &expr{target: "metric"},
 		},
 		{
-			"metric.foo",
-			&expr{target: "metric.foo"},
-		},
-		{"metric.*.foo",
-			&expr{target: "metric.*.foo"},
+			s: "metric.foo",
+			e: &expr{target: "metric.foo"},
 		},
 		{
-			"func(metric)",
-			&expr{
+			s: "metric.*.foo",
+			e: &expr{target: "metric.*.foo"},
+		},
+		{
+			s: "func(metric)",
+			e: &expr{
 				target:    "func",
 				etype:     EtFunc,
 				args:      []*expr{{target: "metric"}},
@@ -33,8 +37,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric1,metric2,metric3)",
-			&expr{
+			s: "func(metric1,metric2,metric3)",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -45,8 +49,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func1(metric1,func2(metricA, metricB),metric3)",
-			&expr{
+			s: "func1(metric1,func2(metricA, metricB),metric3)",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -62,16 +66,16 @@ func TestParseExpr(t *testing.T) {
 		},
 
 		{
-			"3",
-			&expr{val: 3, etype: EtConst},
+			s: "3",
+			e: &expr{val: 3, etype: EtConst},
 		},
 		{
-			"3.1",
-			&expr{val: 3.1, etype: EtConst},
+			s: "3.1",
+			e: &expr{val: 3.1, etype: EtConst},
 		},
 		{
-			"func1(metric1, 3, 1e2, 2e-3)",
-			&expr{
+			s: "func1(metric1, 3, 1e2, 2e-3)",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -84,8 +88,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func1(metric1, 'stringconst')",
-			&expr{
+			s: "func1(metric1, 'stringconst')",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -96,8 +100,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			`func1(metric1, "stringconst")`,
-			&expr{
+			s: `func1(metric1, "stringconst")`,
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -108,8 +112,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func1(metric1, -3)",
-			&expr{
+			s: "func1(metric1, -3)",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -121,8 +125,8 @@ func TestParseExpr(t *testing.T) {
 		},
 
 		{
-			"func1(metric1, -3 , 'foo' )",
-			&expr{
+			s: "func1(metric1, -3 , 'foo' )",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -135,8 +139,8 @@ func TestParseExpr(t *testing.T) {
 		},
 
 		{
-			"func(metric, key='value')",
-			&expr{
+			s: "func(metric, key='value')",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -149,8 +153,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key=true)",
-			&expr{
+			s: "func(metric, key=true)",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -163,8 +167,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key=1)",
-			&expr{
+			s: "func(metric, key=1)",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -177,8 +181,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key=0.1)",
-			&expr{
+			s: "func(metric, key=0.1)",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -192,8 +196,8 @@ func TestParseExpr(t *testing.T) {
 		},
 
 		{
-			"func(metric, 1, key='value')",
-			&expr{
+			s: "func(metric, 1, key='value')",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -207,8 +211,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key='value', 1)",
-			&expr{
+			s: "func(metric, key='value', 1)",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -222,8 +226,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key1='value1', key2='value2')",
-			&expr{
+			s: "func(metric, key1='value1', key2='value2')",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -237,8 +241,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			"func(metric, key2='value2', key1='value1')",
-			&expr{
+			s: "func(metric, key2='value2', key1='value1')",
+			e: &expr{
 				target: "func",
 				etype:  EtFunc,
 				args: []*expr{
@@ -251,31 +255,23 @@ func TestParseExpr(t *testing.T) {
 				argString: "metric, key2='value2', key1='value1'",
 			},
 		},
-
 		{
-			`foo.{bar,baz}.qux`,
-			&expr{
-				target: "foo.{bar,baz}.qux",
-				etype:  EtName,
-			},
-		},
-		{
-			`foo.b[0-9].qux`,
-			&expr{
+			s: `foo.b[0-9].qux`,
+			e: &expr{
 				target: "foo.b[0-9].qux",
 				etype:  EtName,
 			},
 		},
 		{
-			`virt.v1.*.text-match:<foo.bar.qux>`,
-			&expr{
+			s: `virt.v1.*.text-match:<foo.bar.qux>`,
+			e: &expr{
 				target: "virt.v1.*.text-match:<foo.bar.qux>",
 				etype:  EtName,
 			},
 		},
 		{
-			"func2(metricA, metricB)|func1(metric1,metric3)",
-			&expr{
+			s: "func2(metricA, metricB)|func1(metric1,metric3)",
+			e: &expr{
 				target: "func1",
 				etype:  EtFunc,
 				args: []*expr{
@@ -290,8 +286,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			`movingAverage(company.server*.applicationInstance.requestsHandled|aliasByNode(1),"5min")`,
-			&expr{
+			s: `movingAverage(company.server*.applicationInstance.requestsHandled|aliasByNode(1),"5min")`,
+			e: &expr{
 				target: "movingAverage",
 				etype:  EtFunc,
 				args: []*expr{
@@ -309,8 +305,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			`aliasByNode(company.server*.applicationInstance.requestsHandled,1)|movingAverage("5min")`,
-			&expr{
+			s: `aliasByNode(company.server*.applicationInstance.requestsHandled,1)|movingAverage("5min")`,
+			e: &expr{
 				target: "movingAverage",
 				etype:  EtFunc,
 				args: []*expr{
@@ -328,8 +324,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			`company.server*.applicationInstance.requestsHandled|aliasByNode(1)|movingAverage("5min")`,
-			&expr{
+			s: `company.server*.applicationInstance.requestsHandled|aliasByNode(1)|movingAverage("5min")`,
+			e: &expr{
 				target: "movingAverage",
 				etype:  EtFunc,
 				args: []*expr{
@@ -347,8 +343,8 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
-			`company.server*.applicationInstance.requestsHandled|keepLastValue()`,
-			&expr{
+			s: `company.server*.applicationInstance.requestsHandled|keepLastValue()`,
+			e: &expr{
 				target: "keepLastValue",
 				etype:  EtFunc,
 				args: []*expr{
@@ -357,19 +353,64 @@ func TestParseExpr(t *testing.T) {
 				argString: `company.server*.applicationInstance.requestsHandled`,
 			},
 		},
-		{"hello&world",
-			&expr{target: "hello&world"},
+		{
+			s: "hello&world",
+			e: &expr{target: "hello&world"},
+		},
+
+		{
+			s: `foo.{bar,baz}.qux`,
+			e: &expr{
+				target: "foo.{bar,baz}.qux",
+				etype:  EtName,
+			},
+		},
+		{
+			s:   `func(foo.{bar, baz}.qux)`,
+			err: ErrSpacesInBraces,
+		},
+		{
+			s:   `func(foo.[{a-z}].qux)`,
+			err: ErrBraceInBrackets,
+		},
+		{
+			s: `func(foo.{bar,baz[0-9]}.qux)`,
+			e: &expr{
+				target: "func",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "foo.{bar,baz[0-9]}.qux"},
+				},
+				argString: "foo.{bar,baz[0-9]}.qux",
+			},
+		},
+		{
+			s:   `func(a.b.c.[d, e].count )`,
+			err: ErrCommaInBrackets,
+		},
+		{
+			s:   `func(foo.[abc ].qux)`,
+			err: ErrSpacesInBrackets,
+		},
+		{
+			s:   `func(foo.[[abc]].qux)`,
+			err: ErrNestedBrackets,
 		},
 	}
 
-	for _, tt := range tests {
-		e, _, err := ParseExpr(tt.s)
-		if err != nil {
-			t.Errorf("parse for %+v failed: err=%v", tt.s, err)
-			continue
-		}
-		if !reflect.DeepEqual(e, tt.e) {
-			t.Errorf("parse for %+v failed:\ngot  %+s\nwant %+v", tt.s, spew.Sdump(e), spew.Sdump(tt.e))
-		}
+	for _, ttr := range tests {
+		// for fixing golangci-lint: Using the variable on range scope `tt` in function literal
+		tt := ttr
+		t.Run(tt.s, func(t *testing.T) {
+			t.Logf("run case: go test -run 'TestParseExpr/%s'", regexp.QuoteMeta(tt.s))
+
+			e, _, err := ParseExpr(tt.s)
+			if err != tt.err {
+				t.Errorf(`parse for %+v expects error "%v" but received "%v"`, tt.s, tt.err, err)
+			}
+			if err == nil && !reflect.DeepEqual(e, tt.e) {
+				t.Errorf("parse for %+v failed:\ngot  %+s\nwant %+v", tt.s, spew.Sdump(e), spew.Sdump(tt.e))
+			}
+		})
 	}
 }
