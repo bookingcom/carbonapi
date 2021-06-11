@@ -1,4 +1,4 @@
-FROM golang:1.14
+FROM golang:1.16
 
 RUN go get github.com/bookingcom/nanotube/cmd/nanotube
 RUN go install github.com/bookingcom/nanotube/cmd/nanotube
