@@ -38,7 +38,7 @@ vet:
 lint:
 	golangci-lint run
 
-check: test vet lint
+check: test vet
 
 test:
 	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
