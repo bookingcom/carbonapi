@@ -8,11 +8,9 @@ endif
 GO ?= go
 VERSION ?= $(shell git rev-parse --short HEAD)
 
-# Binaries
 PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
 PKG_CARBONZIPPER=github.com/bookingcom/carbonapi/cmd/carbonzipper
 
-# Flags
 GCFLAGS :=
 debug: GCFLAGS += -gcflags=all='-l -N'
 
@@ -21,7 +19,8 @@ LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
 TAGS := -tags cairo
 nocairo: TAGS =
 
-# Targets
+### Targets ###
+
 all: build
 
 nocairo: build
@@ -39,7 +38,7 @@ vet:
 lint:
 	golangci-lint run
 
-check: test vet
+check: test vet lint
 
 test:
 	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
