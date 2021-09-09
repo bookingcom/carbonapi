@@ -244,7 +244,15 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
 			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed, targetSpan)
 
-		if targetErr == nil {
+		// Continue query execution even though no metric is found in
+		// prefetch as there are Graphite query functions that are able
+		// to handle no data and users expect proper result returned. Example:
+		//
+		// 	fallbackSeries(metric.not.exist, constantLine(1))
+		//
+		// Refrence behaviour in graphite-web: https://github.com/graphite-project/graphite-web/blob/1.1.8/webapp/graphite/render/evaluator.py#L14-L46
+		var notFound dataTypes.ErrNotFound
+		if targetErr == nil || errors.As(targetErr, &notFound) {
 			targetErr = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
 		}
 		targetSpan.AddEvent(targetCtx, "evaluated expression")
@@ -255,7 +263,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			// b) parser.ParseError -> Return with this error(like above, but with less details )
 			// c) anything else -> continue, answer will be 5xx if all targets have one error
 			var parseError parser.ParseError
-			var notFound dataTypes.ErrNotFound
 			switch {
 			case errors.As(targetErr, &notFound):
 				// When not found, graphite answers with  http 200 and []
@@ -374,6 +381,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	metrics := 0
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
+
 	for _, m := range exp.Metrics() {
 		mfetch := m
 		mfetch.From += from
