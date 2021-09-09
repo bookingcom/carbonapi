@@ -244,27 +244,35 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	if app.config.TimezoneString != "" {
 		fields := strings.Split(app.config.TimezoneString, ",")
 
-		if len(fields) != 2 {
-			logger.Fatal("unexpected amount of fields in tz",
-				zap.String("timezone_string", app.config.TimezoneString),
-				zap.Int("fields_got", len(fields)),
-				zap.Int("fields_expected", 2),
-			)
-		}
+		if len(fields) == 2 {
+			// For input using utc offset format: "UTC+1,3600"
+			offs, err := strconv.Atoi(fields[1])
+			if err != nil {
+				logger.Fatal("unable to parse seconds",
+					zap.String("field[1]", fields[1]),
+					zap.Error(err),
+				)
+			}
 
-		offs, err := strconv.Atoi(fields[1])
-		if err != nil {
-			logger.Fatal("unable to parse seconds",
-				zap.String("field[1]", fields[1]),
-				zap.Error(err),
+			app.defaultTimeZone = time.FixedZone(fields[0], offs)
+			logger.Info("using fixed timezone",
+				zap.String("timezone", app.defaultTimeZone.String()),
+				zap.Int("offset", offs),
 			)
-		}
+		} else {
+			// For input using names from IANA Time Zone database, such as "America/New_York"
+			loc, err := time.LoadLocation(app.config.TimezoneString)
+			if err != nil {
+				logger.Fatal("failed to parse tz string",
+					zap.String("timezone_string", app.config.TimezoneString),
+					zap.Int("fields_got", len(fields)),
+					zap.Error(err),
+					zap.Int("fields_expected", 2),
+				)
+			}
 
-		app.defaultTimeZone = time.FixedZone(fields[0], offs)
-		logger.Info("using fixed timezone",
-			zap.String("timezone", app.defaultTimeZone.String()),
-			zap.Int("offset", offs),
-		)
+			app.defaultTimeZone = loc
+		}
 	}
 
 	if len(app.config.UnicodeRangeTables) != 0 {
