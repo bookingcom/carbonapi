@@ -266,6 +266,20 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case errors.As(targetErr, &notFound):
 				// When not found, graphite answers with  http 200 and []
+			case errors.Is(targetErr, parser.ErrSeriesDoesNotExist):
+				// As now carbonapi continues query execution
+				// when no metrics are returned, it's possible
+				// to have evalExprRender returning this error.
+				// carbonapi should continue executing other
+				// queries in the API call to keep being backward-compatible.
+				//
+				// It would be nice to return the error message,
+				// but it seems we do not have a way to
+				// communicate it to grafana and other users of
+				// carbonapi unless failing all the other queries in the same request:
+				//
+				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/types.go\#L5-L8
+				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/graphite.go\#L162-L167
 			case errors.As(targetErr, &parseError):
 				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
 				logAsError = true
