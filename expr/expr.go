@@ -40,7 +40,12 @@ func EvalExpr(ctx context.Context, e parser.Expr, from, until int32, values map[
 	}
 
 	if e.IsName() {
-		return values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}], nil
+		val := values[parser.MetricRequest{Metric: e.Target(), From: from, Until: until}]
+		if val == nil {
+			return nil, parser.ErrSeriesDoesNotExist
+		}
+
+		return val, nil
 	} else if e.IsConst() {
 		p := types.MetricData{
 			Metric: dataTypes.Metric{
