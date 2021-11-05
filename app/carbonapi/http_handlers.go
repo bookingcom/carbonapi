@@ -646,9 +646,9 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	if errFrom != nil || errUntil != nil {
 		errFmt := "%s, invalid parameter %s=%s"
 		if errFrom != nil {
-			return res, errors.New(fmt.Sprintf(errFmt, errFrom.Error(), "from", res.from))
+			return res, fmt.Errorf(errFmt, errFrom.Error(), "from", res.from)
 		}
-		return res, errors.New(fmt.Sprintf(errFmt, errUntil.Error(), "until", res.until))
+		return res, fmt.Errorf(errFmt, errUntil.Error(), "until", res.until)
 	}
 
 	return res, nil

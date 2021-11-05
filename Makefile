@@ -41,7 +41,7 @@ lint:
 check: test vet
 
 test:
-	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
+	$(PKGCONF) $(GO) test ./... -v -race -coverprofile=coverage.txt -covermode=atomic
 
 clean:
 	rm -f carbonapi carbonzipper

@@ -7,7 +7,6 @@ import (
 )
 
 func TestDateParamToEpoch(t *testing.T) {
-
 	defaultTimeZone := time.Local
 	timeNow = func() time.Time {
 		//16 Aug 1994 15:30
@@ -40,7 +39,7 @@ func TestDateParamToEpoch(t *testing.T) {
 		{"12:mm 19940812", "00:00 1994-Aug-12", true},
 		{"today", "00:00 1994-Aug-16", false},
 		{"yesterday", "00:00 1994-Aug-15", false},
-		{"1556201160", "16:06 2019-Apr-25", false},
+		{"1556201160", time.Unix(1556201160, 0).Format(shortForm), false}, // time.Unix returns a local time
 		{"", defaultTsStr, false},
 		{"-something", defaultTsStr, true},
 		{"17:04 19940812 1001", defaultTsStr, true},
