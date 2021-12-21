@@ -141,7 +141,6 @@ _When `format=png`_ (default if not specified)
 - unique
 - useSeriesAbove
 - verticalLine
-- weightedAverage
 - xFilesFactor
 
 ### Functions *present in carbonapi but absent in graphite-web*
@@ -297,3 +296,4 @@ _When `format=png`_ (default if not specified)
 | [tukeyAbove](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
 | [tukeyBelow](https://en.wikipedia.org/wiki/Tukey%27s_range_test)(seriesList, basis, n, interval=0) |
 | transformNull(seriesList, default=0)                                      |
+| weightedAverage(seriesListAvg, seriesListWeight, *nodes)                  |

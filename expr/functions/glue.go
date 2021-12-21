@@ -92,6 +92,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions/timeStack"
 	"github.com/bookingcom/carbonapi/expr/functions/transformNull"
 	"github.com/bookingcom/carbonapi/expr/functions/tukey"
+	"github.com/bookingcom/carbonapi/expr/functions/weightedAverage"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 )
@@ -280,6 +281,8 @@ func New(configs map[string]string) {
 	funcs = append(funcs, initFunc{name: "transformNull", order: transformNull.GetOrder(), f: transformNull.New})
 
 	funcs = append(funcs, initFunc{name: "tukey", order: tukey.GetOrder(), f: tukey.New})
+
+	funcs = append(funcs, initFunc{name: "weightedAverage", order: weightedAverage.GetOrder(), f: weightedAverage.New})
 
 	sort.Slice(funcs, func(i, j int) bool {
 		if funcs[i].order == interfaces.Any && funcs[j].order == interfaces.Last {

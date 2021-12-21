@@ -406,3 +406,31 @@ func GCD(a, b int32) int32 {
 func LCM(a, b int32) int32 {
 	return a * (b / GCD(a, b))
 }
+
+func AggKey(series *types.MetricData, fields []int) (string, error) {
+	metric := ExtractMetric(series.Name)
+	nodes := strings.Split(metric, ".")
+	nodeKey := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if f < 0 || f >= len(nodes) {
+			return "", fmt.Errorf("%w: %d", parser.ErrInvalidArgumentValue, f)
+		}
+		nodeKey = append(nodeKey, nodes[f])
+	}
+	node := strings.Join(nodeKey, ".")
+	return node, nil
+}
+
+func GroupByNodes(nodes []int, seriesList []*types.MetricData) (map[string][]*types.MetricData, map[string]bool, error) {
+	nodeGroupSeries := make(map[string][]*types.MetricData)
+	keys := make(map[string]bool)
+	for _, series := range seriesList {
+		key, err := AggKey(series, nodes)
+		if err != nil {
+			return nil, nil, err
+		}
+		nodeGroupSeries[key] = append(nodeGroupSeries[key], series)
+		keys[key] = true
+	}
+	return nodeGroupSeries, keys, nil
+}
