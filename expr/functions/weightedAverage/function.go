@@ -65,11 +65,14 @@ func (f *weightedAverage) Do(ctx context.Context, e parser.Expr, from, until int
 
 	var productMetrics []*types.MetricData
 	for _, key := range keys {
-		for i, _ := range avgGrouped[key] {
-			productMetricName := fmt.Sprintf("product(%s, %s)", weightGrouped[key][i].Name, avgGrouped[key][i].Name)
-			productMetric := helper.CombineSeries(avgGrouped[key][i], weightGrouped[key][i], productMetricName, productOperator)
-			productMetrics = append(productMetrics, productMetric)
+		if len(avgGrouped[key]) == 0 || len(weightGrouped[key]) == 0 {
+			continue
 		}
+		weight := weightGrouped[key][len(weightGrouped[key])-1]
+		avg := avgGrouped[key][len(avgGrouped[key])-1]
+		productMetricName := fmt.Sprintf("product(%s, %s)", weight.Name, avg.Name)
+		productMetric := helper.CombineSeries(avg, weight, productMetricName, productOperator)
+		productMetrics = append(productMetrics, productMetric)
 	}
 	if len(productMetrics) == 0 {
 		return []*types.MetricData{}, nil
