@@ -396,6 +396,18 @@ func TestParseExpr(t *testing.T) {
 			s:   `func(foo.[[abc]].qux)`,
 			err: ErrNestedBrackets,
 		},
+		{
+			s: "  \nfunc2(\rfoo.b[09].qux  ,   \ns\t)",
+			e: &expr{
+				target: "func2",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "foo.b[09].qux"},
+					{target: "s"},
+				},
+				argString: "\rfoo.b[09].qux  ,   \ns\t",
+			},
+		},
 	}
 
 	for _, ttr := range tests {
