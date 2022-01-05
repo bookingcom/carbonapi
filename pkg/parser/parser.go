@@ -369,6 +369,8 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 		return nil, e, ErrMissingArgument
 	}
 
+	e = strings.TrimLeftFunc(e, unicode.IsSpace)
+
 	if e != "" && e[0] == '(' {
 		var err error
 

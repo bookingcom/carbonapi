@@ -397,7 +397,7 @@ func TestParseExpr(t *testing.T) {
 			err: ErrNestedBrackets,
 		},
 		{
-			s: "  \nfunc2(\rfoo.b[09].qux  ,   \ns\t)",
+			s: "  \nfunc2\t  (  \rfoo.b[09].qux  ,   \ns\t)    ",
 			e: &expr{
 				target: "func2",
 				etype:  EtFunc,
@@ -405,7 +405,27 @@ func TestParseExpr(t *testing.T) {
 					{target: "foo.b[09].qux"},
 					{target: "s"},
 				},
-				argString: "\rfoo.b[09].qux  ,   \ns\t",
+				argString: "  \rfoo.b[09].qux  ,   \ns\t",
+			},
+		},
+		{
+			s: "  \nfunc2\t  (  \rfunc \n (\ng\r)  ,   \ns\t)    ",
+			e: &expr{
+				target: "func2",
+				etype:  EtFunc,
+				args: []*expr{
+					{
+						target: "func",
+						etype:  EtFunc,
+						args: []*expr{
+							{target: "g"},
+						},
+						argString: "\ng\r",
+					},
+					{target: "s"},
+				},
+				// The reason that func is without any whitespaces is that we behave argString of funcs exceptionally.
+				argString: "func(\ng\r),   \ns\t",
 			},
 		},
 	}
