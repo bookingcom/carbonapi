@@ -334,7 +334,7 @@ func (e *expr) insertFirstArg(exp *expr) error {
 
 func parseExprWithoutPipe(e string) (Expr, string, error) {
 	// skip whitespace
-	for len(e) > 1 && e[0] == ' ' {
+	for len(e) > 1 && unicode.IsSpace(rune(e[0])) {
 		e = e[1:]
 	}
 
@@ -391,7 +391,7 @@ func ParseExpr(e string) (Expr, string, error) {
 }
 
 func pipe(exp *expr, e string) (*expr, string, error) {
-	for len(e) > 1 && e[0] == ' ' {
+	for len(e) > 1 && unicode.IsSpace(rune(e[0])) {
 		e = e[1:]
 	}
 
@@ -450,7 +450,7 @@ func parseArgList(e string) (string, []*expr, map[string]*expr, string, error) {
 	e = e[1:]
 
 	// check for empty args
-	t := strings.TrimLeft(e, " ")
+	t := strings.TrimLeftFunc(e, unicode.IsSpace)
 	if t != "" && t[0] == ')' {
 		return "", posArgs, namedArgs, t[1:], nil
 	}
@@ -517,9 +517,7 @@ func parseArgList(e string) (string, []*expr, map[string]*expr, string, error) {
 		}
 
 		// after the argument, trim any trailing spaces
-		for len(e) > 0 && e[0] == ' ' {
-			e = e[1:]
-		}
+		e = strings.TrimLeftFunc(e, unicode.IsSpace)
 
 		// We've consumed the entire buffer but the argument list isn't complete.
 		if len(e) == 0 {
