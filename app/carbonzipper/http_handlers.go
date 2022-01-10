@@ -309,7 +309,10 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	request.Trace.OutDuration = app.prometheusMetrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
-	metrics, errs := backend.Renders(ctx, bs, request)
+	metrics, mcs, errs := backend.Renders(ctx, bs, request, app.config.ConsistencyCheck)
+	for key, val := range mcs.GetKeyValueStats() {
+		app.prometheusMetrics.RenderConsistency.WithLabelValues(string(key)).Add(float64(val))
+	}
 	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms

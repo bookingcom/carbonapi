@@ -63,7 +63,7 @@ func BenchmarkRenders(b *testing.B) {
 
 	ctx := context.Background()
 	for i := 0; i < b.N; i++ {
-		Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0))
+		Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), false)
 	}
 }
 
@@ -124,7 +124,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0))
+				_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), false)
 				errs <- err
 			}()
 		}

@@ -57,6 +57,7 @@ var Metrics = struct {
 type PrometheusMetrics struct {
 	Requests             prometheus.Counter
 	Responses            *prometheus.CounterVec
+	RenderConsistency    *prometheus.CounterVec
 	FindNotFound         prometheus.Counter
 	RequestCancel        *prometheus.CounterVec
 	DurationExp          prometheus.Histogram
@@ -84,6 +85,13 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
+		),
+		RenderConsistency: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "render_consistency",
+				Help: "Count of rendered data points, partitioned by the consistency state",
+			},
+			[]string{"consistency"},
 		),
 		FindNotFound: prometheus.NewCounter(
 			prometheus.CounterOpts{

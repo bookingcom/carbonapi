@@ -1,6 +1,7 @@
 package types
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -98,13 +99,191 @@ func TestMergeManyMetricsBasic(t *testing.T) {
 		IsAbsent: []bool{false},
 	}
 
-	got := MergeMetrics(input)
+	got, _ := MergeMetrics(input, false)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
 
 	if !MetricsEqual(got[0], expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+}
+
+func TestMergeManyInconsistentMetrics(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{1, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{2, 1},
+		IsAbsent: []bool{false, false},
+	}
+
+	expectedMCSMap := map[MetricPointConsistency]int{
+		MetricConsistencyOK:           1,
+		MetricConsistencyMajorityFail: 1,
+	}
+
+	got, mcs := MergeMetrics(input, true)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if !reflect.DeepEqual(mcs.m, expectedMCSMap) {
+		t.Errorf("Merge Stat failed\nExp: %+v\nGot: %+v\n", expectedMCSMap, mcs.m)
+	}
+}
+
+func TestMergeRiskyMetrics(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{2, 1},
+		IsAbsent: []bool{false, false},
+	}
+
+	expectedMCSMap := map[MetricPointConsistency]int{
+		MetricConsistencyRisky: 2,
+	}
+
+	got, mcs := MergeMetrics(input, true)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if !reflect.DeepEqual(mcs.m, expectedMCSMap) {
+		t.Errorf("Merge Stat failed\nExp: %+v\nGot: %+v\n", expectedMCSMap, mcs.m)
+	}
+}
+
+func TestMergeManyMinorityInconsistentMetrics(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{1, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{1, 1},
+		IsAbsent: []bool{false, false},
+	}
+
+	expectedMCSMap := map[MetricPointConsistency]int{
+		MetricConsistencyOK:           1,
+		MetricConsistencyMinorityFail: 1,
+	}
+
+	got, mcs := MergeMetrics(input, true)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if !reflect.DeepEqual(mcs.m, expectedMCSMap) {
+		t.Errorf("Merge Stat failed\nExp: %+v\nGot: %+v\n", expectedMCSMap, mcs.m)
+	}
+}
+
+func TestMergeManyRiskyAndInconsistentMetrics(t *testing.T) {
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{1, 0},
+				IsAbsent: []bool{false, true},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 0},
+				IsAbsent: []bool{false, true},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{2, 1},
+				IsAbsent: []bool{false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{1, 1},
+		IsAbsent: []bool{false, false},
+	}
+
+	expectedMCSMap := map[MetricPointConsistency]int{
+		MetricConsistencyRisky:        1,
+		MetricConsistencyMinorityFail: 1,
+	}
+
+	got, mcs := MergeMetrics(input, true)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if !reflect.DeepEqual(mcs.m, expectedMCSMap) {
+		t.Errorf("Merge Stat failed\nExp: %+v\nGot: %+v\n", expectedMCSMap, mcs.m)
 	}
 }
 
@@ -126,7 +305,7 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 		},
 	}
 
-	got := MergeMetrics(input)
+	got, _ := MergeMetrics(input, false)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 metrics, got %d", len(got))
 	}
@@ -415,7 +594,7 @@ func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 }
 
 func doTest(t *testing.T, input []Metric, expected Metric) {
-	got := mergeMetrics(input)
+	got, _ := mergeMetrics(input, false)
 
 	if !MetricsEqual(got, expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got)

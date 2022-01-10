@@ -41,6 +41,47 @@ func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
 	corruptionLogger = logger
 }
 
+type MetricPointConsistency string
+
+const (
+	MetricConsistencyOK           MetricPointConsistency = "OK"
+	MetricConsistencyRisky        MetricPointConsistency = "Risky"
+	MetricConsistencyMajorityFail MetricPointConsistency = "MajorityFail"
+	MetricConsistencyMinorityFail MetricPointConsistency = "MinorityFail"
+)
+
+type MetricConsistencyStat struct {
+	m map[MetricPointConsistency]int
+}
+
+func NewMetricConsistencyStat() MetricConsistencyStat {
+	return MetricConsistencyStat{
+		m: make(map[MetricPointConsistency]int),
+	}
+}
+
+func (mcs *MetricConsistencyStat) AddPoint(p MetricPointConsistency) {
+	mcs.m[p]++
+}
+
+func (mcs *MetricConsistencyStat) AddRiskyMetric(m Metric) {
+	for i := 0; i < len(m.Values); i++ {
+		if !m.IsAbsent[i] {
+			mcs.m[MetricConsistencyRisky]++
+		}
+	}
+}
+
+func (mcs *MetricConsistencyStat) AddStat(mcs2 MetricConsistencyStat) {
+	for key := range mcs2.m {
+		mcs.m[key] += mcs2.m[key]
+	}
+}
+
+func (mcs *MetricConsistencyStat) GetKeyValueStats() map[MetricPointConsistency]int {
+	return mcs.m
+}
+
 // TODO (grzkv): Move to separate file
 
 type FindRequest struct {
@@ -197,13 +238,27 @@ type Metric struct {
 }
 
 // MergeMetrics merges metrics by name.
-func MergeMetrics(metrics [][]Metric) []Metric {
+func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, MetricConsistencyStat) {
+	mcs := NewMetricConsistencyStat()
 	if len(metrics) == 0 {
-		return nil
+		return nil, mcs
 	}
 
 	if len(metrics) == 1 {
-		return metrics[0]
+		ms := metrics[0]
+		if consistencyCheck {
+			for _, m := range ms {
+				corruptionLogger.Warn("risky metric consistency issue",
+					zap.String("metric", m.Name),
+					zap.Int32("startTime", m.StartTime),
+					zap.Int32("stopTime", m.StopTime),
+					zap.Int32("stepTime", m.StepTime),
+					zap.String("inconsistencyType", string(MetricConsistencyRisky)),
+				)
+				mcs.AddRiskyMetric(m)
+			}
+		}
+		return ms, mcs
 	}
 
 	names := make(map[string][]Metric)
@@ -216,10 +271,12 @@ func MergeMetrics(metrics [][]Metric) []Metric {
 
 	merged := make([]Metric, 0)
 	for _, ms := range names {
-		merged = append(merged, mergeMetrics(ms))
+		m, singleMCS := mergeMetrics(ms, consistencyCheck)
+		merged = append(merged, m)
+		mcs.AddStat(singleMCS)
 	}
 
-	return merged
+	return merged, mcs
 }
 
 type byStepTime []Metric
@@ -234,13 +291,68 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func mergeMetrics(metrics []Metric) Metric {
+func checkPointValueConsistency(values []float64, metricName string, pointTime int32) MetricPointConsistency {
+	valuesCount := len(values)
+	if valuesCount == 0 {
+		// No value for the point
+		return MetricConsistencyOK
+	}
+
+	valuesToCount := make(map[float64]int)
+	for _, val := range values {
+		valuesToCount[val]++
+	}
+
+	majorityValueCount := 0
+	for _, count := range valuesToCount {
+		if count > majorityValueCount {
+			majorityValueCount = count
+		}
+	}
+
+	var consistency MetricPointConsistency
+	switch {
+	case valuesCount == 1:
+		consistency = MetricConsistencyRisky
+	case valuesCount == majorityValueCount:
+		consistency = MetricConsistencyOK
+	case majorityValueCount > valuesCount/2:
+		consistency = MetricConsistencyMinorityFail
+	default:
+		consistency = MetricConsistencyMajorityFail
+	}
+
+	if consistency != MetricConsistencyOK {
+		corruptionLogger.Warn("metric point consistency issue",
+			zap.String("metric", metricName),
+			zap.Int32("point", pointTime),
+			zap.Float64s("values", values),
+			zap.String("inconsistencyType", string(consistency)),
+		)
+	}
+	return consistency
+}
+
+func mergeMetrics(metrics []Metric, consistencyCheck bool) (Metric, MetricConsistencyStat) {
+	mcs := NewMetricConsistencyStat()
+
 	if len(metrics) == 0 {
-		return Metric{}
+		return Metric{}, mcs
 	}
 
 	if len(metrics) == 1 {
-		return metrics[0]
+		m := metrics[0]
+		if consistencyCheck {
+			corruptionLogger.Warn("risky metric consistency issue",
+				zap.String("metric", m.Name),
+				zap.Int32("startTime", m.StartTime),
+				zap.Int32("stopTime", m.StopTime),
+				zap.Int32("stepTime", m.StepTime),
+				zap.String("inconsistencyType", string(MetricConsistencyRisky)),
+			)
+			mcs.AddRiskyMetric(m)
+		}
+		return m, mcs
 	}
 
 	sort.Sort(byStepTime(metrics))
@@ -249,25 +361,37 @@ func mergeMetrics(metrics []Metric) Metric {
 	// metrics[0] has the highest resolution of metrics
 	metric := metrics[0]
 	for i := range metric.Values {
-		if !metric.IsAbsent[i] {
-			continue
+		var valuesForPoint []float64
+		pointExists := !metric.IsAbsent[i]
+		if pointExists {
+			valuesForPoint = append(valuesForPoint, metric.Values[i])
 		}
-
-		// found a missing value, look for a replacement
 		for j := 1; j < len(metrics); j++ {
+			if pointExists && !consistencyCheck {
+				break
+			}
 			m := metrics[j]
 
 			if m.StepTime != metric.StepTime || len(m.Values) != len(metric.Values) {
 				break
 			}
 
-			// found one
-			if !m.IsAbsent[i] {
+			if m.IsAbsent[i] {
+				continue
+			}
+
+			valuesForPoint = append(valuesForPoint, m.Values[i])
+
+			if !pointExists {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
 				healed++
-				break
+				pointExists = true
 			}
+		}
+		if consistencyCheck {
+			c := checkPointValueConsistency(valuesForPoint, metric.Name, metric.StartTime+metric.StepTime*int32(i))
+			mcs.AddPoint(c)
 		}
 	}
 
@@ -278,8 +402,7 @@ func mergeMetrics(metrics []Metric) Metric {
 			zap.Float64("threshold", corruptionThreshold),
 		)
 	}
-
-	return metric
+	return metric, mcs
 }
 
 // Info contains metadata about a metric in Graphite.
