@@ -2,9 +2,11 @@ package backend
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -57,13 +59,19 @@ func BenchmarkRenders(b *testing.B) {
 	}
 
 	backends := make([]Backend, 0)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 3; i++ {
 		backends = append(backends, bk)
 	}
 
 	ctx := context.Background()
-	for i := 0; i < b.N; i++ {
-		Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), false)
+	consistencyChecks := []bool{false, true}
+	for _, consistencyCheck := range consistencyChecks {
+		cc := consistencyCheck
+		b.Run(fmt.Sprintf("BenchmarkRenders/ConsistencyCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+			}
+		})
 	}
 }
 
@@ -101,7 +109,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 	}
 
 	backends := make([]Backend, 0)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 3; i++ {
 		bk, err := bnet.New(bnet.Config{
 			Address: server.URL,
 			Client:  client,
@@ -119,22 +127,28 @@ func BenchmarkRendersStorm(b *testing.B) {
 	n := 50
 	errs := make(chan []error, n)
 
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < 50; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), false)
-				errs <- err
-			}()
-		}
+	consistencyChecks := []bool{false, true}
+	for _, consistencyCheck := range consistencyChecks {
+		cc := consistencyCheck
+		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ConsistencyCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < n; j++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+						errs <- err
+					}()
+				}
 
-		wg.Wait()
-		for j := 0; j < n; j++ {
-			err := <-errs
-			if len(err) != 0 {
-				b.Fatal(err)
+				wg.Wait()
+				for j := 0; j < n; j++ {
+					err := <-errs
+					if len(err) != 0 {
+						b.Fatal(err)
+					}
+				}
 			}
-		}
+		})
 	}
 }

@@ -299,14 +299,11 @@ func checkPointValueConsistency(values []float64, metricName string, pointTime i
 	}
 
 	valuesToCount := make(map[float64]int)
+	majorityValueCount := 0
 	for _, val := range values {
 		valuesToCount[val]++
-	}
-
-	majorityValueCount := 0
-	for _, count := range valuesToCount {
-		if count > majorityValueCount {
-			majorityValueCount = count
+		if valuesToCount[val] > majorityValueCount {
+			majorityValueCount = valuesToCount[val]
 		}
 	}
 
