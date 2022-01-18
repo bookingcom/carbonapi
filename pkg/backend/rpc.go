@@ -41,9 +41,9 @@ type Backend interface {
 // worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
-func Renders(ctx context.Context, backends []Backend, request types.RenderRequest, consistencyCheck bool) ([]types.Metric, types.MetricConsistencyStat, []error) {
+func Renders(ctx context.Context, backends []Backend, request types.RenderRequest, consistencyCheck bool) ([]types.Metric, int, int, []error) {
 	if len(backends) == 0 {
-		return nil, types.MetricConsistencyStat{}, nil
+		return nil, 0, 0, nil
 	}
 
 	msgCh := make(chan []types.Metric, len(backends))
@@ -71,8 +71,8 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		}
 	}
 
-	metrics, mcs := types.MergeMetrics(msgs, consistencyCheck)
-	return metrics, mcs, errs
+	metrics, points, incons := types.MergeMetrics(msgs, consistencyCheck)
+	return metrics, points, incons, errs
 }
 
 // Infos makes Info calls to multiple backends.

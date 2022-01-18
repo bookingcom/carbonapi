@@ -64,7 +64,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false)
+	got, _, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false)
 	if err != nil {
 		t.Error(err)
 		return
@@ -95,7 +95,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, mcs, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true)
+	got, ps, ins, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true)
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -106,8 +106,13 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		return
 	}
 
-	if okCount, ok := mcs.GetKeyValueStats()[types.MetricConsistencyOK]; !ok || okCount != 6 {
-		t.Errorf("Expected %d ok responses, got %d", 6, okCount)
+	if ps != 6 {
+		t.Errorf("Expected %d ok responses, got %d", 6, ps)
+		return
+	}
+
+	if ins != 0 {
+		t.Errorf("Expected %d ok responses, got %d", 0, ins)
 		return
 	}
 }
@@ -119,7 +124,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false)
+	_, _, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false)
 	if err == nil {
 		t.Error("Expected error")
 	}
