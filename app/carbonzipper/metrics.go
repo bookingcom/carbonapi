@@ -55,19 +55,20 @@ var Metrics = struct {
 
 // PrometheusMetrics keeps all the metrics exposed on /metrics endpoint
 type PrometheusMetrics struct {
-	Requests             prometheus.Counter
-	Responses            *prometheus.CounterVec
-	RenderConsistency    *prometheus.CounterVec
-	FindNotFound         prometheus.Counter
-	RequestCancel        *prometheus.CounterVec
-	DurationExp          prometheus.Histogram
-	DurationLin          prometheus.Histogram
-	RenderDurationExp    prometheus.Histogram
-	RenderOutDurationExp *prometheus.HistogramVec
-	FindDurationExp      prometheus.Histogram
-	FindDurationLin      prometheus.Histogram
-	TimeInQueueExp       prometheus.Histogram
-	TimeInQueueLin       prometheus.Histogram
+	Requests              prometheus.Counter
+	Responses             *prometheus.CounterVec
+	RenderInconsistencies prometheus.Counter
+	Renders               prometheus.Counter
+	FindNotFound          prometheus.Counter
+	RequestCancel         *prometheus.CounterVec
+	DurationExp           prometheus.Histogram
+	DurationLin           prometheus.Histogram
+	RenderDurationExp     prometheus.Histogram
+	RenderOutDurationExp  *prometheus.HistogramVec
+	FindDurationExp       prometheus.Histogram
+	FindDurationLin       prometheus.Histogram
+	TimeInQueueExp        prometheus.Histogram
+	TimeInQueueLin        prometheus.Histogram
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -86,12 +87,17 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 			},
 			[]string{"code", "handler"},
 		),
-		RenderConsistency: prometheus.NewCounterVec(
+		RenderInconsistencies: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "render_consistency",
-				Help: "Count of rendered data points, partitioned by the consistency state",
+				Name: "render_inconsistency_total",
+				Help: "Count of inconsistent rendered data points",
 			},
-			[]string{"consistency"},
+		),
+		Renders: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_total",
+				Help: "Count of rendered data points",
+			},
 		),
 		FindNotFound: prometheus.NewCounter(
 			prometheus.CounterOpts{

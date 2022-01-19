@@ -310,8 +310,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
 	metrics, points, incons, errs := backend.Renders(ctx, bs, request, app.config.ConsistencyCheck)
-	app.prometheusMetrics.RenderConsistency.WithLabelValues("all").Add(float64(points))
-	app.prometheusMetrics.RenderConsistency.WithLabelValues("inconsistent").Add(float64(incons))
+	app.prometheusMetrics.Renders.Add(float64(points))
+	app.prometheusMetrics.RenderInconsistencies.Add(float64(incons))
 	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms
