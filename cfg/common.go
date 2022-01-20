@@ -118,10 +118,10 @@ func DefaultCommonConfig() Common {
 			},
 		},
 		Traces: Traces{
-			Timeout: 10 * time.Second,
-			Tags:    Tags{},
+			Timeout:              10 * time.Second,
+			Tags:                 Tags{},
 			JaegerBufferMaxCount: 500000, // If size of one span is 3k, we will hold max ~1.5g in memory
-			JaegerBatchMaxCount: 500, // If size of one span is 3k, total request size will be ~1.5m
+			JaegerBatchMaxCount:  500,    // If size of one span is 3k, total request size will be ~1.5m
 
 		},
 		PrintErrorStackTrace: false,
@@ -167,6 +167,8 @@ type Common struct {
 
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
+
+	ConsistencyCheck bool `yaml:"consistencyCheck"`
 }
 
 // GetBackends returns the list of backends from common configuration

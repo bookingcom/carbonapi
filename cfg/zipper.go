@@ -8,9 +8,8 @@ import (
 
 // Zipper is the zipper config
 type Zipper struct {
-	Common           `yaml:",inline"`
-	PathCache        pathcache.PathCache
-	ConsistencyCheck bool `yaml:"consistencyCheck"`
+	Common    `yaml:",inline"`
+	PathCache pathcache.PathCache
 }
 
 // ParseZipperConfig reads the zipper config from a supplied reader
