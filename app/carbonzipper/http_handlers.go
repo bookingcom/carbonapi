@@ -310,7 +310,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
 	metrics, points, mismatches, errs := backend.Renders(ctx, bs, request,
-		app.config.RenderMismatchCheck, app.config.RenderMismatchMetricReportLimit)
+		app.config.RenderReplicaMatchMode, app.config.RenderMismatchMetricReportLimit)
 	app.prometheusMetrics.Renders.Add(float64(points))
 	app.prometheusMetrics.RenderMismatches.Add(float64(mismatches))
 	err = errorsFanIn(errs, len(bs))

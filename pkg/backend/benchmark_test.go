@@ -3,10 +3,10 @@ package backend
 import (
 	"context"
 	"fmt"
+	"github.com/bookingcom/carbonapi/cfg"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -64,10 +64,10 @@ func BenchmarkRenders(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	mismatchChecks := []bool{false, true}
-	for _, mismatchCheck := range mismatchChecks {
-		cc := mismatchCheck
-		b.Run(fmt.Sprintf("BenchmarkRenders/RenderMismatchCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+	renderReplicaMatchModes := []cfg.ReplicaMatchMode{cfg.ReplicaMatchModeNormal, cfg.ReplicaMatchModeCheck, cfg.ReplicaMatchModeMajority}
+	for _, replicaMatchMode := range renderReplicaMatchModes {
+		cc := replicaMatchMode
+		b.Run(fmt.Sprintf("BenchmarkRenders/ReplicaMatchMode%s", string(cc)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
 			}
@@ -127,10 +127,10 @@ func BenchmarkRendersStorm(b *testing.B) {
 	n := 50
 	errs := make(chan []error, n)
 
-	mismatchChecks := []bool{false, true}
-	for _, mismatchCheck := range mismatchChecks {
-		cc := mismatchCheck
-		b.Run(fmt.Sprintf("BenchmarkRendersStorm/RenderMismatchCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+	renderReplicaMatchModes := []cfg.ReplicaMatchMode{cfg.ReplicaMatchModeNormal, cfg.ReplicaMatchModeCheck, cfg.ReplicaMatchModeMajority}
+	for _, replicaMatchMode := range renderReplicaMatchModes {
+		cc := replicaMatchMode
+		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ReplicaMatchMode%s", string(cc)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
 					wg.Add(1)
