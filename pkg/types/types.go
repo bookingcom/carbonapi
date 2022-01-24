@@ -197,6 +197,8 @@ type Metric struct {
 }
 
 // MergeMetrics merges metrics by name.
+// It returns merged metrics, number of rendered data points for the returned metrics,
+// and number of inconsistent data points seen (if consistencyCheck is true).
 func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int) {
 	if len(metrics) == 0 {
 		return nil, 0, 0
@@ -222,12 +224,12 @@ func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int
 	merged := make([]Metric, 0)
 	pointCount := 0
 	inconsistencyCount := 0
-	InconsistentMetricsLogLimit := 10
-	var limitedInconsistentMetricsForLog []map[string]interface{}
+	inconsMetricReportLimit := 10
+	var inconsMetricReport []map[string]interface{}
 	for _, ms := range metricByNames {
 		m, c := mergeMetrics(ms, consistencyCheck)
-		if c > 0 && len(limitedInconsistentMetricsForLog) < InconsistentMetricsLogLimit {
-			limitedInconsistentMetricsForLog = append(limitedInconsistentMetricsForLog, map[string]interface{}{
+		if c > 0 && len(inconsMetricReport) < inconsMetricReportLimit {
+			inconsMetricReport = append(inconsMetricReport, map[string]interface{}{
 				"metricName":         m.Name,
 				"start":              m.StartTime,
 				"stop":               m.StopTime,
@@ -242,7 +244,7 @@ func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int
 
 	if consistencyCheck && inconsistencyCount > 0 {
 		corruptionLogger.Warn("metric consistency issue",
-			zap.Any("inconsistentMetric", limitedInconsistentMetricsForLog),
+			zap.Any("inconsistentMetric", inconsMetricReport),
 			zap.Int("totalInconsistencies", inconsistencyCount),
 		)
 	}
@@ -262,19 +264,13 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func getPointInconsistentValueCount(selectedValue float64, values []float64) int {
-	valuesCount := len(values)
-	if valuesCount == 0 {
-		// No value for the point
-		return 0
-	}
-
-	valuesToCount := make(map[float64]int)
+func areValuesEqual(selectedValue float64, values []float64) bool {
 	for _, val := range values {
-		valuesToCount[val]++
+		if selectedValue != val {
+			return false
+		}
 	}
-
-	return valuesCount - valuesToCount[selectedValue]
+	return true
 }
 
 func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, inconsistencies int) {
@@ -322,8 +318,7 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 			}
 		}
 		if consistencyCheck {
-			dataPointInconsistentValues := getPointInconsistentValueCount(metric.Values[i], valuesForPoint)
-			if dataPointInconsistentValues > 0 {
+			if !areValuesEqual(metric.Values[i], valuesForPoint) {
 				inconsistencies++
 			}
 		}
