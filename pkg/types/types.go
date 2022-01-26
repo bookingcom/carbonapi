@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	inconsMetricReportLimit = 10
+)
+
 var (
 	// TODO (grzkv): Remove from global scope and to metrics package
 	corruptionThreshold = 1.0
@@ -223,8 +227,7 @@ func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int
 
 	merged := make([]Metric, 0)
 	pointCount := 0
-	inconsistencyCount := 0
-	inconsMetricReportLimit := 10
+	inconsCount := 0
 	var inconsMetricReport []map[string]interface{}
 	for _, ms := range metricByNames {
 		m, c := mergeMetrics(ms, consistencyCheck)
@@ -238,18 +241,18 @@ func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int
 			})
 		}
 		merged = append(merged, m)
-		inconsistencyCount += c
+		inconsCount += c
 		pointCount += len(m.Values)
 	}
 
-	if consistencyCheck && inconsistencyCount > 0 {
+	if consistencyCheck && inconsCount > 0 {
 		corruptionLogger.Warn("metric consistency issue",
 			zap.Any("inconsistentMetric", inconsMetricReport),
-			zap.Int("totalInconsistencies", inconsistencyCount),
+			zap.Int("totalInconsistencies", inconsCount),
 		)
 	}
 
-	return merged, pointCount, inconsistencyCount
+	return merged, pointCount, inconsCount
 }
 
 type byStepTime []Metric
@@ -262,15 +265,6 @@ func (s byStepTime) Swap(i, j int) {
 
 func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
-}
-
-func areValuesEqual(selectedValue float64, values []float64) bool {
-	for _, val := range values {
-		if selectedValue != val {
-			return false
-		}
-	}
-	return true
 }
 
 func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, inconsistencies int) {
@@ -289,11 +283,8 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 	// metrics[0] has the highest resolution of metrics
 	metric = metrics[0]
 	for i := range metric.Values {
-		var valuesForPoint []float64
 		pointExists := !metric.IsAbsent[i]
-		if pointExists {
-			valuesForPoint = append(valuesForPoint, metric.Values[i])
-		}
+		areValuesEqual := true
 		for j := 1; j < len(metrics); j++ {
 			if pointExists && !consistencyCheck {
 				break
@@ -308,19 +299,17 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 				continue
 			}
 
-			valuesForPoint = append(valuesForPoint, m.Values[i])
-
 			if !pointExists {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
 				healed++
 				pointExists = true
 			}
+
+			areValuesEqual = areValuesEqual && metric.Values[i] == m.Values[i]
 		}
-		if consistencyCheck {
-			if !areValuesEqual(metric.Values[i], valuesForPoint) {
-				inconsistencies++
-			}
+		if consistencyCheck && !areValuesEqual {
+			inconsistencies++
 		}
 	}
 
