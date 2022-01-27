@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	inconsMetricReportLimit = 10
+	mismatchedMetricReportLimit = 10
 )
 
 var (
@@ -202,8 +202,8 @@ type Metric struct {
 
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
-// and number of inconsistent data points seen (if consistencyCheck is true).
-func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int) {
+// and number of mismatched data points seen (if mismatchCheck is true).
+func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
 	if len(metrics) == 0 {
 		return nil, 0, 0
 	}
@@ -227,32 +227,32 @@ func MergeMetrics(metrics [][]Metric, consistencyCheck bool) ([]Metric, int, int
 
 	merged := make([]Metric, 0)
 	pointCount := 0
-	inconsCount := 0
-	var inconsMetricReport []map[string]interface{}
+	mismatchCount := 0
+	var mismatchedMetricReport []map[string]interface{}
 	for _, ms := range metricByNames {
-		m, c := mergeMetrics(ms, consistencyCheck)
-		if c > 0 && len(inconsMetricReport) < inconsMetricReportLimit {
-			inconsMetricReport = append(inconsMetricReport, map[string]interface{}{
-				"metricName":         m.Name,
-				"start":              m.StartTime,
-				"stop":               m.StopTime,
-				"step":               m.StepTime,
-				"inconsistentPoints": c,
+		m, c := mergeMetrics(ms, mismatchCheck)
+		if c > 0 && len(mismatchedMetricReport) < mismatchedMetricReportLimit {
+			mismatchedMetricReport = append(mismatchedMetricReport, map[string]interface{}{
+				"metric_name":       m.Name,
+				"start":             m.StartTime,
+				"stop":              m.StopTime,
+				"step":              m.StepTime,
+				"mismatched_points": c,
 			})
 		}
 		merged = append(merged, m)
-		inconsCount += c
+		mismatchCount += c
 		pointCount += len(m.Values)
 	}
 
-	if consistencyCheck && inconsCount > 0 {
-		corruptionLogger.Warn("metric consistency issue",
-			zap.Any("inconsistentMetric", inconsMetricReport),
-			zap.Int("totalInconsistencies", inconsCount),
+	if mismatchCheck && mismatchCount > 0 {
+		corruptionLogger.Warn("metric mismatch observed",
+			zap.Any("mismatched_metrics", mismatchedMetricReport),
+			zap.Int("mismatches_total", mismatchCount),
 		)
 	}
 
-	return merged, pointCount, inconsCount
+	return merged, pointCount, mismatchCount
 }
 
 type byStepTime []Metric
@@ -267,7 +267,7 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, inconsistencies int) {
+func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatches int) {
 	if len(metrics) == 0 {
 		return Metric{}, 0
 	}
@@ -286,7 +286,7 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 		pointExists := !metric.IsAbsent[i]
 		areValuesEqual := true
 		for j := 1; j < len(metrics); j++ {
-			if pointExists && !consistencyCheck {
+			if pointExists && !mismatchCheck {
 				break
 			}
 			m := metrics[j]
@@ -308,8 +308,8 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 
 			areValuesEqual = areValuesEqual && metric.Values[i] == m.Values[i]
 		}
-		if consistencyCheck && !areValuesEqual {
-			inconsistencies++
+		if mismatchCheck && !areValuesEqual {
+			mismatches++
 		}
 	}
 
@@ -320,7 +320,7 @@ func mergeMetrics(metrics []Metric, consistencyCheck bool) (metric Metric, incon
 			zap.Float64("threshold", corruptionThreshold),
 		)
 	}
-	return metric, inconsistencies
+	return metric, mismatches
 }
 
 // Info contains metadata about a metric in Graphite.

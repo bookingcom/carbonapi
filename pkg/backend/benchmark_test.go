@@ -64,10 +64,10 @@ func BenchmarkRenders(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	consistencyChecks := []bool{false, true}
-	for _, consistencyCheck := range consistencyChecks {
-		cc := consistencyCheck
-		b.Run(fmt.Sprintf("BenchmarkRenders/ConsistencyCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+	mismatchChecks := []bool{false, true}
+	for _, mismatchCheck := range mismatchChecks {
+		cc := mismatchCheck
+		b.Run(fmt.Sprintf("BenchmarkRenders/RenderMismatchCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
 			}
@@ -127,10 +127,10 @@ func BenchmarkRendersStorm(b *testing.B) {
 	n := 50
 	errs := make(chan []error, n)
 
-	consistencyChecks := []bool{false, true}
-	for _, consistencyCheck := range consistencyChecks {
-		cc := consistencyCheck
-		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ConsistencyCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
+	mismatchChecks := []bool{false, true}
+	for _, mismatchCheck := range mismatchChecks {
+		cc := mismatchCheck
+		b.Run(fmt.Sprintf("BenchmarkRendersStorm/RenderMismatchCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
 					wg.Add(1)

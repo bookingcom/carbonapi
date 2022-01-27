@@ -168,7 +168,7 @@ type Common struct {
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 
-	ConsistencyCheck bool `yaml:"consistencyCheck"`
+	RenderMismatchCheck bool `yaml:"renderMismatchCheck"`
 }
 
 // GetBackends returns the list of backends from common configuration

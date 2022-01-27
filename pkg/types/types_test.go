@@ -108,7 +108,7 @@ func TestMergeManyMetricsBasic(t *testing.T) {
 	}
 }
 
-func TestMergeManyInconsistentMetrics(t *testing.T) {
+func TestMergeManyMismatchedMetrics(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
 			Metric{
@@ -146,7 +146,7 @@ func TestMergeManyInconsistentMetrics(t *testing.T) {
 	}
 
 	if ins != 1 {
-		t.Errorf("Expected 1 inconsistent points , got %d", ins)
+		t.Errorf("Expected 1 Mismatched points , got %d", ins)
 	}
 }
 
@@ -180,11 +180,11 @@ func TestMergeRiskyMetrics(t *testing.T) {
 		t.Errorf("Expected 2 metric points, got %d", ps)
 	}
 	if ins != 0 {
-		t.Errorf("Expected 0 inconsistent metric points, got %d", ins)
+		t.Errorf("Expected 0 Mismatched metric points, got %d", ins)
 	}
 }
 
-func TestMergeManyMinorityInconsistentMetrics(t *testing.T) {
+func TestMergeManyMinorityMismatchedMetrics(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
 			Metric{
@@ -228,11 +228,11 @@ func TestMergeManyMinorityInconsistentMetrics(t *testing.T) {
 		t.Errorf("Expected 2 metric points, got %d", ps)
 	}
 	if ins != 1 {
-		t.Errorf("Expected 1 inconsistent metric points, got %d", ins)
+		t.Errorf("Expected 1 Mismatched metric points, got %d", ins)
 	}
 }
 
-func TestMergeManyRiskyAndInconsistentMetrics(t *testing.T) {
+func TestMergeManyRiskyAndMismatchedMetrics(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
 			Metric{
@@ -276,7 +276,7 @@ func TestMergeManyRiskyAndInconsistentMetrics(t *testing.T) {
 		t.Errorf("Expected 2 metric points, got %d", ps)
 	}
 	if ins != 2 {
-		t.Errorf("Expected 2 inconsistent metric points, got %d", ins)
+		t.Errorf("Expected 2 Mismatched metric points, got %d", ins)
 	}
 }
 
