@@ -228,16 +228,23 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
 	merged := make([]Metric, 0)
 	pointCount := 0
 	mismatchCount := 0
-	var mismatchedMetricReport []map[string]interface{}
+	type metricReport struct {
+		MetricName       string `json:"metric_name"`
+		Start            int32  `json:"start"`
+		Stop             int32  `json:"stop"`
+		Step             int32  `json:"step"`
+		MismatchedPoints int    `json:"mismatched_points"`
+	}
+	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
 		m, c := mergeMetrics(ms, mismatchCheck)
-		if c > 0 && len(mismatchedMetricReport) < mismatchedMetricReportLimit {
-			mismatchedMetricReport = append(mismatchedMetricReport, map[string]interface{}{
-				"metric_name":       m.Name,
-				"start":             m.StartTime,
-				"stop":              m.StopTime,
-				"step":              m.StepTime,
-				"mismatched_points": c,
+		if c > 0 && len(mismatchedMetricReports) < mismatchedMetricReportLimit {
+			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
+				MetricName:       m.Name,
+				Start:            m.StartTime,
+				Stop:             m.StopTime,
+				Step:             m.StepTime,
+				MismatchedPoints: c,
 			})
 		}
 		merged = append(merged, m)
@@ -247,7 +254,7 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
 
 	if mismatchCheck && mismatchCount > 0 {
 		corruptionLogger.Warn("metric mismatch observed",
-			zap.Any("mismatched_metrics", mismatchedMetricReport),
+			zap.Any("mismatched_metrics", mismatchedMetricReports),
 			zap.Int("mismatches_total", mismatchCount),
 		)
 	}
