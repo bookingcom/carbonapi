@@ -253,9 +253,9 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
 	}
 
 	if mismatchCheck && mismatchCount > 0 {
-		corruptionLogger.Warn("metric mismatch observed",
-			zap.Any("mismatched_metrics", mismatchedMetricReports),
-			zap.Int("mismatches_total", mismatchCount),
+		corruptionLogger.Warn("metric replica mismatch observed",
+			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
+			zap.Int("replica_mismatches_total", mismatchCount),
 		)
 	}
 
@@ -291,9 +291,9 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 	metric = metrics[0]
 	for i := range metric.Values {
 		pointExists := !metric.IsAbsent[i]
-		areValuesEqual := true
+		shouldLookForMismatch := mismatchCheck
 		for j := 1; j < len(metrics); j++ {
-			if pointExists && !mismatchCheck {
+			if pointExists && !shouldLookForMismatch {
 				break
 			}
 			m := metrics[j]
@@ -313,10 +313,10 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 				pointExists = true
 			}
 
-			areValuesEqual = areValuesEqual && metric.Values[i] == m.Values[i]
-		}
-		if mismatchCheck && !areValuesEqual {
-			mismatches++
+			if metric.Values[i] != m.Values[i] {
+				mismatches++
+				shouldLookForMismatch = false
+			}
 		}
 	}
 
