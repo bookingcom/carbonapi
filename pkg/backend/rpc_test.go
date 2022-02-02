@@ -64,7 +64,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, _, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false)
+	got, _, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false, 10)
 	if err != nil {
 		t.Error(err)
 		return
@@ -95,7 +95,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, ps, ins, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true)
+	got, ps, ins, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true, 10)
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -124,7 +124,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, _, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false)
+	_, _, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false, 10)
 	if err == nil {
 		t.Error("Expected error")
 	}

@@ -17,10 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	mismatchedMetricReportLimit = 10
-)
-
 var (
 	// TODO (grzkv): Remove from global scope and to metrics package
 	corruptionThreshold = 1.0
@@ -203,7 +199,7 @@ type Metric struct {
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
+func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLimit int) ([]Metric, int, int) {
 	if len(metrics) == 0 {
 		return nil, 0, 0
 	}
@@ -238,7 +234,7 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool) ([]Metric, int, int) {
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
 		m, c := mergeMetrics(ms, mismatchCheck)
-		if c > 0 && len(mismatchedMetricReports) < mismatchedMetricReportLimit {
+		if c > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,

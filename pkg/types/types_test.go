@@ -98,7 +98,7 @@ func TestMergeManyMetricsBasic(t *testing.T) {
 		IsAbsent: []bool{false},
 	}
 
-	got, _, _ := MergeMetrics(input, false)
+	got, _, _ := MergeMetrics(input, false, 0)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -132,7 +132,7 @@ func TestMergeManyMismatchedMetrics(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins := MergeMetrics(input, true)
+	got, ps, ins := MergeMetrics(input, true, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -167,7 +167,7 @@ func TestMergeRiskyMetrics(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins := MergeMetrics(input, true)
+	got, ps, ins := MergeMetrics(input, true, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -215,7 +215,7 @@ func TestMergeManyMinorityMismatchedMetrics(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins := MergeMetrics(input, true)
+	got, ps, ins := MergeMetrics(input, true, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -263,7 +263,7 @@ func TestMergeManyRiskyAndMismatchedMetrics(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, ps, ins := MergeMetrics(input, true)
+	got, ps, ins := MergeMetrics(input, true, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -298,7 +298,7 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 		},
 	}
 
-	got, _, _ := MergeMetrics(input, false)
+	got, _, _ := MergeMetrics(input, false, 0)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 metrics, got %d", len(got))
 	}

@@ -125,6 +125,9 @@ func DefaultCommonConfig() Common {
 
 		},
 		PrintErrorStackTrace: false,
+
+		RenderMismatchCheck:             false,
+		RenderMismatchMetricReportLimit: 10,
 	}
 }
 
@@ -168,7 +171,8 @@ type Common struct {
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 
-	RenderMismatchCheck bool `yaml:"renderMismatchCheck"`
+	RenderMismatchCheck             bool `yaml:"renderMismatchCheck"`
+	RenderMismatchMetricReportLimit int  `yaml:"renderMismatchMetricReportLimit"`
 }
 
 // GetBackends returns the list of backends from common configuration

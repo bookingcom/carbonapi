@@ -69,7 +69,7 @@ func BenchmarkRenders(b *testing.B) {
 		cc := mismatchCheck
 		b.Run(fmt.Sprintf("BenchmarkRenders/RenderMismatchCheck%s", strconv.FormatBool(cc)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
 			}
 		})
 	}
@@ -136,7 +136,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						_, _, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+						_, _, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
 						errs <- err
 					}()
 				}
