@@ -1,3 +1,4 @@
+//go:build cairo
 // +build cairo
 
 package png
@@ -21,8 +22,8 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 
-	"bitbucket.org/tebeka/strftime"
 	"github.com/evmar/gocairo/cairo"
+	"github.com/tebeka/strftime"
 )
 
 const HaveGraphSupport = true

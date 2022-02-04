@@ -3,7 +3,6 @@ module github.com/bookingcom/carbonapi
 go 1.16
 
 require (
-	bitbucket.org/tebeka/strftime v0.0.0-20121209190902-af5e0ef38369
 	github.com/JaderDias/movingmedian v0.0.0-20170611140316-de8c410559fa
 	github.com/aclements/go-moremath v0.0.0-20180329182055-b1aff36309c7 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
@@ -40,6 +39,7 @@ require (
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e // indirect
 	github.com/prometheus/procfs v0.0.0-20180920065004-418d78d0b9a7 // indirect
 	github.com/satori/go.uuid v1.2.0
+	github.com/tebeka/strftime v0.1.5
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
 	go.opentelemetry.io/otel v0.8.0
