@@ -118,10 +118,10 @@ func DefaultCommonConfig() Common {
 			},
 		},
 		Traces: Traces{
-			Timeout: 10 * time.Second,
-			Tags:    Tags{},
+			Timeout:              10 * time.Second,
+			Tags:                 Tags{},
 			JaegerBufferMaxCount: 500000, // If size of one span is 3k, we will hold max ~1.5g in memory
-			JaegerBatchMaxCount: 500, // If size of one span is 3k, total request size will be ~1.5m
+			JaegerBatchMaxCount:  500,    // If size of one span is 3k, total request size will be ~1.5m
 
 		},
 		PrintErrorStackTrace: false,
@@ -167,6 +167,31 @@ type Common struct {
 
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
+
+	// DeterministicBackend sets a backend weight for each metric in render
+	// request and carbonzipper would favor metrics from a specific node.
+	// As storage backends like go-carbon doesn't have strong consistency
+	// guarantee, this means that the same metric persisted in different
+	// replicas might have different values. Without DeterministicBackend
+	// option, carbonzipper would just favor metrics returned first from
+	// any backend. This might result in confusing query result in
+	// carbonapi that are reading multiple metrics in one query.
+	//
+	// An example like bellow:
+	//
+	//     asPercent(
+	//         integral(sumSeries(http.app.latencies.{0_5_1,1_5,5_10,10_25,25_50,50_100,100_250}.count)),
+	//         integral(sumSeries(http.app.latencies.*.count))
+	//     )
+	//
+	// Without DeterministicBackend option, if there are inconsistent values
+	// between replicas in the returning metrics (for example, in one
+	// replica 0_5_1.count has value 10, and in another 0_5_1.count has 5),
+	// the example query above might return percentage values larger than
+	// 100%. With DeterministicBackend option, it's guaranteed that the
+	// query result would always "seem" meaningful (in the example, it
+	// always return value <= 100%), but not necessarily correct.
+	DeterministicBackend bool `yaml:"deterministicBackend"`
 }
 
 // GetBackends returns the list of backends from common configuration

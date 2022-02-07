@@ -211,6 +211,7 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			Logger:             logger,
+			Deterministic:      config.DeterministicBackend,
 		})
 
 		if err != nil {

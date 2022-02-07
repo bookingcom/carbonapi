@@ -7,7 +7,7 @@ import (
 
 func TestMergeInfos(t *testing.T) {
 	infos := [][]Info{
-		[]Info{Info{}},
+		{Info{}},
 		[]Info{Info{}},
 	}
 
@@ -408,6 +408,44 @@ func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 		Name:     "metric",
 		Values:   []float64{1, 1},
 		IsAbsent: []bool{false, false},
+		StepTime: 1,
+	}
+
+	doTest(t, input, expected)
+}
+
+func TestMergeMetricsDifferingStepTimes7(t *testing.T) {
+	input := []Metric{
+		Metric{
+			Name:          "metric",
+			Values:        []float64{2, 0, 2},
+			IsAbsent:      []bool{false, true, false},
+			StepTime:      1,
+			backendAddr:   "10.0.0.1",
+			backendWeight: 2,
+		},
+		Metric{
+			Name:          "metric",
+			Values:        []float64{1, 0, 0},
+			IsAbsent:      []bool{false, true, true},
+			StepTime:      1,
+			backendAddr:   "10.0.0.2",
+			backendWeight: 1,
+		},
+		Metric{
+			Name:          "metric",
+			Values:        []float64{3, 3, 3},
+			IsAbsent:      []bool{false, false, false},
+			StepTime:      1,
+			backendAddr:   "10.0.0.3",
+			backendWeight: 3,
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{1, 3, 2},
+		IsAbsent: []bool{false, false, false},
 		StepTime: 1,
 	}
 

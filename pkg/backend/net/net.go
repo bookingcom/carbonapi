@@ -5,6 +5,7 @@ package net
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -53,6 +54,7 @@ type Backend struct {
 	logger         *zap.Logger
 	cache          *expirecache.Cache
 	cacheExpirySec int32
+	deterministic  bool // Check cfg/common.go:Common.DeterministicBackend
 }
 
 // Config configures an HTTP backend.
@@ -73,6 +75,8 @@ type Config struct {
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 	ActiveRequests     prometheus.Gauge
 	WaitingRequests    prometheus.Gauge
+
+	Deterministic bool // Check cfg/common.go:Common.DeterministicBackend
 }
 
 var fmtProto = []string{"protobuf"}
@@ -98,6 +102,7 @@ func New(cfg Config) (*Backend, error) {
 	b.scheme = scheme
 	b.cluster = cfg.Cluster
 	b.dc = cfg.DC
+	b.deterministic = cfg.Deterministic
 
 	if cfg.Timeout > 0 {
 		b.timeout = cfg.Timeout
@@ -152,6 +157,16 @@ func (b Backend) url(path string) *url.URL {
 // GetServerAddress returns the server address for this backend.
 func (b Backend) GetServerAddress() string {
 	return b.address
+}
+
+// Motivations of producing a weight by hashing metric_name + server_addr:
+//
+// 	Make carbonzipper uniformly retrieve metrics from different
+// 	replicas but still stick to the same backend server in every api call.
+func (b Backend) getMetricWeight(metric *types.Metric) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(metric.Name + b.GetServerAddress()))
+	return h.Sum64()
 }
 
 // Logger returns logger for this backend. Needed to satisfy interface.
@@ -336,7 +351,11 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 		return nil, types.ErrMetricsNotFound
 	}
 
-	for _, metric := range metrics {
+	for i := range metrics {
+		metric := &metrics[i]
+		if b.deterministic {
+			metric.SetBackendAndWeight(b.GetServerAddress(), b.getMetricWeight(metric))
+		}
 		b.cache.Set(metric.Name, struct{}{}, 0, b.cacheExpirySec)
 	}
 

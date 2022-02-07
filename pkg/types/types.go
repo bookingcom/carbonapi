@@ -194,6 +194,14 @@ type Metric struct {
 	StepTime  int32
 	Values    []float64
 	IsAbsent  []bool
+
+	backendAddr   string
+	backendWeight uint64
+}
+
+func (m *Metric) SetBackendAndWeight(addr string, weight uint64) {
+	m.backendAddr = addr
+	m.backendWeight = weight
 }
 
 // MergeMetrics merges metrics by name.
@@ -231,7 +239,22 @@ func (s byStepTime) Swap(i, j int) {
 }
 
 func (s byStepTime) Less(i, j int) bool {
-	return s[i].StepTime < s[j].StepTime
+	// No deterministic backend sorting if backendAddr is empty.
+	if s[i].StepTime != s[j].StepTime || s[i].backendAddr == "" {
+		return s[i].StepTime < s[j].StepTime
+	}
+
+	// Check backend/net.Backend.getMetricWeight for explanations.
+	if s[i].backendWeight < s[j].backendWeight {
+		return true
+	}
+
+	// Deal with hash collision.
+	if s[i].backendWeight == s[j].backendWeight {
+		return s[i].backendAddr < s[j].backendAddr
+	}
+
+	return false
 }
 
 func mergeMetrics(metrics []Metric) Metric {
