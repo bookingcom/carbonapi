@@ -41,9 +41,12 @@ type Backend interface {
 // worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
-func Renders(ctx context.Context, backends []Backend, request types.RenderRequest) ([]types.Metric, []error) {
+// mismatchCheck indicates whether data points of the metrics fetched from replicas
+// will be checked for reporting consistency or not. mismatchMetricReportLimit limits
+// the number of metrics reported in log for each render request.
+func Renders(ctx context.Context, backends []Backend, request types.RenderRequest, mismatchCheck bool, mismatchMetricReportLimit int) ([]types.Metric, int, int, []error) {
 	if len(backends) == 0 {
-		return nil, nil
+		return nil, 0, 0, nil
 	}
 
 	msgCh := make(chan []types.Metric, len(backends))
@@ -71,7 +74,8 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		}
 	}
 
-	return types.MergeMetrics(msgs), errs
+	metrics, points, mismatches := types.MergeMetrics(msgs, mismatchCheck, mismatchMetricReportLimit)
+	return metrics, points, mismatches, errs
 }
 
 // Infos makes Info calls to multiple backends.

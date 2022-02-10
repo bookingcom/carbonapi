@@ -57,6 +57,8 @@ var Metrics = struct {
 type PrometheusMetrics struct {
 	Requests             prometheus.Counter
 	Responses            *prometheus.CounterVec
+	RenderMismatches     prometheus.Counter
+	Renders              prometheus.Counter
 	FindNotFound         prometheus.Counter
 	RequestCancel        *prometheus.CounterVec
 	DurationExp          prometheus.Histogram
@@ -84,6 +86,18 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
+		),
+		RenderMismatches: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_mismatches_total",
+				Help: "Count of mismatched rendered data points",
+			},
+		),
+		Renders: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_total",
+				Help: "Count of rendered data points",
+			},
 		),
 		FindNotFound: prometheus.NewCounter(
 			prometheus.CounterOpts{

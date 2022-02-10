@@ -197,29 +197,65 @@ type Metric struct {
 }
 
 // MergeMetrics merges metrics by name.
-func MergeMetrics(metrics [][]Metric) []Metric {
+// It returns merged metrics, number of rendered data points for the returned metrics,
+// and number of mismatched data points seen (if mismatchCheck is true).
+func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLimit int) ([]Metric, int, int) {
 	if len(metrics) == 0 {
-		return nil
+		return nil, 0, 0
 	}
 
 	if len(metrics) == 1 {
-		return metrics[0]
+		pointCount := 0
+		ms := metrics[0]
+		for _, m := range ms {
+			pointCount += len(m.Values)
+		}
+		return ms, pointCount, 0
 	}
 
-	names := make(map[string][]Metric)
+	metricByNames := make(map[string][]Metric)
 
 	for _, ms := range metrics {
 		for _, m := range ms {
-			names[m.Name] = append(names[m.Name], m)
+			metricByNames[m.Name] = append(metricByNames[m.Name], m)
 		}
 	}
 
 	merged := make([]Metric, 0)
-	for _, ms := range names {
-		merged = append(merged, mergeMetrics(ms))
+	pointCount := 0
+	mismatchCount := 0
+	type metricReport struct {
+		MetricName       string `json:"metric_name"`
+		Start            int32  `json:"start"`
+		Stop             int32  `json:"stop"`
+		Step             int32  `json:"step"`
+		MismatchedPoints int    `json:"mismatched_points"`
+	}
+	var mismatchedMetricReports []metricReport
+	for _, ms := range metricByNames {
+		m, c := mergeMetrics(ms, mismatchCheck)
+		if c > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
+			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
+				MetricName:       m.Name,
+				Start:            m.StartTime,
+				Stop:             m.StopTime,
+				Step:             m.StepTime,
+				MismatchedPoints: c,
+			})
+		}
+		merged = append(merged, m)
+		mismatchCount += c
+		pointCount += len(m.Values)
 	}
 
-	return merged
+	if mismatchCheck && mismatchCount > 0 {
+		corruptionLogger.Warn("metric replica mismatch observed",
+			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
+			zap.Int("replica_mismatches_total", mismatchCount),
+		)
+	}
+
+	return merged, pointCount, mismatchCount
 }
 
 type byStepTime []Metric
@@ -234,39 +270,48 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func mergeMetrics(metrics []Metric) Metric {
+func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatches int) {
 	if len(metrics) == 0 {
-		return Metric{}
+		return Metric{}, 0
 	}
 
 	if len(metrics) == 1 {
-		return metrics[0]
+		m := metrics[0]
+		return m, 0
 	}
 
 	sort.Sort(byStepTime(metrics))
 	healed := 0
 
 	// metrics[0] has the highest resolution of metrics
-	metric := metrics[0]
+	metric = metrics[0]
 	for i := range metric.Values {
-		if !metric.IsAbsent[i] {
-			continue
-		}
-
-		// found a missing value, look for a replacement
+		pointExists := !metric.IsAbsent[i]
+		shouldLookForMismatch := mismatchCheck
 		for j := 1; j < len(metrics); j++ {
+			if pointExists && !shouldLookForMismatch {
+				break
+			}
 			m := metrics[j]
 
 			if m.StepTime != metric.StepTime || len(m.Values) != len(metric.Values) {
 				break
 			}
 
-			// found one
-			if !m.IsAbsent[i] {
+			if m.IsAbsent[i] {
+				continue
+			}
+
+			if !pointExists {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
 				healed++
-				break
+				pointExists = true
+			}
+
+			if metric.Values[i] != m.Values[i] {
+				mismatches++
+				shouldLookForMismatch = false
 			}
 		}
 	}
@@ -278,8 +323,7 @@ func mergeMetrics(metrics []Metric) Metric {
 			zap.Float64("threshold", corruptionThreshold),
 		)
 	}
-
-	return metric
+	return metric, mismatches
 }
 
 // Info contains metadata about a metric in Graphite.

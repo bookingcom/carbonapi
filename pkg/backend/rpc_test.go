@@ -64,7 +64,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1))
+	got, _, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false, 10)
 	if err != nil {
 		t.Error(err)
 		return
@@ -82,7 +82,12 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		render := func(context.Context, types.RenderRequest) ([]types.Metric, error) {
 			return []types.Metric{
 				types.Metric{
-					Name: "foo",
+					Name:      "foo",
+					StartTime: 0,
+					StopTime:  5,
+					Values:    []float64{0, 1, 2, 3, 4, 5},
+					IsAbsent:  []bool{false, false, false, false, false, false},
+					StepTime:  1,
 				},
 			}, nil
 		}
@@ -90,7 +95,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
+	got, ps, ins, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true, 10)
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -98,6 +103,16 @@ func TestCarbonapiv2Renders(t *testing.T) {
 
 	if len(got) != 1 {
 		t.Errorf("Expected %d responses, got %d", N, len(got))
+		return
+	}
+
+	if ps != 6 {
+		t.Errorf("Expected %d ok responses, got %d", 6, ps)
+		return
+	}
+
+	if ins != 0 {
+		t.Errorf("Expected %d ok responses, got %d", 0, ins)
 		return
 	}
 }
@@ -109,7 +124,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1))
+	_, _, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false, 10)
 	if err == nil {
 		t.Error("Expected error")
 	}
