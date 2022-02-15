@@ -309,10 +309,11 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	request.Trace.OutDuration = app.prometheusMetrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
-	metrics, points, mismatches, errs := backend.Renders(ctx, bs, request,
+	metrics, points, mismatches, fixedMismatches, errs := backend.Renders(ctx, bs, request,
 		app.config.RenderReplicaMatchMode, app.config.RenderMismatchMetricReportLimit)
 	app.prometheusMetrics.Renders.Add(float64(points))
 	app.prometheusMetrics.RenderMismatches.Add(float64(mismatches))
+	app.prometheusMetrics.RenderFixedMismatches.Add(float64(fixedMismatches))
 	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
 	// time in queue is converted to ms
