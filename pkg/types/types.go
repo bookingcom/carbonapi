@@ -10,6 +10,7 @@ package types
 
 import (
 	"github.com/bookingcom/carbonapi/cfg"
+	"math"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -275,22 +276,38 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
+var epsilon = math.Nextafter(1.0, 2.0) - 1.0
+
 func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
-		return 0, 0
+		return math.NaN(), 0
 	}
 
-	valuesToCount := make(map[float64]int, valuesCount)
+	sort.Slice(values, func(i, j int) bool {
+		return values[i] < values[j]
+	})
+
+	majorityCount = 1
 	majorityValue = values[0]
-	for _, val := range values {
-		valuesToCount[val]++
-		if valuesToCount[val] > valuesToCount[majorityValue] {
-			majorityValue = val
+
+	currentCount := 1
+	currentValue := values[0]
+	for i := 1; i < len(values); i++ {
+		v := values[i]
+		if math.Abs(v-currentValue) < epsilon {
+			currentCount++
+			if currentCount > majorityCount {
+				majorityCount = currentCount
+				majorityValue = v
+			}
+		} else {
+			currentValue = v
+			currentCount = 1
 		}
 	}
 
-	return majorityValue, valuesToCount[majorityValue]
+	return majorityValue, majorityCount
 }
 
 func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, mismatches int, fixedMismatches int) {
