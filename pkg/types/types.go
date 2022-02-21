@@ -9,6 +9,7 @@ package types
 // TODO (grzkv): Name of this module makes 0 sense
 
 import (
+	"fmt"
 	"github.com/bookingcom/carbonapi/cfg"
 	"math"
 	"sort"
@@ -276,12 +277,31 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-var epsilon = math.Nextafter(1.0, 2.0) - 1.0
+func areFloatsEqual(a, b float64) bool {
+	epsilon := math.Nextafter(1.0, 2.0) - 1.0
+	floatMinNormal := math.Float64frombits(0x0010000000000000)
 
-func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int) {
+	absA := math.Abs(a)
+	absB := math.Abs(b)
+	diff := math.Abs(a - b)
+
+	if a == b {
+		return true
+	} else if a == 0 || b == 0 || (absA+absB < floatMinNormal) {
+		return diff < (epsilon * floatMinNormal)
+	} else {
+		div := math.MaxFloat64
+		if div > absA+absB {
+			div = absA + absB
+		}
+		return diff/div < epsilon
+	}
+}
+
+func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int, err error) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
-		return math.NaN(), 0
+		return math.NaN(), 0, fmt.Errorf("no value for majority voting")
 	}
 
 	sort.Slice(values, func(i, j int) bool {
@@ -295,7 +315,7 @@ func getPointMajorityValue(values []float64) (majorityValue float64, majorityCou
 	currentValue := values[0]
 	for i := 1; i < len(values); i++ {
 		v := values[i]
-		if math.Abs(v-currentValue) < epsilon {
+		if areFloatsEqual(v, currentValue) {
 			currentCount++
 			if currentCount > majorityCount {
 				majorityCount = currentCount
@@ -307,7 +327,7 @@ func getPointMajorityValue(values []float64) (majorityValue float64, majorityCou
 		}
 	}
 
-	return majorityValue, majorityCount
+	return majorityValue, majorityCount, nil
 }
 
 func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, mismatches int, fixedMismatches int) {
@@ -370,8 +390,8 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 
 		mismatches++
 		if replicaMatchMode == cfg.ReplicaMatchModeMajority {
-			majorityValue, majorityCount := getPointMajorityValue(valuesForPoint)
-			if majorityCount > len(valuesForPoint)/2 {
+			majorityValue, majorityCount, err := getPointMajorityValue(valuesForPoint)
+			if err == nil && majorityCount > len(valuesForPoint)/2 {
 				metric.Values[i] = majorityValue
 				fixedMismatches++
 			}

@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/bookingcom/carbonapi/cfg"
+	"math"
 	"sort"
 	"testing"
 )
@@ -387,6 +388,63 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 	expected := Metric{
 		Name:     "metric",
 		Values:   []float64{2, 1, 2},
+		IsAbsent: []bool{false, false, false},
+	}
+
+	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if ps != 3 {
+		t.Errorf("Expected 3 metric points, got %d", ps)
+	}
+
+	if ins != 2 {
+		t.Errorf("Expected 2 mismatched points, got %d", ins)
+	}
+
+	if fixed != 1 {
+		t.Errorf("Expected 1 fixed mismatch point , got %d", fixed)
+	}
+}
+
+func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
+	f1 := 0.1
+	f2 := 0.2
+	f3 := 0.3
+	f3appr := f1 + f2
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{0.25, 0, 2},
+				IsAbsent: []bool{false, true, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{f3, 0, 3},
+				IsAbsent: []bool{false, true, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{f3appr, 1, 4},
+				IsAbsent: []bool{false, false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{math.Max(f3, f3appr), 1, 2},
 		IsAbsent: []bool{false, false, false},
 	}
 
