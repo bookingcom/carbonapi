@@ -199,12 +199,19 @@ type Metric struct {
 	IsAbsent  []bool
 }
 
+// MetricRenderStats represents the stats of rendering and merging metrics.
+type MetricRenderStats struct {
+	DataPointCount     int
+	MismatchCount      int
+	FixedMismatchCount int
+}
+
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mismatchMetricReportLimit int) ([]Metric, int, int, int) {
+func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mismatchMetricReportLimit int) ([]Metric, MetricRenderStats) {
 	if len(metrics) == 0 {
-		return nil, 0, 0, 0
+		return nil, MetricRenderStats{}
 	}
 
 	if len(metrics) == 1 {
@@ -213,7 +220,9 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mis
 		for _, m := range ms {
 			pointCount += len(m.Values)
 		}
-		return ms, pointCount, 0, 0
+		return ms, MetricRenderStats{
+			DataPointCount: pointCount,
+		}
 	}
 
 	metricByNames := make(map[string][]Metric)
@@ -225,9 +234,7 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mis
 	}
 
 	merged := make([]Metric, 0)
-	pointCount := 0
-	mismatchCount := 0
-	fixedMismatchCount := 0
+	var metricsStat MetricRenderStats
 	type metricReport struct {
 		MetricName       string `json:"metric_name"`
 		Start            int32  `json:"start"`
@@ -237,32 +244,32 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mis
 	}
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
-		m, mismatches, fixedMismatches := mergeMetrics(ms, replicaMatchMode)
-		if mismatches > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
+		m, stats := mergeMetrics(ms, replicaMatchMode)
+		if stats.MismatchCount > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,
 				Stop:             m.StopTime,
 				Step:             m.StepTime,
-				MismatchedPoints: mismatches,
+				MismatchedPoints: stats.MismatchCount,
 			})
 		}
 		merged = append(merged, m)
-		mismatchCount += mismatches
-		fixedMismatchCount += fixedMismatches
-		pointCount += len(m.Values)
+		metricsStat.MismatchCount += stats.MismatchCount
+		metricsStat.FixedMismatchCount += stats.FixedMismatchCount
+		metricsStat.DataPointCount += stats.DataPointCount
 	}
 
-	if mismatchCount > 0 {
+	if metricsStat.MismatchCount > 0 {
 		corruptionLogger.Warn("metric replica mismatch observed",
 			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
-			zap.Int("replica_mismatches_total", mismatchCount),
-			zap.Int("replica_fixed_mismatches_total", fixedMismatchCount),
-			zap.Int("replica_points_total", pointCount),
+			zap.Int("replica_mismatches_total", metricsStat.MismatchCount),
+			zap.Int("replica_fixed_mismatches_total", metricsStat.FixedMismatchCount),
+			zap.Int("replica_points_total", metricsStat.DataPointCount),
 		)
 	}
 
-	return merged, pointCount, mismatchCount, fixedMismatchCount
+	return merged, metricsStat
 }
 
 type byStepTime []Metric
@@ -330,15 +337,17 @@ func getPointMajorityValue(values []float64) (majorityValue float64, majorityCou
 	return majorityValue, majorityCount, nil
 }
 
-func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, mismatches int, fixedMismatches int) {
+func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, stats MetricRenderStats) {
 	if len(metrics) == 0 {
-		return Metric{}, 0, 0
+		return Metric{}, MetricRenderStats{}
 	}
 
 	if len(metrics) == 1 {
 		m := metrics[0]
-		return m, 0, 0
+		return m, MetricRenderStats{}
 	}
+
+	var mismatches, fixedMismatches int
 
 	sort.Sort(byStepTime(metrics))
 	healed := 0
@@ -405,7 +414,11 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 			zap.Float64("threshold", corruptionThreshold),
 		)
 	}
-	return metric, mismatches, fixedMismatches
+	return metric, MetricRenderStats{
+		DataPointCount:     len(metric.Values),
+		MismatchCount:      mismatches,
+		FixedMismatchCount: fixedMismatches,
+	}
 }
 
 // Info contains metadata about a metric in Graphite.

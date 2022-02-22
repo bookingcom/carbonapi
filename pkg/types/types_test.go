@@ -100,7 +100,7 @@ func TestMergeManyMetricsWithNormal(t *testing.T) {
 		IsAbsent: []bool{false},
 	}
 
-	got, _, _, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
+	got, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -134,7 +134,7 @@ func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -143,16 +143,16 @@ func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 2 {
-		t.Errorf("Expected 2 points , got %d", ps)
+	if stats.DataPointCount != 2 {
+		t.Errorf("Expected 2 points , got %d", stats.DataPointCount)
 	}
 
-	if ins != 1 {
-		t.Errorf("Expected 1 mismatched points , got %d", ins)
+	if stats.MismatchCount != 1 {
+		t.Errorf("Expected 1 mismatched points , got %d", stats.MismatchCount)
 	}
 
-	if fixed != 0 {
-		t.Errorf("Expected 0 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected 0 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -189,16 +189,16 @@ func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 2 {
-		t.Errorf("Expected 2 points , got %d", ps)
+	if stats.DataPointCount != 2 {
+		t.Errorf("Expected 2 points , got %d", stats.DataPointCount)
 	}
 
-	if ins != 1 {
-		t.Errorf("Expected 1 mismatched point , got %d", ins)
+	if stats.MismatchCount != 1 {
+		t.Errorf("Expected 1 mismatched point , got %d", stats.MismatchCount)
 	}
 
-	if fixed != 0 {
-		t.Errorf("Expected 0 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected 0 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -233,7 +233,7 @@ func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -242,15 +242,15 @@ func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 2 {
-		t.Errorf("Expected 2 metric points, got %d", ps)
+	if stats.DataPointCount != 2 {
+		t.Errorf("Expected 2 metric points, got %d", stats.DataPointCount)
 	}
-	if ins != 1 {
-		t.Errorf("Expected 1 mismatched point, got %d", ins)
+	if stats.MismatchCount != 1 {
+		t.Errorf("Expected 1 mismatched point, got %d", stats.MismatchCount)
 	}
 
-	if fixed != 0 {
-		t.Errorf("Expected 0 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected 0 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -285,7 +285,7 @@ func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -294,16 +294,16 @@ func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 2 {
-		t.Errorf("Expected 2 metric points, got %d", ps)
+	if stats.DataPointCount != 2 {
+		t.Errorf("Expected 2 metric points, got %d", stats.DataPointCount)
 	}
 
-	if ins != 1 {
-		t.Errorf("Expected 1 mismatched points, got %d", ins)
+	if stats.MismatchCount != 1 {
+		t.Errorf("Expected 1 mismatched points, got %d", stats.MismatchCount)
 	}
 
-	if fixed != 1 {
-		t.Errorf("Expected 1 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 1 {
+		t.Errorf("Expected 1 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -338,7 +338,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -347,16 +347,16 @@ func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 3 {
-		t.Errorf("Expected 2 metric points, got %d", ps)
+	if stats.DataPointCount != 3 {
+		t.Errorf("Expected 2 metric points, got %d", stats.DataPointCount)
 	}
 
-	if ins != 2 {
-		t.Errorf("Expected 2 mismatched points, got %d", ins)
+	if stats.MismatchCount != 2 {
+		t.Errorf("Expected 2 mismatched points, got %d", stats.MismatchCount)
 	}
 
-	if fixed != 0 {
-		t.Errorf("Expected 0 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected 0 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -391,7 +391,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -400,16 +400,16 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 3 {
-		t.Errorf("Expected 3 metric points, got %d", ps)
+	if stats.DataPointCount != 3 {
+		t.Errorf("Expected 3 metric points, got %d", stats.DataPointCount)
 	}
 
-	if ins != 2 {
-		t.Errorf("Expected 2 mismatched points, got %d", ins)
+	if stats.MismatchCount != 2 {
+		t.Errorf("Expected 2 mismatched points, got %d", stats.MismatchCount)
 	}
 
-	if fixed != 1 {
-		t.Errorf("Expected 1 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 1 {
+		t.Errorf("Expected 1 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -448,7 +448,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, ps, ins, fixed := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -457,16 +457,16 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
 	}
 
-	if ps != 3 {
-		t.Errorf("Expected 3 metric points, got %d", ps)
+	if stats.DataPointCount != 3 {
+		t.Errorf("Expected 3 metric points, got %d", stats.DataPointCount)
 	}
 
-	if ins != 2 {
-		t.Errorf("Expected 2 mismatched points, got %d", ins)
+	if stats.MismatchCount != 2 {
+		t.Errorf("Expected 2 mismatched points, got %d", stats.MismatchCount)
 	}
 
-	if fixed != 1 {
-		t.Errorf("Expected 1 fixed mismatch point , got %d", fixed)
+	if stats.FixedMismatchCount != 1 {
+		t.Errorf("Expected 1 fixed mismatch point , got %d", stats.FixedMismatchCount)
 	}
 }
 
@@ -488,7 +488,7 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 		},
 	}
 
-	got, _, _, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
+	got, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 metrics, got %d", len(got))
 	}
@@ -777,7 +777,7 @@ func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 }
 
 func doTest(t *testing.T, input []Metric, expected Metric) {
-	got, _, _ := mergeMetrics(input, cfg.ReplicaMatchModeNormal)
+	got, _ := mergeMetrics(input, cfg.ReplicaMatchModeNormal)
 
 	if !MetricsEqual(got, expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got)

@@ -136,7 +136,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						_, _, _, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
 						errs <- err
 					}()
 				}
