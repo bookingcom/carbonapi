@@ -126,8 +126,8 @@ func DefaultCommonConfig() Common {
 		},
 		PrintErrorStackTrace: false,
 
-		RenderReplicaMatchMode:          ReplicaMatchModeNormal,
-		RenderMismatchMetricReportLimit: 10,
+		RenderReplicaMatchMode:           ReplicaMatchModeNormal,
+		RenderReplicaMismatchReportLimit: 10,
 	}
 }
 
@@ -172,12 +172,18 @@ type Common struct {
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 
 	// RenderReplicaMatchMode indicates how carbonzipper merges the metrics from replica backends.
-	// Possible values are `normal`(default), `check`, and `majority`
-	// `normal` ignores the mismatches and only heals null points.
-	// `check` looks for mismatches, and exposes metrics.
-	// `majority` chooses the values of majority of backends in addition to exposing metrics.
-	RenderReplicaMatchMode          ReplicaMatchMode `yaml:"renderReplicaMatchMode"`
-	RenderMismatchMetricReportLimit int              `yaml:"renderMismatchMetricReportLimit"`
+	// Possible values are:
+	//
+	// * `normal` - ignore the mismatches and only heal null points (default)
+	//
+	// * `check` - look for mismatches, and expose metrics
+	//
+	// * `majority` - choose the values of majority of backends in addition to exposing metrics
+	RenderReplicaMatchMode ReplicaMatchMode `yaml:"renderReplicaMatchMode"`
+
+	// RenderReplicaMismatchReportLimit limits the number of mismatched metrics to be logged
+	// for a single render request.
+	RenderReplicaMismatchReportLimit int `yaml:"renderReplicaMismatchReportLimit"`
 }
 
 // GetBackends returns the list of backends from common configuration

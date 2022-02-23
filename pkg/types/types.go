@@ -209,7 +209,7 @@ type MetricRenderStats struct {
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mismatchMetricReportLimit int) ([]Metric, MetricRenderStats) {
+func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, replicaMismatchReportLimit int) ([]Metric, MetricRenderStats) {
 	if len(metrics) == 0 {
 		return nil, MetricRenderStats{}
 	}
@@ -245,7 +245,7 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, mis
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
 		m, stats := mergeMetrics(ms, replicaMatchMode)
-		if stats.MismatchCount > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
+		if stats.MismatchCount > 0 && len(mismatchedMetricReports) < replicaMismatchReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,
