@@ -9,7 +9,7 @@ package types
 // TODO (grzkv): Name of this module makes 0 sense
 
 import (
-	"fmt"
+	"errors"
 	"github.com/bookingcom/carbonapi/cfg"
 	"math"
 	"sort"
@@ -308,7 +308,7 @@ func areFloatsEqual(a, b float64) bool {
 func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int, err error) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
-		return math.NaN(), 0, fmt.Errorf("no value for majority voting")
+		return 0, 0, errors.New("no value for majority voting")
 	}
 
 	sort.Slice(values, func(i, j int) bool {
