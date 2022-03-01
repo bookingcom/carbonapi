@@ -385,7 +385,7 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 				pointExists = true
 			}
 
-			if metric.Values[i] != m.Values[i] {
+			if !areFloatsEqual(metric.Values[i], m.Values[i]) {
 				mismatchObserved = true
 				if replicaMatchMode == cfg.ReplicaMatchModeCheck {
 					// mismatch exists, enough for check mode

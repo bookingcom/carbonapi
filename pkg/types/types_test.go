@@ -470,6 +470,63 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 	}
 }
 
+func TestMergeMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
+	f1 := 0.1
+	f2 := 0.2
+	f3 := 0.3
+	f3appr := f1 + f2
+	input := [][]Metric{
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{f3appr, 1, 4},
+				IsAbsent: []bool{false, true, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{f3, 1, 4},
+				IsAbsent: []bool{false, true, false},
+			},
+		},
+		[]Metric{
+			Metric{
+				Name:     "metric",
+				Values:   []float64{f3, 1, 4},
+				IsAbsent: []bool{false, false, false},
+			},
+		},
+	}
+
+	expected := Metric{
+		Name:     "metric",
+		Values:   []float64{f3appr, 1, 4},
+		IsAbsent: []bool{false, false, false},
+	}
+
+	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	if len(got) != 1 {
+		t.Errorf("Expected 1 metric, got %d", len(got))
+	}
+
+	if !MetricsEqual(got[0], expected) {
+		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got[0])
+	}
+
+	if stats.DataPointCount != 3 {
+		t.Errorf("Expected 3 metric points, got %d", stats.DataPointCount)
+	}
+
+	if stats.MismatchCount != 0 {
+		t.Errorf("Expected 0 mismatched points, got %d", stats.MismatchCount)
+	}
+
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected 0 fixed mismatch point , got %d", stats.FixedMismatchCount)
+	}
+}
+
 func TestMergeManyMetricsDifferent(t *testing.T) {
 	input := [][]Metric{
 		[]Metric{
