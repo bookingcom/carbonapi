@@ -126,8 +126,8 @@ func DefaultCommonConfig() Common {
 		},
 		PrintErrorStackTrace: false,
 
-		RenderMismatchCheck:             false,
-		RenderMismatchMetricReportLimit: 10,
+		RenderReplicaMatchMode:           ReplicaMatchModeNormal,
+		RenderReplicaMismatchReportLimit: 10,
 	}
 }
 
@@ -171,8 +171,19 @@ type Common struct {
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 
-	RenderMismatchCheck             bool `yaml:"renderMismatchCheck"`
-	RenderMismatchMetricReportLimit int  `yaml:"renderMismatchMetricReportLimit"`
+	// RenderReplicaMatchMode indicates how carbonzipper merges the metrics from replica backends.
+	// Possible values are:
+	//
+	// * `normal` - ignore the mismatches and only heal null points (default)
+	//
+	// * `check` - look for mismatches, and expose metrics
+	//
+	// * `majority` - choose the values of majority of backends in addition to exposing metrics
+	RenderReplicaMatchMode ReplicaMatchMode `yaml:"renderReplicaMatchMode"`
+
+	// RenderReplicaMismatchReportLimit limits the number of mismatched metrics to be logged
+	// for a single render request.
+	RenderReplicaMismatchReportLimit int `yaml:"renderReplicaMismatchReportLimit"`
 }
 
 // GetBackends returns the list of backends from common configuration
@@ -281,4 +292,28 @@ type Traces struct {
 	Tags                 Tags          `yaml:"tags"`
 	JaegerBufferMaxCount int           `yaml:"jaegerBufferMaxCount"`
 	JaegerBatchMaxCount  int           `yaml:"jaegerBatchMaxCount"`
+}
+
+type ReplicaMatchMode string
+
+const (
+	ReplicaMatchModeNormal   ReplicaMatchMode = "normal"
+	ReplicaMatchModeCheck    ReplicaMatchMode = "check"
+	ReplicaMatchModeMajority ReplicaMatchMode = "majority"
+)
+
+func (cm *ReplicaMatchMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	switch s {
+	case string(ReplicaMatchModeCheck):
+		*cm = ReplicaMatchModeCheck
+	case string(ReplicaMatchModeMajority):
+		*cm = ReplicaMatchModeMajority
+	default:
+		*cm = ReplicaMatchModeNormal
+	}
+	return nil
 }

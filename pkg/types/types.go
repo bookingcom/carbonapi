@@ -9,6 +9,9 @@ package types
 // TODO (grzkv): Name of this module makes 0 sense
 
 import (
+	"errors"
+	"github.com/bookingcom/carbonapi/cfg"
+	"math"
 	"sort"
 	"sync/atomic"
 	"time"
@@ -196,12 +199,19 @@ type Metric struct {
 	IsAbsent  []bool
 }
 
+// MetricRenderStats represents the stats of rendering and merging metrics.
+type MetricRenderStats struct {
+	DataPointCount     int
+	MismatchCount      int
+	FixedMismatchCount int
+}
+
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLimit int) ([]Metric, int, int) {
+func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, replicaMismatchReportLimit int) ([]Metric, MetricRenderStats) {
 	if len(metrics) == 0 {
-		return nil, 0, 0
+		return nil, MetricRenderStats{}
 	}
 
 	if len(metrics) == 1 {
@@ -210,7 +220,9 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLi
 		for _, m := range ms {
 			pointCount += len(m.Values)
 		}
-		return ms, pointCount, 0
+		return ms, MetricRenderStats{
+			DataPointCount: pointCount,
+		}
 	}
 
 	metricByNames := make(map[string][]Metric)
@@ -222,8 +234,7 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLi
 	}
 
 	merged := make([]Metric, 0)
-	pointCount := 0
-	mismatchCount := 0
+	var metricsStat MetricRenderStats
 	type metricReport struct {
 		MetricName       string `json:"metric_name"`
 		Start            int32  `json:"start"`
@@ -233,29 +244,32 @@ func MergeMetrics(metrics [][]Metric, mismatchCheck bool, mismatchMetricReportLi
 	}
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
-		m, c := mergeMetrics(ms, mismatchCheck)
-		if c > 0 && len(mismatchedMetricReports) < mismatchMetricReportLimit {
+		m, stats := mergeMetrics(ms, replicaMatchMode)
+		if stats.MismatchCount > 0 && len(mismatchedMetricReports) < replicaMismatchReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,
 				Stop:             m.StopTime,
 				Step:             m.StepTime,
-				MismatchedPoints: c,
+				MismatchedPoints: stats.MismatchCount,
 			})
 		}
 		merged = append(merged, m)
-		mismatchCount += c
-		pointCount += len(m.Values)
+		metricsStat.MismatchCount += stats.MismatchCount
+		metricsStat.FixedMismatchCount += stats.FixedMismatchCount
+		metricsStat.DataPointCount += stats.DataPointCount
 	}
 
-	if mismatchCheck && mismatchCount > 0 {
+	if metricsStat.MismatchCount > 0 {
 		corruptionLogger.Warn("metric replica mismatch observed",
 			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
-			zap.Int("replica_mismatches_total", mismatchCount),
+			zap.Int("replica_mismatches_total", metricsStat.MismatchCount),
+			zap.Int("replica_fixed_mismatches_total", metricsStat.FixedMismatchCount),
+			zap.Int("replica_points_total", metricsStat.DataPointCount),
 		)
 	}
 
-	return merged, pointCount, mismatchCount
+	return merged, metricsStat
 }
 
 type byStepTime []Metric
@@ -270,15 +284,70 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatches int) {
+func areFloatsEqual(a, b float64) bool {
+	epsilon := math.Nextafter(1.0, 2.0) - 1.0
+	floatMinNormal := math.Float64frombits(0x0010000000000000)
+
+	absA := math.Abs(a)
+	absB := math.Abs(b)
+	diff := math.Abs(a - b)
+
+	if a == b {
+		return true
+	} else if a == 0 || b == 0 || (absA+absB < floatMinNormal) {
+		return diff < (epsilon * floatMinNormal)
+	} else {
+		div := math.MaxFloat64
+		if div > absA+absB {
+			div = absA + absB
+		}
+		return diff/div < epsilon
+	}
+}
+
+func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int, err error) {
+	valuesCount := len(values)
+	if valuesCount == 0 {
+		return 0, 0, errors.New("no value for majority voting")
+	}
+
+	sort.Slice(values, func(i, j int) bool {
+		return values[i] < values[j]
+	})
+
+	majorityCount = 1
+	majorityValue = values[0]
+
+	currentCount := 1
+	currentValue := values[0]
+	for i := 1; i < len(values); i++ {
+		v := values[i]
+		if areFloatsEqual(v, currentValue) {
+			currentCount++
+			if currentCount > majorityCount {
+				majorityCount = currentCount
+				majorityValue = v
+			}
+		} else {
+			currentValue = v
+			currentCount = 1
+		}
+	}
+
+	return majorityValue, majorityCount, nil
+}
+
+func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, stats MetricRenderStats) {
 	if len(metrics) == 0 {
-		return Metric{}, 0
+		return Metric{}, MetricRenderStats{}
 	}
 
 	if len(metrics) == 1 {
 		m := metrics[0]
-		return m, 0
+		return m, MetricRenderStats{}
 	}
+
+	var mismatches, fixedMismatches int
 
 	sort.Sort(byStepTime(metrics))
 	healed := 0
@@ -287,7 +356,12 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 	metric = metrics[0]
 	for i := range metric.Values {
 		pointExists := !metric.IsAbsent[i]
-		shouldLookForMismatch := mismatchCheck
+		shouldLookForMismatch := replicaMatchMode != cfg.ReplicaMatchModeNormal
+		mismatchObserved := false
+		var valuesForPoint []float64
+		if pointExists {
+			valuesForPoint = append(valuesForPoint, metric.Values[i])
+		}
 		for j := 1; j < len(metrics); j++ {
 			if pointExists && !shouldLookForMismatch {
 				break
@@ -302,6 +376,8 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 				continue
 			}
 
+			valuesForPoint = append(valuesForPoint, m.Values[i])
+
 			if !pointExists {
 				metric.IsAbsent[i] = m.IsAbsent[i]
 				metric.Values[i] = m.Values[i]
@@ -309,9 +385,24 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 				pointExists = true
 			}
 
-			if metric.Values[i] != m.Values[i] {
-				mismatches++
-				shouldLookForMismatch = false
+			if !areFloatsEqual(metric.Values[i], m.Values[i]) {
+				mismatchObserved = true
+				if replicaMatchMode == cfg.ReplicaMatchModeCheck {
+					// mismatch exists, enough for check mode
+					shouldLookForMismatch = false
+				}
+			}
+		}
+		if !mismatchObserved {
+			continue
+		}
+
+		mismatches++
+		if replicaMatchMode == cfg.ReplicaMatchModeMajority {
+			majorityValue, majorityCount, err := getPointMajorityValue(valuesForPoint)
+			if err == nil && majorityCount > len(valuesForPoint)/2 {
+				metric.Values[i] = majorityValue
+				fixedMismatches++
 			}
 		}
 	}
@@ -323,7 +414,11 @@ func mergeMetrics(metrics []Metric, mismatchCheck bool) (metric Metric, mismatch
 			zap.Float64("threshold", corruptionThreshold),
 		)
 	}
-	return metric, mismatches
+	return metric, MetricRenderStats{
+		DataPointCount:     len(metric.Values),
+		MismatchCount:      mismatches,
+		FixedMismatchCount: fixedMismatches,
+	}
 }
 
 // Info contains metadata about a metric in Graphite.

@@ -17,6 +17,7 @@ package backend
 
 import (
 	"context"
+	"github.com/bookingcom/carbonapi/cfg"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 
@@ -41,12 +42,12 @@ type Backend interface {
 // worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
-// mismatchCheck indicates whether data points of the metrics fetched from replicas
-// will be checked for reporting consistency or not. mismatchMetricReportLimit limits
-// the number of metrics reported in log for each render request.
-func Renders(ctx context.Context, backends []Backend, request types.RenderRequest, mismatchCheck bool, mismatchMetricReportLimit int) ([]types.Metric, int, int, []error) {
+// replicaMatchMode indicates how data points of the metrics fetched from replicas
+// will be checked and applied on the final metrics. replicaMismatchReportLimit limits
+// the number of mismatched metrics reported in log for each render request.
+func Renders(ctx context.Context, backends []Backend, request types.RenderRequest, replicaMatchMode cfg.ReplicaMatchMode, replicaMismatchReportLimit int) ([]types.Metric, types.MetricRenderStats, []error) {
 	if len(backends) == 0 {
-		return nil, 0, 0, nil
+		return nil, types.MetricRenderStats{}, nil
 	}
 
 	msgCh := make(chan []types.Metric, len(backends))
@@ -74,8 +75,8 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		}
 	}
 
-	metrics, points, mismatches := types.MergeMetrics(msgs, mismatchCheck, mismatchMetricReportLimit)
-	return metrics, points, mismatches, errs
+	metrics, stats := types.MergeMetrics(msgs, replicaMatchMode, replicaMismatchReportLimit)
+	return metrics, stats, errs
 }
 
 // Infos makes Info calls to multiple backends.

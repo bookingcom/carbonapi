@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/bookingcom/carbonapi/cfg"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
@@ -64,7 +65,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, _, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), false, 10)
+	got, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeNormal, 10)
 	if err != nil {
 		t.Error(err)
 		return
@@ -95,7 +96,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, ps, ins, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), true, 10)
+	got, stats, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeMajority, 10)
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -106,13 +107,18 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		return
 	}
 
-	if ps != 6 {
-		t.Errorf("Expected %d ok responses, got %d", 6, ps)
+	if stats.DataPointCount != 6 {
+		t.Errorf("Expected %d points, got %d", 6, stats.DataPointCount)
 		return
 	}
 
-	if ins != 0 {
-		t.Errorf("Expected %d ok responses, got %d", 0, ins)
+	if stats.MismatchCount != 0 {
+		t.Errorf("Expected %d mismatches, got %d", 0, stats.MismatchCount)
+		return
+	}
+
+	if stats.FixedMismatchCount != 0 {
+		t.Errorf("Expected %d fixed mismatches, got %d", 0, stats.FixedMismatchCount)
 		return
 	}
 }
@@ -124,7 +130,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, _, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), false, 10)
+	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeNormal, 10)
 	if err == nil {
 		t.Error("Expected error")
 	}
