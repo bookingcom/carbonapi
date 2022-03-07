@@ -55,21 +55,22 @@ var Metrics = struct {
 
 // PrometheusMetrics keeps all the metrics exposed on /metrics endpoint
 type PrometheusMetrics struct {
-	Requests              prometheus.Counter
-	Responses             *prometheus.CounterVec
-	RenderMismatches      prometheus.Counter
-	RenderFixedMismatches prometheus.Counter
-	Renders               prometheus.Counter
-	FindNotFound          prometheus.Counter
-	RequestCancel         *prometheus.CounterVec
-	DurationExp           prometheus.Histogram
-	DurationLin           prometheus.Histogram
-	RenderDurationExp     prometheus.Histogram
-	RenderOutDurationExp  *prometheus.HistogramVec
-	FindDurationExp       prometheus.Histogram
-	FindDurationLin       prometheus.Histogram
-	TimeInQueueExp        prometheus.Histogram
-	TimeInQueueLin        prometheus.Histogram
+	Requests                  prometheus.Counter
+	Responses                 *prometheus.CounterVec
+	RenderMismatches          prometheus.Counter
+	RenderFixedMismatches     prometheus.Counter
+	RenderMismatchedResponses prometheus.Counter
+	Renders                   prometheus.Counter
+	FindNotFound              prometheus.Counter
+	RequestCancel             *prometheus.CounterVec
+	DurationExp               prometheus.Histogram
+	DurationLin               prometheus.Histogram
+	RenderDurationExp         prometheus.Histogram
+	RenderOutDurationExp      *prometheus.HistogramVec
+	FindDurationExp           prometheus.Histogram
+	FindDurationLin           prometheus.Histogram
+	TimeInQueueExp            prometheus.Histogram
+	TimeInQueueLin            prometheus.Histogram
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -87,6 +88,12 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
+		),
+		RenderMismatchedResponses: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_mismatched_responses_total",
+				Help: "Count of mismatched (unfixed) render responses",
+			},
 		),
 		RenderFixedMismatches: prometheus.NewCounter(
 			prometheus.CounterOpts{
