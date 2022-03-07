@@ -280,6 +280,7 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Renders)
 	prometheus.MustRegister(app.prometheusMetrics.RenderMismatches)
 	prometheus.MustRegister(app.prometheusMetrics.RenderFixedMismatches)
+	prometheus.MustRegister(app.prometheusMetrics.RenderMismatchedResponses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
 	prometheus.MustRegister(app.prometheusMetrics.RequestCancel)
 	prometheus.MustRegister(app.prometheusMetrics.DurationExp)

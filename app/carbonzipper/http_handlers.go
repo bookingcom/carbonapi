@@ -393,6 +393,9 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 
 	Metrics.Responses.Add(1)
 	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
+	if stats.MismatchCount > stats.FixedMismatchCount {
+		app.prometheusMetrics.RenderMismatchedResponses.Inc()
+	}
 
 	if writeErr != nil {
 		accessLogger.Error("error writing the response",
