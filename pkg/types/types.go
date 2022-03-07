@@ -245,13 +245,14 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, rep
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
 		m, stats := mergeMetrics(ms, replicaMatchMode)
-		if stats.MismatchCount > 0 && len(mismatchedMetricReports) < replicaMismatchReportLimit {
+		unfixedMismatches := stats.MismatchCount - stats.FixedMismatchCount
+		if unfixedMismatches > 0 && len(mismatchedMetricReports) < replicaMismatchReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,
 				Stop:             m.StopTime,
 				Step:             m.StepTime,
-				MismatchedPoints: stats.MismatchCount,
+				MismatchedPoints: stats.MismatchCount - stats.FixedMismatchCount,
 			})
 		}
 		merged = append(merged, m)
@@ -260,8 +261,9 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, rep
 		metricsStat.DataPointCount += stats.DataPointCount
 	}
 
-	if metricsStat.MismatchCount > 0 {
-		corruptionLogger.Warn("metric replica mismatch observed",
+	metricsUnfixedMismatchCount := metricsStat.MismatchCount - metricsStat.FixedMismatchCount
+	if metricsUnfixedMismatchCount > 0 {
+		corruptionLogger.Warn("metric unfixed replica mismatch observed",
 			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
 			zap.Int("replica_mismatches_total", metricsStat.MismatchCount),
 			zap.Int("replica_fixed_mismatches_total", metricsStat.FixedMismatchCount),
