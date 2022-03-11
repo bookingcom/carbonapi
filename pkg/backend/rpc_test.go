@@ -65,7 +65,11 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
-	got, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeNormal, 10)
+	got, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
+		RenderReplicaMismatchApproximateCheck: false,
+		RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
+		RenderReplicaMismatchReportLimit:      10,
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -96,7 +100,11 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
-	got, stats, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeMajority, 10)
+	got, stats, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
+		RenderReplicaMismatchApproximateCheck: false,
+		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+		RenderReplicaMismatchReportLimit:      10,
+	})
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -130,7 +138,11 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
-	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.ReplicaMatchModeNormal, 10)
+	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
+		RenderReplicaMismatchApproximateCheck: false,
+		RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
+		RenderReplicaMismatchReportLimit:      10,
+	})
 	if err == nil {
 		t.Error("Expected error")
 	}

@@ -209,7 +209,7 @@ type MetricRenderStats struct {
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, replicaMismatchReportLimit int) ([]Metric, MetricRenderStats) {
+func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig) ([]Metric, MetricRenderStats) {
 	if len(metrics) == 0 {
 		return nil, MetricRenderStats{}
 	}
@@ -244,9 +244,10 @@ func MergeMetrics(metrics [][]Metric, replicaMatchMode cfg.ReplicaMatchMode, rep
 	}
 	var mismatchedMetricReports []metricReport
 	for _, ms := range metricByNames {
-		m, stats := mergeMetrics(ms, replicaMatchMode)
+		m, stats := mergeMetrics(ms, replicaMismatchConfig)
 		unfixedMismatches := stats.MismatchCount - stats.FixedMismatchCount
-		if unfixedMismatches > 0 && len(mismatchedMetricReports) < replicaMismatchReportLimit {
+		if unfixedMismatches > 0 &&
+			len(mismatchedMetricReports) < replicaMismatchConfig.RenderReplicaMismatchReportLimit {
 			mismatchedMetricReports = append(mismatchedMetricReports, metricReport{
 				MetricName:       m.Name,
 				Start:            m.StartTime,
@@ -286,17 +287,23 @@ func (s byStepTime) Less(i, j int) bool {
 	return s[i].StepTime < s[j].StepTime
 }
 
-func areFloatsEqual(a, b float64) bool {
-	epsilon := math.Nextafter(1.0, 2.0) - 1.0
-	floatMinNormal := math.Float64frombits(0x0010000000000000)
+var (
+	epsilon        = math.Nextafter(1.0, 2.0) - 1.0
+	floatMinNormal = math.Float64frombits(0x0010000000000000)
+)
+
+type floatEqualityFunc func(a, b float64) bool
+
+func areFloatsApproximatelyEqual(a, b float64) bool {
+	if a == b {
+		return true
+	}
 
 	absA := math.Abs(a)
 	absB := math.Abs(b)
 	diff := math.Abs(a - b)
 
-	if a == b {
-		return true
-	} else if a == 0 || b == 0 || (absA+absB < floatMinNormal) {
+	if a == 0 || b == 0 || (absA+absB < floatMinNormal) {
 		return diff < (epsilon * floatMinNormal)
 	} else {
 		div := math.MaxFloat64
@@ -307,7 +314,11 @@ func areFloatsEqual(a, b float64) bool {
 	}
 }
 
-func getPointMajorityValue(values []float64) (majorityValue float64, majorityCount int, err error) {
+func areFloatsExactlyEqual(a, b float64) bool {
+	return a == b
+}
+
+func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (majorityValue float64, majorityCount int, err error) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
 		return 0, 0, errors.New("no value for majority voting")
@@ -324,7 +335,7 @@ func getPointMajorityValue(values []float64) (majorityValue float64, majorityCou
 	currentValue := values[0]
 	for i := 1; i < len(values); i++ {
 		v := values[i]
-		if areFloatsEqual(v, currentValue) {
+		if equalityFunc(v, currentValue) {
 			currentCount++
 			if currentCount > majorityCount {
 				majorityCount = currentCount
@@ -339,7 +350,7 @@ func getPointMajorityValue(values []float64) (majorityValue float64, majorityCou
 	return majorityValue, majorityCount, nil
 }
 
-func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metric Metric, stats MetricRenderStats) {
+func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig) (metric Metric, stats MetricRenderStats) {
 	if len(metrics) == 0 {
 		return Metric{}, MetricRenderStats{}
 	}
@@ -348,6 +359,13 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 		m := metrics[0]
 		return m, MetricRenderStats{}
 	}
+
+	equalityFunc := areFloatsExactlyEqual
+	if replicaMismatchConfig.RenderReplicaMismatchApproximateCheck {
+		equalityFunc = areFloatsApproximatelyEqual
+	}
+
+	replicaMatchMode := replicaMismatchConfig.RenderReplicaMatchMode
 
 	var mismatches, fixedMismatches int
 
@@ -387,7 +405,7 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 				pointExists = true
 			}
 
-			if !areFloatsEqual(metric.Values[i], m.Values[i]) {
+			if !equalityFunc(metric.Values[i], m.Values[i]) {
 				mismatchObserved = true
 				if replicaMatchMode == cfg.ReplicaMatchModeCheck {
 					// mismatch exists, enough for check mode
@@ -401,7 +419,7 @@ func mergeMetrics(metrics []Metric, replicaMatchMode cfg.ReplicaMatchMode) (metr
 
 		mismatches++
 		if replicaMatchMode == cfg.ReplicaMatchModeMajority {
-			majorityValue, majorityCount, err := getPointMajorityValue(valuesForPoint)
+			majorityValue, majorityCount, err := getPointMajorityValue(valuesForPoint, equalityFunc)
 			if err == nil && majorityCount > len(valuesForPoint)/2 {
 				metric.Values[i] = majorityValue
 				fixedMismatches++

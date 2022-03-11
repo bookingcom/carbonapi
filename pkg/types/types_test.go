@@ -100,7 +100,7 @@ func TestMergeManyMetricsWithNormal(t *testing.T) {
 		IsAbsent: []bool{false},
 	}
 
-	got, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
+	got, _ := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeNormal})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -134,7 +134,7 @@ func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -180,7 +180,7 @@ func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -233,7 +233,7 @@ func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -285,7 +285,7 @@ func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -338,7 +338,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeCheck, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -391,7 +391,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -413,7 +413,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 	}
 }
 
-func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
+func TestMergeManyRiskyAndMismatchedMetricsWithMajorityApproximateBadFloat(t *testing.T) {
 	f1 := 0.1
 	f2 := 0.2
 	f3 := 0.3
@@ -448,7 +448,10 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{
+		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+		RenderReplicaMismatchApproximateCheck: true,
+	})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -470,7 +473,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 	}
 }
 
-func TestMergeMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
+func TestMergeMismatchedMetricsWithMajorityApproximateBadFloat(t *testing.T) {
 	f1 := 0.1
 	f2 := 0.2
 	f3 := 0.3
@@ -505,7 +508,10 @@ func TestMergeMismatchedMetricsWithMajorityBadFloat(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	got, stats := MergeMetrics(input, cfg.ReplicaMatchModeMajority, 10)
+	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{
+		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+		RenderReplicaMismatchApproximateCheck: true,
+	})
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
 	}
@@ -545,7 +551,7 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 		},
 	}
 
-	got, _ := MergeMetrics(input, cfg.ReplicaMatchModeNormal, 0)
+	got, _ := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeNormal})
 	if len(got) != 2 {
 		t.Errorf("Expected 2 metrics, got %d", len(got))
 	}
@@ -834,7 +840,7 @@ func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 }
 
 func doTest(t *testing.T, input []Metric, expected Metric) {
-	got, _ := mergeMetrics(input, cfg.ReplicaMatchModeNormal)
+	got, _ := mergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeNormal})
 
 	if !MetricsEqual(got, expected) {
 		t.Errorf("Merge failed\nExp: %+v\nGot: %+v\n", expected, got)
