@@ -64,12 +64,38 @@ func BenchmarkRenders(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	renderReplicaMatchModes := []cfg.ReplicaMatchMode{cfg.ReplicaMatchModeNormal, cfg.ReplicaMatchModeCheck, cfg.ReplicaMatchModeMajority}
-	for _, replicaMatchMode := range renderReplicaMatchModes {
+	renderReplicaMismatchConfigs := []cfg.RenderReplicaMismatchConfig{
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+	}
+	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
-		b.Run(fmt.Sprintf("BenchmarkRenders/ReplicaMatchMode%s", string(cc)), func(b *testing.B) {
+		b.Run(fmt.Sprintf("BenchmarkRenders/ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
+				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
 			}
 		})
 	}
@@ -127,16 +153,42 @@ func BenchmarkRendersStorm(b *testing.B) {
 	n := 50
 	errs := make(chan []error, n)
 
-	renderReplicaMatchModes := []cfg.ReplicaMatchMode{cfg.ReplicaMatchModeNormal, cfg.ReplicaMatchModeCheck, cfg.ReplicaMatchModeMajority}
-	for _, replicaMatchMode := range renderReplicaMatchModes {
+	renderReplicaMismatchConfigs := []cfg.RenderReplicaMismatchConfig{
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+	}
+	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
-		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ReplicaMatchMode%s", string(cc)), func(b *testing.B) {
+		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, 10)
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
 						errs <- err
 					}()
 				}

@@ -126,8 +126,11 @@ func DefaultCommonConfig() Common {
 		},
 		PrintErrorStackTrace: false,
 
-		RenderReplicaMatchMode:           ReplicaMatchModeNormal,
-		RenderReplicaMismatchReportLimit: 10,
+		RenderReplicaMismatchConfig: RenderReplicaMismatchConfig{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                ReplicaMatchModeNormal,
+			RenderReplicaMismatchReportLimit:      10,
+		},
 	}
 }
 
@@ -171,6 +174,15 @@ type Common struct {
 	Traces               Traces `yaml:"traces"`
 	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
 
+	// RenderReplicaMismatchConfig configures the render mismatch related operations.
+	RenderReplicaMismatchConfig RenderReplicaMismatchConfig `yaml:"renderReplicaMismatchConfig"`
+}
+
+type RenderReplicaMismatchConfig struct {
+	// RenderReplicaMismatchApproximateCheck enables the approximate float equality
+	// check while checking for mismatches.
+	RenderReplicaMismatchApproximateCheck bool `yaml:"renderReplicaMismatchApproximateCheck"`
+
 	// RenderReplicaMatchMode indicates how carbonzipper merges the metrics from replica backends.
 	// Possible values are:
 	//
@@ -184,6 +196,14 @@ type Common struct {
 	// RenderReplicaMismatchReportLimit limits the number of mismatched metrics to be logged
 	// for a single render request.
 	RenderReplicaMismatchReportLimit int `yaml:"renderReplicaMismatchReportLimit"`
+}
+
+func (c *RenderReplicaMismatchConfig) String() string {
+	eqCheckDesc := "WithExactEqCheck"
+	if c.RenderReplicaMismatchApproximateCheck {
+		eqCheckDesc = "WithApproximateEqCheck"
+	}
+	return string(c.RenderReplicaMatchMode) + eqCheckDesc
 }
 
 // GetBackends returns the list of backends from common configuration
