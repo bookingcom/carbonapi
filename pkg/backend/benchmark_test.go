@@ -102,14 +102,30 @@ func BenchmarkRenders(b *testing.B) {
 }
 
 func BenchmarkRendersStorm(b *testing.B) {
-	secPerHour := int(12 * time.Hour / time.Second)
+	secPerMonth := int(30 * 24 * time.Hour / time.Second)
 
+	allZeroValues1 := make([]float64, secPerMonth)
+	allZeroValues2 := make([]float64, secPerMonth)
+	allOneValues := make([]float64, secPerMonth)
+	for i := range allOneValues {
+		allOneValues[i] = 1.0
+	}
 	metrics := carbonapi_v2_pb.MultiFetchResponse{
 		Metrics: []carbonapi_v2_pb.FetchResponse{
 			carbonapi_v2_pb.FetchResponse{
 				Name:     "foo",
-				Values:   make([]float64, secPerHour),
-				IsAbsent: make([]bool, secPerHour),
+				Values:   allZeroValues1,
+				IsAbsent: make([]bool, secPerMonth),
+			},
+			carbonapi_v2_pb.FetchResponse{
+				Name:     "foo",
+				Values:   allOneValues,
+				IsAbsent: make([]bool, secPerMonth),
+			},
+			carbonapi_v2_pb.FetchResponse{
+				Name:     "foo",
+				Values:   allZeroValues2,
+				IsAbsent: make([]bool, secPerMonth),
 			},
 		},
 	}
