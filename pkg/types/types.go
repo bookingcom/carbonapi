@@ -314,10 +314,6 @@ func areFloatsApproximatelyEqual(a, b float64) bool {
 	}
 }
 
-func areFloatsExactlyEqual(a, b float64) bool {
-	return a == b
-}
-
 func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (majorityValue float64, isMajority bool, err error) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
@@ -331,7 +327,7 @@ func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (ma
 		if i == 0 {
 			m = v
 		}
-		if equalityFunc(m, v) {
+		if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
 			i++
 		} else {
 			i--
@@ -344,7 +340,7 @@ func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (ma
 	// check if m is the majority value
 	var majorityCount int
 	for _, v := range values {
-		if equalityFunc(v, m) {
+		if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
 			majorityCount++
 		}
 	}
@@ -362,7 +358,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		return m, MetricRenderStats{}
 	}
 
-	equalityFunc := areFloatsExactlyEqual
+	var equalityFunc floatEqualityFunc
 	if replicaMismatchConfig.RenderReplicaMismatchApproximateCheck {
 		equalityFunc = areFloatsApproximatelyEqual
 	}
@@ -376,11 +372,13 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 
 	// metrics[0] has the highest resolution of metrics
 	metric = metrics[0]
+	valuesForPoint := make([]float64, 0, len(metrics))
+	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
 	for i := range metric.Values {
 		pointExists := !metric.IsAbsent[i]
-		shouldLookForMismatch := replicaMatchMode != cfg.ReplicaMatchModeNormal
+		shouldLookForMismatch := isMismatchFindConfig
 		mismatchObserved := false
-		var valuesForPoint []float64
+		valuesForPoint = valuesForPoint[:0]
 		if pointExists {
 			valuesForPoint = append(valuesForPoint, metric.Values[i])
 		}
@@ -407,9 +405,10 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 				pointExists = true
 			}
 
-			if !mismatchObserved && !equalityFunc(metric.Values[i], m.Values[i]) {
-				mismatchObserved = true
-				if replicaMatchMode == cfg.ReplicaMatchModeCheck {
+			if !mismatchObserved {
+				mismatchObserved = (equalityFunc == nil && metric.Values[i] != m.Values[i]) ||
+					(equalityFunc != nil && !equalityFunc(metric.Values[i], m.Values[i]))
+				if mismatchObserved && replicaMatchMode == cfg.ReplicaMatchModeCheck {
 					// mismatch exists, enough for check mode
 					shouldLookForMismatch = false
 				}
