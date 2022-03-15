@@ -101,7 +101,7 @@ func BenchmarkRenders(b *testing.B) {
 	}
 }
 
-func BenchmarkRendersStorm(b *testing.B) {
+func BenchmarkRendersMismatchStorm(b *testing.B) {
 	secPerMonth := int(30 * 24 * time.Hour / time.Second)
 
 	allZeroValues1 := make([]float64, secPerMonth)
@@ -119,7 +119,129 @@ func BenchmarkRendersStorm(b *testing.B) {
 			},
 			carbonapi_v2_pb.FetchResponse{
 				Name:     "foo",
+				Values:   allZeroValues2,
+				IsAbsent: make([]bool, secPerMonth),
+			},
+			carbonapi_v2_pb.FetchResponse{
+				Name:     "foo",
 				Values:   allOneValues,
+				IsAbsent: make([]bool, secPerMonth),
+			},
+		},
+	}
+	blob, err := metrics.Marshal()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-protobuf")
+		w.Write(blob)
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		MaxIdleConnsPerHost: 100,
+		DialContext: (&net.Dialer{
+			Timeout:   100 * time.Millisecond,
+			KeepAlive: time.Second,
+			DualStack: true,
+		}).DialContext,
+	}
+
+	backends := make([]Backend, 0)
+	for i := 0; i < 3; i++ {
+		bk, err := bnet.New(bnet.Config{
+			Address: server.URL,
+			Client:  client,
+			Limit:   1,
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		backends = append(backends, bk)
+	}
+
+	ctx := context.Background()
+	wg := sync.WaitGroup{}
+	n := 50
+	errs := make(chan []error, n)
+
+	renderReplicaMismatchConfigs := []cfg.RenderReplicaMismatchConfig{
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+		{
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchReportLimit:      0,
+		},
+	}
+	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
+		cc := replicaMatchMode
+		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < n; j++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+						errs <- err
+					}()
+				}
+
+				wg.Wait()
+				for j := 0; j < n; j++ {
+					err := <-errs
+					if len(err) != 0 {
+						b.Fatal(err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkRendersStorm(b *testing.B) {
+	secPerMonth := int(30 * 24 * time.Hour / time.Second)
+
+	allZeroValues1 := make([]float64, secPerMonth)
+	allZeroValues2 := make([]float64, secPerMonth)
+	withMismatchValues := make([]float64, secPerMonth)
+	for i := range withMismatchValues {
+		if i%30000 == 0 {
+			withMismatchValues[i] = 1.0
+		}
+	}
+	metrics := carbonapi_v2_pb.MultiFetchResponse{
+		Metrics: []carbonapi_v2_pb.FetchResponse{
+			carbonapi_v2_pb.FetchResponse{
+				Name:     "foo",
+				Values:   allZeroValues1,
+				IsAbsent: make([]bool, secPerMonth),
+			},
+			carbonapi_v2_pb.FetchResponse{
+				Name:     "foo",
+				Values:   withMismatchValues,
 				IsAbsent: make([]bool, secPerMonth),
 			},
 			carbonapi_v2_pb.FetchResponse{
@@ -181,13 +303,13 @@ func BenchmarkRendersStorm(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 		{
-			RenderReplicaMismatchApproximateCheck: true,
-			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
+			RenderReplicaMismatchApproximateCheck: false,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 			RenderReplicaMismatchReportLimit:      0,
 		},
 		{
-			RenderReplicaMismatchApproximateCheck: false,
-			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
+			RenderReplicaMismatchApproximateCheck: true,
+			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
 			RenderReplicaMismatchReportLimit:      0,
 		},
 		{
@@ -198,7 +320,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 	}
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
-		b.Run(fmt.Sprintf("BenchmarkRendersStorm/ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
+		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for j := 0; j < n; j++ {
 					wg.Add(1)
