@@ -101,44 +101,53 @@ func BenchmarkRenders(b *testing.B) {
 	}
 }
 
-func BenchmarkRendersMismatchStorm(b *testing.B) {
-	secPerMonth := int(30 * 24 * time.Hour / time.Second)
-
-	allZeroValues1 := make([]float64, secPerMonth)
-	allZeroValues2 := make([]float64, secPerMonth)
-	allOneValues := make([]float64, secPerMonth)
-	for i := range allOneValues {
-		allOneValues[i] = 1.0
+func createRegularMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchResponse) []carbonapi_v2_pb.FetchResponse {
+	MismatchFreq := 30000
+	for mIndex := range metrics {
+		mismatchCount := (len(metrics[mIndex].Values) - backendNumber) / MismatchFreq
+		for i := 0; i < mismatchCount; i++ {
+			vIndex := backendNumber + (i * MismatchFreq)
+			metrics[mIndex].Values[vIndex] += 1.0
+		}
 	}
-	metrics := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: []carbonapi_v2_pb.FetchResponse{
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   allZeroValues1,
-				IsAbsent: make([]bool, secPerMonth),
-			},
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   allZeroValues2,
-				IsAbsent: make([]bool, secPerMonth),
-			},
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   allOneValues,
-				IsAbsent: make([]bool, secPerMonth),
-			},
+	return metrics
+}
+
+func createFullMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchResponse) []carbonapi_v2_pb.FetchResponse {
+	for mIndex := range metrics {
+		for i := 0; i < len(metrics[mIndex].Values); i++ {
+			metrics[mIndex].Values[i] += float64(backendNumber)
+		}
+	}
+	return metrics
+}
+
+func createSingleBackendMetrics() []carbonapi_v2_pb.FetchResponse {
+	metricsCount := 600
+	metrics := make([]carbonapi_v2_pb.FetchResponse, metricsCount)
+	dpCount := 10800
+	for i := 0; i < 600; i++ {
+		metrics[i] = carbonapi_v2_pb.FetchResponse{
+			Name:     fmt.Sprintf("metric.foo%d", i),
+			Values:   make([]float64, dpCount),
+			IsAbsent: make([]bool, dpCount),
+		}
+	}
+	return metrics
+}
+
+func BenchmarkRendersStorm(b *testing.B) {
+	metricsByBackend := []carbonapi_v2_pb.MultiFetchResponse{
+		{
+			Metrics: createRegularMismatches(1, createSingleBackendMetrics()),
+		},
+		{
+			Metrics: createRegularMismatches(2, createSingleBackendMetrics()),
+		},
+		{
+			Metrics: createRegularMismatches(3, createSingleBackendMetrics()),
 		},
 	}
-	blob, err := metrics.Marshal()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/x-protobuf")
-		w.Write(blob)
-	}))
-	defer server.Close()
 
 	client := &http.Client{}
 	client.Transport = &http.Transport{
@@ -151,7 +160,17 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 	}
 
 	backends := make([]Backend, 0)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < len(metricsByBackend); i++ {
+		blob, err := metricsByBackend[i].Marshal()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/x-protobuf")
+			w.Write(blob)
+		}))
+		defer server.Close()
 		bk, err := bnet.New(bnet.Config{
 			Address: server.URL,
 			Client:  client,
@@ -221,46 +240,18 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 	}
 }
 
-func BenchmarkRendersStorm(b *testing.B) {
-	secPerMonth := int(30 * 24 * time.Hour / time.Second)
-
-	allZeroValues1 := make([]float64, secPerMonth)
-	allZeroValues2 := make([]float64, secPerMonth)
-	withMismatchValues := make([]float64, secPerMonth)
-	for i := range withMismatchValues {
-		if i%30000 == 0 {
-			withMismatchValues[i] = 1.0
-		}
-	}
-	metrics := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: []carbonapi_v2_pb.FetchResponse{
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   allZeroValues1,
-				IsAbsent: make([]bool, secPerMonth),
-			},
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   withMismatchValues,
-				IsAbsent: make([]bool, secPerMonth),
-			},
-			carbonapi_v2_pb.FetchResponse{
-				Name:     "foo",
-				Values:   allZeroValues2,
-				IsAbsent: make([]bool, secPerMonth),
-			},
+func BenchmarkRendersMismatchStorm(b *testing.B) {
+	metricsByBackend := []carbonapi_v2_pb.MultiFetchResponse{
+		{
+			Metrics: createFullMismatches(1, createSingleBackendMetrics()),
+		},
+		{
+			Metrics: createFullMismatches(2, createSingleBackendMetrics()),
+		},
+		{
+			Metrics: createFullMismatches(3, createSingleBackendMetrics()),
 		},
 	}
-	blob, err := metrics.Marshal()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/x-protobuf")
-		w.Write(blob)
-	}))
-	defer server.Close()
 
 	client := &http.Client{}
 	client.Transport = &http.Transport{
@@ -273,7 +264,17 @@ func BenchmarkRendersStorm(b *testing.B) {
 	}
 
 	backends := make([]Backend, 0)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < len(metricsByBackend); i++ {
+		blob, err := metricsByBackend[i].Marshal()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/x-protobuf")
+			w.Write(blob)
+		}))
+		defer server.Close()
 		bk, err := bnet.New(bnet.Config{
 			Address: server.URL,
 			Client:  client,

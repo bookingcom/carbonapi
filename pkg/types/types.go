@@ -326,8 +326,8 @@ func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (ma
 	for _, v := range values {
 		if i == 0 {
 			m = v
-		}
-		if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
+			i = 1
+		} else if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
 			i++
 		} else {
 			i--
