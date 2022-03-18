@@ -314,40 +314,38 @@ func areFloatsApproximatelyEqual(a, b float64) bool {
 	}
 }
 
-func areFloatsExactlyEqual(a, b float64) bool {
-	return a == b
-}
-
-func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (majorityValue float64, majorityCount int, err error) {
+func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (majorityValue float64, isMajority bool, err error) {
 	valuesCount := len(values)
 	if valuesCount == 0 {
-		return 0, 0, errors.New("no value for majority voting")
+		return 0, false, errors.New("no value for majority voting")
 	}
 
-	sort.Slice(values, func(i, j int) bool {
-		return values[i] < values[j]
-	})
-
-	majorityCount = 1
-	majorityValue = values[0]
-
-	currentCount := 1
-	currentValue := values[0]
-	for i := 1; i < len(values); i++ {
-		v := values[i]
-		if equalityFunc(v, currentValue) {
-			currentCount++
-			if currentCount > majorityCount {
-				majorityCount = currentCount
-				majorityValue = v
-			}
+	// Boyer–Moore majority vote algorithm
+	i := 0
+	var m float64
+	for _, v := range values {
+		if i == 0 {
+			m = v
+			i = 1
+		} else if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
+			i++
 		} else {
-			currentValue = v
-			currentCount = 1
+			i--
+		}
+		if i > valuesCount/2 {
+			return m, isMajority, nil
 		}
 	}
 
-	return majorityValue, majorityCount, nil
+	// check if m is the majority value
+	var majorityCount int
+	for _, v := range values {
+		if (equalityFunc == nil && m == v) || (equalityFunc != nil && equalityFunc(m, v)) {
+			majorityCount++
+		}
+	}
+
+	return m, majorityCount > valuesCount/2, nil
 }
 
 func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig) (metric Metric, stats MetricRenderStats) {
@@ -360,7 +358,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		return m, MetricRenderStats{}
 	}
 
-	equalityFunc := areFloatsExactlyEqual
+	var equalityFunc floatEqualityFunc
 	if replicaMismatchConfig.RenderReplicaMismatchApproximateCheck {
 		equalityFunc = areFloatsApproximatelyEqual
 	}
@@ -374,11 +372,13 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 
 	// metrics[0] has the highest resolution of metrics
 	metric = metrics[0]
+	valuesForPoint := make([]float64, 0, len(metrics))
+	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
 	for i := range metric.Values {
 		pointExists := !metric.IsAbsent[i]
-		shouldLookForMismatch := replicaMatchMode != cfg.ReplicaMatchModeNormal
+		shouldLookForMismatch := isMismatchFindConfig
 		mismatchObserved := false
-		var valuesForPoint []float64
+		valuesForPoint = valuesForPoint[:0]
 		if pointExists {
 			valuesForPoint = append(valuesForPoint, metric.Values[i])
 		}
@@ -405,9 +405,10 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 				pointExists = true
 			}
 
-			if !equalityFunc(metric.Values[i], m.Values[i]) {
-				mismatchObserved = true
-				if replicaMatchMode == cfg.ReplicaMatchModeCheck {
+			if !mismatchObserved {
+				mismatchObserved = (equalityFunc == nil && metric.Values[i] != m.Values[i]) ||
+					(equalityFunc != nil && !equalityFunc(metric.Values[i], m.Values[i]))
+				if mismatchObserved && replicaMatchMode == cfg.ReplicaMatchModeCheck {
 					// mismatch exists, enough for check mode
 					shouldLookForMismatch = false
 				}
@@ -419,8 +420,8 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 
 		mismatches++
 		if replicaMatchMode == cfg.ReplicaMatchModeMajority {
-			majorityValue, majorityCount, err := getPointMajorityValue(valuesForPoint, equalityFunc)
-			if err == nil && majorityCount > len(valuesForPoint)/2 {
+			majorityValue, isMajority, err := getPointMajorityValue(valuesForPoint, equalityFunc)
+			if err == nil && isMajority {
 				metric.Values[i] = majorityValue
 				fixedMismatches++
 			}
