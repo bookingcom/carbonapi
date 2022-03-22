@@ -333,7 +333,7 @@ func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (ma
 			i--
 		}
 		if i > valuesCount/2 {
-			return m, isMajority, nil
+			return m, true, nil
 		}
 	}
 
