@@ -126,11 +126,14 @@ func createSingleBackendMetrics() []carbonapi_v2_pb.FetchResponse {
 	metricsCount := 600
 	metrics := make([]carbonapi_v2_pb.FetchResponse, metricsCount)
 	dpCount := 10800
+	step := 60
 	for i := 0; i < 600; i++ {
 		metrics[i] = carbonapi_v2_pb.FetchResponse{
-			Name:     fmt.Sprintf("metric.foo%d", i),
-			Values:   make([]float64, dpCount),
-			IsAbsent: make([]bool, dpCount),
+			Name:      fmt.Sprintf("metric.foo%d", i),
+			Values:    make([]float64, dpCount),
+			IsAbsent:  make([]bool, dpCount),
+			StepTime:  int32(step),
+			StartTime: int32(int(time.Now().Unix()) - dpCount*step),
 		}
 	}
 	return metrics
@@ -193,26 +196,31 @@ func BenchmarkRendersStorm(b *testing.B) {
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: true,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: true,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 	}
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
@@ -297,26 +305,31 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: true,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeCheck,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 		{
 			RenderReplicaMismatchApproximateCheck: true,
 			RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 			RenderReplicaMismatchReportLimit:      0,
+			MismatchReportOffsetSeconds:           120,
 		},
 	}
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {

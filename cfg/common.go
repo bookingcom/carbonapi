@@ -130,6 +130,7 @@ func DefaultCommonConfig() Common {
 			RenderReplicaMismatchApproximateCheck: false,
 			RenderReplicaMatchMode:                ReplicaMatchModeNormal,
 			RenderReplicaMismatchReportLimit:      10,
+			MismatchReportOffsetSeconds:           120,
 		},
 	}
 }
@@ -196,6 +197,14 @@ type RenderReplicaMismatchConfig struct {
 	// RenderReplicaMismatchReportLimit limits the number of mismatched metrics to be logged
 	// for a single render request.
 	RenderReplicaMismatchReportLimit int `yaml:"renderReplicaMismatchReportLimit"`
+
+	// MismatchReportOffsetSeconds indicates the range (now - offset, now) in which mismatches
+	// are not exposed in the report.
+	// The reason to define such a config is that late rollup mismatches are highly probable
+	// as the values are being aggregated independently and asynchronously. Therefore, late mismatches
+	// are not good indicators of overall metric consistency.
+	// The default value is 120.
+	MismatchReportOffsetSeconds int `yaml:"mismatchReportOffsetSeconds"`
 }
 
 func (c *RenderReplicaMismatchConfig) String() string {

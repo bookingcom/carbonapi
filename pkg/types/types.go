@@ -374,6 +374,11 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 	metric = metrics[0]
 	valuesForPoint := make([]float64, 0, len(metrics))
 	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
+	mismatchReportEndTime := int(time.Now().Unix()) - replicaMismatchConfig.MismatchReportOffsetSeconds
+	mismatchReportIndexUpperBound := len(metric.Values) + 1
+	if metric.StepTime != 0 && metric.StartTime != 0 {
+		mismatchReportIndexUpperBound = (mismatchReportEndTime - int(metric.StartTime)) / int(metric.StepTime)
+	}
 	for i := range metric.Values {
 		pointExists := !metric.IsAbsent[i]
 		shouldLookForMismatch := isMismatchFindConfig
@@ -418,12 +423,16 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 			continue
 		}
 
-		mismatches++
+		if i < mismatchReportIndexUpperBound {
+			mismatches++
+		}
 		if replicaMatchMode == cfg.ReplicaMatchModeMajority {
 			majorityValue, isMajority, err := getPointMajorityValue(valuesForPoint, equalityFunc)
 			if err == nil && isMajority {
 				metric.Values[i] = majorityValue
-				fixedMismatches++
+				if i < mismatchReportIndexUpperBound {
+					fixedMismatches++
+				}
 			}
 		}
 	}
