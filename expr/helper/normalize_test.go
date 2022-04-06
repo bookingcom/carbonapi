@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -64,7 +65,7 @@ func TestNormalize(t *testing.T) {
 
 		got, _, _, _, err := Normalize(test.in)
 		if err != nil {
-			t.Errorf("error: %w", err)
+			t.Error(fmt.Errorf("error: %w", err))
 		}
 		if len(got) != len(test.want) {
 			t.Errorf("Normalize() mismatch for number of metrics. Want: %d. Got: %d", len(test.want), len(got))

@@ -8,6 +8,13 @@ run:
   # activate after switching to go modules (#131, #190)
   # modules-download-mode: vendor
 
+  # TODO: This is hard-coded here because of https://github.com/golangci/golangci-lint/issues/2649#issuecomment-1070528726
+  # golangci-lint had issues with go1.18 so some of the linters are disabled. As we are not using go1.18 features
+  # at the moment, we have set it to 1.17. it should be updated if:
+  #   1. we use 1.18 logic.
+  #   2. golangci-lint issues with 1.18 are resolved.
+  go: "1.17"
+
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"
@@ -142,19 +149,14 @@ linters-settings:
     default-signifies-exhaustive: true
 
 linters:
-  enable:
-    - megacheck
-    - govet
   enable-all: false
-  disable:
-    - maligned
-    - prealloc
-    - makezero # Disable due to panic bug in makezero (golangci-lint@1.40.1)
-    - errorlint # Disable temporarily, more could be found in: https://github.com/bookingcom/carbonapi/issues/333
   disable-all: false
   presets:
     - bugs
     - unused
+  disable:
+    - errorlint # Disable temporarily, more could be found in: https://github.com/bookingcom/carbonapi/issues/333
+    - scopelint # Disabled because it's deprecated.
   fast: false
 
 

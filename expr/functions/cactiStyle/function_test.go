@@ -136,12 +136,12 @@ func TestCactiStyle(t *testing.T) {
 			map[parser.MetricRequest][]*types.MetricData{
 				{"metric1", 0, 1}: {
 					types.MakeMetricData("metric1",
-						[]float64{-1.0, -2.0, -1.0, -3.0, -1.0, -1.0, -0.0, -0.0, -0.0}, 1, now32),
+						[]float64{-1.0, -2.0, -1.0, -3.0, -1.0, -1.0, 0.0, 0.0, 0.0}, 1, now32),
 				},
 			},
 			[]*types.MetricData{
 				types.MakeMetricData("metric1 Current: 0 Max: 0 Min: -3",
-					[]float64{-1.0, -2.0, -1.0, -3.0, -1.0, -1.0, -0.0, -0.0, -0.0}, 1, now32),
+					[]float64{-1.0, -2.0, -1.0, -3.0, -1.0, -1.0, 0.0, 0.0, 0.0}, 1, now32),
 			},
 		},
 		{

@@ -71,7 +71,7 @@ curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
 
 ## Requirements
 
-We officially support `go 1.12`. Booking.com builds its binaries
+We officially support `go 1.18`. Booking.com builds its binaries
 with the latest stable release of Go at any time.
 
 ## OSX Build Notes
