@@ -149,21 +149,14 @@ linters-settings:
     default-signifies-exhaustive: true
 
 linters:
-  enable:
-    - megacheck
-    - govet
-    - exportloopref
   enable-all: false
-  disable:
-    - maligned
-    - prealloc
-    - makezero # Disable due to panic bug in makezero (golangci-lint@1.40.1)
-    - errorlint # Disable temporarily, more could be found in: https://github.com/bookingcom/carbonapi/issues/333
-    - scopelint # Disabled because it's deprecated.
   disable-all: false
   presets:
     - bugs
     - unused
+  disable:
+    - errorlint # Disable temporarily, more could be found in: https://github.com/bookingcom/carbonapi/issues/333
+    - scopelint # Disabled because it's deprecated.
   fast: false
 
 
