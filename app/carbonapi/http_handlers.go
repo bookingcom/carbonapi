@@ -1122,8 +1122,13 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request) {
 	if writeErr != nil {
 		toLog.HttpCode = 499
 	}
+
+	fields, err := toLog.GetLogFields()
+	if err != nil {
+		zapwriter.Logger("access").Error("could not marshal access log details", zap.Error(err))
+	}
 	// TODO (grzkv): Pass logger from above
-	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
+	zapwriter.Logger("access").Info("request served", fields...)
 }
 
 func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
@@ -1158,8 +1163,13 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	toLog.Runtime = time.Since(t0).Seconds()
+
+	fields, err := toLog.GetLogFields()
+	if err != nil {
+		zapwriter.Logger("access").Error("could not marshal access log details", zap.Error(err))
+	}
 	// TODO (grzkv): Pass logger from above
-	zapwriter.Logger("access").Info("request served", zap.Any("data", toLog))
+	zapwriter.Logger("access").Info("request served", fields...)
 }
 
 func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request) {

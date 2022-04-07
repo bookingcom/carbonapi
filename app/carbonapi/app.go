@@ -398,14 +398,20 @@ func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbona
 
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
+
+	fields, err := accessLogDetails.GetLogFields()
+	if err != nil {
+		accessLogger.Error("could not marshal access log details", zap.Error(err))
+	}
+
 	// TODO (grzkv) This logic is not obvious for the user
 	if logAsError {
-		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
+		accessLogger.Error("request failed", fields...)
 		apiMetrics.Errors.Add(1)
 	} else {
 		// TODO (grzkv) The code can differ from the real one. Clean up
 		// accessLogDetails.HttpCode = http.StatusOK
-		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
+		accessLogger.Info("request served", fields...)
 		apiMetrics.Responses.Add(1)
 	}
 
