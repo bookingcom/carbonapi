@@ -92,7 +92,7 @@ func BenchmarkRenders(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("BenchmarkRenders/ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
@@ -217,7 +217,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
@@ -322,7 +322,7 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {

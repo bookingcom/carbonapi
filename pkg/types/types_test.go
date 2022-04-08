@@ -101,7 +101,7 @@ func TestMergeManyMetricsWithNormal(t *testing.T) {
 		IsAbsent: []bool{false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, _ := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeNormal}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -136,7 +136,7 @@ func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -183,7 +183,7 @@ func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -237,7 +237,7 @@ func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -290,7 +290,7 @@ func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -344,7 +344,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeCheck}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -398,7 +398,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeMajority}, logger)
 	if len(got) != 1 {
 		t.Errorf("Expected 1 metric, got %d", len(got))
@@ -456,7 +456,7 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityApproximateBadFloat(t *te
 		IsAbsent: []bool{false, false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{
 		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 		RenderReplicaMismatchApproximateCheck: true,
@@ -517,7 +517,7 @@ func TestMergeMismatchedMetricsWithMajorityApproximateBadFloat(t *testing.T) {
 		IsAbsent: []bool{false, false, false},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, stats := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{
 		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 		RenderReplicaMismatchApproximateCheck: true,
@@ -561,7 +561,7 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 		},
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger := zap.NewNop()
 	got, _ := MergeMetrics(input, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: cfg.ReplicaMatchModeNormal}, logger)
 	if len(got) != 2 {
 		t.Errorf("Expected 2 metrics, got %d", len(got))
