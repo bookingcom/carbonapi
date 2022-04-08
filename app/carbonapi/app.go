@@ -101,12 +101,14 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
+	accessLogger := zapwriter.Logger("access")
+	handlerLogger := zapwriter.Logger("handler")
 
 	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
 
-	handler := initHandlers(app)
-
-	prometheusServer := app.registerPrometheusMetrics()
+	handler := initHandlers(app, accessLogger, handlerLogger)
+	internalHandler := initHandlersInternal(app, accessLogger, handlerLogger)
+	prometheusServer := app.registerPrometheusMetrics(internalHandler)
 
 	app.requestBlocker.ScheduleRuleReload()
 
@@ -125,7 +127,7 @@ func (app *App) Start() func() {
 	return flush
 }
 
-func (app *App) registerPrometheusMetrics() *http.Server {
+func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Requests)
 	prometheus.MustRegister(app.prometheusMetrics.Responses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
@@ -154,7 +156,7 @@ func (app *App) registerPrometheusMetrics() *http.Server {
 
 	s := &http.Server{
 		Addr:         app.config.ListenInternal,
-		Handler:      initHandlersInternal(app),
+		Handler:      internalHandler,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: writeTimeout,
 	}
@@ -393,9 +395,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 }
 
-func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
-	accessLogger := zapwriter.Logger("access")
-
+func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
 
