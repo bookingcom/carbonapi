@@ -16,15 +16,15 @@ import (
 func init() {
 	md := New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	md = divideSeries.New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	md = sum.New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)

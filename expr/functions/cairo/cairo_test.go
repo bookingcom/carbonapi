@@ -1,3 +1,4 @@
+//go:build cairo
 // +build cairo
 
 package cairo
@@ -16,7 +17,7 @@ func init() {
 	md := New("")
 	metadata.SetEvaluator(th.EvaluatorFromFunc(md[0].F))
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 }
 

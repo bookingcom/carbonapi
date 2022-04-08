@@ -19,27 +19,27 @@ import (
 func init() {
 	s := sum.New("")
 	for _, m := range s {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	md := New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	mm := minMax.New("")
 	for _, m := range mm {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	as := averageSeries.New("")
 	for _, m := range as {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	stds := stddevSeries.New("")
 	for _, m := range stds {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	ds := diffSeries.New("")
 	for _, m := range ds {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, nil)
 	}
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)

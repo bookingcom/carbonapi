@@ -5,18 +5,16 @@ import (
 
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
 
 // RegisterFunction registers function in metadata and fills out all Description structs
-func RegisterFunction(name string, function interfaces.Function) {
+func RegisterFunction(name string, function interfaces.Function, logger *zap.Logger) {
 	FunctionMD.Lock()
 	defer FunctionMD.Unlock()
 	function.SetEvaluator(FunctionMD.evaluator)
 	_, ok := FunctionMD.Functions[name]
 	if ok {
-		logger := zapwriter.Logger("registerFunction")
 		logger.Warn("function already registered, will register new anyway",
 			zap.String("name", name),
 			zap.Stack("stack"),
