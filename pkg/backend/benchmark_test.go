@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/bookingcom/carbonapi/cfg"
+	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -91,11 +92,12 @@ func BenchmarkRenders(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
+	logger, _ := zap.NewDevelopment()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("BenchmarkRenders/ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+				Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, logger)
 			}
 		})
 	}
@@ -215,6 +217,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
+	logger, _ := zap.NewDevelopment()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
@@ -223,7 +226,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, logger)
 						errs <- err
 					}()
 				}
@@ -319,6 +322,7 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 			RenderReplicaMismatchReportLimit:      0,
 		},
 	}
+	logger, _ := zap.NewDevelopment()
 	for _, replicaMatchMode := range renderReplicaMismatchConfigs {
 		cc := replicaMatchMode
 		b.Run(fmt.Sprintf("ReplicaMatchMode-%s", cc.String()), func(b *testing.B) {
@@ -327,7 +331,7 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 					wg.Add(1)
 					go func() {
 						defer wg.Done()
-						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc)
+						_, _, err := Renders(ctx, backends, types.NewRenderRequest(nil, 0, 0), cc, logger)
 						errs <- err
 					}()
 				}

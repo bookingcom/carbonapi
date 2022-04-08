@@ -2,6 +2,8 @@ package zipper
 
 import (
 	"expvar"
+	"github.com/bookingcom/carbonapi/pkg/handler_log"
+	"go.uber.org/zap"
 	"net/http"
 	"net/http/pprof"
 
@@ -12,16 +14,16 @@ import (
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 )
 
-func initHandlers(app *App) http.Handler {
+func initHandlers(app *App, accessLogger, handlerLogger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.Use(util.UUIDHandler)
 	r.Use(muxtrace.Middleware("carbonzipper"))
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(app.findHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(app.renderHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(app.infoHandler, app.bucketRequestTimes)))
-	r.HandleFunc("/lb_check", app.lbCheckHandler)
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.findHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.renderHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.infoHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/lb_check", handler_log.WithLogger(app.lbCheckHandler, accessLogger, handlerLogger))
 
 	return r
 }

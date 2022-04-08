@@ -30,7 +30,6 @@ import (
 	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
 
-	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
 
@@ -48,7 +47,7 @@ const (
 	formatTypeProtobuf3 = "protobuf3"
 )
 
-func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) findHandler(w http.ResponseWriter, req *http.Request, accessLogger, handlerLogger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
@@ -56,7 +55,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	span := trace.SpanFromContext(ctx)
 
 	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("find").With(
+	logger := handlerLogger.With(
 		zap.String("handler", "find"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
@@ -74,8 +73,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.FindRequests.Add(1)
 
-	// TODO (grzkv): Pass logger from above
-	accessLogger := zapwriter.Logger("access").With(
+	accessLogger = accessLogger.With(
 		zap.String("handler", "find"),
 		zap.String("format", format),
 		zap.String("target", originalQuery),
@@ -195,7 +193,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 }
 
-func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, accessLogger, handlerLogger *zap.Logger) {
 	t0 := time.Now()
 	memoryUsage := 0
 
@@ -203,8 +201,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 
-	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("render").With(
+	logger := handlerLogger.With(
 		zap.Int("memory_usage_bytes", memoryUsage),
 		zap.String("handler", "render"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
@@ -220,8 +217,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.RenderRequests.Add(1)
 
-	// TODO (grzkv): Pass logger from above
-	accessLogger := zapwriter.Logger("access").With(
+	accessLogger = accessLogger.With(
 		zap.String("handler", "render"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
@@ -309,7 +305,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	request.Trace.OutDuration = app.prometheusMetrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
-	metrics, stats, errs := backend.Renders(ctx, bs, request, app.config.RenderReplicaMismatchConfig)
+	metrics, stats, errs := backend.Renders(ctx, bs, request, app.config.RenderReplicaMismatchConfig, handlerLogger)
 	app.prometheusMetrics.Renders.Add(float64(stats.DataPointCount))
 	app.prometheusMetrics.RenderMismatches.Add(float64(stats.MismatchCount))
 	app.prometheusMetrics.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
@@ -413,14 +409,13 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request) {
 	)
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, accessLogger, handlerLogger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 
-	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("info").With(
+	logger := handlerLogger.With(
 		zap.String("handler", "info"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
@@ -435,8 +430,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
-	// TODO (grzkv): Pass logger from above
-	accessLogger := zapwriter.Logger("access").With(
+	accessLogger = accessLogger.With(
 		zap.String("handler", "info"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
@@ -550,14 +544,10 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request) {
 	)
 }
 
-func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request) {
+func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, accessLogger, handlerLogger *zap.Logger) {
 	t0 := time.Now()
-	// TODO (grzkv): Pass logger from above
-	logger := zapwriter.Logger("loadbalancer").
-		With(zap.String("handler", "loadbalancer"))
-	// TODO (grzkv): Pass logger from above
-	accessLogger := zapwriter.Logger("access").
-		With(zap.String("handler", "loadbalancer"))
+	logger := handlerLogger.With(zap.String("handler", "loadbalancer"))
+	accessLogger = accessLogger.With(zap.String("handler", "loadbalancer"))
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
 		ce.Write(

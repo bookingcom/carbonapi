@@ -65,10 +65,10 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 // Start start launches the goroutines starts the app execution
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("zipper")
+	accessLogger := zapwriter.Logger("access")
+	handlerLogger := zapwriter.Logger("handler")
 
 	flush := trace.InitTracer(BuildVersion, "carbonzipper", logger, app.config.Traces)
-
-	types.SetCorruptionWatcher(app.config.CorruptionThreshold, logger)
 
 	// Should print nicer stack traces in case of unexpected panic.
 	defer func() {
@@ -86,7 +86,7 @@ func (app *App) Start() func() {
 	httputil.PublishTrackedConnections("httptrack")
 	publishExpvarz(app)
 
-	handler := initHandlers(app)
+	handler := initHandlers(app, accessLogger, handlerLogger)
 
 	// nothing in the app.config? check the environment
 	if app.config.Graphite.Host == "" {

@@ -40,7 +40,7 @@ func TestRenderNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.renderHandler(w, req)
+		app.renderHandler(w, req, logger, logger)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d", w.Code, tst.code)
 		}
@@ -70,7 +70,7 @@ func TestRenderSingleBackend(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusBadRequest)
@@ -82,7 +82,7 @@ func TestRenderSingleBackend(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -112,7 +112,7 @@ func TestRenderSingleGenericBackendError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -142,7 +142,7 @@ func TestRenderSingleNotFoundBackendError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -182,7 +182,7 @@ func TestRenderMultipleBackends(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -232,7 +232,7 @@ func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -272,7 +272,7 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -327,7 +327,7 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -397,7 +397,7 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req)
+	app.renderHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -432,7 +432,7 @@ func TestFindNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.findHandler(w, req)
+		app.findHandler(w, req, logger, logger)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
 		}
@@ -462,7 +462,7 @@ func TestFindSingleBackend(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	// TODO (grzkv): This should be BadRequest
 	if w.Code != http.StatusOK {
@@ -475,7 +475,7 @@ func TestFindSingleBackend(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -509,7 +509,7 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -539,7 +539,7 @@ func TestFindSingleBackendWithNotfoundError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -584,7 +584,7 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -634,7 +634,7 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -669,7 +669,7 @@ func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -704,7 +704,7 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -784,7 +784,7 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -834,7 +834,7 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req)
+	app.findHandler(w, req, logger, logger)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -864,7 +864,7 @@ func TestInfoNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.infoHandler(w, req)
+		app.infoHandler(w, req, logger, logger)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
 		}
@@ -919,7 +919,7 @@ func TestInfoSingleBackend(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.infoHandler(w, req)
+		app.infoHandler(w, req, logger, logger)
 
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
@@ -945,7 +945,7 @@ func TestLbCheckNoBackends(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.lbCheckHandler(w, req)
+	app.lbCheckHandler(w, req, logger, logger)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d for %s", w.Code, http.StatusOK, "/lb_check")
 	}

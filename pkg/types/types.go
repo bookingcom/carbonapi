@@ -21,11 +21,6 @@ import (
 )
 
 var (
-	// TODO (grzkv): Remove from global scope and to metrics package
-	corruptionThreshold = 1.0
-	// TODO (grzkv): Remove from global scope and to metrics package
-	corruptionLogger = zap.New(nil)
-
 	ErrMetricsNotFound = ErrNotFound("No metrics returned")
 	ErrMatchesNotFound = ErrNotFound("No matches found")
 	ErrInfoNotFound    = ErrNotFound("No information found")
@@ -37,11 +32,6 @@ type ErrNotFound string
 // Error makes ErrNotFound compliant with the error interface
 func (err ErrNotFound) Error() string {
 	return string(err)
-}
-
-func SetCorruptionWatcher(threshold float64, logger *zap.Logger) {
-	corruptionThreshold = threshold
-	corruptionLogger = logger
 }
 
 // TODO (grzkv): Move to separate file
@@ -209,7 +199,7 @@ type MetricRenderStats struct {
 // MergeMetrics merges metrics by name.
 // It returns merged metrics, number of rendered data points for the returned metrics,
 // and number of mismatched data points seen (if mismatchCheck is true).
-func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig) ([]Metric, MetricRenderStats) {
+func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig, logger *zap.Logger) ([]Metric, MetricRenderStats) {
 	if len(metrics) == 0 {
 		return nil, MetricRenderStats{}
 	}
@@ -264,7 +254,7 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 
 	metricsUnfixedMismatchCount := metricsStat.MismatchCount - metricsStat.FixedMismatchCount
 	if metricsUnfixedMismatchCount > 0 {
-		corruptionLogger.Warn("metric unfixed replica mismatch observed",
+		logger.Warn("metric unfixed replica mismatch observed",
 			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
 			zap.Int("replica_mismatches_total", metricsStat.MismatchCount),
 			zap.Int("replica_fixed_mismatches_total", metricsStat.FixedMismatchCount),
@@ -428,13 +418,6 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		}
 	}
 
-	if c := float64(healed) / float64(len(metric.Values)); c > corruptionThreshold {
-		corruptionLogger.Warn("metric corruption",
-			zap.String("metric", metric.Name),
-			zap.Float64("corruption", c),
-			zap.Float64("threshold", corruptionThreshold),
-		)
-	}
 	return metric, MetricRenderStats{
 		DataPointCount:     len(metric.Values),
 		MismatchCount:      mismatches,

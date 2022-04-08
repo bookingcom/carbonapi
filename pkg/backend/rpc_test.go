@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bookingcom/carbonapi/cfg"
+	"go.uber.org/zap"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
@@ -65,11 +66,12 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 }
 
 func TestCarbonapiv2RendersEmpty(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
 	got, _, err := Renders(context.Background(), []Backend{}, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
 		RenderReplicaMismatchApproximateCheck: false,
 		RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
 		RenderReplicaMismatchReportLimit:      10,
-	})
+	}, logger)
 	if err != nil {
 		t.Error(err)
 		return
@@ -100,11 +102,12 @@ func TestCarbonapiv2Renders(t *testing.T) {
 		backends = append(backends, b)
 	}
 
+	logger, _ := zap.NewDevelopment()
 	got, stats, errs := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
 		RenderReplicaMismatchApproximateCheck: false,
 		RenderReplicaMatchMode:                cfg.ReplicaMatchModeMajority,
 		RenderReplicaMismatchReportLimit:      10,
-	})
+	}, logger)
 	if len(errs) != 0 {
 		t.Error(errs[0])
 		return
@@ -138,11 +141,12 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 	backends := []Backend{mock.New(mock.Config{Render: render})}
 
+	logger, _ := zap.NewDevelopment()
 	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
 		RenderReplicaMismatchApproximateCheck: false,
 		RenderReplicaMatchMode:                cfg.ReplicaMatchModeNormal,
 		RenderReplicaMismatchReportLimit:      10,
-	})
+	}, logger)
 	if err == nil {
 		t.Error("Expected error")
 	}
