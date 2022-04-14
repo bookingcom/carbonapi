@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bookingcom/carbonapi/pkg/handler_log"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -51,7 +51,7 @@ const (
 // TODO (grzkv): Clean up
 var timeNow = time.Now
 
-func (app *App) validateRequest(h handler_log.HandlerWithLoggers, handler string, accessLogger, handlerLogger *zap.Logger) http.HandlerFunc {
+func (app *App) validateRequest(h handlerlog.HandlerWithLoggers, handler string, accessLogger, handlerLogger *zap.Logger) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if app.requestBlocker.ShouldBlockRequest(r) {

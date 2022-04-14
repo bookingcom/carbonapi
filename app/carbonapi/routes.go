@@ -2,7 +2,7 @@ package carbonapi
 
 import (
 	"expvar"
-	"github.com/bookingcom/carbonapi/pkg/handler_log"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"go.uber.org/zap"
 	"net/http"
 	"net/http/pprof"
@@ -19,9 +19,9 @@ import (
 func initHandlersInternal(app *App, accessLogger, handlerLogger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/block-headers", httputil.TimeHandler(handler_log.WithLogger(app.blockHeaders, accessLogger, handlerLogger), app.bucketRequestTimes))
+	r.HandleFunc("/block-headers", httputil.TimeHandler(handlerlog.WithLogger(app.blockHeaders, accessLogger, handlerLogger), app.bucketRequestTimes))
 
-	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handler_log.WithLogger(app.unblockHeaders, accessLogger, handlerLogger), app.bucketRequestTimes))
+	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handlerlog.WithLogger(app.unblockHeaders, accessLogger, handlerLogger), app.bucketRequestTimes))
 
 	r.HandleFunc("/debug/version", app.debugVersionHandler)
 
@@ -55,27 +55,27 @@ func initHandlers(app *App, accessLogger, handlerLogger *zap.Logger) http.Handle
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/lb_check", httputil.TimeHandler(
-		handler_log.WithLogger(app.lbcheckHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.lbcheckHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/version", httputil.TimeHandler(
-		handler_log.WithLogger(app.versionHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.versionHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/functions", httputil.TimeHandler(
-		handler_log.WithLogger(app.functionsHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.functionsHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(
-		handler_log.WithLogger(app.tagsHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.tagsHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/", httputil.TimeHandler(
-		handler_log.WithLogger(app.usageHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.usageHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes))
 
 	r.NotFoundHandler = httputil.TimeHandler(
-		handler_log.WithLogger(app.usageHandler, accessLogger, handlerLogger),
+		handlerlog.WithLogger(app.usageHandler, accessLogger, handlerLogger),
 		app.bucketRequestTimes)
 
 	return routeMiddleware(r)

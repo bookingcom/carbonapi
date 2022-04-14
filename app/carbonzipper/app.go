@@ -66,7 +66,6 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("zipper")
 	accessLogger := zapwriter.Logger("access")
-	handlerLogger := zapwriter.Logger("handler")
 
 	flush := trace.InitTracer(BuildVersion, "carbonzipper", logger, app.config.Traces)
 
@@ -86,7 +85,7 @@ func (app *App) Start() func() {
 	httputil.PublishTrackedConnections("httptrack")
 	publishExpvarz(app)
 
-	handler := initHandlers(app, accessLogger, handlerLogger)
+	handler := initHandlers(app, accessLogger, logger)
 
 	// nothing in the app.config? check the environment
 	if app.config.Graphite.Host == "" {

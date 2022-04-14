@@ -132,7 +132,6 @@ func SetUpTestConfig() (*App, http.Handler) {
 	zapwriter.ApplyConfig([]zapwriter.Config{c})
 	logger := zapwriter.Logger("main")
 	accessLogger := zapwriter.Logger("access")
-	handlerLogger := zapwriter.Logger("handler")
 
 	config := cfg.DefaultAPIConfig()
 
@@ -154,7 +153,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 	app.requestBlocker = blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger)
 
 	setUpConfig(app, logger)
-	handler := initHandlers(app, accessLogger, handlerLogger)
+	handler := initHandlers(app, accessLogger, logger)
 	return app, handler
 }
 

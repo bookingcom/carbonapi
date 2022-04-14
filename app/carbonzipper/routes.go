@@ -2,7 +2,7 @@ package zipper
 
 import (
 	"expvar"
-	"github.com/bookingcom/carbonapi/pkg/handler_log"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"go.uber.org/zap"
 	"net/http"
 	"net/http/pprof"
@@ -20,10 +20,10 @@ func initHandlers(app *App, accessLogger, handlerLogger *zap.Logger) http.Handle
 	r.Use(util.UUIDHandler)
 	r.Use(muxtrace.Middleware("carbonzipper"))
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.findHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.renderHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(handler_log.WithLogger(app.infoHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/lb_check", handler_log.WithLogger(app.lbCheckHandler, accessLogger, handlerLogger))
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.findHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.renderHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.infoHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
+	r.HandleFunc("/lb_check", handlerlog.WithLogger(app.lbCheckHandler, accessLogger, handlerLogger))
 
 	return r
 }

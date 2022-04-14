@@ -1,4 +1,4 @@
-package handler_log
+package handlerlog
 
 import (
 	"go.uber.org/zap"

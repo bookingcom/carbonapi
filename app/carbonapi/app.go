@@ -102,12 +102,11 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 func (app *App) Start() func() {
 	logger := zapwriter.Logger("carbonapi")
 	accessLogger := zapwriter.Logger("access")
-	handlerLogger := zapwriter.Logger("handler")
 
 	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
 
-	handler := initHandlers(app, accessLogger, handlerLogger)
-	internalHandler := initHandlersInternal(app, accessLogger, handlerLogger)
+	handler := initHandlers(app, accessLogger, logger)
+	internalHandler := initHandlersInternal(app, accessLogger, logger)
 	prometheusServer := app.registerPrometheusMetrics(internalHandler)
 
 	app.requestBlocker.ScheduleRuleReload()
