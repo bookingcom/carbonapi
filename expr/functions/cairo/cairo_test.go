@@ -4,6 +4,7 @@
 package cairo
 
 import (
+	"go.uber.org/zap"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func init() {
 	md := New("")
 	metadata.SetEvaluator(th.EvaluatorFromFunc(md[0].F))
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 }
 

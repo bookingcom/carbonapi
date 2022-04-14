@@ -1,6 +1,7 @@
 package groupByNode
 
 import (
+	"go.uber.org/zap"
 	"testing"
 	"time"
 
@@ -19,27 +20,27 @@ import (
 func init() {
 	s := sum.New("")
 	for _, m := range s {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	md := New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	mm := minMax.New("")
 	for _, m := range mm {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	as := averageSeries.New("")
 	for _, m := range as {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	stds := stddevSeries.New("")
 	for _, m := range stds {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	ds := diffSeries.New("")
 	for _, m := range ds {
-		metadata.RegisterFunction(m.Name, m.F, nil)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)
