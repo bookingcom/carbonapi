@@ -164,13 +164,6 @@ func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Se
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
-	if err := zapwriter.ApplyConfig(app.config.Logger); err != nil {
-		logger.Fatal("failed to initialize logger with requested configuration",
-			zap.Any("configuration", app.config.Logger),
-			zap.Error(err),
-		)
-	}
-
 	for name, color := range app.config.DefaultColors {
 		if err := png.SetColor(name, color); err != nil {
 			logger.Warn("invalid color specified and will be ignored",

@@ -40,7 +40,7 @@ func main() {
 		)
 	}
 
-	api, err := cfg.ParseAPIConfig(fh)
+	apiConfig, err := cfg.ParseAPIConfig(fh)
 	if err != nil {
 		logger.Fatal("Failed to parse config file",
 			zap.Error(err),
@@ -48,15 +48,21 @@ func main() {
 	}
 	fh.Close()
 
-	if api.MaxProcs != 0 {
-		runtime.GOMAXPROCS(api.MaxProcs)
+	if configErr := zapwriter.ApplyConfig(apiConfig.Logger); configErr != nil {
+		logger.Fatal("Failed to apply config",
+			zap.Any("config", apiConfig.Logger),
+			zap.Error(configErr),
+		)
+	}
+	if apiConfig.MaxProcs != 0 {
+		runtime.GOMAXPROCS(apiConfig.MaxProcs)
 	}
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 	logger.Info("starting carbonapi",
 		zap.String("build_version", BuildVersion),
-		zap.Any("apiConfig", api),
+		zap.Any("apiConfig", apiConfig),
 	)
-	app, err := carbonapi.New(api, logger, BuildVersion)
+	app, err := carbonapi.New(apiConfig, logger, BuildVersion)
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
