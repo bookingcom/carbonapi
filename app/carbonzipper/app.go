@@ -25,7 +25,6 @@ import (
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
-	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -63,10 +62,7 @@ func New(config cfg.Zipper, logger *zap.Logger, buildVersion string) (*App, erro
 }
 
 // Start start launches the goroutines starts the app execution
-func (app *App) Start() func() {
-	logger := zapwriter.Logger("zipper")
-	accessLogger := zapwriter.Logger("access")
-
+func (app *App) Start(logger *zap.Logger) func() {
 	flush := trace.InitTracer(BuildVersion, "carbonzipper", logger, app.config.Traces)
 
 	// Should print nicer stack traces in case of unexpected panic.
@@ -85,7 +81,7 @@ func (app *App) Start() func() {
 	httputil.PublishTrackedConnections("httptrack")
 	publishExpvarz(app)
 
-	handler := initHandlers(app, accessLogger, logger)
+	handler := initHandlers(app, logger)
 
 	// nothing in the app.config? check the environment
 	if app.config.Graphite.Host == "" {

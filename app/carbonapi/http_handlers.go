@@ -51,18 +51,18 @@ const (
 // TODO (grzkv): Clean up
 var timeNow = time.Now
 
-func (app *App) validateRequest(h handlerlog.HandlerWithLoggers, handler string, accessLogger, handlerLogger *zap.Logger) http.HandlerFunc {
+func (app *App) validateRequest(h handlerlog.HandlerWithLogger, handler string, logger *zap.Logger) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if app.requestBlocker.ShouldBlockRequest(r) {
 			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			toLog.HttpCode = http.StatusForbidden
 			defer func() {
-				app.deferredAccessLogging(accessLogger, r, &toLog, t0, true)
+				app.deferredAccessLogging(logger, r, &toLog, t0, true)
 			}()
 			w.WriteHeader(http.StatusForbidden)
 		} else {
-			h(w, r, accessLogger, handlerLogger)
+			h(w, r, logger)
 		}
 	})
 }
@@ -142,7 +142,7 @@ type renderResponse struct {
 	error error
 }
 
-func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 	size := 0
 
@@ -153,8 +153,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, accessLogg
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
-	// TODO (grzkv): Replace with access logger
-	logger := handlerLogger.With(
+	logger = logger.With(
 		zap.String("handler", "render"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", toLog.Username),
@@ -176,8 +175,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, accessLogg
 				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
-		// TODO (grzkv) logging duplicated in many places
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	apiMetrics.Requests.Add(1)
@@ -795,7 +793,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	return renderRequests, nil
 }
 
-func (app *App) findHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
@@ -817,7 +815,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, accessLogger
 		kv.String("grahite.target", query),
 		kv.String("graphite.username", toLog.Username),
 	)
-	logger := handlerLogger.With(
+	logger = logger.With(
 		zap.String("handler", "find"),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 		zap.String("username", toLog.Username),
@@ -832,7 +830,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, accessLogger
 				app.prometheusMetrics.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	if format == completerFormat {
@@ -1022,7 +1020,7 @@ func findList(globs dataTypes.Matches) []byte {
 	return b.Bytes()
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
@@ -1042,7 +1040,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, accessLogger
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	query := r.FormValue("target")
@@ -1105,7 +1103,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, accessLogger
 	toLog.HttpCode = http.StatusOK
 }
 
-func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
@@ -1126,12 +1124,12 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, accessLog
 
 	fields, err := toLog.GetLogFields()
 	if err != nil {
-		accessLogger.Error("could not marshal access log details", zap.Error(err))
+		logger.Error("could not marshal access log details", zap.Error(err))
 	}
-	accessLogger.Info("request served", fields...)
+	logger.Info("request served", fields...)
 }
 
-func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
@@ -1166,12 +1164,12 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, accessLog
 
 	fields, err := toLog.GetLogFields()
 	if err != nil {
-		accessLogger.Error("could not marshal access log details", zap.Error(err))
+		logger.Error("could not marshal access log details", zap.Error(err))
 	}
-	accessLogger.Info("request served", fields...)
+	logger.Info("request served", fields...)
 }
 
-func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
 
@@ -1182,7 +1180,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, accessL
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	err := r.ParseForm()
@@ -1291,7 +1289,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, accessL
 // The rules are added(appended) in the block headers config file
 // Returns failure if handler is invoked and config entry is missing
 // Otherwise, it creates the config file with the rule
-func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
 	apiMetrics.Requests.Add(1)
@@ -1300,7 +1298,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, accessLogge
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
@@ -1325,14 +1323,14 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, accessLogge
 // It deletes the block headers config file
 // Use it to remove all blocking rules, or to restart adding rules
 // from scratch
-func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 	apiMetrics.Requests.Add(1)
 	toLog := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
 
 	logAsError := false
 	defer func() {
-		app.deferredAccessLogging(accessLogger, r, &toLog, t0, logAsError)
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	w.Header().Set("Content-Type", contentTypeJSON)
@@ -1388,7 +1386,7 @@ supported requests:
 	/tags/autoComplete/tags
 `)
 
-func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
@@ -1406,7 +1404,7 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, accessLogge
 //TODO : Fix this handler if and when tag support is added
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
-func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, accessLogger, handlerLogger *zap.Logger) {
+func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {

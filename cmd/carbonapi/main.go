@@ -66,6 +66,7 @@ func main() {
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
-	flush := app.Start()
+	appLogger := zapwriter.Logger("carbonapi")
+	flush := app.Start(appLogger)
 	defer flush()
 }

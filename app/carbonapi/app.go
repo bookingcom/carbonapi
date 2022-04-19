@@ -30,7 +30,6 @@ import (
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -99,14 +98,11 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start() func() {
-	logger := zapwriter.Logger("carbonapi")
-	accessLogger := zapwriter.Logger("access")
-
+func (app *App) Start(logger *zap.Logger) func() {
 	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
 
-	handler := initHandlers(app, accessLogger, logger)
-	internalHandler := initHandlersInternal(app, accessLogger, logger)
+	handler := initHandlers(app, logger)
+	internalHandler := initHandlersInternal(app, logger)
 	prometheusServer := app.registerPrometheusMetrics(internalHandler)
 
 	app.requestBlocker.ScheduleRuleReload()

@@ -14,16 +14,16 @@ import (
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 )
 
-func initHandlers(app *App, accessLogger, handlerLogger *zap.Logger) http.Handler {
+func initHandlers(app *App, logger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.Use(util.UUIDHandler)
 	r.Use(muxtrace.Middleware("carbonzipper"))
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.findHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.renderHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.infoHandler, accessLogger, handlerLogger), app.bucketRequestTimes)))
-	r.HandleFunc("/lb_check", handlerlog.WithLogger(app.lbCheckHandler, accessLogger, handlerLogger))
+	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.findHandler, logger), app.bucketRequestTimes)))
+	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.renderHandler, logger), app.bucketRequestTimes)))
+	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(handlerlog.WithLogger(app.infoHandler, logger), app.bucketRequestTimes)))
+	r.HandleFunc("/lb_check", handlerlog.WithLogger(app.lbCheckHandler, logger))
 
 	return r
 }
