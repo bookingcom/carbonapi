@@ -78,6 +78,7 @@ func main() {
 	if err != nil {
 		logger.Error("Error initializing app")
 	}
-	flush := app.Start()
+	appLogger := zapwriter.Logger("carbonzipper")
+	flush := app.Start(appLogger)
 	defer flush()
 }

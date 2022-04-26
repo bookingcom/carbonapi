@@ -1,6 +1,8 @@
 package carbonapipb
 
 import (
+	"encoding/json"
+	"go.uber.org/zap"
 	"net/http"
 	"strings"
 
@@ -88,4 +90,19 @@ func getHeadersData(r *http.Request, headersToLog []string) map[string]string {
 		}
 	}
 	return headerData
+}
+
+func (ald *AccessLogDetails) GetLogFields() ([]zap.Field, error) {
+	data, err := json.Marshal(ald)
+	if err != nil {
+		return nil, err
+	}
+
+	tag2Value := make(map[string]interface{})
+	err = json.Unmarshal(data, &tag2Value)
+	var fields []zap.Field
+	for tag, val := range tag2Value {
+		fields = append(fields, zap.Any(tag, val))
+	}
+	return fields, nil
 }

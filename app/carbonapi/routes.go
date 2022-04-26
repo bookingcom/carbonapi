@@ -2,6 +2,8 @@ package carbonapi
 
 import (
 	"expvar"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
+	"go.uber.org/zap"
 	"net/http"
 	"net/http/pprof"
 	"strings"
@@ -14,12 +16,12 @@ import (
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 )
 
-func initHandlersInternal(app *App) http.Handler {
+func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/block-headers", httputil.TimeHandler(app.blockHeaders, app.bucketRequestTimes))
+	r.HandleFunc("/block-headers", httputil.TimeHandler(handlerlog.WithLogger(app.blockHeaders, logger), app.bucketRequestTimes))
 
-	r.HandleFunc("/unblock-headers", httputil.TimeHandler(app.unblockHeaders, app.bucketRequestTimes))
+	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handlerlog.WithLogger(app.unblockHeaders, logger), app.bucketRequestTimes))
 
 	r.HandleFunc("/debug/version", app.debugVersionHandler)
 
@@ -31,7 +33,7 @@ func initHandlersInternal(app *App) http.Handler {
 	return routeMiddleware(r)
 }
 
-func initHandlers(app *App) http.Handler {
+func initHandlers(app *App, logger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.Use(handlers.CompressHandler)
@@ -41,25 +43,40 @@ func initHandlers(app *App) http.Handler {
 	r.Use(muxtrace.Middleware("carbonapi"))
 
 	r.HandleFunc("/render", httputil.TimeHandler(
-		app.validateRequest(http.HandlerFunc(app.renderHandler), "render"), app.bucketRequestTimes))
+		app.validateRequest(app.renderHandler, "render", logger),
+		app.bucketRequestTimes))
 
 	r.HandleFunc("/metrics/find", httputil.TimeHandler(
-		app.validateRequest(http.HandlerFunc(app.findHandler), "find"), app.bucketRequestTimes))
+		app.validateRequest(app.findHandler, "find", logger),
+		app.bucketRequestTimes))
 
 	r.HandleFunc("/info", httputil.TimeHandler(
-		app.validateRequest(http.HandlerFunc(app.infoHandler), "info"), app.bucketRequestTimes))
+		app.validateRequest(app.infoHandler, "info", logger),
+		app.bucketRequestTimes))
 
-	r.HandleFunc("/lb_check", httputil.TimeHandler(app.lbcheckHandler, app.bucketRequestTimes))
+	r.HandleFunc("/lb_check", httputil.TimeHandler(
+		handlerlog.WithLogger(app.lbcheckHandler, logger),
+		app.bucketRequestTimes))
 
-	r.HandleFunc("/version", httputil.TimeHandler(app.versionHandler, app.bucketRequestTimes))
+	r.HandleFunc("/version", httputil.TimeHandler(
+		handlerlog.WithLogger(app.versionHandler, logger),
+		app.bucketRequestTimes))
 
-	r.HandleFunc("/functions", httputil.TimeHandler(app.functionsHandler, app.bucketRequestTimes))
+	r.HandleFunc("/functions", httputil.TimeHandler(
+		handlerlog.WithLogger(app.functionsHandler, logger),
+		app.bucketRequestTimes))
 
-	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(app.tagsHandler, app.bucketRequestTimes))
+	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(
+		handlerlog.WithLogger(app.tagsHandler, logger),
+		app.bucketRequestTimes))
 
-	r.HandleFunc("/", httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes))
+	r.HandleFunc("/", httputil.TimeHandler(
+		handlerlog.WithLogger(app.usageHandler, logger),
+		app.bucketRequestTimes))
 
-	r.NotFoundHandler = httputil.TimeHandler(app.usageHandler, app.bucketRequestTimes)
+	r.NotFoundHandler = httputil.TimeHandler(
+		handlerlog.WithLogger(app.usageHandler, logger),
+		app.bucketRequestTimes)
 
 	return routeMiddleware(r)
 }

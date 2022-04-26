@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"go.uber.org/zap"
 	"sort"
 	"strings"
 
@@ -103,7 +104,7 @@ type initFunc struct {
 	f     func(configFile string) []interfaces.FunctionMetadata
 }
 
-func New(configs map[string]string) {
+func New(configs map[string]string, logger *zap.Logger) {
 	funcs := make([]initFunc, 0, 87)
 
 	funcs = append(funcs, initFunc{name: "absolute", order: absolute.GetOrder(), f: absolute.New})
@@ -297,7 +298,7 @@ func New(configs map[string]string) {
 	for _, f := range funcs {
 		md := f.f(configs[strings.ToLower(f.name)])
 		for _, m := range md {
-			metadata.RegisterFunction(m.Name, m.F)
+			metadata.RegisterFunction(m.Name, m.F, logger)
 		}
 	}
 }

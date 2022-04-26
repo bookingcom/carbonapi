@@ -152,7 +152,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 	app.requestBlocker = blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger)
 
 	setUpConfig(app, logger)
-	handler := initHandlers(app)
+	handler := initHandlers(app, logger)
 	return app, handler
 }
 

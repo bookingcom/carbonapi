@@ -30,7 +30,6 @@ import (
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	"github.com/lomik/zapwriter"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -99,14 +98,12 @@ func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) 
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start() func() {
-	logger := zapwriter.Logger("carbonapi")
-
+func (app *App) Start(logger *zap.Logger) func() {
 	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
 
-	handler := initHandlers(app)
-
-	prometheusServer := app.registerPrometheusMetrics()
+	handler := initHandlers(app, logger)
+	internalHandler := initHandlersInternal(app, logger)
+	prometheusServer := app.registerPrometheusMetrics(internalHandler)
 
 	app.requestBlocker.ScheduleRuleReload()
 
@@ -125,7 +122,7 @@ func (app *App) Start() func() {
 	return flush
 }
 
-func (app *App) registerPrometheusMetrics() *http.Server {
+func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.Requests)
 	prometheus.MustRegister(app.prometheusMetrics.Responses)
 	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
@@ -154,7 +151,7 @@ func (app *App) registerPrometheusMetrics() *http.Server {
 
 	s := &http.Server{
 		Addr:         app.config.ListenInternal,
-		Handler:      initHandlersInternal(app),
+		Handler:      internalHandler,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: writeTimeout,
 	}
@@ -163,13 +160,6 @@ func (app *App) registerPrometheusMetrics() *http.Server {
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
-	if err := zapwriter.ApplyConfig(app.config.Logger); err != nil {
-		logger.Fatal("failed to initialize logger with requested configuration",
-			zap.Any("configuration", app.config.Logger),
-			zap.Error(err),
-		)
-	}
-
 	for name, color := range app.config.DefaultColors {
 		if err := png.SetColor(name, color); err != nil {
 			logger.Warn("invalid color specified and will be ignored",
@@ -179,7 +169,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 	}
 
-	functions.New(app.config.FunctionsConfigs)
+	functions.New(app.config.FunctionsConfigs, logger)
 
 	// TODO (grzkv): Move expvars to init since they are global to the package
 	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
@@ -393,19 +383,23 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 }
 
-func (app *App) deferredAccessLogging(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
-	accessLogger := zapwriter.Logger("access")
-
+func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
+
+	fields, err := accessLogDetails.GetLogFields()
+	if err != nil {
+		accessLogger.Error("could not marshal access log details", zap.Error(err))
+	}
+
 	// TODO (grzkv) This logic is not obvious for the user
 	if logAsError {
-		accessLogger.Error("request failed", zap.Any("data", *accessLogDetails))
+		accessLogger.Error("request failed", fields...)
 		apiMetrics.Errors.Add(1)
 	} else {
 		// TODO (grzkv) The code can differ from the real one. Clean up
 		// accessLogDetails.HttpCode = http.StatusOK
-		accessLogger.Info("request served", zap.Any("data", *accessLogDetails))
+		accessLogger.Info("request served", fields...)
 		apiMetrics.Responses.Add(1)
 	}
 

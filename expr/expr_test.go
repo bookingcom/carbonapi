@@ -2,6 +2,7 @@ package expr
 
 import (
 	"context"
+	"go.uber.org/zap"
 	"math"
 	"testing"
 	"time"
@@ -18,7 +19,8 @@ import (
 )
 
 func init() {
-	functions.New(make(map[string]string))
+	logger, _ := zap.NewDevelopment()
+	functions.New(make(map[string]string), logger)
 }
 
 func TestGetBuckets(t *testing.T) {

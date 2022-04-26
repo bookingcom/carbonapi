@@ -1,6 +1,7 @@
 package grep
 
 import (
+	"go.uber.org/zap"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func init() {
 	metadata.SetEvaluator(evaluator)
 	helper.SetEvaluator(evaluator)
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 }
 

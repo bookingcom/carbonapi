@@ -1,6 +1,7 @@
 package applyByNode
 
 import (
+	"go.uber.org/zap"
 	"testing"
 	"time"
 
@@ -16,15 +17,15 @@ import (
 func init() {
 	md := New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	md = divideSeries.New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	md = sum.New("")
 	for _, m := range md {
-		metadata.RegisterFunction(m.Name, m.F)
+		metadata.RegisterFunction(m.Name, m.F, zap.NewNop())
 	}
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)
