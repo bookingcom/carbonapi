@@ -122,10 +122,9 @@ headersToLog:
     - X-Real-Ip
     - X-Webauth-User
 logger:
-    - logger: ""
-      file: "stdout"
-      level: "info"
-      encoding: "json"
+  outputPaths: ["stdout", "/var/log/carbonapi.log"]
+  level: "info"
+  encoding: "json"
 
 monitoring:
     timeInQueueExpHistogram:

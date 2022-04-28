@@ -24,11 +24,9 @@ backends:
     - "http://10.190.197.9:8080"
     - "http://10.190.191.9:8080"
 logger:
-    -
-       logger: ""
-       file: "/var/log/carbonzipper/carbonzipper.log"
-       level: "info"
-       encoding: "json"
+   outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
+   level: "info"
+   encoding: "json"
 monitoring:
     timeInQueueExpHistogram:
         start: 0.3
@@ -188,11 +186,9 @@ backendsByCluster:
       - "http://10.190.202.32:8080"
       - "http://10.190.197.92:8080"
 logger:
-    -
-       logger: ""
-       file: "/var/log/carbonzipper/carbonzipper.log"
-       level: "info"
-       encoding: "json"
+   outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
+   level: "info"
+   encoding: "json"
 monitoring:
     timeInQueueExpHistogram:
         start: 0.3
@@ -379,11 +375,9 @@ backendsByDC:
             backends:
             - "http://10.290.202.32:8080"
 logger:
-    -
-       logger: ""
-       file: "/var/log/carbonzipper/carbonzipper.log"
-       level: "info"
-       encoding: "json"
+   outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
+   level: "info"
+   encoding: "json"
 monitoring:
     timeInQueueExpHistogram:
         start: 0.3

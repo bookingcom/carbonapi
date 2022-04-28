@@ -88,9 +88,6 @@ github.com/gorilla/mux
 # github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 ## explicit
 github.com/lomik/og-rek
-# github.com/lomik/zapwriter v0.0.0-20180906104450-2ec2b9a61680
-## explicit
-github.com/lomik/zapwriter
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 ## explicit
 github.com/matttproud/golang_protobuf_extensions/pbutil

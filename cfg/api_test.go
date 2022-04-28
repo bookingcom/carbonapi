@@ -45,10 +45,9 @@ pidFile: "/var/run/carbonapi/carbonapi.pid"
 ignoreClientTimeout: true
 
 logger:
-    - logger: ""
-      file: "/var/log/carbonapi/carbonapi.log"
-      level: "info"
-      encoding: "json"
+  outputPaths: ["/var/log/carbonapi/carbonapi.log"]
+  level: "info"
+  encoding: "json"
 `
 
 	r := strings.NewReader(input)
@@ -149,10 +148,9 @@ upstreams:
         - "http://localhost:8000"
 expireDelaySec: 0
 logger:
-    - logger: ""
-      file: "/var/log/carbonapi/carbonapi.log"
-      level: "info"
-      encoding: "json"
+  outputPaths: ["/var/log/carbonapi/carbonapi.log"]
+  level: "info"
+  encoding: "json"
 `
 
 	r := strings.NewReader(input)
