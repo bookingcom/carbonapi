@@ -41,7 +41,7 @@ func main() {
 		runtime.GOMAXPROCS(apiConfig.MaxProcs)
 	}
 	expvar.NewString("BuildVersion").Set(BuildVersion)
-	logger, err := apiConfig.Logger.Build()
+	logger, err := apiConfig.LoggerConfig.Build()
 	if err != nil {
 		log.Fatalf("Failed to initiate logger: %s", err)
 	}

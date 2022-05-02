@@ -23,7 +23,7 @@ backends:
     - "http://10.190.202.30:8080"
     - "http://10.190.197.9:8080"
     - "http://10.190.191.9:8080"
-logger:
+loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
    encoding: "json"
@@ -185,7 +185,7 @@ backendsByCluster:
       backends:
       - "http://10.190.202.32:8080"
       - "http://10.190.197.92:8080"
-logger:
+loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
    encoding: "json"
@@ -374,7 +374,7 @@ backendsByDC:
           - name: "cluster2"
             backends:
             - "http://10.290.202.32:8080"
-logger:
+loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
    encoding: "json"

@@ -53,47 +53,10 @@ graphite09compat: true
 # It's possible to specify multiple logger outputs with different loglevels and encodings
 # Logger is logrotate-compatible, you can freely move or rename or delete files, it will create
 # new one automatically
-logger:
-   -
-       # Available Loggers:
-       #   "" - global for all
-       #   "main" - what's before start
-       #   "find" - for find handler
-       #   "info" - for info handler
-       #   "loadbalancer" - for lb handler
-       #   "probe" - for background probes
-       #   "render" - for render handler
-       #   "access" - access logs (requests, times, etc)
-       # Please note that if you want to have all logs going to stdout and access logs going to file, you need to define 2 sections for access logger (file + stdout) + one section for logger ""
-       logger: ""
-   
-       #   "/some/file"
-       #   "stderr"
-       #   "stdout"
-       #   "" (=="stderr")
-       #   "none"
-       # default: "stdout"
-       file: "stderr"
-   
-       # "debug", "info", "warn", "error", "fatal", "panic" are available
-       # default: info
-       level: "debug"
-   
-       # "json", "mixed" or "console", default: console
-       encoding: "console"
-   
-       # Time format (for timestamps in the logs), default: iso8601
-       # Available: "millis", "nanos", "epoch", "iso8601"
-       encodingTime: "iso8601"
-   
-       # Format to encode durations, default: seconds.
-       # Available: "seconds", "nanos", "string"
-       encodingDuration: "seconds"
-   -
-       logger: ""
-       file: "stdout"
-       level: "info"
-       encoding: "json"
+loggerConfig:
+    file: "stdout"
+    level: "info"
+    encoding: "json"
 
 monitoring:
     timeInQueueExpHistogram:

@@ -65,7 +65,7 @@ graphite09compat: true
 # It's possible to specify multiple logger outputs with different loglevels and encodings
 # Logger is logrotate-compatible, you can freely move or rename or delete files, it will create
 # new one automatically
-logger:
+loggerConfig:
   outputPaths: ["stdout", "/var/log/carbonzipper.log"]
   level: "info"
   encoding: "json"

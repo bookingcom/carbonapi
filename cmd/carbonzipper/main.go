@@ -51,7 +51,7 @@ func main() {
 	}
 
 	expvar.NewString("BuildVersion").Set(BuildVersion)
-	logger, err := config.Logger.Build()
+	logger, err := config.LoggerConfig.Build()
 	if err != nil {
 		log.Fatalf("Failed to initiate logger: %s", err)
 	}

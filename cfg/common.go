@@ -65,7 +65,7 @@ func DefaultCommonConfig() Common {
 			Prefix:   "carbon.zipper",
 			Pattern:  "{prefix}.{fqdn}",
 		},
-		Logger: GetDefaultLoggerConfig(),
+		LoggerConfig: GetDefaultLoggerConfig(),
 		Monitoring: MonitoringConfig{
 			TimeInQueueExpHistogram: HistogramConfig{
 				Start:      0.01,
@@ -175,9 +175,9 @@ type Common struct {
 	InternalRoutingCache       int32 `yaml:"internalRoutingCache"`
 	GraphiteWeb09Compatibility bool  `yaml:"graphite09compat"`
 
-	Buckets  int            `yaml:"buckets"`
-	Graphite GraphiteConfig `yaml:"graphite"`
-	Logger   zap.Config     `yaml:"logger"`
+	Buckets      int            `yaml:"buckets"`
+	Graphite     GraphiteConfig `yaml:"graphite"`
+	LoggerConfig zap.Config     `yaml:"loggerConfig"`
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 

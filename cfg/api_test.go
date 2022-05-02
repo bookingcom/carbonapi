@@ -44,7 +44,7 @@ tz: "UTC+1,3600"
 pidFile: "/var/run/carbonapi/carbonapi.pid"
 ignoreClientTimeout: true
 
-logger:
+loggerConfig:
   outputPaths: ["/var/log/carbonapi/carbonapi.log"]
   level: "info"
   encoding: "json"
@@ -147,7 +147,7 @@ upstreams:
     backends:
         - "http://localhost:8000"
 expireDelaySec: 0
-logger:
+loggerConfig:
   outputPaths: ["/var/log/carbonapi/carbonapi.log"]
   level: "info"
   encoding: "json"

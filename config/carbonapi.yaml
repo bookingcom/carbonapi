@@ -121,7 +121,7 @@ headersToLog:
     - X-Dashboard-Id
     - X-Real-Ip
     - X-Webauth-User
-logger:
+loggerConfig:
   outputPaths: ["stdout", "/var/log/carbonapi.log"]
   level: "info"
   encoding: "json"
