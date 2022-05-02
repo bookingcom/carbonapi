@@ -153,11 +153,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
-	logger = logger.With(
-		zap.String("handler", "render"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		zap.String("username", toLog.Username),
-	)
 	span.SetAttribute("graphite.username", toLog.Username)
 
 	logAsError := false
@@ -814,11 +809,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	span.SetAttributes(
 		kv.String("grahite.target", query),
 		kv.String("graphite.username", toLog.Username),
-	)
-	logger = logger.With(
-		zap.String("handler", "find"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-		zap.String("username", toLog.Username),
 	)
 
 	logAsError := false

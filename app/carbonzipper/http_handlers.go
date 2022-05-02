@@ -54,11 +54,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 
-	logger = logger.With(
-		zap.String("handler", "find"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-	)
-
 	if ce := logger.Check(zap.DebugLevel, "got find request"); ce != nil {
 		ce.Write(
 			zap.String("request", req.URL.RequestURI()),
@@ -78,6 +73,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 		zap.String("target", originalQuery),
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
+
 	span.SetAttributes(
 		kv.String("graphite.format", format),
 		kv.String("graphite.target", originalQuery),
@@ -199,12 +195,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
-
-	logger = logger.With(
-		zap.Int("memory_usage_bytes", memoryUsage),
-		zap.String("handler", "render"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-	)
 
 	if ce := logger.Check(zap.DebugLevel, "got render request"); ce != nil {
 		ce.Write(
@@ -429,10 +419,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	app.prometheusMetrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
-	logger = logger.With(
-		zap.String("handler", "info"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-	)
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, "failed to parse arguments", http.StatusBadRequest)
