@@ -18,7 +18,6 @@ require (
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.7.4
 	github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
-	github.com/lomik/zapwriter v0.0.0-20180906104450-2ec2b9a61680
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
 	github.com/peterbourgon/g2g v0.0.0-20161124161852-0c2bab2b173d
 	github.com/pkg/errors v0.8.0

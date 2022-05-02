@@ -2,11 +2,12 @@ package cfg
 
 import (
 	"fmt"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"io"
 	"log"
 	"time"
 
-	"github.com/lomik/zapwriter"
 	"gopkg.in/yaml.v2"
 )
 
@@ -64,7 +65,7 @@ func DefaultCommonConfig() Common {
 			Prefix:   "carbon.zipper",
 			Pattern:  "{prefix}.{fqdn}",
 		},
-		Logger: []zapwriter.Config{GetDefaultLoggerConfig()},
+		LoggerConfig: GetDefaultLoggerConfig(),
 		Monitoring: MonitoringConfig{
 			TimeInQueueExpHistogram: HistogramConfig{
 				Start:      0.01,
@@ -135,14 +136,24 @@ func DefaultCommonConfig() Common {
 }
 
 // GetDefaultLoggerConfig returns sane default for the logger conf
-func GetDefaultLoggerConfig() zapwriter.Config {
-	return zapwriter.Config{
-		Logger:           "",
-		File:             "stdout",
-		Level:            "info",
-		Encoding:         "console",
-		EncodingTime:     "iso8601",
-		EncodingDuration: "seconds",
+func GetDefaultLoggerConfig() zap.Config {
+	return zap.Config{
+		Level:       zap.NewAtomicLevelAt(zap.InfoLevel),
+		Encoding:    "console",
+		OutputPaths: []string{"stdout"},
+		EncoderConfig: zapcore.EncoderConfig{
+			MessageKey:     "message",
+			LevelKey:       "level",
+			TimeKey:        "timestamp",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.CapitalLevelEncoder,
+			EncodeTime:     zapcore.ISO8601TimeEncoder,
+			EncodeDuration: zapcore.SecondsDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		},
 	}
 }
 
@@ -164,9 +175,9 @@ type Common struct {
 	InternalRoutingCache       int32 `yaml:"internalRoutingCache"`
 	GraphiteWeb09Compatibility bool  `yaml:"graphite09compat"`
 
-	Buckets  int                `yaml:"buckets"`
-	Graphite GraphiteConfig     `yaml:"graphite"`
-	Logger   []zapwriter.Config `yaml:"logger"`
+	Buckets      int            `yaml:"buckets"`
+	Graphite     GraphiteConfig `yaml:"graphite"`
+	LoggerConfig zap.Config     `yaml:"loggerConfig"`
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 

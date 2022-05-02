@@ -3,6 +3,7 @@ package carbonapi
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,8 +15,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
-
-	"github.com/lomik/zapwriter"
+	"go.uber.org/zap"
 )
 
 // TODO (grzkv) Clean this
@@ -128,9 +128,11 @@ func TestAppHandlers(t *testing.T) {
 
 func SetUpTestConfig() (*App, http.Handler) {
 	c := cfg.GetDefaultLoggerConfig()
-	c.Level = "none"
-	zapwriter.ApplyConfig([]zapwriter.Config{c})
-	logger := zapwriter.Logger("main")
+	c.Level = zap.NewAtomicLevelAt(zap.FatalLevel)
+	logger, err := c.Build()
+	if err != nil {
+		log.Fatalf("could not build logger: %s", err)
+	}
 
 	config := cfg.DefaultAPIConfig()
 

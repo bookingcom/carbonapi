@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -49,7 +48,7 @@ func (cf *configFileMock) write(output []byte) error {
 }
 
 func getTestLogger() *zap.Logger {
-	return zapwriter.Logger("test")
+	return zap.NewNop()
 }
 
 func TestShouldNotBlock(t *testing.T) {
