@@ -777,95 +777,9 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	newQueries, maxMetricsByGlob := getBrokenGlobs(m.Metric, &glob)
-	if maxMetricsByGlob < app.config.MaxBatchSize {
-		renderRequests := make([]string, 0, len(newQueries))
-		for _, q := range newQueries {
-			renderRequests = append(renderRequests, q)
-		}
-		return renderRequests, nil
-	}
 	toLog.SendGlobs = false
-	renderRequests := make([]string, 0, len(glob.Matches))
-	for _, m := range glob.Matches {
-		if m.IsLeaf {
-			renderRequests = append(renderRequests, m.Path)
-		}
-	}
-
-	return renderRequests, nil
-}
-
-func getBrokenGlobs(metric string, glob *dataTypes.Matches) ([]string, int) {
-	type StarNS struct {
-		original      string
-		level         int
-		uniqueMembers int
-	}
-	var bestStarNS StarNS
-	var residualMatches []string
-	for _, m := range glob.Matches {
-		if m.IsLeaf {
-			residualMatches = append(residualMatches, m.Path)
-		}
-	}
-	residualMetric := metric
-	for i := 0; residualMetric != ""; i++ {
-		spl := strings.SplitN(residualMetric, ".", 2)
-		ns := spl[0]
-		if len(spl) == 1 {
-			residualMetric = ""
-		} else {
-			residualMetric = spl[1]
-		}
-		if strings.Contains(ns, "*") {
-			starNS := StarNS{
-				original: ns,
-				level:    i,
-			}
-			members := make(map[string]int)
-			for j, m := range residualMatches {
-				rSpl := strings.SplitN(m, ".", 2)
-				if len(rSpl) == 1 {
-					residualMatches[j] = ""
-				} else {
-					residualMatches[j] = rSpl[1]
-				}
-				members[rSpl[0]]++
-			}
-			starNS.uniqueMembers = len(members)
-			if starNS.uniqueMembers > bestStarNS.uniqueMembers {
-				bestStarNS = starNS
-			}
-		} else {
-			for j, m := range residualMatches {
-				rSpl := strings.SplitN(m, ".", 2)
-				if len(rSpl) == 1 {
-					residualMatches[j] = ""
-				} else {
-					residualMatches[j] = rSpl[1]
-				}
-			}
-		}
-	}
-	newGlobs := make(map[string]int)
-	var maxMetricsByGlob int
-	for _, m := range glob.Matches {
-		if m.IsLeaf {
-			explodedPath := strings.Split(m.Path, ".")
-			explodedPath[bestStarNS.level] = bestStarNS.original
-			newGlob := strings.Join(explodedPath, ".")
-			newGlobs[newGlob]++
-		}
-	}
-	newUniqueGlobs := make([]string, 0, len(newGlobs))
-	for uniqueGlob, occ := range newGlobs {
-		newUniqueGlobs = append(newUniqueGlobs, uniqueGlob)
-		if occ > maxMetricsByGlob {
-			maxMetricsByGlob = occ
-		}
-	}
-	return newUniqueGlobs, maxMetricsByGlob
+	newQueries := dataTypes.GetBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+	return newQueries, nil
 }
 
 func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
