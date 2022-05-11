@@ -1,7 +1,6 @@
-FROM golang:1.16
+FROM golang:1.18
 
-RUN go get github.com/bookingcom/nanotube/cmd/nanotube
-RUN go install github.com/bookingcom/nanotube/cmd/nanotube
+RUN go install github.com/bookingcom/nanotube/cmd/nanotube@latest
 COPY ./docker/nanotube/config/ /etc/nanotube/config
 
 EXPOSE 2003
