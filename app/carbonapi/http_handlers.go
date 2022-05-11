@@ -20,6 +20,7 @@ import (
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/globs"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
@@ -778,7 +779,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	}
 
 	toLog.SendGlobs = false
-	newQueries := dataTypes.GetBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+	newQueries := globs.GetBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
 	return newQueries, nil
 }
 
