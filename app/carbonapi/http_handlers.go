@@ -779,7 +779,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	}
 
 	toLog.SendGlobs = false
-	newQueries := globs.GetBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+	newQueries := globs.GetGreedyBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
 	return newQueries, nil
 }
 
