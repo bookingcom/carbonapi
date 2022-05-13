@@ -779,7 +779,20 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	}
 
 	toLog.SendGlobs = false
-	newQueries := globs.GetGreedyBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+	var newQueries []string
+	if app.config.BreakBigGlobs {
+		var broke bool
+		t0 := time.Now()
+		newQueries, broke = globs.GetGreedyBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+		toLog.GlobBreakingRuntime = time.Since(t0).Seconds()
+		toLog.BrokeGlobs = broke
+	} else {
+		for _, m := range glob.Matches {
+			if m.IsLeaf {
+				newQueries = append(newQueries, m.Path)
+			}
+		}
+	}
 	return newQueries, nil
 }
 

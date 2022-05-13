@@ -12,6 +12,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 		glob       types.Matches
 		maxBatch   int
 		newQueries []string
+		broke      bool
 	}{
 		{
 			name:     "test1",
@@ -25,6 +26,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 				},
 			},
 			newQueries: []string{"a1.b1.c1.*", "a1.b1.c2.*"},
+			broke:      true,
 		},
 		{
 			name:     "test2",
@@ -38,6 +40,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 				},
 			},
 			newQueries: []string{"a1.b1.c1.d*", "a1.b1.c2.d*"},
+			broke:      true,
 		},
 		{
 			name:     "test3",
@@ -51,6 +54,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 				},
 			},
 			newQueries: []string{"a1.b1.c1.d1", "a1.b1.c1.d2", "a1.b1.c1.d3", "a1.b1.c2.d1", "a1.b1.c2.d2", "a1.b1.c2.d3"},
+			broke:      false,
 		},
 		{
 			name:     "test4",
@@ -64,6 +68,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 				},
 			},
 			newQueries: []string{"a1.b1.c1.d1", "a1.b2.c2.d2", "a1.b3.c3.d3", "a1.b4.c4.d4", "a5.b5.c5.d5", "a1.b6.c6.d6"},
+			broke:      false,
 		},
 		{
 			name:     "test5",
@@ -77,15 +82,19 @@ func TestGetBrokenGlobs(t *testing.T) {
 				},
 			},
 			newQueries: []string{"a1.b1.*.d1", "a1.b2.*.d2", "a1.b3.*.d3", "a1.b4.*.d4", "a1.b6.*.d6"},
+			broke:      true,
 		},
 	}
 
 	for _, tst := range tests {
 		tst := tst
 		t.Run(tst.name, func(t *testing.T) {
-			newQueries := GetGreedyBrokenGlobs(tst.metric, tst.glob, tst.maxBatch)
+			newQueries, broke := GetGreedyBrokenGlobs(tst.metric, tst.glob, tst.maxBatch)
 			if len(newQueries) != len(tst.newQueries) {
 				t.Fatalf("newQueries is different from expected: %+v, %+v", newQueries, tst.newQueries)
+			}
+			if broke != tst.broke {
+				t.Fatalf("broke is different from expected: %t, %t", broke, tst.broke)
 			}
 		})
 	}

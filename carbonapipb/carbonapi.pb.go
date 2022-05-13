@@ -35,6 +35,8 @@ type AccessLogDetails struct {
 	CarbonapiResponseSizeBytes    int64             `json:"carbonapi_response_size_bytes,omitempty"`
 	Reason                        string            `json:"reason,omitempty"`
 	SendGlobs                     bool              `json:"send_globs"`
+	BrokeGlobs                    bool              `json:"broke_globs"`
+	GlobBreakingRuntime           float64           `json:"glob_breaking_runtime"`
 	From                          int32             `json:"from,omitempty"`
 	Until                         int32             `json:"until,omitempty"`
 	Tz                            string            `json:"tz,omitempty"`

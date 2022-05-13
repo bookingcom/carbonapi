@@ -89,6 +89,7 @@ type API struct {
 	SendGlobsAsIs           bool          `yaml:"sendGlobsAsIs"`
 	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
 	MaxBatchSize            int           `yaml:"maxBatchSize"`
+	BreakBigGlobs           bool          `yaml:"breakBigGlobs"`
 	Cache                   CacheConfig   `yaml:"cache"`
 	TimezoneString          string        `yaml:"tz"`
 	PidFile                 string        `yaml:"pidFile"`

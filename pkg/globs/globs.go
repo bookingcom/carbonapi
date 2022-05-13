@@ -75,7 +75,7 @@ func findBestGlobsGreedy(starNSs []starNS, maxBatchSize int, queryMatches [][]me
 	return finalGlobs
 }
 
-func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob int) []string {
+func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob int) ([]string, bool) {
 	queryMatches := make([][]metricNS, 0, len(glob.Matches))
 	for _, m := range glob.Matches {
 		if m.IsLeaf {
@@ -84,7 +84,7 @@ func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob in
 	}
 	matchesCount := len(queryMatches)
 	if matchesCount < maxMatchesPerGlob {
-		return []string{query}
+		return []string{query}, false
 	}
 	originalExplodedQuery := explodeMetric(query)
 	var starNSs []starNS
@@ -113,7 +113,7 @@ func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob in
 				oldMatches = append(oldMatches, m.Path)
 			}
 		}
-		return oldMatches
+		return oldMatches, false
 	}
-	return newUniqueGlobs
+	return newUniqueGlobs, true
 }
