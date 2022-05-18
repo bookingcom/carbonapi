@@ -2,7 +2,6 @@ package globs
 
 import (
 	"github.com/bookingcom/carbonapi/pkg/types"
-	"sort"
 	"strings"
 )
 
@@ -41,36 +40,64 @@ func implodeMetric(nss []metricNS) string {
 	return metric
 }
 
-func buildBrokenGlobResultsOneStar(starNSs []starNS, maxMatchesPerGlob int, queryMatches [][]metricNS, starIndex int) (finalGlobs []string, limitExceeded bool) {
+func getOmittedStarsMetric(originalNSs []metricNS, queryMatch []metricNS, omittingStars []int) string {
+	if len(omittingStars) == 0 {
+		return implodeMetric(queryMatch)
+	}
+	newMatch := make([]metricNS, len(queryMatch))
+	j := 0
+	for i, ns := range queryMatch {
+		if j < len(omittingStars) && i == omittingStars[j] {
+			newMatch[i] = metricNS{
+				name:  ns.name,
+				level: ns.level,
+				star:  ns.star,
+			}
+			j++
+		} else {
+			newMatch[i] = metricNS{
+				name:  originalNSs[i].name,
+				level: originalNSs[i].level,
+				star:  originalNSs[i].star,
+			}
+		}
+	}
+	return implodeMetric(newMatch)
+}
+
+func buildBrokenGlobResultsOmittingOneStar(originalNSs []metricNS, maxMatchesPerGlob int, queryMatches [][]metricNS, omittingStars []int) (finalGlobs []string, limitExceeded bool) {
 	newGlobs := make(map[string]int)
-	keptNS := make([]metricNS, len(queryMatches))
 	for i := range queryMatches {
-		keptNS[i] = queryMatches[i][starNSs[starIndex].level]
-		queryMatches[i][starNSs[starIndex].level] = starNSs[starIndex].metricNS
-		newGlob := implodeMetric(queryMatches[i])
+		newGlob := getOmittedStarsMetric(originalNSs, queryMatches[i], omittingStars)
 		newGlobs[newGlob]++
 	}
 	newUniqueGlobs := make([]string, 0, len(newGlobs))
+	limited := false
 	for newGlob, resultCount := range newGlobs {
 		if resultCount >= maxMatchesPerGlob {
-			for i := range queryMatches {
-				queryMatches[i][starNSs[starIndex].level] = keptNS[i]
-			}
-			return nil, true
+			limited = true
 		}
 		newUniqueGlobs = append(newUniqueGlobs, newGlob)
 	}
-	return newUniqueGlobs, false
+	return newUniqueGlobs, limited
 }
 
-func findBestGlobsGreedy(starNSs []starNS, maxBatchSize int, queryMatches [][]metricNS) []string {
+func findBestGlobsGreedy(originalNSs []metricNS, maxBatchSize int, queryMatches [][]metricNS) []string {
 	var finalGlobs []string
-	for i := range starNSs {
-		gs, limited := buildBrokenGlobResultsOneStar(starNSs, maxBatchSize, queryMatches, i)
-		if limited {
+	var omittedStars []int
+	for i := range originalNSs {
+		if !originalNSs[i].star {
 			continue
 		}
+		newOmittedStars := make([]int, len(omittedStars)+1)
+		copy(newOmittedStars, omittedStars)
+		newOmittedStars[len(omittedStars)] = i
+		gs, limited := buildBrokenGlobResultsOmittingOneStar(originalNSs, maxBatchSize, queryMatches, newOmittedStars)
+		omittedStars = newOmittedStars
 		finalGlobs = gs
+		if !limited {
+			break
+		}
 	}
 	return finalGlobs
 }
@@ -87,25 +114,7 @@ func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob in
 		return []string{query}, false
 	}
 	originalExplodedQuery := explodeMetric(query)
-	var starNSs []starNS
-	for i, originalNS := range originalExplodedQuery {
-		if originalNS.star {
-			starns := starNS{
-				metricNS: originalNS,
-			}
-			members := make(map[string]int)
-			for _, m := range queryMatches {
-				matchNS := m[i]
-				members[matchNS.name]++
-			}
-			starns.uniqueMembers = len(members)
-			starNSs = append(starNSs, starns)
-		}
-	}
-	sort.Slice(starNSs, func(i, j int) bool {
-		return starNSs[i].uniqueMembers > starNSs[j].uniqueMembers
-	})
-	newUniqueGlobs := findBestGlobsGreedy(starNSs, maxMatchesPerGlob, queryMatches)
+	newUniqueGlobs := findBestGlobsGreedy(originalExplodedQuery, maxMatchesPerGlob, queryMatches)
 	if len(newUniqueGlobs) == 0 || len(newUniqueGlobs) == len(queryMatches) {
 		oldMatches := make([]string, 0, len(queryMatches))
 		for _, m := range glob.Matches {
