@@ -391,15 +391,20 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	if err != nil {
 		accessLogger.Error("could not marshal access log details", zap.Error(err))
 	}
-
+	var logMsg string
+	if accessLogDetails.HttpCode/100 == 2 {
+		logMsg = "request served"
+	} else {
+		logMsg = "request failed"
+	}
 	// TODO (grzkv) This logic is not obvious for the user
 	if logAsError {
-		accessLogger.Error("request failed", fields...)
+		accessLogger.Error(logMsg, fields...)
 		apiMetrics.Errors.Add(1)
 	} else {
 		// TODO (grzkv) The code can differ from the real one. Clean up
 		// accessLogDetails.HttpCode = http.StatusOK
-		accessLogger.Info("request served", fields...)
+		accessLogger.Info(logMsg, fields...)
 		apiMetrics.Responses.Add(1)
 	}
 

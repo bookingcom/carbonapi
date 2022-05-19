@@ -58,7 +58,7 @@ func (app *App) validateRequest(h handlerlog.HandlerWithLogger, handler string, 
 			toLog := carbonapipb.NewAccessLogDetails(r, handler, &app.config)
 			toLog.HttpCode = http.StatusForbidden
 			defer func() {
-				app.deferredAccessLogging(logger, r, &toLog, t0, true)
+				app.deferredAccessLogging(logger, r, &toLog, t0, false)
 			}()
 			w.WriteHeader(http.StatusForbidden)
 		} else {
@@ -179,7 +179,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
 		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog, span)
-		logAsError = true
 		return
 	}
 
@@ -194,7 +193,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		writeError(uuid, r, w, http.StatusBadRequest, clientErrMsg, form.format, &toLog, span)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
-		logAsError = true
 		return
 	}
 
@@ -235,7 +233,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		if parseErr != nil || e != "" {
 			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
-			logAsError = true
 			return
 		}
 		targetSpan.AddEvent(targetCtx, "parsed expression")
@@ -286,9 +283,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/graphite.go\#L162-L167
 			case errors.As(targetErr, &parseError):
 				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
-				logAsError = true
 				return
-			case errors.Is(err, context.DeadlineExceeded):
+			case errors.Is(targetErr, context.DeadlineExceeded):
 				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog, span)
 				logAsError = true
 				app.prometheusMetrics.RequestCancel.WithLabelValues(
@@ -587,7 +583,7 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	if tstr := r.FormValue("cacheTimeout"); tstr != "" {
 		t, err := strconv.ParseInt(tstr, 10, 64)
 		if err != nil {
-			logger.Error("failed to parse cacheTimeout",
+			logger.Info("failed to parse cacheTimeout",
 				zap.String("cache_string", tstr),
 				zap.Error(err),
 			)
@@ -833,7 +829,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 
 	if query == "" {
 		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog, span)
-		logAsError = true
 		return
 	}
 	span.SetAttribute("graphite.format", format)
@@ -1038,7 +1033,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "no target specified"
-		logAsError = true
 		return
 	}
 
@@ -1051,7 +1045,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			toLog.HttpCode = http.StatusNotFound
 			toLog.Reason = "info not found"
-			logAsError = true
 			return
 		}
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -1087,6 +1080,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	toLog.Runtime = time.Since(t0).Seconds()
 	if writeErr != nil {
 		toLog.HttpCode = 499
+		logAsError = true
 		return
 	}
 
@@ -1098,25 +1092,20 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *z
 
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
+	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
+	logAsError := false
 	defer func() {
-		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "lbcheck", "false").Inc()
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
 	}()
 
 	_, writeErr := w.Write([]byte("Ok\n"))
 
-	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	toLog.Runtime = time.Since(t0).Seconds()
 	toLog.HttpCode = http.StatusOK
 	if writeErr != nil {
 		toLog.HttpCode = 499
+		logAsError = true
 	}
-
-	fields, err := toLog.GetLogFields()
-	if err != nil {
-		logger.Error("could not marshal access log details", zap.Error(err))
-	}
-	logger.Info("request served", fields...)
 }
 
 func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
@@ -1124,10 +1113,9 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *z
 
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
-	defer func() {
-		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "version", "false").Inc()
-	}()
+	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
+	toLog.HttpCode = http.StatusOK
+	logAsError := false
 	// Use a specific version of graphite for grafana
 	// This handler is queried by grafana, and if needed, an override can be provided
 	if app.config.GraphiteVersionForGrafana != "" {
@@ -1137,26 +1125,23 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *z
 		}
 		return
 	}
-	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
-	toLog.HttpCode = http.StatusOK
+	defer func() {
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
+	}()
 
 	if app.config.GraphiteWeb09Compatibility {
 		if _, err := w.Write([]byte("0.9.15\n")); err != nil {
 			toLog.HttpCode = 499
+			logAsError = true
 		}
 	} else {
 		if _, err := w.Write([]byte("1.0.0\n")); err != nil {
 			toLog.HttpCode = 499
+			logAsError = true
 		}
 	}
 
 	toLog.Runtime = time.Since(t0).Seconds()
-
-	fields, err := toLog.GetLogFields()
-	if err != nil {
-		logger.Error("could not marshal access log details", zap.Error(err))
-	}
-	logger.Info("request served", fields...)
 }
 
 func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
@@ -1167,7 +1152,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 	app.prometheusMetrics.Requests.Inc()
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
-
 	logAsError := false
 	defer func() {
 		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
@@ -1178,7 +1162,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = err.Error()
-		logAsError = true
 		return
 	}
 
@@ -1285,7 +1268,6 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap
 	apiMetrics.Requests.Add(1)
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &app.config)
-
 	logAsError := false
 	defer func() {
 		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
@@ -1299,6 +1281,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap
 		toLog.HttpCode = http.StatusBadRequest
 		if _, err := w.Write(failResponse); err != nil {
 			toLog.HttpCode = 499
+			logAsError = true
 		}
 		return
 	}
@@ -1307,6 +1290,7 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap
 	toLog.HttpCode = http.StatusOK
 	if err != nil {
 		toLog.HttpCode = 499
+		logAsError = true
 	}
 }
 
@@ -1317,7 +1301,6 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, logger *z
 	t0 := time.Now()
 	apiMetrics.Requests.Add(1)
 	toLog := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
-
 	logAsError := false
 	defer func() {
 		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
@@ -1330,6 +1313,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, logger *z
 		toLog.HttpCode = http.StatusBadRequest
 		if _, writeErr := w.Write([]byte(`{"success":"false"}`)); writeErr != nil {
 			toLog.HttpCode = 499
+			logAsError = true
 		}
 		return
 	}
@@ -1337,6 +1321,7 @@ func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, logger *z
 	toLog.HttpCode = http.StatusOK
 	if err != nil {
 		toLog.HttpCode = 499
+		logAsError = true
 	}
 
 }
@@ -1377,17 +1362,19 @@ supported requests:
 `)
 
 func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+	t0 := time.Now()
 	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
-	defer func() {
-		apiMetrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "usage", "false").Inc()
-	}()
 	toLog := carbonapipb.NewAccessLogDetails(r, "usage", &app.config)
+	logAsError := false
+	defer func() {
+		app.deferredAccessLogging(logger, r, &toLog, t0, logAsError)
+	}()
 	toLog.HttpCode = http.StatusOK
 	_, err := w.Write(usageMsg)
 	if err != nil {
 		toLog.HttpCode = 499
+		logAsError = true
 	}
 }
 

@@ -254,7 +254,7 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 
 	metricsUnfixedMismatchCount := metricsStat.MismatchCount - metricsStat.FixedMismatchCount
 	if metricsUnfixedMismatchCount > 0 {
-		logger.Warn("metric unfixed replica mismatch observed",
+		logger.Info("metric unfixed replica mismatch observed",
 			zap.Any("replica_mismatched_metrics", mismatchedMetricReports),
 			zap.Int("replica_mismatches_total", metricsStat.MismatchCount),
 			zap.Int("replica_fixed_mismatches_total", metricsStat.FixedMismatchCount),

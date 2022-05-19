@@ -170,10 +170,9 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	w.Header().Set("Content-Type", contentType)
 	_, writeErr := w.Write(blob)
 
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
-
 	if writeErr != nil {
+		Metrics.Errors.Add(1)
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "find").Inc()
 		logger.Error("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -182,6 +181,8 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 		return
 	}
 
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 	logger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
@@ -214,7 +215,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, "failed to parse arguments", http.StatusBadRequest)
-		logger.Error("request failed",
+		logger.Info("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.String("reason", "failed to parse arguments"),
 			zap.Int("http_code", http.StatusBadRequest),
@@ -239,14 +240,14 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	from, err := strconv.ParseInt(req.FormValue("from"), 10, 64)
 	if err != nil {
 		http.Error(w, "from is not a integer", http.StatusBadRequest)
-		logger.Error("request failed",
+		logger.Info("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.String("reason", "from is not a integer"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
+		Metrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "from is not a integer")
@@ -256,14 +257,14 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	until, err := strconv.ParseInt(req.FormValue("until"), 10, 64)
 	if err != nil {
 		http.Error(w, "until is not a integer", http.StatusBadRequest)
-		logger.Error("request failed",
+		logger.Info("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.String("reason", "until is not a integer"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
+		Metrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "until is not a integer")
@@ -277,13 +278,13 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 
 	if target == "" {
 		http.Error(w, "empty target", http.StatusBadRequest)
-		logger.Error("request failed",
+		logger.Info("request failed",
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.String("reason", "empty target"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
-		Metrics.Errors.Add(1)
+		Metrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "empty target")
@@ -323,15 +324,21 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 		}
 
 		http.Error(w, msg, code)
-		logger.Error("request failed",
+		fields := []zap.Field{
 			zap.Int("memory_usage_bytes", memoryUsage),
 			zap.Error(err),
 			zap.Int("http_code", code),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Int64s("trace", request.Trace.Report()),
-		)
+		}
+		if code == http.StatusNotFound {
+			logger.Info("request failed", fields...)
+			Metrics.Responses.Add(1)
+		} else {
+			logger.Error("request failed", fields...)
+			Metrics.Errors.Add(1)
+		}
 
-		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
@@ -375,19 +382,21 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	w.Header().Set("Content-Type", contentType)
 	_, writeErr := w.Write(blob)
 
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
-	if stats.MismatchCount > stats.FixedMismatchCount {
-		app.prometheusMetrics.RenderMismatchedResponses.Inc()
-	}
-
 	if writeErr != nil {
+		Metrics.Errors.Add(1)
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "render").Inc()
 		logger.Error("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(writeErr),
 		)
 		return
+	}
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
+	if stats.MismatchCount > stats.FixedMismatchCount {
+		app.prometheusMetrics.RenderMismatchedResponses.Inc()
 	}
 
 	logger.Info("request served",
@@ -409,11 +418,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	if ce := logger.Check(zap.DebugLevel, "request"); ce != nil {
-		ce.Write(
-			zap.String("request", req.URL.RequestURI()),
-		)
-	}
+	logger.Debug("request", zap.String("request", req.URL.RequestURI()))
 
 	Metrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
@@ -422,7 +427,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, "failed to parse arguments", http.StatusBadRequest)
-		logger.Error("request failed",
+		logger.Info("request failed",
 			zap.String("reason", "failed to parse arguments"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -442,7 +447,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	)
 
 	if target == "" {
-		logger.Error("info failed",
+		logger.Info("request failed",
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.String("reason", "empty target"),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -462,7 +467,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 
 		var notFound types.ErrNotFound
 		if errors.As(err, &notFound) {
-			logger.Error("info not found",
+			logger.Info("info not found",
 				zap.Int("http_code", http.StatusNotFound),
 				zap.Error(err),
 				zap.Duration("runtime_seconds", time.Since(t0)),
@@ -511,10 +516,9 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	w.Header().Set("Content-Type", contentType)
 	_, writeErr := w.Write(blob)
 
-	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
-
 	if writeErr != nil {
+		Metrics.Errors.Add(1)
+		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
 		logger.Error("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -522,6 +526,9 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 		)
 		return
 	}
+
+	Metrics.Responses.Add(1)
+	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 
 	logger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
