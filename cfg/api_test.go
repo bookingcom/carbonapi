@@ -87,9 +87,10 @@ loggerConfig:
 			},
 		},
 
-		SendGlobsAsIs:       true,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		SendGlobsAsIs:        true,
+		AlwaysSendGlobsAsIs:  false,
+		MaxBatchSize:         100,
+		MaxGlobBrokenQueries: 100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,
@@ -190,9 +191,10 @@ loggerConfig:
 			},
 		},
 
-		SendGlobsAsIs:       true,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		SendGlobsAsIs:        true,
+		AlwaysSendGlobsAsIs:  false,
+		MaxBatchSize:         100,
+		MaxGlobBrokenQueries: 100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,

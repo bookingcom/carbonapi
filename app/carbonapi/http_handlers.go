@@ -783,7 +783,8 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	if app.config.BreakBigGlobs {
 		var broke bool
 		t0 := time.Now()
-		newQueries, broke = globs.GetGreedyBrokenGlobs(m.Metric, glob, app.config.MaxBatchSize)
+		newQueries, broke = globs.GetGreedyBrokenGlobs(m.Metric, glob,
+			app.config.MaxBatchSize, app.config.MaxGlobBrokenQueries)
 		toLog.GlobBreakingRuntime = time.Since(t0).Seconds()
 		toLog.BrokeGlobs = broke
 	} else {

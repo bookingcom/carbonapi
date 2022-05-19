@@ -11,11 +11,6 @@ type metricNS struct {
 	star  bool
 }
 
-type starNS struct {
-	metricNS
-	uniqueMembers int
-}
-
 func explodeMetric(metric string) []metricNS {
 	nsNames := strings.Split(metric, ".")
 	nss := make([]metricNS, len(nsNames))
@@ -32,6 +27,9 @@ func explodeMetric(metric string) []metricNS {
 func implodeMetric(nss []metricNS) string {
 	var metric string
 	for i, ns := range nss {
+		if ns.name == "" {
+			continue
+		}
 		metric += ns.name
 		if i != len(nss)-1 {
 			metric += "."
@@ -102,7 +100,11 @@ func findBestGlobsGreedy(originalNSs []metricNS, maxBatchSize int, queryMatches 
 	return finalGlobs
 }
 
-func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob int) ([]string, bool) {
+func normalizeQueryNamespaces(query string) string {
+	return implodeMetric(explodeMetric(query))
+}
+
+func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob int, maxGlobBrokenQueries int) ([]string, bool) {
 	queryMatches := make([][]metricNS, 0, len(glob.Matches))
 	for _, m := range glob.Matches {
 		if m.IsLeaf {
@@ -113,9 +115,14 @@ func GetGreedyBrokenGlobs(query string, glob types.Matches, maxMatchesPerGlob in
 	if matchesCount < maxMatchesPerGlob {
 		return []string{query}, false
 	}
+	query = normalizeQueryNamespaces(query)
 	originalExplodedQuery := explodeMetric(query)
 	newUniqueGlobs := findBestGlobsGreedy(originalExplodedQuery, maxMatchesPerGlob, queryMatches)
-	if len(newUniqueGlobs) == 0 || len(newUniqueGlobs) == len(queryMatches) {
+	if len(newUniqueGlobs) == 0 ||
+		len(newUniqueGlobs) == len(queryMatches) ||
+		// We should have an upper limit for the number of glob queries generated.
+		// The reason is that expanding a huge amount of globs is expensive for go-carbon.
+		len(newUniqueGlobs) > maxGlobBrokenQueries {
 		oldMatches := make([]string, 0, len(queryMatches))
 		for _, m := range glob.Matches {
 			if m.IsLeaf {

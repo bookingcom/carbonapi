@@ -60,9 +60,10 @@ func DefaultAPIConfig() API {
 	cfg := API{
 		Zipper: fromCommon(DefaultCommonConfig()),
 
-		SendGlobsAsIs:       false,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		SendGlobsAsIs:        false,
+		AlwaysSendGlobsAsIs:  false,
+		MaxBatchSize:         100,
+		MaxGlobBrokenQueries: 100,
 		Cache: CacheConfig{
 			Type:              "mem",
 			DefaultTimeoutSec: 60,
@@ -90,6 +91,7 @@ type API struct {
 	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
 	MaxBatchSize            int           `yaml:"maxBatchSize"`
 	BreakBigGlobs           bool          `yaml:"breakBigGlobs"`
+	MaxGlobBrokenQueries    int           `yaml:"maxGlobBrokenQueries"`
 	Cache                   CacheConfig   `yaml:"cache"`
 	TimezoneString          string        `yaml:"tz"`
 	PidFile                 string        `yaml:"pidFile"`

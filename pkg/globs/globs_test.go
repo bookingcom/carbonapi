@@ -90,7 +90,7 @@ func TestGetBrokenGlobs(t *testing.T) {
 	for _, tst := range tests {
 		tst := tst
 		t.Run(tst.name, func(t *testing.T) {
-			newQueries, broke := GetGreedyBrokenGlobs(tst.metric, tst.glob, tst.maxBatch)
+			newQueries, broke := GetGreedyBrokenGlobs(tst.metric, tst.glob, tst.maxBatch, tst.maxBatch)
 			if len(newQueries) != len(tst.newQueries) {
 				t.Fatalf("newQueries is different from expected: %+v, %+v", newQueries, tst.newQueries)
 			}
