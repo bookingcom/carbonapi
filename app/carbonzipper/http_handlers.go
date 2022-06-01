@@ -173,7 +173,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "find").Inc()
-		logger.Error("error writing the response",
+		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(writeErr),
@@ -385,7 +385,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "render").Inc()
-		logger.Error("error writing the response",
+		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(writeErr),
@@ -519,7 +519,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
-		logger.Error("error writing the response",
+		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(writeErr),

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"go.uber.org/zap/zapcore"
 	"net"
 	"net/http"
 	"os"
@@ -383,7 +384,7 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 }
 
-func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, logAsError bool) {
+func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, level zapcore.Level) {
 	accessLogDetails.Runtime = time.Since(t).Seconds()
 	accessLogDetails.RequestMethod = r.Method
 
@@ -392,20 +393,18 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 		accessLogger.Error("could not marshal access log details", zap.Error(err))
 	}
 	var logMsg string
-	if accessLogDetails.HttpCode/100 == 2 {
+	if accessLogDetails.HttpCode/100 < 4 {
 		logMsg = "request served"
-	} else {
-		logMsg = "request failed"
-	}
-	// TODO (grzkv) This logic is not obvious for the user
-	if logAsError {
-		accessLogger.Error(logMsg, fields...)
-		apiMetrics.Errors.Add(1)
-	} else {
-		// TODO (grzkv) The code can differ from the real one. Clean up
-		// accessLogDetails.HttpCode = http.StatusOK
-		accessLogger.Info(logMsg, fields...)
 		apiMetrics.Responses.Add(1)
+	} else if accessLogDetails.HttpCode/100 == 4 {
+		logMsg = "request failed with client error"
+		apiMetrics.Responses.Add(1)
+	} else {
+		logMsg = "request failed with server error"
+		apiMetrics.Errors.Add(1)
+	}
+	if ce := accessLogger.Check(level, logMsg); ce != nil {
+		ce.Write(fields...)
 	}
 
 	if app != nil {
