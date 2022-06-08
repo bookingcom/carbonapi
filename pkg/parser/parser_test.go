@@ -2,7 +2,6 @@ package parser
 
 import (
 	"reflect"
-	"regexp"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -434,8 +433,6 @@ func TestParseExpr(t *testing.T) {
 		// for fixing golangci-lint: Using the variable on range scope `tt` in function literal
 		tt := ttr
 		t.Run(tt.s, func(t *testing.T) {
-			t.Logf("run case: go test -run 'TestParseExpr/%s'", regexp.QuoteMeta(tt.s))
-
 			e, _, err := ParseExpr(tt.s)
 			if err != tt.err {
 				t.Errorf(`parse for %+v expects error "%v" but received "%v"`, tt.s, tt.err, err)
