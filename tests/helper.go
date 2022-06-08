@@ -277,11 +277,27 @@ func TestMultiReturnEvalExpr(t *testing.T, tt *MultiReturnEvalTestItem) {
 		if r[0].Name != gg.Name {
 			t.Errorf("result Name mismatch, got\n%#v,\nwant\n%#v", gg.Name, r[0].Name)
 		}
-		if !reflect.DeepEqual(r[0].Values, gg.Values) || !reflect.DeepEqual(r[0].IsAbsent, gg.IsAbsent) ||
+
+		// TODO (grzkv) : Reuse in other places when similar operation is done.
+		areValsEqual := true
+		if gg.Values == nil && r[0].Values != nil ||
+			gg.Values != nil && r[0].Values == nil ||
+			len(gg.Values) != len(r[0].Values) {
+			areValsEqual = false
+		} else {
+			for i := range gg.Values {
+				if !dataTypes.AreFloatsApproximatelyEqual(gg.Values[i], r[0].Values[i]) {
+					areValsEqual = false
+					break
+				}
+			}
+		}
+
+		if !areValsEqual || !reflect.DeepEqual(r[0].IsAbsent, gg.IsAbsent) ||
 			r[0].StartTime != gg.StartTime ||
 			r[0].StopTime != gg.StopTime ||
 			r[0].StepTime != gg.StepTime {
-			t.Errorf("result mismatch, got\n%#v,\nwant\n%#v", gg, r)
+			t.Errorf("result mismatch, got\n%#v,\nwant\n%#v", gg, r[0])
 		}
 	}
 }
