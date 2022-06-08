@@ -20,8 +20,8 @@ jobs:
         run: sudo apt-get install libcairo2-dev -y
       - name: checkout code
         uses: actions/checkout@v2
-      - name: check
-        run: make all check
+      - name: test
+        run: make test
       - name: integration test
         run: tests/system_test.sh
   golangci:

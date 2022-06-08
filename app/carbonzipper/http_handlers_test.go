@@ -925,8 +925,6 @@ func TestInfoSingleBackend(t *testing.T) {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
 		}
 
-		t.Log(w.Body.String())
-
 		if w.Body.String() != tst.body {
 			t.Fatalf("unexpected body: want %q got %q", tst.body, w.Body.String())
 		}
