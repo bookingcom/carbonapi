@@ -284,7 +284,7 @@ var (
 
 type floatEqualityFunc func(a, b float64) bool
 
-func areFloatsApproximatelyEqual(a, b float64) bool {
+func AreFloatsApproximatelyEqual(a, b float64) bool {
 	if a == b {
 		return true
 	}
@@ -350,7 +350,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 
 	var equalityFunc floatEqualityFunc
 	if replicaMismatchConfig.RenderReplicaMismatchApproximateCheck {
-		equalityFunc = areFloatsApproximatelyEqual
+		equalityFunc = AreFloatsApproximatelyEqual
 	}
 
 	replicaMatchMode := replicaMismatchConfig.RenderReplicaMatchMode
