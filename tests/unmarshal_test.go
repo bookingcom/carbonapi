@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"google.golang.org/protobuf/proto"
 	"testing"
 
 	proto2 "github.com/go-graphite/protocol/carbonapi_v2_pb"
@@ -16,17 +17,17 @@ func TestUnmarshal(t *testing.T) {
 		IsAbsent:  []bool{true, false, true, false, true, false},
 	}
 
-	blob, err := r.Marshal()
+	blob, err := r.MarshalVT()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	got := &proto2.FetchResponse{}
-	if err := got.Unmarshal(blob); err != nil {
+	if err := got.UnmarshalVT(blob); err != nil {
 		t.Fatal(err)
 	}
 
-	if !got.Equal(r) {
+	if !proto.Equal(got, r) {
 		t.Fatalf("Unmarshal mismatch\nGot\t\t%v\nExpected\t%v\n", got, r)
 	}
 }

@@ -88,7 +88,7 @@ func BenchmarkRender(b *testing.B) {
 	secPerHour := int(12 * time.Hour / time.Second)
 
 	metrics := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: []carbonapi_v2_pb.FetchResponse{
+		Metrics: []*carbonapi_v2_pb.FetchResponse{
 			{
 				Name:     "foo",
 				Values:   make([]float64, secPerHour),
@@ -96,7 +96,7 @@ func BenchmarkRender(b *testing.B) {
 			},
 		},
 	}
-	blob, err := metrics.Marshal()
+	blob, err := metrics.MarshalVT()
 	if err != nil {
 		b.Fatal(err)
 	}
