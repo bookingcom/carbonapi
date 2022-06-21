@@ -22,15 +22,15 @@ func BenchmarkRenders(b *testing.B) {
 	secPerHour := int(12 * time.Hour / time.Second)
 
 	metrics := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: []carbonapi_v2_pb.FetchResponse{
-			carbonapi_v2_pb.FetchResponse{
+		Metrics: []*carbonapi_v2_pb.FetchResponse{
+			&carbonapi_v2_pb.FetchResponse{
 				Name:     "foo",
 				Values:   make([]float64, secPerHour),
 				IsAbsent: make([]bool, secPerHour),
 			},
 		},
 	}
-	blob, err := metrics.Marshal()
+	blob, err := metrics.MarshalVT()
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func BenchmarkRenders(b *testing.B) {
 	}
 }
 
-func createRegularMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchResponse) []carbonapi_v2_pb.FetchResponse {
+func createRegularMismatches(backendNumber int, metrics []*carbonapi_v2_pb.FetchResponse) []*carbonapi_v2_pb.FetchResponse {
 	MismatchFreq := 30000
 	for mIndex := range metrics {
 		mismatchCount := (len(metrics[mIndex].Values) - backendNumber) / MismatchFreq
@@ -115,7 +115,7 @@ func createRegularMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchR
 	return metrics
 }
 
-func createFullMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchResponse) []carbonapi_v2_pb.FetchResponse {
+func createFullMismatches(backendNumber int, metrics []*carbonapi_v2_pb.FetchResponse) []*carbonapi_v2_pb.FetchResponse {
 	for mIndex := range metrics {
 		for i := 0; i < len(metrics[mIndex].Values); i++ {
 			metrics[mIndex].Values[i] += float64(backendNumber)
@@ -124,12 +124,12 @@ func createFullMismatches(backendNumber int, metrics []carbonapi_v2_pb.FetchResp
 	return metrics
 }
 
-func createSingleBackendMetrics() []carbonapi_v2_pb.FetchResponse {
+func createSingleBackendMetrics() []*carbonapi_v2_pb.FetchResponse {
 	metricsCount := 600
-	metrics := make([]carbonapi_v2_pb.FetchResponse, metricsCount)
+	metrics := make([]*carbonapi_v2_pb.FetchResponse, metricsCount)
 	dpCount := 10800
 	for i := 0; i < 600; i++ {
-		metrics[i] = carbonapi_v2_pb.FetchResponse{
+		metrics[i] = &carbonapi_v2_pb.FetchResponse{
 			Name:     fmt.Sprintf("metric.foo%d", i),
 			Values:   make([]float64, dpCount),
 			IsAbsent: make([]bool, dpCount),
@@ -163,7 +163,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 
 	backends := make([]Backend, 0)
 	for i := 0; i < len(metricsByBackend); i++ {
-		blob, err := metricsByBackend[i].Marshal()
+		blob, err := metricsByBackend[i].MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -268,7 +268,7 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 
 	backends := make([]Backend, 0)
 	for i := 0; i < len(metricsByBackend); i++ {
-		blob, err := metricsByBackend[i].Marshal()
+		blob, err := metricsByBackend[i].MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}

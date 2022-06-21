@@ -20,22 +20,22 @@ import (
 func FindEncoder(matches types.Matches) ([]byte, error) {
 	out := carbonapi_v2_pb.GlobResponse{
 		Name:    matches.Name,
-		Matches: make([]carbonapi_v2_pb.GlobMatch, len(matches.Matches)),
+		Matches: make([]*carbonapi_v2_pb.GlobMatch, len(matches.Matches)),
 	}
 
 	for i, match := range matches.Matches {
-		out.Matches[i] = carbonapi_v2_pb.GlobMatch{
+		out.Matches[i] = &carbonapi_v2_pb.GlobMatch{
 			Path:   match.Path,
 			IsLeaf: match.IsLeaf,
 		}
 	}
 
-	return out.Marshal()
+	return out.MarshalVT()
 }
 
 func FindDecoder(blob []byte) (types.Matches, error) {
 	f := carbonapi_v2_pb.GlobResponse{}
-	if err := f.Unmarshal(blob); err != nil {
+	if err := f.UnmarshalVT(blob); err != nil {
 		return types.Matches{}, err
 	}
 
@@ -56,22 +56,22 @@ func FindDecoder(blob []byte) (types.Matches, error) {
 
 func InfoEncoder(infos []types.Info) ([]byte, error) {
 	out := carbonapi_v2_pb.ZipperInfoResponse{
-		Responses: make([]carbonapi_v2_pb.ServerInfoResponse, 0, len(infos)),
+		Responses: make([]*carbonapi_v2_pb.ServerInfoResponse, 0, len(infos)),
 	}
 
 	for _, sInfo := range infos {
-		info := carbonapi_v2_pb.ServerInfoResponse{
+		info := &carbonapi_v2_pb.ServerInfoResponse{
 			Server: sInfo.Host,
 			Info: &carbonapi_v2_pb.InfoResponse{
 				Name:              sInfo.Name,
 				AggregationMethod: sInfo.AggregationMethod,
 				MaxRetention:      sInfo.MaxRetention,
 				XFilesFactor:      sInfo.XFilesFactor,
-				Retentions:        make([]carbonapi_v2_pb.Retention, len(sInfo.Retentions)),
+				Retentions:        make([]*carbonapi_v2_pb.Retention, len(sInfo.Retentions)),
 			},
 		}
 		for j, inf := range sInfo.Retentions {
-			info.Info.Retentions[j] = carbonapi_v2_pb.Retention{
+			info.Info.Retentions[j] = &carbonapi_v2_pb.Retention{
 				SecondsPerPoint: inf.SecondsPerPoint,
 				NumberOfPoints:  inf.NumberOfPoints,
 			}
@@ -80,7 +80,7 @@ func InfoEncoder(infos []types.Info) ([]byte, error) {
 		out.Responses = append(out.Responses, info)
 	}
 
-	return out.Marshal()
+	return out.MarshalVT()
 }
 
 func IsInfoResponse(blob []byte) (bool, error) {
@@ -133,7 +133,7 @@ func IsInfoResponse(blob []byte) (bool, error) {
 
 func MultiInfoDecoder(blob []byte) ([]types.Info, error) {
 	s := carbonapi_v2_pb.ZipperInfoResponse{}
-	if err := s.Unmarshal(blob); err != nil {
+	if err := s.UnmarshalVT(blob); err != nil {
 		return nil, err
 	}
 
@@ -162,7 +162,7 @@ func MultiInfoDecoder(blob []byte) ([]types.Info, error) {
 
 func SingleInfoDecoder(blob []byte, host string) ([]types.Info, error) {
 	s := carbonapi_v2_pb.InfoResponse{}
-	if err := s.Unmarshal(blob); err != nil {
+	if err := s.UnmarshalVT(blob); err != nil {
 		return nil, err
 	}
 
@@ -186,11 +186,11 @@ func SingleInfoDecoder(blob []byte, host string) ([]types.Info, error) {
 
 func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 	out := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: make([]carbonapi_v2_pb.FetchResponse, len(metrics)),
+		Metrics: make([]*carbonapi_v2_pb.FetchResponse, len(metrics)),
 	}
 
 	for i, m := range metrics {
-		metric := carbonapi_v2_pb.FetchResponse{
+		metric := &carbonapi_v2_pb.FetchResponse{
 			Name:      m.Name,
 			StartTime: m.StartTime,
 			StopTime:  m.StopTime,
@@ -202,12 +202,12 @@ func RenderEncoder(metrics []types.Metric) ([]byte, error) {
 		out.Metrics[i] = metric
 	}
 
-	return out.Marshal()
+	return out.MarshalVT()
 }
 
 func RenderDecoder(blob []byte) ([]types.Metric, error) {
 	resp := carbonapi_v2_pb.MultiFetchResponse{}
-	if err := resp.Unmarshal(blob); err != nil {
+	if err := resp.UnmarshalVT(blob); err != nil {
 		return nil, err
 	}
 

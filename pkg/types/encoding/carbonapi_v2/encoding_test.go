@@ -19,7 +19,7 @@ func TestIsInfoResponse(t *testing.T) {
 		MaxRetention:      10,
 		XFilesFactor:      1.0,
 	}
-	blob, err = info.Marshal()
+	blob, err = info.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
@@ -36,12 +36,12 @@ func TestIsInfoResponse(t *testing.T) {
 		return
 	}
 
-	sInfo := carbonapi_v2_pb.ServerInfoResponse{
+	sInfo := &carbonapi_v2_pb.ServerInfoResponse{
 		Server: "localhost",
 		Info:   &info,
 	}
 
-	blob, err = sInfo.Marshal()
+	blob, err = sInfo.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
@@ -59,11 +59,11 @@ func TestIsInfoResponse(t *testing.T) {
 	}
 
 	zInfo := carbonapi_v2_pb.ZipperInfoResponse{
-		Responses: []carbonapi_v2_pb.ServerInfoResponse{
+		Responses: []*carbonapi_v2_pb.ServerInfoResponse{
 			sInfo,
 		},
 	}
-	blob, err = zInfo.Marshal()
+	blob, err = zInfo.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
@@ -83,15 +83,15 @@ func TestIsInfoResponse(t *testing.T) {
 
 func TestResponseFindUnmarshal(t *testing.T) {
 	input := carbonapi_v2_pb.GlobResponse{
-		Matches: []carbonapi_v2_pb.GlobMatch{
-			carbonapi_v2_pb.GlobMatch{
+		Matches: []*carbonapi_v2_pb.GlobMatch{
+			&carbonapi_v2_pb.GlobMatch{
 				Path:   "foo/bar",
 				IsLeaf: true,
 			},
 		},
 	}
 
-	blob, err := input.Marshal()
+	blob, err := input.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
@@ -115,13 +115,13 @@ func TestResponseFindUnmarshal(t *testing.T) {
 
 func TestResponseInfoUnmarshal(t *testing.T) {
 	input := carbonapi_v2_pb.ZipperInfoResponse{
-		Responses: []carbonapi_v2_pb.ServerInfoResponse{
-			carbonapi_v2_pb.ServerInfoResponse{
+		Responses: []*carbonapi_v2_pb.ServerInfoResponse{
+			&carbonapi_v2_pb.ServerInfoResponse{
 				Server: "foo",
 				Info: &carbonapi_v2_pb.InfoResponse{
 					Name: "A",
-					Retentions: []carbonapi_v2_pb.Retention{
-						carbonapi_v2_pb.Retention{
+					Retentions: []*carbonapi_v2_pb.Retention{
+						&carbonapi_v2_pb.Retention{
 							SecondsPerPoint: 1,
 							NumberOfPoints:  10,
 						},
@@ -131,7 +131,7 @@ func TestResponseInfoUnmarshal(t *testing.T) {
 		},
 	}
 
-	blob, err := input.Marshal()
+	blob, err := input.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
@@ -159,8 +159,8 @@ func TestResponseInfoUnmarshal(t *testing.T) {
 
 func TestResponseRenderUnmarshal(t *testing.T) {
 	input := carbonapi_v2_pb.MultiFetchResponse{
-		Metrics: []carbonapi_v2_pb.FetchResponse{
-			carbonapi_v2_pb.FetchResponse{
+		Metrics: []*carbonapi_v2_pb.FetchResponse{
+			&carbonapi_v2_pb.FetchResponse{
 				Name:      "A",
 				StartTime: 1,
 				StopTime:  2,
@@ -171,7 +171,7 @@ func TestResponseRenderUnmarshal(t *testing.T) {
 		},
 	}
 
-	blob, err := input.Marshal()
+	blob, err := input.MarshalVT()
 	if err != nil {
 		t.Error(err)
 		return
