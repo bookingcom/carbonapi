@@ -186,6 +186,9 @@ backendsByCluster:
       backends:
       - "http://10.190.202.32:8080"
       - "http://10.190.197.92:8080"
+      protocolBackends:
+      - address: "http://10.190.198.92:7070"
+        grpc: true
 loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
@@ -250,6 +253,12 @@ monitoring:
 				Backends: []string{
 					"http://10.190.202.32:8080",
 					"http://10.190.197.92:8080",
+				},
+				ProtocolBackends: []ProtocolBackend{
+					{
+						Address: "http://10.190.198.92:7070",
+						Grpc:    true,
+					},
 				},
 			},
 		},
@@ -323,7 +332,7 @@ monitoring:
 	}
 
 	backendSize := len(expected.GetBackends())
-	expectedSize := 4
+	expectedSize := 5
 	if backendSize != expectedSize {
 		t.Fatalf("Received wrong number of backends: \nExpected %v but returned %v", expectedSize, backendSize)
 	}
@@ -334,6 +343,15 @@ monitoring:
 	}
 	expectedCluster := "cluster2"
 	if cluster != expectedCluster {
+		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
+	}
+
+	_, cluster2, err := expected.InfoOfBackend("http://10.190.198.92:7070")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedCluster2 := "cluster2"
+	if cluster2 != expectedCluster2 {
 		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
 	}
 
@@ -375,6 +393,13 @@ backendsByDC:
           - name: "cluster2"
             backends:
             - "http://10.290.202.32:8080"
+    - name: "dc3"
+      clusters:
+          - name: "cluster1"
+            protocolBackends:
+            - address: "http://10.291.202.31:8080"
+            - address: "http://10.291.197.91:8080"
+              grpc: true
 loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
@@ -464,6 +489,23 @@ monitoring:
 					},
 				},
 			},
+			{
+				Name: "dc3",
+				Clusters: []Cluster{
+					{
+						Name: "cluster1",
+						ProtocolBackends: []ProtocolBackend{
+							{
+								Address: "http://10.291.202.31:8080",
+							},
+							{
+								Address: "http://10.291.197.91:8080",
+								Grpc:    true,
+							},
+						},
+					},
+				},
+			},
 		},
 		MaxProcs: 32,
 		Timeouts: Timeouts{
@@ -535,7 +577,7 @@ monitoring:
 	}
 
 	backendSize := len(expected.GetBackends())
-	expectedSize := 7
+	expectedSize := 9
 	if backendSize != expectedSize {
 		t.Fatalf("Received wrong number of backends: \nExpected %v but returned %v", expectedSize, backendSize)
 	}
@@ -550,6 +592,19 @@ monitoring:
 		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
 	}
 	if dc != expectedDC {
+		t.Fatalf("Problem in getting dc of a backend: \nExpected %v but returned %v", expectedDC, dc)
+	}
+
+	dc2, cluster2, err := expected.InfoOfBackend("http://10.291.202.31:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedCluster2 := "cluster1"
+	expectedDC2 := "dc3"
+	if cluster2 != expectedCluster2 {
+		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
+	}
+	if dc2 != expectedDC2 {
 		t.Fatalf("Problem in getting dc of a backend: \nExpected %v but returned %v", expectedDC, dc)
 	}
 

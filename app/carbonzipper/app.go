@@ -197,7 +197,9 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	backends := make([]backend.Backend, 0, len(configBackendList))
 	for _, host := range configBackendList {
 		dc, cluster, _ := config.InfoOfBackend(host.Address)
-		b, err := bnet.New(bnet.Config{
+		var b backend.Backend
+		var err error
+		bConf := bnet.Config{
 			Address:            host.Address,
 			DC:                 dc,
 			Cluster:            cluster,
@@ -206,9 +208,12 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			Logger:             logger,
-		})
-
-		// TODO: gRPC backend
+		}
+		if host.Grpc {
+			b, err = bnet.NewGrpc(bConf)
+		} else {
+			b, err = bnet.New(bConf)
+		}
 
 		if err != nil {
 			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)

@@ -271,6 +271,11 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 					return dc.Name, cluster.Name, nil
 				}
 			}
+			for _, backend := range cluster.ProtocolBackends {
+				if backend.Address == address {
+					return dc.Name, cluster.Name, nil
+				}
+			}
 		}
 	}
 
@@ -278,6 +283,11 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 
 		for _, backend := range cluster.Backends {
 			if backend == address {
+				return "", cluster.Name, nil
+			}
+		}
+		for _, backend := range cluster.ProtocolBackends {
+			if backend.Address == address {
 				return "", cluster.Name, nil
 			}
 		}
@@ -289,7 +299,13 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("Couldn't find cluster for '%s'", address)
+	for _, backend := range common.ProtocolBackends {
+		if backend.Address == address {
+			return "", "", nil
+		}
+	}
+
+	return "", "", fmt.Errorf("couldn't find cluster for '%s'", address)
 }
 
 // MonitoringConfig allows setting custom monitoring parameters
