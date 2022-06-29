@@ -1,6 +1,7 @@
 package cfg
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -587,5 +588,5 @@ func toComparableCommon(a Common) comparableCommon {
 
 func eqCommon(a, b Common) bool {
 	return toComparableCommon(a) == toComparableCommon(b) &&
-		eqStringSlice(a.GetBackends(), b.GetBackends())
+		reflect.DeepEqual(a.GetBackends(), b.GetBackends())
 }

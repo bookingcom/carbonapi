@@ -196,9 +196,9 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))
 	for _, host := range configBackendList {
-		dc, cluster, _ := config.InfoOfBackend(host)
+		dc, cluster, _ := config.InfoOfBackend(host.Address)
 		b, err := bnet.New(bnet.Config{
-			Address:            host,
+			Address:            host.Address,
 			DC:                 dc,
 			Cluster:            cluster,
 			Client:             client,
@@ -207,6 +207,8 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			Logger:             logger,
 		})
+
+		// TODO: gRPC backend
 
 		if err != nil {
 			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)
