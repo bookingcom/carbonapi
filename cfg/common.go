@@ -220,7 +220,7 @@ func getProtocolBackendsFromAddressList(addresses []string) []ProtocolBackend {
 	backends := make([]ProtocolBackend, 0, len(addresses))
 	for _, a := range addresses {
 		backends = append(backends, ProtocolBackend{
-			Address: a,
+			Http: a,
 		})
 	}
 	return backends
@@ -272,7 +272,10 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 				}
 			}
 			for _, backend := range cluster.ProtocolBackends {
-				if backend.Address == address {
+				if backend.Http == address {
+					return dc.Name, cluster.Name, nil
+				}
+				if backend.Grpc == address {
 					return dc.Name, cluster.Name, nil
 				}
 			}
@@ -287,7 +290,10 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 			}
 		}
 		for _, backend := range cluster.ProtocolBackends {
-			if backend.Address == address {
+			if backend.Http == address {
+				return "", cluster.Name, nil
+			}
+			if backend.Grpc == address {
 				return "", cluster.Name, nil
 			}
 		}
@@ -300,7 +306,10 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 	}
 
 	for _, backend := range common.ProtocolBackends {
-		if backend.Address == address {
+		if backend.Http == address {
+			return "", "", nil
+		}
+		if backend.Grpc == address {
 			return "", "", nil
 		}
 	}
@@ -337,8 +346,8 @@ type Timeouts struct {
 }
 
 type ProtocolBackend struct {
-	Address string `yaml:"address"`
-	Grpc    bool   `yaml:"grpc"`
+	Http string `yaml:"http"`
+	Grpc string `yaml:"grpc"`
 }
 
 // Cluster is a definition for set of backends

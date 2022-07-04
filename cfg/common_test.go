@@ -187,8 +187,8 @@ backendsByCluster:
       - "http://10.190.202.32:8080"
       - "http://10.190.197.92:8080"
       protocolBackends:
-      - address: "http://10.190.198.92:7070"
-        grpc: true
+      - http: "http://10.190.198.93:8080"
+        grpc: "10.190.198.93:7070"
 loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
@@ -256,8 +256,8 @@ monitoring:
 				},
 				ProtocolBackends: []ProtocolBackend{
 					{
-						Address: "http://10.190.198.92:7070",
-						Grpc:    true,
+						Http: "http://10.190.198.93:8080",
+						Grpc: "10.190.198.93:7070",
 					},
 				},
 			},
@@ -346,7 +346,7 @@ monitoring:
 		t.Fatalf("Problem in getting cluster of a backend: \nExpected %v but returned %v", expectedCluster, cluster)
 	}
 
-	_, cluster2, err := expected.InfoOfBackend("http://10.190.198.92:7070")
+	_, cluster2, err := expected.InfoOfBackend("10.190.198.93:7070")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,9 +397,9 @@ backendsByDC:
       clusters:
           - name: "cluster1"
             protocolBackends:
-            - address: "http://10.291.202.31:8080"
-            - address: "http://10.291.197.91:8080"
-              grpc: true
+            - http: "http://10.291.202.31:8080"
+            - http: "http://10.291.197.91:8080"
+              grpc: "10.291.197.91:7070"
 loggerConfig:
    outputPaths: ["/var/log/carbonzipper/carbonzipper.log"]
    level: "info"
@@ -496,11 +496,11 @@ monitoring:
 						Name: "cluster1",
 						ProtocolBackends: []ProtocolBackend{
 							{
-								Address: "http://10.291.202.31:8080",
+								Http: "http://10.291.202.31:8080",
 							},
 							{
-								Address: "http://10.291.197.91:8080",
-								Grpc:    true,
+								Http: "http://10.291.197.91:8080",
+								Grpc: "10.291.197.91:7070",
 							},
 						},
 					},

@@ -212,17 +212,3 @@ loggerConfig:
 		t.Fatalf("Didn't parse expected struct from config\nGot: %v\nExp: %v", got, expected)
 	}
 }
-
-func eqStringSlice(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
-}

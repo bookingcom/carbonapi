@@ -196,11 +196,14 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))
 	for _, host := range configBackendList {
-		dc, cluster, _ := config.InfoOfBackend(host.Address)
+		if host.Http == "" {
+			return nil, fmt.Errorf("backend without http address was provided: %+v", host)
+		}
+		dc, cluster, _ := config.InfoOfBackend(host.Http)
 		var b backend.Backend
 		var err error
 		bConf := bnet.Config{
-			Address:            host.Address,
+			Address:            host.Http,
 			DC:                 dc,
 			Cluster:            cluster,
 			Client:             client,
@@ -209,8 +212,11 @@ func initBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			Logger:             logger,
 		}
-		if host.Grpc {
-			b, err = bnet.NewGrpc(bConf)
+		if host.Grpc != "" {
+			b, err = bnet.NewGrpc(bnet.GrpcConfig{
+				Config:      bConf,
+				GrpcAddress: host.Grpc,
+			})
 		} else {
 			b, err = bnet.New(bConf)
 		}

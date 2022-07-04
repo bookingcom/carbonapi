@@ -11,19 +11,26 @@ import (
 	"time"
 )
 
-// GrpcBackend represents a host that accepts requests for metrics over gRPC.
+// GrpcBackend represents a host that accepts requests for metrics over gRPC and HTTP.
+// This struct overrides Backend interface functions to use gRPC.
 type GrpcBackend struct {
 	*Backend
 	carbonV2Client capi_v2_grpc.CarbonV2Client
 }
 
+type GrpcConfig struct {
+	Config
+	GrpcAddress string
+}
+
 // NewGrpc creates a new gRPC backend from the given configuration.
-func NewGrpc(cfg Config) (*GrpcBackend, error) {
-	b, err := New(cfg)
+// This backend will fall back to normal backend when the gRPC backend function is not declared.
+func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
+	b, err := New(cfg.Config)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial(cfg.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(cfg.GrpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
