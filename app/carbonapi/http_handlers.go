@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bookingcom/carbonapi/pkg/handlerlog"
-	"go.uber.org/zap/zapcore"
 	"net/http"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/bookingcom/carbonapi/carbonapipb"
 	"github.com/bookingcom/carbonapi/date"
@@ -164,7 +165,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		}
 		//2xx response code is treated as success
 		if toLog.HttpCode/100 == 2 {
-			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
 				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
 				app.prometheusMetrics.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
@@ -700,11 +701,11 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 }
 
 func (app *App) sendGlobs(glob dataTypes.Matches) bool {
-	if app.config.AlwaysSendGlobsAsIs {
+	if app.config.ResolveGlobs == 0 {
 		return true
+	} else {
+		return len(glob.Matches) < app.config.ResolveGlobs
 	}
-
-	return app.config.SendGlobsAsIs && len(glob.Matches) < app.config.MaxBatchSize
 }
 
 func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) {
@@ -759,7 +760,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
 	toLog *carbonapipb.AccessLogDetails) ([]string, error) {
-	if app.config.AlwaysSendGlobsAsIs {
+	if app.config.ResolveGlobs == 0 {
 		return []string{m.Metric}, nil
 	}
 	if !strings.ContainsAny(m.Metric, "*{") {
@@ -813,7 +814,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	logLevel := zap.InfoLevel
 	defer func() {
 		if toLog.HttpCode/100 == 2 {
-			if toLog.TotalMetricCount < int64(app.config.MaxBatchSize) {
+			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
 				app.prometheusMetrics.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
 				app.prometheusMetrics.FindDurationLinComplex.Observe(time.Since(t0).Seconds())

@@ -29,29 +29,37 @@ cache:
        - "127.0.0.1:11211"
 # Amount of CPUs to use. 0 - unlimited
 cpus: 0
-#graphiteWeb: "graphiteWeb.example.yaml"
+
 # Timezone, default - local
 tz: ""
-# If 'true', carbonapi will send requests as is, with globs and braces
-# Otherwise for each request it will generate /metrics/find and then /render
-# individual metrics.
-# true --- faster, but will cause carbonzipper to consume much more RAM.
-#
-# For some backends (e.x. graphite-clickhouse) this *MUST* be set to true in order
-# to get reasonable performance
-#
-# For go-carbon --- it depends on how you use it.
-sendGlobsAsIs: true
-# If sendGlobsAsIs is set and resulting response will be larger than maxBatchSize
-# carbonapi will revert to old behavir. This allows you to use benifits of passing
-# globs as is but keep memory usage in sane limits.
-#
-# For go-carbon you might want it to keep in some reasonable limits, 100 is good "safe" defaults
-#
-# For some backends (e.x. graphite-clickhouse) you might want to set it to some insanly high value, like 100000
-maxBatchSize: 100
 
-# alwaysSendGlobsAsIs: false
+# Deprecated and removed:
+#  sendGlobsAsIs: true|false
+#  alwaysSendGlobsAsIs: true|false
+#  maxBatchSize: int
+# Migration path
+#  alwaysSendGlobsAsIs: true                -> resolveGlobs: 0
+#  sendGlobsAsIs: false                     -> resolveGlobs: 1
+#  sendGlobsAsIs: true && maxBatchSize: int -> resolveGlobs: int
+
+resolveGlobs: 100
+# = 0 - faster (no 'find in advance', direct render)
+# = 1 - slower (always 'find in advance' and every metric rendered individually)
+# > 1 - slower (always 'find in advance' and then render strategy depend on amount of metrics) 
+# If resolveGlobs is = 0 (zero) then /metrics/find request won't be send and a query will be passed
+# to a /render as it is.
+#
+# If resolveGlobs is = 1 (zero) then send /metrics/find request and send /render for every metric separately
+#
+# If resolveGlobs is set > 1 (one) then carbonapi will send a /metrics/find request and it will check
+# the resulting response if it contain more than resolveGlobs metrics
+#  If find returns MORE metrics than resolveGlobs - carbonapi will query metrics one by one
+#  If find returns LESS metrics than resolveGlobs - revert to the old behaviour and send the query as it is.
+# This allows you to use benifits of passing globs as is but keep memory usage in carbonzipper within sane limits.
+#
+# For go-carbon you might want to keep it in some reasonable limits, 100 is a good "safe" default
+# For some backends you might want to set it to 0
+# If you noticing carbonzipper OOM then this is a parameter to tune.
 
 # functionsConfigs:
 #     graphiteWeb: ./graphiteWeb.example.yaml
@@ -77,7 +85,7 @@ upstreams:
     # Number of 100ms buckets to track request distribution in. Used to build
     # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
     buckets: 10
-#    maxBatchSize: 200
+#    resolveGlobs: 200
 #    concurrencyLimitPerServer: 100
     timeouts:
 #        # Maximum backend request time for find requests.

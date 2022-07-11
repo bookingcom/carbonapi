@@ -31,8 +31,8 @@ graphite:
     prefix: "carbon.api"
     pattern: "{prefix}.{fqdn}"
 
-maxBatchSize: 100
-sendGlobsAsIs: true
+resolveGlobs: 100
+
 cache:
    type: "memcache"
    size_mb: 0
@@ -87,9 +87,7 @@ loggerConfig:
 			},
 		},
 
-		SendGlobsAsIs:       true,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		ResolveGlobs: 100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,
@@ -125,8 +123,7 @@ cache:
        - host2:1234
 cpus: 16
 tz: "UTC+1,3600"
-sendGlobsAsIs: true
-maxBatchSize: 100
+resolveGlobs: 100
 ignoreClientTimeout: true
 graphite:
     host: "localhost:3002"
@@ -190,9 +187,7 @@ loggerConfig:
 			},
 		},
 
-		SendGlobsAsIs:       true,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		ResolveGlobs: 100,
 		Cache: CacheConfig{
 			Type: "memcache",
 			Size: 0,

@@ -60,9 +60,7 @@ func DefaultAPIConfig() API {
 	cfg := API{
 		Zipper: fromCommon(DefaultCommonConfig()),
 
-		SendGlobsAsIs:       false,
-		AlwaysSendGlobsAsIs: false,
-		MaxBatchSize:        100,
+		ResolveGlobs: 100,
 		Cache: CacheConfig{
 			Type:              "mem",
 			DefaultTimeoutSec: 60,
@@ -86,9 +84,7 @@ type API struct {
 
 	// TODO (grzkv): Move backends list to a single backend here
 
-	SendGlobsAsIs           bool          `yaml:"sendGlobsAsIs"`
-	AlwaysSendGlobsAsIs     bool          `yaml:"alwaysSendGlobsAsIs"`
-	MaxBatchSize            int           `yaml:"maxBatchSize"`
+	ResolveGlobs            int           `yaml:"resolveGlobs"`
 	Cache                   CacheConfig   `yaml:"cache"`
 	TimezoneString          string        `yaml:"tz"`
 	PidFile                 string        `yaml:"pidFile"`
