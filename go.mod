@@ -13,7 +13,7 @@ require (
 	github.com/evmar/gocairo v0.0.0-20160222165215-ddd30f837497
 	github.com/facebookgo/grace v0.0.0-20180706040059-75cf19382434
 	github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
-	github.com/go-graphite/protocol v1.0.1-0.20220623155218-0727176fe6f6
+	github.com/go-graphite/protocol v1.0.1-0.20220713140022-0180df7ab791
 	github.com/google/go-cmp v0.5.6
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.7.4
