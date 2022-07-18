@@ -3,7 +3,7 @@ FROM golang:1.18
 RUN mkdir -p /data/graphite/whisper/
 COPY ./docker/go-carbon/*.conf /etc/
 
-RUN go install github.com/go-graphite/go-carbon@1d22d4c79b61abc5e0b93ee9804491311031da11
+RUN go install github.com/go-graphite/go-carbon@master
 
 EXPOSE 2003 2004 7002 7004 7007 2003/udp
 
