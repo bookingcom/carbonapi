@@ -45,8 +45,11 @@ backendsByDC:
     - name: "dc1"
       clusters:
           - name: "sys"
-            backends:
-            - "http://go-carbon:8080"
+            protocolBackends:
+            # for each backend, zipper uses the gRPC endpoint if it is defined in the config
+            # and implemented in the code. Otherwise, it falls back to the http endpoint.
+            - grpc: "go-carbon:7004"
+              http: "http://go-carbon:8080"
 
 #backendsByCluster:
 #    - name: "sys"

@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v2"
 	"io"
 	"log"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 // TODO (grzkv): Remove from global scope. Probably should be replaced with flags
@@ -159,11 +158,12 @@ func GetDefaultLoggerConfig() zap.Config {
 
 // Common is the configuration shared by carbonapi and carbonzipper
 type Common struct {
-	Listen            string    `yaml:"listen"`
-	ListenInternal    string    `yaml:"listenInternal"`
-	Backends          []string  `yaml:"backends"`
-	BackendsByCluster []Cluster `yaml:"backendsByCluster"`
-	BackendsByDC      []DC      `yaml:"backendsByDC"`
+	Listen            string            `yaml:"listen"`
+	ListenInternal    string            `yaml:"listenInternal"`
+	Backends          []string          `yaml:"backends"`
+	ProtocolBackends  []ProtocolBackend `yaml:"protocolBackends"`
+	BackendsByCluster []Cluster         `yaml:"backendsByCluster"`
+	BackendsByDC      []DC              `yaml:"backendsByDC"`
 
 	MaxProcs                  int           `yaml:"maxProcs"`
 	Timeouts                  Timeouts      `yaml:"timeouts"`
@@ -216,31 +216,48 @@ func (c *RenderReplicaMismatchConfig) String() string {
 	return string(c.RenderReplicaMatchMode) + eqCheckDesc
 }
 
+func getProtocolBackendsFromAddressList(addresses []string) []ProtocolBackend {
+	backends := make([]ProtocolBackend, 0, len(addresses))
+	for _, a := range addresses {
+		backends = append(backends, ProtocolBackend{
+			Http: a,
+		})
+	}
+	return backends
+}
+
 // GetBackends returns the list of backends from common configuration
-func (common Common) GetBackends() []string {
-	backends := []string{}
+func (common Common) GetBackends() []ProtocolBackend {
+	var backends []ProtocolBackend
 	hasDCBackends := false
 	hasClusterBackends := false
+	hasDirectBackends := false
 
 	for _, dc := range common.BackendsByDC {
 		hasDCBackends = true
 		for _, cluster := range dc.Clusters {
-			backends = append(backends, cluster.Backends...)
+			backends = append(backends, cluster.ProtocolBackends...)
+			backends = append(backends, getProtocolBackendsFromAddressList(cluster.Backends)...)
 		}
 	}
 
 	for _, cluster := range common.BackendsByCluster {
 		hasClusterBackends = true
-		backends = append(backends, cluster.Backends...)
+		backends = append(backends, cluster.ProtocolBackends...)
+		backends = append(backends, getProtocolBackendsFromAddressList(cluster.Backends)...)
 	}
+
+	if len(common.Backends) > 0 || len(common.ProtocolBackends) > 0 {
+		hasDirectBackends = true
+	}
+
 	// TODO: GV - check w/BackendsByDC
-	if (hasDCBackends && hasClusterBackends) || (len(common.Backends) > 0) && (len(backends) > 0) {
+	if (hasDCBackends && hasClusterBackends) || (hasDirectBackends && len(backends) > 0) {
 		log.Fatal("duplicate backend definition in config -- exiting")
 	}
 
-	if len(common.Backends) > 0 {
-		return common.Backends
-	}
+	backends = append(backends, common.ProtocolBackends...)
+	backends = append(backends, getProtocolBackendsFromAddressList(common.Backends)...)
 	return backends
 }
 
@@ -254,6 +271,14 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 					return dc.Name, cluster.Name, nil
 				}
 			}
+			for _, backend := range cluster.ProtocolBackends {
+				if backend.Http == address {
+					return dc.Name, cluster.Name, nil
+				}
+				if backend.Grpc == address {
+					return dc.Name, cluster.Name, nil
+				}
+			}
 		}
 	}
 
@@ -261,6 +286,14 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 
 		for _, backend := range cluster.Backends {
 			if backend == address {
+				return "", cluster.Name, nil
+			}
+		}
+		for _, backend := range cluster.ProtocolBackends {
+			if backend.Http == address {
+				return "", cluster.Name, nil
+			}
+			if backend.Grpc == address {
 				return "", cluster.Name, nil
 			}
 		}
@@ -272,7 +305,16 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("Couldn't find cluster for '%s'", address)
+	for _, backend := range common.ProtocolBackends {
+		if backend.Http == address {
+			return "", "", nil
+		}
+		if backend.Grpc == address {
+			return "", "", nil
+		}
+	}
+
+	return "", "", fmt.Errorf("couldn't find cluster for '%s'", address)
 }
 
 // MonitoringConfig allows setting custom monitoring parameters
@@ -303,10 +345,17 @@ type Timeouts struct {
 	Connect      time.Duration `yaml:"connect"`
 }
 
+type ProtocolBackend struct {
+	Http string `yaml:"http"`
+	Grpc string `yaml:"grpc"`
+}
+
 // Cluster is a definition for set of backends
 type Cluster struct {
 	Name     string   `yaml:"name"`
 	Backends []string `yaml:"backends"`
+	// New field for backward-compatibility
+	ProtocolBackends []ProtocolBackend `yaml:"protocolBackends"`
 }
 
 // DC is a definition for data-cemter with set of clusters
