@@ -30,7 +30,7 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial(cfg.GrpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(cfg.GrpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithNoProxy())
 	if err != nil {
 		return nil, err
 	}
