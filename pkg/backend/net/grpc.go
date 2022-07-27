@@ -2,19 +2,24 @@ package net
 
 import (
 	"context"
-	"github.com/bookingcom/carbonapi/pkg/types"
-	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
-	"github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"time"
+
+	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
+	"github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/util"
 )
 
 // GrpcBackend represents a host that accepts requests for metrics over gRPC and HTTP.
 // This struct overrides Backend interface functions to use gRPC.
 type GrpcBackend struct {
 	*Backend
+	GrpcAddress    string
 	carbonV2Client capi_v2_grpc.CarbonV2Client
 }
 
@@ -38,6 +43,7 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 
 	return &GrpcBackend{
 		Backend:        b,
+		GrpcAddress:    cfg.GrpcAddress,
 		carbonV2Client: c,
 	}, nil
 }
@@ -72,10 +78,19 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 
 	t1 := time.Now()
 	err = gb.enter(ctx)
-	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if limiterErr := gb.leave(); limiterErr != nil {
+			gb.logger.Error("Backend limiter full",
+				zap.String("host", gb.GrpcAddress),
+				zap.String("uuid", util.GetUUID(ctx)),
+				zap.Error(limiterErr),
+			)
+		}
+	}()
+	request.Trace.AddLimiter(t1)
 
 	var fetchedMetrics []types.Metric
 	for {
