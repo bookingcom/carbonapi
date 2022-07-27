@@ -9,7 +9,9 @@ import (
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/util"
@@ -99,6 +101,9 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 			break
 		}
 		if err != nil {
+			if code := status.Code(err); code == codes.NotFound {
+				return nil, types.ErrMetricsNotFound
+			}
 			return nil, err
 		}
 		fetchedMetrics = append(fetchedMetrics, types.Metric{
