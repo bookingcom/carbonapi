@@ -5,7 +5,6 @@ else
 	PKGCONF =
 endif
 
-GO ?= go
 VERSION ?= $(shell git rev-parse --short HEAD)
 
 PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
@@ -21,25 +20,32 @@ nocairo: TAGS =
 
 ### Targets ###
 
+.PHONY: all
 all: build
 
+.PHONY: nocairo
 nocairo: build
 
 .PHONY: debug
 debug: build
 
+.PHONY: build
 build:
-	$(PKGCONF) $(GO) build -mod vendor $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
-	$(PKGCONF) $(GO) build -mod vendor $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
+	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
+	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
+.PHONY: lint
 lint:
 	golangci-lint run
 
+.PHONY: test
 test:
-	$(PKGCONF) $(GO) test ./... -race -coverprofile=coverage.txt -covermode=atomic
+	$(PKGCONF) go test ./... -race
 
+.PHONY: clean
 clean:
 	rm -f carbonapi carbonzipper
 
+.PHONY: authors
 authors:
 	git log --format="%an" | sort | uniq > AUTHORS.txt
