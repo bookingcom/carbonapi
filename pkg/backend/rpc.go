@@ -17,7 +17,9 @@ package backend
 
 import (
 	"context"
+
 	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 
@@ -119,7 +121,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 }
 
 // Finds makes Find calls to multiple backends.
-func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (types.Matches, []error) {
+func Finds(ctx context.Context, backends []Backend, request types.FindRequest, durationHist *prometheus.HistogramVec) (types.Matches, []error) {
 	if len(backends) == 0 {
 		return types.Matches{}, nil
 	}
@@ -129,6 +131,16 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest) (
 	for _, backend := range backends {
 		request.IncCall()
 		go func(b Backend) {
+			var t *prometheus.Timer
+			if durationHist != nil {
+				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetServerAddress()))
+			}
+			defer func() {
+				if t != nil {
+					t.ObserveDuration()
+				}
+			}()
+
 			msg, err := b.Find(ctx, request)
 			if err != nil {
 				errCh <- err
