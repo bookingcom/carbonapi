@@ -308,7 +308,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
 		app.prometheusMetrics.RequestCancel.WithLabelValues(
-			"find", ctx.Err().Error(),
+			"render", ctx.Err().Error(),
 		).Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", ctx.Err().Error())
