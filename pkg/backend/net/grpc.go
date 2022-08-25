@@ -64,6 +64,12 @@ func makeMultiFetchRequestFromRenderRequest(request types.RenderRequest) *carbon
 	}
 }
 
+func makeGlobRequestFromFindRequest(request types.FindRequest) *carbonapi_v2_pb.GlobRequest {
+	return &carbonapi_v2_pb.GlobRequest{
+		Query: request.Query,
+	}
+}
+
 // Render fetches raw metrics from a backend.
 func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	t0 := time.Now()
@@ -80,6 +86,7 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 
 	t1 := time.Now()
 	err = gb.enter(ctx)
+	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +99,6 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 			)
 		}
 	}()
-	request.Trace.AddLimiter(t1)
 
 	var fetchedMetrics []types.Metric
 	for {
@@ -121,4 +127,61 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 	}
 
 	return fetchedMetrics, nil
+}
+
+// Find resolves globs and finds metrics in a backend.
+func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
+	t0 := time.Now()
+
+	globRequest := makeGlobRequestFromFindRequest(request)
+	request.Trace.AddMarshal(t0)
+
+	ctx, cancel := gb.setTimeout(ctx)
+	defer cancel()
+
+	t1 := time.Now()
+	err := gb.enter(ctx)
+	request.Trace.AddLimiter(t1)
+	if err != nil {
+		return types.Matches{}, err
+	}
+	defer func() {
+		if limiterErr := gb.leave(); limiterErr != nil {
+			gb.logger.Error("Backend limiter full",
+				zap.String("host", gb.GrpcAddress),
+				zap.String("uuid", util.GetUUID(ctx)),
+				zap.Error(limiterErr),
+			)
+		}
+	}()
+
+	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest)
+	if err != nil {
+		if code := status.Code(err); code == codes.NotFound {
+			return types.Matches{}, types.ErrMatchesNotFound
+		}
+		return types.Matches{}, err
+	}
+
+	matches := types.Matches{
+		Name: globResponse.Name,
+	}
+	for _, g := range globResponse.Matches {
+		matches.Matches = append(matches.Matches, types.Match{
+			Path:   g.Path,
+			IsLeaf: g.IsLeaf,
+		})
+	}
+
+	if len(matches.Matches) == 0 {
+		return matches, types.ErrMatchesNotFound
+	}
+
+	for _, match := range matches.Matches {
+		if match.IsLeaf {
+			gb.cache.Set(match.Path, struct{}{}, 0, gb.cacheExpirySec)
+		}
+	}
+
+	return matches, nil
 }
