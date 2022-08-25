@@ -64,12 +64,6 @@ func makeMultiFetchRequestFromRenderRequest(request types.RenderRequest) *carbon
 	}
 }
 
-func makeGlobRequestFromFindRequest(request types.FindRequest) *carbonapi_v2_pb.GlobRequest {
-	return &carbonapi_v2_pb.GlobRequest{
-		Query: request.Query,
-	}
-}
-
 // Render fetches raw metrics from a backend.
 func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	t0 := time.Now()
@@ -133,7 +127,9 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	t0 := time.Now()
 
-	globRequest := makeGlobRequestFromFindRequest(request)
+	globRequest := &carbonapi_v2_pb.GlobRequest{
+		Query: request.Query,
+	}
 	request.Trace.AddMarshal(t0)
 
 	ctx, cancel := gb.setTimeout(ctx)
@@ -184,4 +180,57 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 	}
 
 	return matches, nil
+}
+
+func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
+	t0 := time.Now()
+	infoRequest := &carbonapi_v2_pb.InfoRequest{
+		Name: request.Target,
+	}
+	request.Trace.AddMarshal(t0)
+
+	ctx, cancel := gb.setTimeout(ctx)
+	defer cancel()
+
+	t1 := time.Now()
+	err := gb.enter(ctx)
+	request.Trace.AddLimiter(t1)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if limiterErr := gb.leave(); limiterErr != nil {
+			gb.logger.Error("Backend limiter full",
+				zap.String("host", gb.GrpcAddress),
+				zap.String("uuid", util.GetUUID(ctx)),
+				zap.Error(limiterErr),
+			)
+		}
+	}()
+
+	resp, err := gb.carbonV2Client.Info(ctx, infoRequest)
+	if err != nil {
+		if code := status.Code(err); code == codes.NotFound {
+			return nil, types.ErrInfoNotFound
+		}
+		return nil, err
+	}
+
+	var rets []types.Retention
+	for _, r := range resp.Retentions {
+		rets = append(rets, types.Retention{
+			SecondsPerPoint: r.SecondsPerPoint,
+			NumberOfPoints:  r.NumberOfPoints,
+		})
+	}
+	return []types.Info{
+		{
+			Host:              gb.GrpcAddress,
+			Name:              resp.Name,
+			AggregationMethod: resp.AggregationMethod,
+			MaxRetention:      resp.MaxRetention,
+			XFilesFactor:      resp.XFilesFactor,
+			Retentions:        rets,
+		},
+	}, nil
 }
