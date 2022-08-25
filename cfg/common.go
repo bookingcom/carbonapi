@@ -2,12 +2,13 @@ package cfg
 
 import (
 	"fmt"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/yaml.v2"
 	"io"
 	"log"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v2"
 )
 
 // TODO (grzkv): Remove from global scope. Probably should be replaced with flags
@@ -115,6 +116,11 @@ func DefaultCommonConfig() Common {
 				Start:      0.5,
 				BucketSize: 0.5,
 				BucketsNum: 20,
+			},
+			FindDurationByBackend: HistogramConfig{
+				Start:      0.01,
+				BucketSize: 2,
+				BucketsNum: 5,
 			},
 		},
 		Traces: Traces{
@@ -327,6 +333,7 @@ type MonitoringConfig struct {
 	FindDurationLin         HistogramConfig `yaml:"findDurationLinHistogram"`
 	FindDurationLinSimple   HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
 	FindDurationLinComplex  HistogramConfig `yaml:"findDurationComplexLinHistogram"`
+	FindDurationByBackend	HistogramConfig `yaml:"findDurationByBackend"`
 	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
 	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
