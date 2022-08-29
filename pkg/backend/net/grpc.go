@@ -67,7 +67,7 @@ func makeMultiFetchRequestFromRenderRequest(request types.RenderRequest) *carbon
 // Render fetches raw metrics from a backend.
 func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	t0 := time.Now()
-
+	ctx = util.MarshalGrpcCtx(ctx)
 	multiFetchRequest := makeMultiFetchRequestFromRenderRequest(request)
 	request.Trace.AddMarshal(t0)
 
@@ -126,7 +126,7 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 // Find resolves globs and finds metrics in a backend.
 func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	t0 := time.Now()
-
+	ctx = util.MarshalGrpcCtx(ctx)
 	globRequest := &carbonapi_v2_pb.GlobRequest{
 		Query: request.Query,
 	}
@@ -184,6 +184,7 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 
 func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
 	t0 := time.Now()
+	ctx = util.MarshalGrpcCtx(ctx)
 	infoRequest := &carbonapi_v2_pb.InfoRequest{
 		Name: request.Target,
 	}
