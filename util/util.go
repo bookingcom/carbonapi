@@ -4,13 +4,16 @@ package util
 import (
 	"context"
 	"net/http"
+
 	"github.com/satori/go.uuid"
+	"google.golang.org/grpc/metadata"
 )
 
 type key int
 
 const (
-	ctxHeaderUUID = "X-CTX-CarbonAPI-UUID"
+	ctxHeaderUUID       = "X-CTX-CarbonAPI-UUID"
+	ctxGrpcMetadataUUID = "carponapi_uuid"
 
 	uuidKey key = iota
 	priorityKey
@@ -45,6 +48,13 @@ func MarshalCtx(ctx context.Context, request *http.Request) *http.Request {
 	request.Header.Add(ctxHeaderUUID, GetUUID(ctx))
 
 	return request
+}
+
+// MarshalGrpcCtx ensures that outgoing gRPC requests have a Carbon UUID.
+func MarshalGrpcCtx(ctx context.Context) context.Context {
+	ctx = WithUUID(ctx)
+	ctx = metadata.AppendToOutgoingContext(ctx, ctxGrpcMetadataUUID, GetUUID(ctx))
+	return ctx
 }
 
 // WithUUID ensures that a context has a Carbon UUID.
