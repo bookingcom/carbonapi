@@ -23,6 +23,7 @@ type GrpcBackend struct {
 	*Backend
 	GrpcAddress    string
 	carbonV2Client capi_v2_grpc.CarbonV2Client
+	maxRecvMsgSize int
 }
 
 type GrpcConfig struct {
@@ -47,6 +48,7 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 		Backend:        b,
 		GrpcAddress:    cfg.GrpcAddress,
 		carbonV2Client: c,
+		maxRecvMsgSize: 100 * 1024 * 1024, // TODO: Make configurable
 	}, nil
 }
 
@@ -73,7 +75,7 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
-	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest)
+	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +153,7 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 		}
 	}()
 
-	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest)
+	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -209,7 +211,7 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 		}
 	}()
 
-	resp, err := gb.carbonV2Client.Info(ctx, infoRequest)
+	resp, err := gb.carbonV2Client.Info(ctx, infoRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
 			return nil, types.ErrInfoNotFound
