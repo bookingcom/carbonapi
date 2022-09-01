@@ -35,6 +35,7 @@ type Backend interface {
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
 	GetServerAddress() string
+	GetCluster() string
 }
 
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
@@ -133,7 +134,7 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest, d
 		go func(b Backend) {
 			var t *prometheus.Timer
 			if durationHist != nil {
-				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetServerAddress()))
+				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetCluster()))
 			}
 			defer func() {
 				if t != nil {
