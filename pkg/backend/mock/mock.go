@@ -102,3 +102,7 @@ func (b Backend) Contains(targets []string) bool {
 func (b Backend) GetServerAddress() string {
 	return ""
 }
+
+func (b Backend) GetCluster() string {
+	return ""
+}

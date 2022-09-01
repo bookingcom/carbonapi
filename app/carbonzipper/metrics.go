@@ -69,7 +69,7 @@ type PrometheusMetrics struct {
 	RenderOutDurationExp      *prometheus.HistogramVec
 	FindDurationExp           prometheus.Histogram
 	FindDurationLin           prometheus.Histogram
-	FindDurationByBackend     *prometheus.HistogramVec
+	FindOutDuration           *prometheus.HistogramVec
 	TimeInQueueExp            prometheus.Histogram
 	TimeInQueueLin            prometheus.Histogram
 }
@@ -190,16 +190,16 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.FindDurationLin.BucketsNum),
 			},
 		),
-		FindDurationByBackend: prometheus.NewHistogramVec(
+		FindOutDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "find_duration_seconds_by_backend",
-				Help: "Durations of find requests per backend",
+				Name: "find_out_duration_seconds",
+				Help: "Duration of outgoing find requests per backend cluster.",
 				Buckets: prometheus.ExponentialBuckets(
-					config.Monitoring.FindDurationByBackend.Start,
-					config.Monitoring.FindDurationByBackend.BucketSize,
-					config.Monitoring.FindDurationByBackend.BucketsNum),
+					config.Monitoring.FindOutDuration.Start,
+					config.Monitoring.FindOutDuration.BucketSize,
+					config.Monitoring.FindOutDuration.BucketsNum),
 			},
-			[]string{"backend"},
+			[]string{"cluster"},
 		),
 		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{

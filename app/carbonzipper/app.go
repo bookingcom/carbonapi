@@ -297,7 +297,7 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.prometheusMetrics.RenderOutDurationExp)
 	prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
 	prometheus.MustRegister(app.prometheusMetrics.FindDurationLin)
-	prometheus.MustRegister(app.prometheusMetrics.FindDurationByBackend)
+	prometheus.MustRegister(app.prometheusMetrics.FindOutDuration)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
 	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
 
