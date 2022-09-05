@@ -843,7 +843,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 		span.SetAttribute("graphite.total_metric_count", toLog.TotalMetricCount)
 	} else {
 		logger.Warn("zipper returned error in find request",
-			zap.String("uuid", util.GetUUID(ctx)),
+			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 			zap.Error(err),
 		)
 		var notFound dataTypes.ErrNotFound
