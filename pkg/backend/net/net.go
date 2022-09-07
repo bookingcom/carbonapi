@@ -53,7 +53,8 @@ type Backend struct {
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
-	logger         *zap.Logger
+	qHist  *prometheus.HistogramVec // note: we do not use zipper's metrics to separate from capi
+	logger *zap.Logger
 }
 
 // Config configures an HTTP backend.
@@ -61,6 +62,7 @@ type Backend struct {
 // The only required field is Address, which must be of the form
 // "address[:port]", where address is an IP address or a hostname.
 // Address must be a point that can accept HTTP requests.
+// TODO: Remove. This should be part of internal state.
 type Config struct {
 	Address string // The backend address.
 
@@ -74,6 +76,7 @@ type Config struct {
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 	ActiveRequests     prometheus.Gauge
 	WaitingRequests    prometheus.Gauge
+	QHist              *prometheus.HistogramVec
 }
 
 var fmtProto = []string{"protobuf"}
@@ -119,6 +122,8 @@ func New(cfg Config) (*Backend, error) {
 			b.limiter = prioritylimiter.New(cfg.Limit)
 		}
 	}
+
+	b.qHist = cfg.QHist
 
 	if cfg.Logger != nil {
 		b.logger = cfg.Logger
@@ -238,15 +243,22 @@ func (b Backend) do(trace types.Trace, req *http.Request) (string, []byte, error
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL) (string, []byte, error) {
+func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, request string) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
-	t0 := time.Now()
+	var t *prometheus.Timer
+	if b.qHist != nil { // TODO: remove condition when capi is merged with zipper
+		t = prometheus.NewTimer(b.qHist.WithLabelValues(request))
+	}
+
 	err := b.enter(ctx)
-	trace.AddLimiter(t0)
 	if err != nil {
 		return "", nil, err
+	}
+
+	if t != nil {
+		t.ObserveDuration()
 	}
 
 	defer func() {
@@ -298,7 +310,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
 	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u, )
+	contentType, resp, err := b.call(ctx, request.Trace, u, "render")
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
@@ -370,7 +382,7 @@ func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.I
 	u = carbonapiV2InfoEncoder(u, metric)
 	request.Trace.AddMarshal(t0)
 
-	_, resp, err := b.call(ctx, request.Trace, u)
+	_, resp, err := b.call(ctx, request.Trace, u, "info")
 
 	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 		return nil, types.ErrInfoNotFound
@@ -426,7 +438,7 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	u = carbonapiV2FindEncoder(u, query)
 	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u)
+	contentType, resp, err := b.call(ctx, request.Trace, u, "find")
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound

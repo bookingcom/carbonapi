@@ -23,7 +23,7 @@ func BenchmarkRenders(b *testing.B) {
 
 	metrics := carbonapi_v2_pb.MultiFetchResponse{
 		Metrics: []*carbonapi_v2_pb.FetchResponse{
-			&carbonapi_v2_pb.FetchResponse{
+			{
 				Name:     "foo",
 				Values:   make([]float64, secPerHour),
 				IsAbsent: make([]bool, secPerHour),

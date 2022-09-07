@@ -47,7 +47,7 @@ const (
 	formatTypeProtobuf3 = "protobuf3"
 )
 
-func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
@@ -189,7 +189,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	)
 }
 
-func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 	memoryUsage := 0
 
@@ -405,7 +405,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	)
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
@@ -534,7 +534,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	)
 }
 
-func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {

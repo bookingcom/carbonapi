@@ -35,7 +35,7 @@ func (app *App) Start(logger *zap.Logger) {
 
 	httputil.PublishTrackedConnections("httptrack")
 
-	handler := initHandlers(app, logger)
+	handler := initHandlers(app, app.Metrics, logger)
 
 	if app.Config.Graphite.Pattern == "" {
 		app.Config.Graphite.Pattern = "{prefix}.{fqdn}"
