@@ -44,7 +44,7 @@ func BenchmarkCall(b *testing.B) {
 	trace := types.NewTrace()
 	u := bk.url("")
 	for i := 0; i < b.N; i++ {
-		bk.call(ctx, trace, u)
+		bk.call(ctx, trace, u, "")
 	}
 }
 

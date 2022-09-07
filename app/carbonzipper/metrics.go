@@ -2,10 +2,18 @@ package zipper
 
 import (
 	"expvar"
+	"fmt"
+	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/mstats"
+	"github.com/bookingcom/carbonapi/util"
+	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -70,8 +78,7 @@ type PrometheusMetrics struct {
 	FindDurationExp           prometheus.Histogram
 	FindDurationLin           prometheus.Histogram
 	FindOutDuration           *prometheus.HistogramVec
-	TimeInQueueExp            prometheus.Histogram
-	TimeInQueueLin            prometheus.Histogram
+	TimeInQueue               *prometheus.HistogramVec
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -201,7 +208,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 			},
 			[]string{"cluster"},
 		),
-		TimeInQueueExp: prometheus.NewHistogram(
+		TimeInQueue: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name: "time_in_queue_ms_exp",
 				Help: "Time a request spends in queue (exponential), ms",
@@ -210,16 +217,7 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
 					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
 			},
-		),
-		TimeInQueueLin: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "time_in_queue_ms_lin",
-				Help: "Time a request spends in queue (linear), ms",
-				Buckets: prometheus.LinearBuckets(
-					config.Monitoring.TimeInQueueLinHistogram.Start,
-					config.Monitoring.TimeInQueueLinHistogram.BucketSize,
-					config.Monitoring.TimeInQueueLinHistogram.BucketsNum),
-			},
+			[]string{"request"},
 		),
 	}
 }
@@ -238,14 +236,6 @@ func (b expBucketEntry) String() string {
 	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
 }
 
-func renderTimeBuckets() interface{} {
-	return timeBuckets
-}
-
-func renderExpTimeBuckets() interface{} {
-	return expTimeBuckets
-}
-
 func findBucketIndex(buckets []int64, bucket int) int {
 	var i int
 	if bucket < 0 {
@@ -257,4 +247,113 @@ func findBucketIndex(buckets []int64, bucket int) int {
 	}
 
 	return i
+}
+
+func initGraphite(app *App) {
+	// register our metrics with graphite
+	graphite := g2g.NewGraphite(app.Config.Graphite.Host, app.Config.Graphite.Interval, 10*time.Second)
+
+	/* #nosec */
+	hostname, _ := os.Hostname()
+	hostname = strings.Replace(hostname, ".", "_", -1)
+
+	prefix := app.Config.Graphite.Prefix
+
+	pattern := app.Config.Graphite.Pattern
+	pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
+	pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
+
+	graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
+	graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
+	graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
+
+	graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
+	graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
+
+	graphite.Register(fmt.Sprintf("%s.render_requests", pattern), Metrics.RenderRequests)
+	graphite.Register(fmt.Sprintf("%s.render_errors", pattern), Metrics.RenderErrors)
+
+	graphite.Register(fmt.Sprintf("%s.info_requests", pattern), Metrics.InfoRequests)
+	graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
+
+	graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
+
+	for i := 0; i <= app.Config.Buckets; i++ {
+		graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
+		lower, upper := util.Bounds(i)
+		graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
+	}
+
+	graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
+	graphite.Register(fmt.Sprintf("%s.cache_items", pattern), Metrics.CacheItems)
+
+	graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
+	graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
+
+	go mstats.Start(app.Config.Graphite.Interval)
+
+	graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
+	graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
+	graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
+	graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
+	graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
+	graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
+}
+
+func metricsServer(app *App) *http.Server {
+	prometheus.MustRegister(app.Metrics.Requests)
+	prometheus.MustRegister(app.Metrics.Responses)
+	prometheus.MustRegister(app.Metrics.Renders)
+	prometheus.MustRegister(app.Metrics.RenderMismatches)
+	prometheus.MustRegister(app.Metrics.RenderFixedMismatches)
+	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
+	prometheus.MustRegister(app.Metrics.FindNotFound)
+	prometheus.MustRegister(app.Metrics.RequestCancel)
+	prometheus.MustRegister(app.Metrics.DurationExp)
+	prometheus.MustRegister(app.Metrics.DurationLin)
+	prometheus.MustRegister(app.Metrics.RenderDurationExp)
+	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
+	prometheus.MustRegister(app.Metrics.FindDurationExp)
+	prometheus.MustRegister(app.Metrics.FindDurationLin)
+	prometheus.MustRegister(app.Metrics.FindOutDuration)
+	prometheus.MustRegister(app.Metrics.TimeInQueue)
+
+	writeTimeout := app.Config.Timeouts.Global
+	if writeTimeout < 30*time.Second {
+		writeTimeout = time.Minute
+	}
+
+	r := initMetricHandlers()
+
+	s := &http.Server{
+		Addr:         app.Config.ListenInternal,
+		Handler:      r,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: writeTimeout,
+	}
+
+	return s
+}
+
+func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
+	ms := t.Nanoseconds() / int64(time.Millisecond)
+
+	bucket := int(ms / 100)
+	bucketIdx := findBucketIndex(timeBuckets, bucket)
+	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
+
+	expBucket := util.Bucket(ms, app.Config.Buckets)
+	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
+	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
+
+	app.Metrics.DurationExp.Observe(t.Seconds())
+	app.Metrics.DurationLin.Observe(t.Seconds())
+
+	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
+		app.Metrics.RenderDurationExp.Observe(t.Seconds())
+	}
+	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
+		app.Metrics.FindDurationExp.Observe(t.Seconds())
+		app.Metrics.FindDurationLin.Observe(t.Seconds())
+	}
 }

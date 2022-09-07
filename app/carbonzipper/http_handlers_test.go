@@ -11,17 +11,36 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/dgryski/go-expirecache"
 	"go.uber.org/zap"
 )
+
+func newTestApp() (*App, *PrometheusMetrics, *zap.Logger) {
+	lg, _ := zap.NewDevelopment()
+	config := cfg.DefaultZipperConfig()
+
+	ms := NewPrometheusMetrics(config)
+
+	bs, err := InitBackends(config, lg)
+	if err != nil {
+		lg.Fatal("Failed to initialize backends", zap.Error(err))
+	}
+
+	app := App{
+		Config:              config,
+		Metrics:             NewPrometheusMetrics(config),
+		Backends:            bs,
+		TopLevelDomainCache: expirecache.New(0),
+	}
+
+	return &app, ms, lg
+}
 
 // RENDER ENDPOINT
 
 func TestRenderNoBackends(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	if err != nil {
-		t.Errorf("got error %v when making new app", err)
-	}
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
 
 	var tt = []struct {
 		path string
@@ -40,7 +59,7 @@ func TestRenderNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.renderHandler(w, req, logger)
+		app.renderHandler(w, req, ms, lg)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d", w.Code, tst.code)
 		}
@@ -48,20 +67,15 @@ func TestRenderNoBackends(t *testing.T) {
 }
 
 func TestRenderSingleBackend(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -70,7 +84,7 @@ func TestRenderSingleBackend(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusBadRequest)
@@ -82,7 +96,7 @@ func TestRenderSingleBackend(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -90,20 +104,15 @@ func TestRenderSingleBackend(t *testing.T) {
 }
 
 func TestRenderSingleGenericBackendError(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -112,7 +121,7 @@ func TestRenderSingleGenericBackendError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -120,20 +129,15 @@ func TestRenderSingleGenericBackendError(t *testing.T) {
 }
 
 func TestRenderSingleNotFoundBackendError(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -142,7 +146,7 @@ func TestRenderSingleNotFoundBackendError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -150,11 +154,10 @@ func TestRenderSingleNotFoundBackendError(t *testing.T) {
 }
 
 func TestRenderMultipleBackends(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -170,10 +173,6 @@ func TestRenderMultipleBackends(t *testing.T) {
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -182,7 +181,7 @@ func TestRenderMultipleBackends(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -190,11 +189,10 @@ func TestRenderMultipleBackends(t *testing.T) {
 }
 
 func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -222,17 +220,13 @@ func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
 		}),
 	}
 
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
-	}
-
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/render?target=foo.bar&from=1110&until=1111", nil)
 	if err != nil {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -240,11 +234,10 @@ func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
 }
 
 func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -260,10 +253,6 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -272,7 +261,7 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -280,11 +269,10 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 }
 
 func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -315,10 +303,6 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -327,7 +311,7 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusNotFound)
@@ -335,11 +319,10 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 }
 
 func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -385,10 +368,6 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -397,7 +376,7 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.renderHandler(w, req, logger)
+	app.renderHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -407,11 +386,8 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 // FIND ENDPOINT
 
 func TestFindNoBackends(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	if err != nil {
-		t.Errorf("got error %v when making new app", err)
-	}
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
 
 	var tt = []struct {
 		path string
@@ -432,7 +408,7 @@ func TestFindNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.findHandler(w, req, logger)
+		app.findHandler(w, req, ms, lg)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
 		}
@@ -440,20 +416,15 @@ func TestFindNoBackends(t *testing.T) {
 }
 
 func TestFindSingleBackend(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -462,7 +433,7 @@ func TestFindSingleBackend(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	// TODO (grzkv): This should be BadRequest
 	if w.Code != http.StatusOK {
@@ -475,7 +446,7 @@ func TestFindSingleBackend(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -487,20 +458,15 @@ func TestFindSingleBackend(t *testing.T) {
 }
 
 func TestFindSingleBackendWithGenericError(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -509,7 +475,7 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -517,20 +483,15 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 }
 
 func TestFindSingleBackendWithNotfoundError(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -539,7 +500,7 @@ func TestFindSingleBackendWithNotfoundError(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -547,11 +508,10 @@ func TestFindSingleBackendWithNotfoundError(t *testing.T) {
 }
 
 func TestFindManyBackendsAllNotfound(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -572,10 +532,6 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -584,7 +540,7 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -592,11 +548,10 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 }
 
 func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -622,10 +577,6 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -634,7 +585,7 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -642,11 +593,10 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 }
 
 func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
@@ -659,17 +609,13 @@ func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 		}),
 	}
 
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
-	}
-
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/metrics/find", nil)
 	if err != nil {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -677,11 +623,10 @@ func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 }
 
 func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
@@ -692,10 +637,6 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -704,7 +645,7 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -712,11 +653,10 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 }
 
 func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -772,10 +712,6 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -784,7 +720,7 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusInternalServerError)
@@ -792,11 +728,10 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 }
 
 func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -824,17 +759,13 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 		}),
 	}
 
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
-	}
-
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/metrics/find", nil)
 	if err != nil {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.findHandler(w, req, logger)
+	app.findHandler(w, req, ms, lg)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d", w.Code, http.StatusOK)
@@ -842,11 +773,8 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 }
 
 func TestInfoNoBackends(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	if err != nil {
-		t.Errorf("got error %v when making new app", err)
-	}
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
 
 	var tt = []struct {
 		path string
@@ -864,27 +792,22 @@ func TestInfoNoBackends(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.infoHandler(w, req, logger)
+		app.infoHandler(w, req, ms, lg)
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
 		}
 	}
 }
 func TestInfoSingleBackend(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-	}
-
-	if err != nil {
-		t.Fatalf("got error %v when making new app", err)
 	}
 
 	var tests = []struct {
@@ -919,7 +842,7 @@ func TestInfoSingleBackend(t *testing.T) {
 			t.Fatalf("error making request %v", err)
 		}
 
-		app.infoHandler(w, req, logger)
+		app.infoHandler(w, req, ms, lg)
 
 		if w.Code != tst.code {
 			t.Fatalf("got code %d expected %d for %s", w.Code, tst.code, tst.path)
@@ -932,18 +855,15 @@ func TestInfoSingleBackend(t *testing.T) {
 }
 
 func TestLbCheckNoBackends(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	if err != nil {
-		t.Fatalf("error creating the app %v", err)
-	}
+	app, ms, lg := newTestApp()
+	defer lg.Sync()
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("GET", "/lb_check", nil)
 	if err != nil {
 		t.Fatalf("error making request %v", err)
 	}
 
-	app.lbCheckHandler(w, req, logger)
+	app.lbCheckHandler(w, req, ms, lg)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got code %d expected %d for %s", w.Code, http.StatusOK, "/lb_check")
 	}

@@ -103,7 +103,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"))
+	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +128,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"))
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -147,7 +147,7 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"))
+	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -170,7 +170,7 @@ func TestCallLimiterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"))
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected to time out")
 	}
@@ -193,7 +193,7 @@ func TestCallTimeoutLeavesLimiter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"))
+	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected to time out")
 	}

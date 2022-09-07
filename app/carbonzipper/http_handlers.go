@@ -47,10 +47,10 @@ const (
 	formatTypeProtobuf3 = "protobuf3"
 )
 
-func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 
@@ -64,7 +64,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	format := req.FormValue("format")
 
 	Metrics.Requests.Add(1)
-	app.prometheusMetrics.Requests.Inc()
+	app.Metrics.Requests.Inc()
 	Metrics.FindRequests.Add(1)
 
 	logger = logger.With(
@@ -81,12 +81,12 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	request := types.NewFindRequest(originalQuery)
 	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
 	bs = backend.Filter(bs, []string{originalQuery})
-	metrics, errs := backend.Finds(ctx, bs, request, app.prometheusMetrics.FindOutDuration)
+	metrics, errs := backend.Finds(ctx, bs, request, app.Metrics.FindOutDuration)
 	err := errorsFanIn(errs, len(bs))
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
+		app.Metrics.RequestCancel.WithLabelValues(
 			"find", ctx.Err().Error(),
 		).Inc()
 	}
@@ -102,7 +102,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
 
-			app.prometheusMetrics.FindNotFound.Inc()
+			app.Metrics.FindNotFound.Inc()
 			logger.Info("not found",
 				zap.Error(err))
 			// TODO (grzkv) Should we return here?
@@ -115,7 +115,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 			)
 			http.Error(w, err.Error(), code)
 			Metrics.Errors.Add(1)
-			app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
+			app.Metrics.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 			return
 		}
 	}
@@ -143,7 +143,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 		blob, err = json.FindEncoder(metrics)
 	case formatTypeEmpty, formatTypePickle:
 		contentType = contentTypePickle
-		if app.config.GraphiteWeb09Compatibility {
+		if app.Config.GraphiteWeb09Compatibility {
 			blob, err = pickle.FindEncoderV0_9(metrics)
 		} else {
 			blob, err = pickle.FindEncoderV1_0(metrics)
@@ -161,7 +161,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
 		return
@@ -172,7 +172,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "find").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "find").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -182,18 +182,18 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, logger *za
 	}
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
+	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 	logger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 }
 
-func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 	memoryUsage := 0
 
-	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 
@@ -204,7 +204,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	}
 
 	Metrics.Requests.Add(1)
-	app.prometheusMetrics.Requests.Inc()
+	app.Metrics.Requests.Inc()
 	Metrics.RenderRequests.Add(1)
 
 	logger = logger.With(
@@ -223,7 +223,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
 
@@ -248,7 +248,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			zap.Error(err),
 		)
 		Metrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "from is not a integer")
 		return
@@ -265,7 +265,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			zap.Error(err),
 		)
 		Metrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "until is not a integer")
 		return
@@ -285,29 +285,27 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		Metrics.Responses.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "empty target")
 		return
 	}
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	request.Trace.OutDuration = app.prometheusMetrics.RenderOutDurationExp
+	request.Trace.OutDuration = app.Metrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
 	bs = backend.Filter(bs, request.Targets)
-	metrics, stats, errs := backend.Renders(ctx, bs, request, app.config.RenderReplicaMismatchConfig, logger)
-	app.prometheusMetrics.Renders.Add(float64(stats.DataPointCount))
-	app.prometheusMetrics.RenderMismatches.Add(float64(stats.MismatchCount))
-	app.prometheusMetrics.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
+	metrics, stats, errs := backend.Renders(ctx, bs, request, app.Config.RenderReplicaMismatchConfig, logger)
+	app.Metrics.Renders.Add(float64(stats.DataPointCount))
+	app.Metrics.RenderMismatches.Add(float64(stats.MismatchCount))
+	app.Metrics.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
 	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
-	// time in queue is converted to ms
-	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+	app.Metrics.TimeInQueue.WithLabelValues("render").Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
+		app.Metrics.RequestCancel.WithLabelValues(
 			"render", ctx.Err().Error(),
 		).Inc()
 		span.SetAttribute("error", true)
@@ -339,7 +337,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			Metrics.Errors.Add(1)
 		}
 
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
 		return
@@ -372,7 +370,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 			zap.Int64s("trace", request.Trace.Report()),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
 
@@ -384,7 +382,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "render").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "render").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -394,9 +392,9 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	}
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
+	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
 	if stats.MismatchCount > stats.FixedMismatchCount {
-		app.prometheusMetrics.RenderMismatchedResponses.Inc()
+		app.Metrics.RenderMismatchedResponses.Inc()
 	}
 
 	logger.Info("request served",
@@ -407,10 +405,10 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, logger *
 	)
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
-	ctx, cancel := context.WithTimeout(req.Context(), app.config.Timeouts.Global)
+	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
 
 	logger = logger.With(
@@ -421,7 +419,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	logger.Debug("request", zap.String("request", req.URL.RequestURI()))
 
 	Metrics.Requests.Add(1)
-	app.prometheusMetrics.Requests.Inc()
+	app.Metrics.Requests.Inc()
 	Metrics.InfoRequests.Add(1)
 
 	err := req.ParseForm()
@@ -434,7 +432,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -454,7 +452,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
 
@@ -483,7 +481,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -509,7 +507,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 			zap.Error(err),
 		)
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
 
@@ -518,7 +516,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 
 	if writeErr != nil {
 		Metrics.Errors.Add(1)
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
+		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -528,7 +526,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	}
 
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
+	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 
 	logger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
@@ -536,7 +534,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, logger *za
 	)
 }
 
-func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, logger *zap.Logger) {
+func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
@@ -546,7 +544,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, logger 
 	}
 
 	Metrics.Requests.Add(1)
-	app.prometheusMetrics.Requests.Inc()
+	app.Metrics.Requests.Inc()
 
 	fmt.Fprintf(w, "Ok\n")
 	logger.Info("lb request served",
@@ -554,7 +552,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, logger 
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
 	Metrics.Responses.Add(1)
-	app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK),
+	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK),
 		"lbcheck").Inc()
 }
 
@@ -564,11 +562,11 @@ func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backen
 		targetTlds = append(targetTlds, getTopLevelDomain(target))
 	}
 
-	bs := app.filterByTopLevelDomain(app.backends, targetTlds)
+	bs := app.filterByTopLevelDomain(app.Backends, targetTlds)
 	if len(bs) > 0 {
 		return bs
 	}
-	return app.backends
+	return app.Backends
 }
 
 func getTopLevelDomain(target string) string {
@@ -579,7 +577,7 @@ func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []
 	bs := make([]backend.Backend, 0)
 	allTLDBackends := make([]*backend.Backend, 0)
 
-	topLevelDomainCache, _ := app.topLevelDomainCache.Get("tlds")
+	topLevelDomainCache, _ := app.TopLevelDomainCache.Get("tlds")
 	tldCache := make(map[string][]*backend.Backend)
 	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
 		tldCache = x

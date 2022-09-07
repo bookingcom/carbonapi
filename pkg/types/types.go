@@ -76,8 +76,7 @@ func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
 	}
 }
 
-// TODO (grzkv): Move to a separate package
-
+// TODO: Remove.
 type Trace struct {
 	callCount     *int64
 	inMarshalNS   *int64
