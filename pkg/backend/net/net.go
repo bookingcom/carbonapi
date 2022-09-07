@@ -50,9 +50,10 @@ type Backend struct {
 	client         *http.Client
 	timeout        time.Duration
 	limiter        *prioritylimiter.Limiter
-	logger         *zap.Logger
 	cache          *expirecache.Cache
 	cacheExpirySec int32
+
+	logger         *zap.Logger
 }
 
 // Config configures an HTTP backend.
@@ -297,7 +298,7 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
 	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u)
+	contentType, resp, err := b.call(ctx, request.Trace, u, )
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound

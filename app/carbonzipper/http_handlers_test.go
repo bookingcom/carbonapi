@@ -11,14 +11,33 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	types "github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/dgryski/go-expirecache"
 	"go.uber.org/zap"
 )
+
+func newTestApp(config cfg.Zipper, logger *zap.Logger) (*App, error) {
+	bs, err := InitBackends(config, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize backends",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	app := App{
+		Config:              config,
+		Metrics:             NewPrometheusMetrics(config),
+		Backends:            bs,
+		TopLevelDomainCache: expirecache.New(0),
+	}
+	return &app, nil
+}
 
 // RENDER ENDPOINT
 
 func TestRenderNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
 	if err != nil {
 		t.Errorf("got error %v when making new app", err)
 	}
@@ -51,8 +70,8 @@ func TestRenderSingleBackend(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -93,8 +112,8 @@ func TestRenderSingleGenericBackendError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -123,8 +142,8 @@ func TestRenderSingleNotFoundBackendError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -153,8 +172,8 @@ func TestRenderMultipleBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -193,8 +212,8 @@ func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -243,8 +262,8 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -283,8 +302,8 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -338,8 +357,8 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -408,7 +427,7 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 
 func TestFindNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
 	if err != nil {
 		t.Errorf("got error %v when making new app", err)
 	}
@@ -443,8 +462,8 @@ func TestFindSingleBackend(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -490,8 +509,8 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
@@ -520,8 +539,8 @@ func TestFindSingleBackendWithNotfoundError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -550,8 +569,8 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -595,8 +614,8 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -645,8 +664,8 @@ func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
@@ -680,8 +699,8 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
@@ -715,8 +734,8 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -795,8 +814,8 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
@@ -843,7 +862,7 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 
 func TestInfoNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
 	if err != nil {
 		t.Errorf("got error %v when making new app", err)
 	}
@@ -874,8 +893,8 @@ func TestInfoSingleBackend(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
-	app.backends = []backend.Backend{
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
+	app.Backends = []backend.Backend{
 		mock.New(mock.Config{
 			Find:   find,
 			Info:   info,
@@ -933,7 +952,7 @@ func TestInfoSingleBackend(t *testing.T) {
 
 func TestLbCheckNoBackends(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
-	app, err := New(cfg.DefaultZipperConfig(), logger, "test")
+	app, err := newTestApp(cfg.DefaultZipperConfig(), logger)
 	if err != nil {
 		t.Fatalf("error creating the app %v", err)
 	}
