@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime"
 
-	zipper "github.com/bookingcom/carbonapi/app/carbonzipper"
+	"github.com/bookingcom/carbonapi/app/zipper"
 	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/dgryski/go-expirecache"
@@ -65,14 +65,15 @@ func main() {
 		zap.String("zipperConfig", fmt.Sprintf("%+v", config)),
 	)
 
-	bs, err := zipper.InitBackends(config, logger)
+	ms := zipper.NewPrometheusMetrics(config)
+	bs, err := zipper.InitBackends(config, ms, logger)
 	if err != nil {
 		logger.Fatal("failed to init backends", zap.Error(err))
 	}
 
 	app := &zipper.App{
 		Config:              config,
-		Metrics:             zipper.NewPrometheusMetrics(config),
+		Metrics:             ms,
 		Backends:            bs,
 		TopLevelDomainCache: expirecache.New(0),
 	}

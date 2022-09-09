@@ -328,17 +328,6 @@ func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]typ
 	switch contentType {
 	case "application/x-protobuf", "application/protobuf", "application/octet-stream":
 		metrics, err = carbonapi_v2.RenderDecoder(resp)
-
-		/* TODO(gmagnusson)
-		case "application/json":
-
-		case "application/pickle":
-
-		case "application/x-msgpack":
-
-		case "application/x-carbonapi-v3-pb":
-		*/
-
 	case "application/text":
 		return nil, errors.Errorf("Unexpected application/text response:\n%s", string(resp))
 
@@ -456,17 +445,6 @@ func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Mat
 	switch contentType {
 	case "application/x-protobuf", "application/protobuf", "application/octet-stream":
 		matches, err = carbonapi_v2.FindDecoder(resp)
-
-	/* TODO(gmagnusson)
-	case "application/json":
-
-	case "application/pickle":
-
-	case "application/x-msgpack":
-
-	case "application/x-carbonapi-v3-pb":
-	TODO (grzkv): This is rather hypothetical
-	*/
 	default:
 		return types.Matches{}, errors.Errorf("Unknown content type '%s'", contentType)
 	}
