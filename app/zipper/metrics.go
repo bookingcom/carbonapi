@@ -78,7 +78,11 @@ type PrometheusMetrics struct {
 	FindDurationExp           prometheus.Histogram
 	FindDurationLin           prometheus.Histogram
 	FindOutDuration           *prometheus.HistogramVec
-	TimeInQueue               *prometheus.HistogramVec
+	TimeInQueueSeconds        *prometheus.HistogramVec
+
+	TLDCacheProbeReqTotal  prometheus.Counter
+	TLDCacheProbeErrors    prometheus.Counter
+	TLDCacheHostsPerDomain prometheus.GaugeVec
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -208,16 +212,35 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 			},
 			[]string{"cluster"},
 		),
-		TimeInQueue: prometheus.NewHistogramVec(
+		TimeInQueueSeconds: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "time_in_queue_ms_exp",
-				Help: "Time a request spends in queue (exponential), ms",
+				Name: "time_in_queue",
+				Help: "Time a request spends in queue in seconds.",
 				Buckets: prometheus.ExponentialBuckets(
-					config.Monitoring.TimeInQueueExpHistogram.Start,
+					config.Monitoring.TimeInQueueExpHistogram.Start/1000, // converstion ms -> s
 					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
 					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
 			},
 			[]string{"request"},
+		),
+		TLDCacheProbeReqTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "tldcache_probe_req_total",
+				Help: "The total number of find requests sent by TLD cache as probes.",
+			},
+		),
+		TLDCacheProbeErrors: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "tldcache_probe_errors_total",
+				Help: "The total number of failed find requests sent by TLD cache as probes.",
+			},
+		),
+		TLDCacheHostsPerDomain: *prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "tldcache_num_hosts_per_domain",
+				Help: "The number of hosts per top-level domain.",
+			},
+			[]string{"domain"},
 		),
 	}
 }
@@ -316,7 +339,11 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.Metrics.FindDurationExp)
 	prometheus.MustRegister(app.Metrics.FindDurationLin)
 	prometheus.MustRegister(app.Metrics.FindOutDuration)
-	prometheus.MustRegister(app.Metrics.TimeInQueue)
+	prometheus.MustRegister(app.Metrics.TimeInQueueSeconds)
+
+	prometheus.MustRegister(app.Metrics.TLDCacheHostsPerDomain)
+	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
+	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
 
 	writeTimeout := app.Config.Timeouts.Global
 	if writeTimeout < 30*time.Second {

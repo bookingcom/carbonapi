@@ -21,7 +21,7 @@ func newTestApp() (*App, *PrometheusMetrics, *zap.Logger) {
 
 	ms := NewPrometheusMetrics(config)
 
-	bs, err := InitBackends(config, lg)
+	bs, err := InitBackends(config, ms, lg)
 	if err != nil {
 		lg.Fatal("Failed to initialize backends", zap.Error(err))
 	}

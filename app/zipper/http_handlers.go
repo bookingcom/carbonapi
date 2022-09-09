@@ -301,7 +301,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	app.Metrics.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
 	err = errorsFanIn(errs, len(bs))
 	span.SetAttribute("graphite.metrics", len(metrics))
-	app.Metrics.TimeInQueue.WithLabelValues("render").Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded

@@ -29,13 +29,13 @@ type App struct {
 }
 
 // Start start launches the goroutines starts the app execution
-func (app *App) Start(logger *zap.Logger) {
+func (app *App) Start(lg *zap.Logger) {
 	timeBuckets = make([]int64, app.Config.Buckets+1)
 	expTimeBuckets = make([]int64, app.Config.Buckets+1)
 
 	httputil.PublishTrackedConnections("httptrack")
 
-	handler := initHandlers(app, app.Metrics, logger)
+	handler := initHandlers(app, app.Metrics, lg)
 
 	if app.Config.Graphite.Pattern == "" {
 		app.Config.Graphite.Pattern = "{prefix}.{fqdn}"
@@ -50,10 +50,8 @@ func (app *App) Start(logger *zap.Logger) {
 		initGraphite(app)
 	}
 
-	go app.probeTopLevelDomains()
 	metricsServer := metricsServer(app)
-
-	gracehttp.SetLogger(zap.NewStdLog(logger))
+	gracehttp.SetLogger(zap.NewStdLog(lg))
 	err := gracehttp.Serve(&http.Server{
 		Addr:         app.Config.Listen,
 		Handler:      handler,
@@ -64,11 +62,14 @@ func (app *App) Start(logger *zap.Logger) {
 	if err != nil {
 		log.Fatal("error during gracehttp.Serve()", zap.Error(err))
 	}
+
+	go app.probeTopLevelDomains(app.Metrics)
+
 }
 
 // InitBackends inits backends.
 // TODO: Move to where the main func is.
-func InitBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, error) {
+func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) ([]backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -97,6 +98,7 @@ func InitBackends(config cfg.Zipper, logger *zap.Logger) ([]backend.Backend, err
 			Timeout:            config.Timeouts.AfterStarted,
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
+			QHist:              ms.TimeInQueueSeconds,
 			Logger:             logger,
 		}
 		if host.Grpc != "" {

@@ -334,7 +334,7 @@ type MonitoringConfig struct {
 	FindDurationLinSimple   HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
 	FindDurationLinComplex  HistogramConfig `yaml:"findDurationComplexLinHistogram"`
 	FindOutDuration         HistogramConfig `yaml:"findDurationByBackend"`
-	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"`
+	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"` // TODO Change to seconds.
 	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
 }
 
