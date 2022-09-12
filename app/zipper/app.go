@@ -50,6 +50,8 @@ func (app *App) Start(lg *zap.Logger) {
 		initGraphite(app)
 	}
 
+	go app.probeTopLevelDomains(app.Metrics)
+
 	metricsServer := metricsServer(app)
 	gracehttp.SetLogger(zap.NewStdLog(lg))
 	err := gracehttp.Serve(&http.Server{
@@ -62,9 +64,6 @@ func (app *App) Start(lg *zap.Logger) {
 	if err != nil {
 		log.Fatal("error during gracehttp.Serve()", zap.Error(err))
 	}
-
-	go app.probeTopLevelDomains(app.Metrics)
-
 }
 
 // InitBackends inits backends.
