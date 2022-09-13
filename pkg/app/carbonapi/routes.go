@@ -2,13 +2,14 @@ package carbonapi
 
 import (
 	"expvar"
-	"github.com/bookingcom/carbonapi/pkg/handlerlog"
-	"go.uber.org/zap"
 	"net/http"
 	"net/http/pprof"
 	"strings"
 
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
+	"go.uber.org/zap"
+
+	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/dgryski/httputil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"

@@ -18,7 +18,7 @@ package backend
 import (
 	"context"
 
-	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/bookingcom/carbonapi/pkg/types"

@@ -189,7 +189,7 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
 	for _, m := range rm.instances {
 		wg.Add(1)
 		go func(k_ string, val_ []byte, expire_ int32, m_ Cache) {
-			m_.Set(&memcache.Item{
+			_ = m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
 				Expiration: expire_,

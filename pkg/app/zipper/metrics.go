@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/mstats"
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"github.com/bookingcom/carbonapi/pkg/mstats"
+	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 )

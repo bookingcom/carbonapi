@@ -8,8 +8,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bookingcom/carbonapi/app/carbonapi"
-	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/pkg/app/carbonapi"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"go.uber.org/zap"
 )
 

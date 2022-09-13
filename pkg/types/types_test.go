@@ -1,11 +1,12 @@
 package types
 
 import (
-	"github.com/bookingcom/carbonapi/cfg"
-	"go.uber.org/zap"
 	"math"
 	"sort"
 	"testing"
+
+	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"go.uber.org/zap"
 )
 
 func TestMergeInfos(t *testing.T) {
