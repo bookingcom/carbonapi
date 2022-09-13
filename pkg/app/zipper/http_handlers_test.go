@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/dgryski/go-expirecache"
 	"go.uber.org/zap"

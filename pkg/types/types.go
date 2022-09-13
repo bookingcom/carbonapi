@@ -10,11 +10,12 @@ package types
 
 import (
 	"errors"
-	"github.com/bookingcom/carbonapi/cfg"
 	"math"
 	"sort"
 	"sync/atomic"
 	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"

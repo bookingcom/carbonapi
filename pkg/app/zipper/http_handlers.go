@@ -26,7 +26,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/util"
 	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
 

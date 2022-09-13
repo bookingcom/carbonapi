@@ -5,7 +5,7 @@
 package trace
 
 import (
-	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 
 	"log"
 	"net/http"

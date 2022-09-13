@@ -7,8 +7,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/bookingcom/carbonapi/app/zipper"
-	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/dgryski/go-expirecache"
 	"github.com/facebookgo/pidfile"

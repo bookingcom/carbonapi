@@ -9,10 +9,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bookingcom/carbonapi/blocker"
-	"github.com/bookingcom/carbonapi/cache"
-	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
+	"github.com/bookingcom/carbonapi/pkg/blocker"
+	"github.com/bookingcom/carbonapi/pkg/cache"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	types "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"go.uber.org/zap"

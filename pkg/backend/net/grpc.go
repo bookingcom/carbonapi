@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/util"
 )
 
 // GrpcBackend represents a host that accepts requests for metrics over gRPC and HTTP.

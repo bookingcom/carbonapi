@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/bookingcom/carbonapi/cfg"
-	"go.uber.org/zap"
 	"testing"
+
+	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"github.com/bookingcom/carbonapi/pkg/types"

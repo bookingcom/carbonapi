@@ -3,7 +3,7 @@ package cfg
 import (
 	"io"
 
-	"github.com/bookingcom/carbonapi/pathcache"
+	"github.com/bookingcom/carbonapi/pkg/pathcache"
 )
 
 // Zipper is the zipper config

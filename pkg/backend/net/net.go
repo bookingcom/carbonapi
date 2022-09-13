@@ -17,7 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/util"
 
 	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"

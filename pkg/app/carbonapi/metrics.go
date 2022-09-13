@@ -3,7 +3,7 @@ package carbonapi
 import (
 	"expvar"
 
-	"github.com/bookingcom/carbonapi/cfg"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -256,7 +256,6 @@ var apiMetrics = struct {
 	FindCacheHits:       expvar.NewInt("find_cache_hits"),
 	FindCacheMisses:     expvar.NewInt("find_cache_misses"),
 	FindCacheOverheadNS: expvar.NewInt("find_cache_overhead_ns"),
-
 }
 
 // TODO (grzkv): Move to Prometheus, as these are not runtime metrics.

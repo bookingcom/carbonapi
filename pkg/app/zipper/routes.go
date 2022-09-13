@@ -7,14 +7,14 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/dgryski/httputil"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
 )
 
-func initHandlers(app *App,  ms *PrometheusMetrics, lg *zap.Logger) http.Handler {
+func initHandlers(app *App, ms *PrometheusMetrics, lg *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.Use(util.UUIDHandler)

@@ -16,7 +16,7 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/bookingcom/carbonapi/intervalset"
+	"github.com/bookingcom/carbonapi/pkg/intervalset"
 	"github.com/bookingcom/carbonapi/pkg/types"
 
 	pickle "github.com/lomik/og-rek"

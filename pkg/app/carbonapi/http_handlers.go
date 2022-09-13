@@ -15,19 +15,19 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/bookingcom/carbonapi/carbonapipb"
-	"github.com/bookingcom/carbonapi/date"
 	"github.com/bookingcom/carbonapi/expr"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
+	"github.com/bookingcom/carbonapi/pkg/date"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
-	"github.com/bookingcom/carbonapi/util"
+	"github.com/bookingcom/carbonapi/pkg/util"
 
 	"errors"
 

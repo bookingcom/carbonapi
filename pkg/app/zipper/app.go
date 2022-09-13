@@ -11,8 +11,8 @@ import (
 
 	"github.com/dgryski/go-expirecache"
 
-	"github.com/bookingcom/carbonapi/cfg"
 	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/cfg"
 
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"

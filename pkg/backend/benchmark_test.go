@@ -3,14 +3,15 @@ package backend
 import (
 	"context"
 	"fmt"
-	"github.com/bookingcom/carbonapi/cfg"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"go.uber.org/zap"
 
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/types"

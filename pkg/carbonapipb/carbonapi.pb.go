@@ -2,12 +2,13 @@ package carbonapipb
 
 import (
 	"encoding/json"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 
-	"github.com/bookingcom/carbonapi/cfg"
-	"github.com/bookingcom/carbonapi/util"
+	"go.uber.org/zap"
+
+	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"github.com/bookingcom/carbonapi/pkg/util"
 )
 
 // TODO (grzkv) All this seems to be in a completely wron package
