@@ -42,6 +42,10 @@ lint:
 test:
 	$(PKGCONF) go test ./... -race
 
+.PHONY: test-e2e
+test-e2e:
+	./tests/system_test.sh
+
 .PHONY: clean
 clean:
 	rm -f carbonapi carbonzipper
