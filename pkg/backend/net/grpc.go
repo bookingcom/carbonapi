@@ -75,13 +75,9 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
-	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
-	if err != nil {
-		return nil, err
-	}
 
 	t1 := time.Now()
-	err = gb.enter(ctx)
+	err := gb.enter(ctx)
 	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return nil, err
@@ -95,6 +91,11 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 			)
 		}
 	}()
+
+	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	if err != nil {
+		return nil, err
+	}
 
 	var fetchedMetrics []types.Metric
 	for {
