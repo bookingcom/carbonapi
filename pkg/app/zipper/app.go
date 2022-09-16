@@ -98,6 +98,7 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			Limit:              config.ConcurrencyLimitPerServer,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			QHist:              ms.TimeInQueueSeconds,
+			Responses:          ms.BackendResponses,
 			Logger:             logger,
 		}
 		if host.Grpc != "" {

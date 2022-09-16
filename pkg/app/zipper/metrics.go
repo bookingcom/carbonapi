@@ -83,6 +83,9 @@ type PrometheusMetrics struct {
 	TLDCacheProbeReqTotal  prometheus.Counter
 	TLDCacheProbeErrors    prometheus.Counter
 	TLDCacheHostsPerDomain prometheus.GaugeVec
+
+	PathCacheFilteredRequests prometheus.Counter
+	BackendResponses          *prometheus.CounterVec
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -242,6 +245,19 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 			},
 			[]string{"domain"},
 		),
+		PathCacheFilteredRequests: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "path_cache_filtered_requests_total",
+				Help: "The total number of requests with successful backend filter by path caches",
+			},
+		),
+		BackendResponses: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_responses_total",
+				Help: "Count of backend responses, partitioned by return code and handler",
+			},
+			[]string{"code", "handler"},
+		),
 	}
 }
 
@@ -344,6 +360,9 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.Metrics.TLDCacheHostsPerDomain)
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
+
+	prometheus.MustRegister(app.Metrics.PathCacheFilteredRequests)
+	prometheus.MustRegister(app.Metrics.BackendResponses)
 
 	writeTimeout := app.Config.Timeouts.Global
 	if writeTimeout < 30*time.Second {

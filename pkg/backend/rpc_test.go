@@ -23,7 +23,10 @@ func TestFilter(t *testing.T) {
 		}),
 	}
 
-	got := Filter(backends, nil)
+	got, filtered := Filter(backends, nil)
+	if !filtered {
+		t.Errorf("Expected to be filtered, but remained unfiltered")
+	}
 	if len(got) != 1 {
 		t.Errorf("Expected 1 backend, got %d", len(got))
 	}
@@ -36,7 +39,10 @@ func TestFilterNoneContains(t *testing.T) {
 		}),
 	}
 
-	got := Filter(backends, nil)
+	got, filtered := Filter(backends, nil)
+	if filtered {
+		t.Errorf("Expected to remain unfiltered, but filtered")
+	}
 	if len(got) != 1 {
 		t.Errorf("Expected 1 backend, got %d", len(got))
 	}

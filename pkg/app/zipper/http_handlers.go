@@ -80,7 +80,11 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	)
 	request := types.NewFindRequest(originalQuery)
 	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
-	bs = backend.Filter(bs, []string{originalQuery})
+	var filteredByPathCache bool
+	bs, filteredByPathCache = backend.Filter(bs, []string{originalQuery})
+	if filteredByPathCache {
+		ms.PathCacheFilteredRequests.Inc()
+	}
 	metrics, errs := backend.Finds(ctx, bs, request, app.Metrics.FindOutDuration)
 	err := errorsFanIn(errs, len(bs))
 
@@ -294,7 +298,11 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	request.Trace.OutDuration = app.Metrics.RenderOutDurationExp
 	bs := app.filterBackendByTopLevelDomain(request.Targets)
-	bs = backend.Filter(bs, request.Targets)
+	var filteredByPathCache bool
+	bs, filteredByPathCache = backend.Filter(bs, request.Targets)
+	if filteredByPathCache {
+		ms.PathCacheFilteredRequests.Inc()
+	}
 	metrics, stats, errs := backend.Renders(ctx, bs, request, app.Config.RenderReplicaMismatchConfig, logger)
 	app.Metrics.Renders.Add(float64(stats.DataPointCount))
 	app.Metrics.RenderMismatches.Add(float64(stats.MismatchCount))
@@ -457,7 +465,11 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	request := types.NewInfoRequest(target)
 	bs := app.filterBackendByTopLevelDomain([]string{target})
-	bs = backend.Filter(bs, []string{target})
+	var filteredByPathCache bool
+	bs, filteredByPathCache = backend.Filter(bs, []string{target})
+	if filteredByPathCache {
+		ms.PathCacheFilteredRequests.Inc()
+	}
 	infos, errs := backend.Infos(ctx, bs, request)
 	err = errorsFanIn(errs, len(bs))
 	if err != nil {

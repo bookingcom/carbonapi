@@ -3,6 +3,7 @@ package net
 import (
 	"context"
 	"io"
+	"strconv"
 	"time"
 
 	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
@@ -104,6 +105,7 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 			break
 		}
 		if err != nil {
+			gb.countResponse(err, "render")
 			if code := status.Code(err); code == codes.NotFound {
 				return nil, types.ErrMetricsNotFound
 			}
@@ -118,6 +120,7 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 			IsAbsent:  fetchResponse.IsAbsent,
 		})
 	}
+	gb.countResponse(nil, "render")
 
 	for _, metric := range fetchedMetrics {
 		gb.cache.Set(metric.Name, struct{}{}, 0, gb.cacheExpirySec)
@@ -155,6 +158,7 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 	}()
 
 	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	gb.countResponse(err, "find")
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -213,6 +217,7 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 	}()
 
 	resp, err := gb.carbonV2Client.Info(ctx, infoRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	gb.countResponse(err, "info")
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
 			return nil, types.ErrInfoNotFound
@@ -237,4 +242,19 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 			Retentions:        rets,
 		},
 	}, nil
+}
+
+func (gb *GrpcBackend) countResponse(err error, request string) {
+	if gb.responses == nil {
+		return
+	}
+	if err == nil {
+		gb.responses.WithLabelValues(strconv.Itoa(int(codes.OK)), request).Inc()
+	} else {
+		code := status.Code(err)
+		if code == codes.Unknown {
+			return
+		}
+		gb.responses.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
+	}
 }

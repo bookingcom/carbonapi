@@ -53,8 +53,9 @@ type Backend struct {
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
-	qHist  *prometheus.HistogramVec // note: we do not use zipper's metrics to separate from capi
-	logger *zap.Logger
+	qHist     *prometheus.HistogramVec // note: we do not use zipper's metrics to separate from capi
+	responses *prometheus.CounterVec
+	logger    *zap.Logger
 }
 
 // Config configures an HTTP backend.
@@ -77,6 +78,7 @@ type Config struct {
 	ActiveRequests     prometheus.Gauge
 	WaitingRequests    prometheus.Gauge
 	QHist              *prometheus.HistogramVec
+	Responses          *prometheus.CounterVec
 }
 
 var fmtProto = []string{"protobuf"}
@@ -124,6 +126,7 @@ func New(cfg Config) (*Backend, error) {
 	}
 
 	b.qHist = cfg.QHist
+	b.responses = cfg.Responses
 
 	if cfg.Logger != nil {
 		b.logger = cfg.Logger
@@ -279,7 +282,18 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, reques
 		return "", nil, err
 	}
 
-	return b.do(trace, req)
+	contentType, body, err := b.do(trace, req)
+	if b.responses == nil {
+		return contentType, body, err
+	}
+	if err != nil {
+		if code, ok := err.(ErrHTTPCode); ok {
+			b.responses.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
+		}
+	} else {
+		b.responses.WithLabelValues(strconv.Itoa(http.StatusOK), request).Inc()
+	}
+	return contentType, body, err
 }
 
 // TODO(gmagnusson): Should Contains become something different, where instead
