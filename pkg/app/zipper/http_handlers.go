@@ -154,7 +154,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	if err != nil {
 		http.Error(w, "error marshaling data", http.StatusInternalServerError)
-		logger.Error("render failed",
+		logger.Error("find failed",
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.String("reason", "error marshaling data"),
 			zap.Duration("runtime_seconds", time.Since(t0)),
