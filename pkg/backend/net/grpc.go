@@ -8,6 +8,7 @@ import (
 
 	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -77,11 +78,16 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	t1 := time.Now()
+	var t *prometheus.Timer
+	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
+		t = prometheus.NewTimer(gb.qHist.WithLabelValues("render"))
+	}
 	err := gb.enter(ctx)
-	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return nil, err
+	}
+	if t != nil {
+		t.ObserveDuration()
 	}
 	defer func() {
 		if limiterErr := gb.leave(); limiterErr != nil {
@@ -141,11 +147,16 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	t1 := time.Now()
+	var t *prometheus.Timer
+	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
+		t = prometheus.NewTimer(gb.qHist.WithLabelValues("find"))
+	}
 	err := gb.enter(ctx)
-	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return types.Matches{}, err
+	}
+	if t != nil {
+		t.ObserveDuration()
 	}
 	defer func() {
 		if limiterErr := gb.leave(); limiterErr != nil {
@@ -200,11 +211,16 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	t1 := time.Now()
+	var t *prometheus.Timer
+	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
+		t = prometheus.NewTimer(gb.qHist.WithLabelValues("info"))
+	}
 	err := gb.enter(ctx)
-	request.Trace.AddLimiter(t1)
 	if err != nil {
 		return nil, err
+	}
+	if t != nil {
+		t.ObserveDuration()
 	}
 	defer func() {
 		if limiterErr := gb.leave(); limiterErr != nil {
