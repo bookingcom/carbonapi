@@ -166,11 +166,11 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest, d
 }
 
 // Filter filters the given backends by whether they Contain() the given targets.
-func Filter(backends []Backend, targets []string) []Backend {
+func Filter(backends []Backend, targets []string) ([]Backend, bool) {
 	if bs := filter(backends, targets); len(bs) > 0 {
-		return bs
+		return bs, true
 	}
-	return backends
+	return backends, false
 }
 
 func filter(backends []Backend, targets []string) []Backend {

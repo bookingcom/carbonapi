@@ -1,5 +1,5 @@
 run:
-  deadline: 1m
+  timeout: 2m
   tests: true
   build-tags: [ cairo ]
   skip-dirs: []
