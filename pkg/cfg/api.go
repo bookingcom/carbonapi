@@ -84,13 +84,14 @@ type API struct {
 
 	// TODO (grzkv): Move backends list to a single backend here
 
-	ResolveGlobs            int           `yaml:"resolveGlobs"`
-	Cache                   CacheConfig   `yaml:"cache"`
-	TimezoneString          string        `yaml:"tz"`
-	PidFile                 string        `yaml:"pidFile"`
-	BlockHeaderFile         string        `yaml:"blockHeaderFile"`
-	BlockHeaderUpdatePeriod time.Duration `yaml:"blockHeaderUpdatePeriod"`
-	HeadersToLog            []string      `yaml:"headersToLog"`
+	ResolveGlobs                     int           `yaml:"resolveGlobs"`
+	EnableCacheForRenderResolveGlobs bool          `yaml:"enableCacheForRenderResolveGlobs"`
+	Cache                            CacheConfig   `yaml:"cache"`
+	TimezoneString                   string        `yaml:"tz"`
+	PidFile                          string        `yaml:"pidFile"`
+	BlockHeaderFile                  string        `yaml:"blockHeaderFile"`
+	BlockHeaderUpdatePeriod          time.Duration `yaml:"blockHeaderUpdatePeriod"`
+	HeadersToLog                     []string      `yaml:"headersToLog"`
 
 	UnicodeRangeTables        []string          `yaml:"unicodeRangeTables"`
 	IgnoreClientTimeout       bool              `yaml:"ignoreClientTimeout"`

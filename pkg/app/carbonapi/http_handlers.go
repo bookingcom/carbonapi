@@ -412,7 +412,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 
 		// This _sometimes_ sends a *find* request
-		renderRequests, err := app.getRenderRequests(ctx, m, useCache, toLog)
+		useCacheForRenderResolveGlobs := useCache && app.config.EnableCacheForRenderResolveGlobs
+		renderRequests, err := app.getRenderRequests(ctx, m, useCacheForRenderResolveGlobs, toLog)
 		if err != nil {
 			metricErrs = append(metricErrs, err)
 			continue

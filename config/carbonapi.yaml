@@ -61,6 +61,10 @@ resolveGlobs: 100
 # For some backends you might want to set it to 0
 # If you noticing carbonzipper OOM then this is a parameter to tune.
 
+# Indicates if carbonapi should use cache when sending preflight find requests to resolve the globs.
+# Note that useCache parameter should be sent in the request for this config to be taken into account.
+enableCacheForRenderResolveGlobs: false
+
 # functionsConfigs:
 #     graphiteWeb: ./graphiteWeb.example.yaml
 
