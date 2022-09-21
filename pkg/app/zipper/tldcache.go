@@ -23,7 +23,7 @@ func (app *App) probeTopLevelDomains(ms *PrometheusMetrics) {
 		for _, prefix := range sortedPrefixes {
 			prefix = trimPrefix(prefix)
 			bs := getBackendsForPrefix(prefix, app.Backends, topLevelDomainCache)
-			for i := 0; i < len(bs); i++ {
+			for i := range bs {
 				topLevelDomains, err := getTopLevelDomains(*bs[i], prefix)
 				ms.TLDCacheProbeReqTotal.Inc()
 				if err != nil {
@@ -53,15 +53,13 @@ type tldPrefix struct {
 func sortedByNsCount(prefixes []string) []string {
 	countedPrefixes := make([]tldPrefix, len(prefixes))
 	for i, prefix := range prefixes {
-		if prefix == "" {
-			countedPrefixes[i] = tldPrefix{
-				prefix:  prefix,
-				nsCount: 0,
-			}
+		nsCount := 0
+		if prefix != "" {
+			nsCount = strings.Count(prefix, ".") + 1
 		}
 		countedPrefixes[i] = tldPrefix{
 			prefix:  prefix,
-			nsCount: strings.Count(prefix, ".") + 1,
+			nsCount: nsCount,
 		}
 	}
 	sort.Slice(countedPrefixes, func(i, j int) bool {
@@ -74,23 +72,21 @@ func sortedByNsCount(prefixes []string) []string {
 	return sortedPrefixes
 }
 
+// getBackendsForPrefix returns the backends that need to be queried in order to populate TLD cache for the prefix.
+// it reuses already fetched tlds to find out about the info. if no info is there, it returns all the backends.
 func getBackendsForPrefix(prefix string, backends []backend.Backend, tldCache map[string][]*backend.Backend) []*backend.Backend {
-	var bs []*backend.Backend
-	for {
-		if prefixBackends, ok := tldCache[prefix]; ok {
-			bs = prefixBackends
-			break
+	segments := strings.Split(prefix, ".")
+	for i := len(segments); i > 0; i-- {
+		p := strings.Join(segments[:i], ".")
+		if filteredBackends, ok := tldCache[p]; ok {
+			return filteredBackends
 		}
-		lastDotIndex := strings.LastIndex(prefix, ".")
-		if lastDotIndex == -1 {
-			for i := range backends {
-				bs = append(bs, &backends[i])
-			}
-			break
-		}
-		prefix = trimPrefix(prefix[:lastDotIndex])
 	}
-	return bs
+	allBackends := make([]*backend.Backend, len(backends))
+	for i := range backends {
+		allBackends[i] = &backends[i]
+	}
+	return allBackends
 }
 
 func trimPrefix(prefix string) string {
