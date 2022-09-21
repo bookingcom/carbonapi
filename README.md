@@ -1,4 +1,4 @@
-# Carbonapi
+# Carbonapi: high-performance Graphite front-end
 
 [![Build Status](https://travis-ci.com/bookingcom/carbonapi.svg?branch=master)](https://travis-ci.com/bookingcom/carbonapi)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bookingcom/carbonapi)](https://goreportcard.com/report/github.com/bookingcom/carbonapi)
@@ -69,8 +69,7 @@ curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
 
 ## Requirements
 
-We officially support `go 1.18`. Booking.com builds its binaries
-with the latest stable release of Go at any time.
+We officially support `go 1.18`.
 
 ## OSX Build Notes
 
@@ -92,26 +91,6 @@ Xquartz is a required dependency for cairo.
 ### go-carbon
 
 The main supported backend is [go-carbon](https://github.com/go-graphite/go-carbon) Graphite store.
-
-### Clickhouse
-
-Clickhouse support is experimental.
-
-The pair `carbonapi` and `carbonzipper` works with [Clickhouse](https://clickhouse.yandex) via [graphite-clickhouse](https://github.com/lomik/graphite-clickhouse).
-
-The access chain then looks like this:
-
-`carbonapi` -> `zipper` -> `graphite-clickhouse` -> `clickhouse`
-
-(this presumes the data was written into Clickhouse with [carbon-clickhouse](https://github.com/lomik/carbon-clickhouse)).
-
-Run
-
-```
-docker-compose --file docker-compose-clickhouse.yaml up
-```
-
-to get the setup up and running in several Docker containers.
 
 ## Acknowledgement and history
 
