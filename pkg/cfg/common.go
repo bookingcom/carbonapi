@@ -177,9 +177,10 @@ type Common struct {
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
 
-	ExpireDelaySec             int32 `yaml:"expireDelaySec"`
-	InternalRoutingCache       int32 `yaml:"internalRoutingCache"`
-	GraphiteWeb09Compatibility bool  `yaml:"graphite09compat"`
+	ExpireDelaySec             int32    `yaml:"expireDelaySec"`
+	InternalRoutingCache       int32    `yaml:"internalRoutingCache"`
+	TLDCacheExtraPrefixes      []string `yaml:"tldCacheExtraPrefixes"`
+	GraphiteWeb09Compatibility bool     `yaml:"graphite09compat"`
 
 	Buckets      int            `yaml:"buckets"`
 	Graphite     GraphiteConfig `yaml:"graphite"`

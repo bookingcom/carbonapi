@@ -39,6 +39,17 @@ maxIdleConnsPerHost: 100
 # Default: 600 (10 minutes)
 expireDelaySec: 120
 
+# In addition to first namespace of metrics as TLDs, zipper tries
+# to query for namespaces of these prefixes. This is helpful if some metrics
+# are not divided in the backends by only the first namespace.
+# e.g. by configuring:
+#
+# tldCacheExtraPrefixes:
+#   - carbon
+#
+# zipper sends 'carbon.*' find query to the 'carbon' tld backends, and extracts 'carbon.agents'
+# and any other trailing namespaces of 'carbon' from them.
+
 # "http://host:port" array of instances of carbonserver stores
 # This is the *ONLY* config element that MUST be specified.
 backendsByDC:
