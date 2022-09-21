@@ -965,3 +965,39 @@ func getMetricGlobResponse(metric string) types.Matches {
 
 	return types.Matches{}
 }
+
+func TestGetTopLevelDomain(t *testing.T) {
+	var tt = []struct {
+		target   string
+		prefixes []string
+		outTLD   string
+	}{
+		{
+			target:   "a.b.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a.b.f",
+		},
+		{
+			target:   "a.b.c.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a.b.c.g",
+		},
+		{
+			target:   "a.h.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a",
+		},
+		{
+			target:   "b.h.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "b.h",
+		},
+	}
+
+	for _, tst := range tt {
+		tld := getTopLevelDomain(tst.target, tst.prefixes)
+		if tld != tst.outTLD {
+			t.Fatalf("unexpected tld: expected %+v, got %+v", tst.outTLD, tld)
+		}
+	}
+}

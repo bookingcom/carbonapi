@@ -570,7 +570,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *Pro
 func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backend {
 	targetTlds := make([]string, 0, len(targets))
 	for _, target := range targets {
-		targetTlds = append(targetTlds, getTopLevelDomain(target))
+		targetTlds = append(targetTlds, getTopLevelDomain(target, app.Config.TLDCacheExtraPrefixes))
 	}
 
 	bs := app.filterByTopLevelDomain(app.Backends, targetTlds)
@@ -580,8 +580,19 @@ func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backen
 	return app.Backends
 }
 
-func getTopLevelDomain(target string) string {
-	return strings.SplitN(target, ".", 2)[0]
+func getTopLevelDomain(target string, extraPrefixes []string) string {
+	tld := strings.SplitN(target, ".", 2)[0]
+	for _, prefix := range extraPrefixes {
+		if strings.HasPrefix(target, prefix) {
+			nsCount := strings.Count(prefix, ".") + 1
+			splitTarget := strings.SplitN(target, ".", nsCount+2)  // prefix + ns | rest
+			foundTLD := strings.Join(splitTarget[:nsCount+1], ".") // prefix + ns
+			if len(foundTLD) > len(tld) {
+				tld = foundTLD
+			}
+		}
+	}
+	return tld
 }
 
 func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []string) []backend.Backend {
