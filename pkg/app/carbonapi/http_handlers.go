@@ -175,7 +175,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
 	}()
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
@@ -199,16 +198,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	}
 
 	if form.useCache {
-		tc := time.Now()
 		response, cacheErr := app.queryCache.Get(form.cacheKey)
-		td := time.Since(tc).Nanoseconds()
-		apiMetrics.RenderCacheOverheadNS.Add(td)
 
 		toLog.CarbonzipperResponseSizeBytes = 0
 		toLog.CarbonapiResponseSizeBytes = int64(len(response))
 
 		if cacheErr == nil {
-			apiMetrics.RequestCacheHits.Add(1)
 			writeErr := writeResponse(ctx, w, response, form.format, form.jsonp)
 			if writeErr != nil {
 				logLevel = zapcore.WarnLevel
@@ -218,7 +213,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			toLog.HttpCode = http.StatusOK
 			return
 		}
-		apiMetrics.RequestCacheMisses.Add(1)
 	}
 	span.SetAttribute("from_cache", false)
 
@@ -325,12 +319,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		toLog.HttpCode = http.StatusOK
 	}
 	if len(results) != 0 {
-		tc := time.Now()
 		// TODO (grzkv): Timeout is passed as "expire" argument.
 		// Looks like things are mixed.
 		app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
-		td := time.Since(tc).Nanoseconds()
-		apiMetrics.RenderCacheOverheadNS.Add(td)
 	}
 
 	if partiallyFailed {
@@ -517,7 +508,6 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	path string, from, until int32, toLog *carbonapipb.AccessLogDetails) {
 
-	apiMetrics.RenderRequests.Add(1)
 	atomic.AddInt64(&toLog.ZipperRequests, 1)
 
 	request := dataTypes.NewRenderRequest([]string{path}, from, until)
@@ -710,10 +700,7 @@ func (app *App) sendGlobs(glob dataTypes.Matches) bool {
 }
 
 func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) {
-	tc := time.Now()
 	blob, err := app.findCache.Get(metric)
-	td := time.Since(tc).Nanoseconds()
-	apiMetrics.FindCacheOverheadNS.Add(td)
 
 	if err != nil {
 		return dataTypes.Matches{}, err
@@ -723,8 +710,6 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	if err != nil {
 		return matches, err
 	}
-
-	apiMetrics.FindCacheHits.Add(1)
 
 	return matches, nil
 }
@@ -737,8 +722,6 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 		}
 	}
 
-	apiMetrics.FindCacheMisses.Add(1)
-	apiMetrics.FindRequests.Add(1)
 	accessLogDetails.ZipperRequests++
 
 	request := dataTypes.NewFindRequest(metric)
@@ -750,10 +733,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
-		tc := time.Now()
 		app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
-		td := time.Since(tc).Nanoseconds()
-		apiMetrics.FindCacheOverheadNS.Add(td)
 	}
 
 	return matches, false, nil
@@ -797,7 +777,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	span := trace.SpanFromContext(ctx)
 	uuid := util.GetUUID(ctx)
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
 	format := r.FormValue("format")
@@ -859,12 +838,10 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 			app.prometheusMetrics.FindNotFound.Inc()
 		case errors.Is(err, context.DeadlineExceeded):
 			writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", "", &toLog, span)
-			apiMetrics.Errors.Add(1)
 			logLevel = zapcore.ErrorLevel
 			return
 		default:
 			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog, span)
-			apiMetrics.Errors.Add(1)
 			logLevel = zapcore.ErrorLevel
 			return
 		}
@@ -1023,7 +1000,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 
 	format := r.FormValue("format")
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
 	if format == "" {
@@ -1100,7 +1076,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	logLevel := zap.InfoLevel
@@ -1121,7 +1096,6 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *z
 func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
 	toLog.HttpCode = http.StatusOK
@@ -1158,7 +1132,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
 
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
@@ -1276,8 +1249,6 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
-	apiMetrics.Requests.Add(1)
-
 	toLog := carbonapipb.NewAccessLogDetails(r, "blockHeaders", &app.config)
 	logLevel := zap.InfoLevel
 	defer func() {
@@ -1310,7 +1281,6 @@ func (app *App) blockHeaders(w http.ResponseWriter, r *http.Request, logger *zap
 // from scratch
 func (app *App) unblockHeaders(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
-	apiMetrics.Requests.Add(1)
 	toLog := carbonapipb.NewAccessLogDetails(r, "unblockHeaders", &app.config)
 	logLevel := zap.InfoLevel
 	defer func() {
@@ -1374,7 +1344,6 @@ supported requests:
 
 func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "usage", &app.config)
 	logLevel := zap.InfoLevel
@@ -1393,19 +1362,15 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
 func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
-		apiMetrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "tags", "false").Inc()
 	}()
 }
 
 func (app *App) debugVersionHandler(w http.ResponseWriter, r *http.Request) {
-	apiMetrics.Requests.Add(1)
 	app.prometheusMetrics.Requests.Inc()
 	defer func() {
-		apiMetrics.Responses.Add(1)
 		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "debugversion", "false").Inc()
 	}()
 

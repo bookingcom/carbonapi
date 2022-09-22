@@ -2,14 +2,11 @@ package cfg
 
 import (
 	"io"
-
-	"github.com/bookingcom/carbonapi/pkg/pathcache"
 )
 
 // Zipper is the zipper config
 type Zipper struct {
-	Common    `yaml:",inline"`
-	PathCache pathcache.PathCache
+	Common `yaml:",inline"`
 }
 
 // ParseZipperConfig reads the zipper config from a supplied reader
@@ -30,7 +27,6 @@ func DefaultZipperConfig() Zipper {
 
 func fromCommon(c Common) Zipper {
 	return Zipper{
-		Common:    c,
-		PathCache: pathcache.NewPathCache(c.ExpireDelaySec),
+		Common: c,
 	}
 }

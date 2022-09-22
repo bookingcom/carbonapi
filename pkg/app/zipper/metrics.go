@@ -1,7 +1,6 @@
 package zipper
 
 import (
-	"expvar"
 	"fmt"
 	"net/http"
 	"os"
@@ -16,50 +15,6 @@ import (
 	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-// Metrics contains grouped expvars for /debug/vars and graphite
-var Metrics = struct {
-	Requests  *expvar.Int
-	Responses *expvar.Int
-	Errors    *expvar.Int
-
-	Goroutines expvar.Func
-	Uptime     expvar.Func
-
-	FindRequests *expvar.Int
-	FindErrors   *expvar.Int
-
-	RenderRequests *expvar.Int
-	RenderErrors   *expvar.Int
-
-	InfoRequests *expvar.Int
-	InfoErrors   *expvar.Int
-
-	Timeouts *expvar.Int
-
-	CacheSize   expvar.Func
-	CacheItems  expvar.Func
-	CacheMisses *expvar.Int
-	CacheHits   *expvar.Int
-}{
-	Requests:  expvar.NewInt("requests"),
-	Responses: expvar.NewInt("responses"),
-	Errors:    expvar.NewInt("errors"),
-
-	FindRequests: expvar.NewInt("find_requests"),
-	FindErrors:   expvar.NewInt("find_errors"),
-
-	RenderRequests: expvar.NewInt("render_requests"),
-	RenderErrors:   expvar.NewInt("render_errors"),
-
-	InfoRequests: expvar.NewInt("info_requests"),
-	InfoErrors:   expvar.NewInt("info_errors"),
-
-	Timeouts: expvar.NewInt("timeouts"),
-
-	CacheHits:   expvar.NewInt("cache_hits"),
-	CacheMisses: expvar.NewInt("cache_misses"),
-}
 
 // PrometheusMetrics keeps all the metrics exposed on /metrics endpoint
 type PrometheusMetrics struct {
@@ -302,37 +257,14 @@ func initGraphite(app *App) {
 	pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 	pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
-	graphite.Register(fmt.Sprintf("%s.requests", pattern), Metrics.Requests)
-	graphite.Register(fmt.Sprintf("%s.responses", pattern), Metrics.Responses)
-	graphite.Register(fmt.Sprintf("%s.errors", pattern), Metrics.Errors)
-
-	graphite.Register(fmt.Sprintf("%s.find_requests", pattern), Metrics.FindRequests)
-	graphite.Register(fmt.Sprintf("%s.find_errors", pattern), Metrics.FindErrors)
-
-	graphite.Register(fmt.Sprintf("%s.render_requests", pattern), Metrics.RenderRequests)
-	graphite.Register(fmt.Sprintf("%s.render_errors", pattern), Metrics.RenderErrors)
-
-	graphite.Register(fmt.Sprintf("%s.info_requests", pattern), Metrics.InfoRequests)
-	graphite.Register(fmt.Sprintf("%s.info_errors", pattern), Metrics.InfoErrors)
-
-	graphite.Register(fmt.Sprintf("%s.timeouts", pattern), Metrics.Timeouts)
-
 	for i := 0; i <= app.Config.Buckets; i++ {
 		graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
 		lower, upper := util.Bounds(i)
 		graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
 	}
 
-	graphite.Register(fmt.Sprintf("%s.cache_size", pattern), Metrics.CacheSize)
-	graphite.Register(fmt.Sprintf("%s.cache_items", pattern), Metrics.CacheItems)
-
-	graphite.Register(fmt.Sprintf("%s.cache_hits", pattern), Metrics.CacheHits)
-	graphite.Register(fmt.Sprintf("%s.cache_misses", pattern), Metrics.CacheMisses)
-
 	go mstats.Start(app.Config.Graphite.Interval)
 
-	graphite.Register(fmt.Sprintf("%s.goroutines", pattern), Metrics.Goroutines)
-	graphite.Register(fmt.Sprintf("%s.uptime", pattern), Metrics.Uptime)
 	graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 	graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 	graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)

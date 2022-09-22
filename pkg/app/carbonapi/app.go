@@ -26,7 +26,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/mstats"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/bookingcom/carbonapi/pkg/pathcache"
 	"github.com/bookingcom/carbonapi/pkg/trace"
 	"github.com/bookingcom/carbonapi/pkg/util"
 
@@ -42,16 +41,6 @@ var BuildVersion string
 
 func init() {
 	expvar.NewString("GoVersion").Set(runtime.Version())
-	apiMetrics.Goroutines = expvar.Func(func() interface{} {
-		return runtime.NumGoroutine()
-	})
-	expvar.Publish("goroutines", apiMetrics.Goroutines)
-
-	startMinute := time.Now().Unix() / 60
-	apiMetrics.Uptime = expvar.Func(func() interface{} {
-		return time.Now().Unix()/60 - startMinute
-	})
-	expvar.Publish("uptime", apiMetrics.Uptime)
 }
 
 // App is the main carbonapi runnable
@@ -189,13 +178,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		app.queryCache = cache.NewMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
 		app.findCache = cache.NewMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
 
-		mcache := app.queryCache.(*cache.MemcachedCache)
-
-		// TODO (grzkv) Move to conventional Prom metrics.
-		apiMetrics.MemcacheTimeouts = expvar.Func(func() interface{} {
-			return mcache.Timeouts()
-		})
-		expvar.Publish("memcache_timeouts", apiMetrics.MemcacheTimeouts)
 	case "memcacheReplicated":
 		if len(app.config.Cache.MemcachedServers) == 0 {
 			logger.Fatal("replicated memcache cache requested but no memcache servers provided")
@@ -209,18 +191,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
 		app.findCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
-
-		qcache := app.queryCache.(*cache.ExpireCache)
-
-		apiMetrics.CacheSize = expvar.Func(func() interface{} {
-			return qcache.Size()
-		})
-		expvar.Publish("cache_size", apiMetrics.CacheSize)
-
-		apiMetrics.CacheItems = expvar.Func(func() interface{} {
-			return qcache.Items()
-		})
-		expvar.Publish("cache_items", apiMetrics.CacheItems)
 
 	case "null":
 		// defaults
@@ -293,15 +263,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
 	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
 
-	// Setup in-memory path cache for carbonzipper requests
-	app.config.PathCache = pathcache.NewPathCache(app.config.ExpireDelaySec)
-
-	zipperMetrics.CacheSize = expvar.Func(func() interface{} { return app.config.PathCache.ECSize() })
-	expvar.Publish("cacheSize", zipperMetrics.CacheSize)
-
-	zipperMetrics.CacheItems = expvar.Func(func() interface{} { return app.config.PathCache.ECItems() })
-	expvar.Publish("cacheItems", zipperMetrics.CacheItems)
-
 	if host != "" {
 		// register our metrics with graphite
 		graphite := g2g.NewGraphite(host, app.config.Graphite.Interval, 10*time.Second)
@@ -315,57 +276,14 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
 		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
 
-		graphite.Register(fmt.Sprintf("%s.requests", pattern), apiMetrics.Requests)
-		graphite.Register(fmt.Sprintf("%s.responses", pattern), apiMetrics.Responses)
-		graphite.Register(fmt.Sprintf("%s.errors", pattern), apiMetrics.Errors)
-
 		for i := 0; i <= app.config.Buckets; i++ {
 			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
 			lower, upper := util.Bounds(i)
 			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
 		}
 
-		graphite.Register(fmt.Sprintf("%s.request_cache_hits", pattern), apiMetrics.RequestCacheHits)
-		graphite.Register(fmt.Sprintf("%s.request_cache_misses", pattern), apiMetrics.RequestCacheMisses)
-		graphite.Register(fmt.Sprintf("%s.request_cache_overhead_ns", pattern), apiMetrics.RenderCacheOverheadNS)
-
-		graphite.Register(fmt.Sprintf("%s.find_requests", pattern), apiMetrics.FindRequests)
-		graphite.Register(fmt.Sprintf("%s.find_cache_hits", pattern), apiMetrics.FindCacheHits)
-		graphite.Register(fmt.Sprintf("%s.find_cache_misses", pattern), apiMetrics.FindCacheMisses)
-		graphite.Register(fmt.Sprintf("%s.find_cache_overhead_ns", pattern), apiMetrics.FindCacheOverheadNS)
-
-		graphite.Register(fmt.Sprintf("%s.render_requests", pattern), apiMetrics.RenderRequests)
-
-		if apiMetrics.MemcacheTimeouts != nil {
-			graphite.Register(fmt.Sprintf("%s.memcache_timeouts", pattern), apiMetrics.MemcacheTimeouts)
-		}
-
-		if apiMetrics.CacheSize != nil {
-			graphite.Register(fmt.Sprintf("%s.cache_size", pattern), apiMetrics.CacheSize)
-			graphite.Register(fmt.Sprintf("%s.cache_items", pattern), apiMetrics.CacheItems)
-		}
-
-		graphite.Register(fmt.Sprintf("%s.zipper.find_requests", pattern), zipperMetrics.FindRequests)
-		graphite.Register(fmt.Sprintf("%s.zipper.find_errors", pattern), zipperMetrics.FindErrors)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.render_requests", pattern), zipperMetrics.RenderRequests)
-		graphite.Register(fmt.Sprintf("%s.zipper.render_errors", pattern), zipperMetrics.RenderErrors)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.info_requests", pattern), zipperMetrics.InfoRequests)
-		graphite.Register(fmt.Sprintf("%s.zipper.info_errors", pattern), zipperMetrics.InfoErrors)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.timeouts", pattern), zipperMetrics.Timeouts)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.cache_size", pattern), zipperMetrics.CacheSize)
-		graphite.Register(fmt.Sprintf("%s.zipper.cache_items", pattern), zipperMetrics.CacheItems)
-
-		graphite.Register(fmt.Sprintf("%s.zipper.cache_hits", pattern), zipperMetrics.CacheHits)
-		graphite.Register(fmt.Sprintf("%s.zipper.cache_misses", pattern), zipperMetrics.CacheMisses)
-
 		go mstats.Start(app.config.Graphite.Interval)
 
-		graphite.Register(fmt.Sprintf("%s.goroutines", pattern), apiMetrics.Goroutines)
-		graphite.Register(fmt.Sprintf("%s.uptime", pattern), apiMetrics.Uptime)
 		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
 		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
 		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
@@ -396,13 +314,10 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	var logMsg string
 	if accessLogDetails.HttpCode/100 < 4 {
 		logMsg = "request served"
-		apiMetrics.Responses.Add(1)
 	} else if accessLogDetails.HttpCode/100 == 4 {
 		logMsg = "request failed with client error"
-		apiMetrics.Responses.Add(1)
 	} else {
 		logMsg = "request failed with server error"
-		apiMetrics.Errors.Add(1)
 	}
 	if ce := accessLogger.Check(level, logMsg); ce != nil {
 		ce.Write(fields...)
