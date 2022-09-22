@@ -31,7 +31,6 @@ require (
 	go.uber.org/zap v1.9.1
 	gonum.org/v1/gonum v0.6.2
 	google.golang.org/grpc v1.47.0
-	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -62,4 +61,5 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/api v0.30.0 // indirect
 	google.golang.org/genproto v0.0.0-20200825200019-8632dd797987 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 )

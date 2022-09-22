@@ -63,9 +63,7 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
 
-	Metrics.Requests.Add(1)
 	app.Metrics.Requests.Inc()
-	Metrics.FindRequests.Add(1)
 
 	logger = logger.With(
 		zap.String("handler", "find"),
@@ -118,7 +116,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 				zap.Error(err),
 			)
 			http.Error(w, err.Error(), code)
-			Metrics.Errors.Add(1)
 			app.Metrics.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 			return
 		}
@@ -164,7 +161,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
@@ -175,7 +171,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	_, writeErr := w.Write(blob)
 
 	if writeErr != nil {
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "find").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
@@ -185,7 +180,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		return
 	}
 
-	Metrics.Responses.Add(1)
 	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "find").Inc()
 	logger.Info("request served",
 		zap.Int("http_code", http.StatusOK),
@@ -207,9 +201,7 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 		)
 	}
 
-	Metrics.Requests.Add(1)
 	app.Metrics.Requests.Inc()
-	Metrics.RenderRequests.Add(1)
 
 	logger = logger.With(
 		zap.String("handler", "render"),
@@ -226,7 +218,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		return
 	}
@@ -251,7 +242,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Responses.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "from is not a integer")
@@ -268,7 +258,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Responses.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "until is not a integer")
@@ -288,7 +277,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
-		Metrics.Responses.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", "empty target")
@@ -338,10 +326,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 		}
 		if code == http.StatusNotFound {
 			logger.Info("request failed", fields...)
-			Metrics.Responses.Add(1)
 		} else {
 			logger.Error("request failed", fields...)
-			Metrics.Errors.Add(1)
 		}
 
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
@@ -376,7 +362,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Error(err),
 			zap.Int64s("trace", request.Trace.Report()),
 		)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
 		span.SetAttribute("error", true)
 		span.SetAttribute("error.message", err.Error())
@@ -388,7 +373,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	_, writeErr := w.Write(blob)
 
 	if writeErr != nil {
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "render").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
@@ -398,7 +382,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 		return
 	}
 
-	Metrics.Responses.Add(1)
 	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "render").Inc()
 	if stats.MismatchCount > stats.FixedMismatchCount {
 		app.Metrics.RenderMismatchedResponses.Inc()
@@ -425,9 +408,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	logger.Debug("request", zap.String("request", req.URL.RequestURI()))
 
-	Metrics.Requests.Add(1)
 	app.Metrics.Requests.Inc()
-	Metrics.InfoRequests.Add(1)
 
 	err := req.ParseForm()
 	if err != nil {
@@ -438,7 +419,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
@@ -458,7 +438,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: empty target", http.StatusBadRequest)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "info").Inc()
 		return
 	}
@@ -491,7 +470,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		http.Error(w, "info: error processing request", http.StatusInternalServerError)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
@@ -517,7 +495,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(err),
 		)
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "info").Inc()
 		return
 	}
@@ -526,7 +503,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	_, writeErr := w.Write(blob)
 
 	if writeErr != nil {
-		Metrics.Errors.Add(1)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
 		logger.Warn("error writing the response",
 			zap.Int("http_code", 499),
@@ -536,7 +512,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		return
 	}
 
-	Metrics.Responses.Add(1)
 	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 
 	logger.Info("request served",
@@ -554,7 +529,6 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *Pro
 		)
 	}
 
-	Metrics.Requests.Add(1)
 	app.Metrics.Requests.Inc()
 
 	fmt.Fprintf(w, "Ok\n")
@@ -562,7 +536,6 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *Pro
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
-	Metrics.Responses.Add(1)
 	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK),
 		"lbcheck").Inc()
 }
