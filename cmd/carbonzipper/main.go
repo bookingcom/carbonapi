@@ -76,6 +76,7 @@ func main() {
 		Metrics:             ms,
 		Backends:            bs,
 		TopLevelDomainCache: expirecache.New(0),
+		TLDPrefixes:         zipper.InitTLDPrefixes(logger, config.TLDCacheExtraPrefixes),
 	}
 
 	flush := trace.InitTracer(BuildVersion, "carbonzipper", logger, app.Config.Traces)

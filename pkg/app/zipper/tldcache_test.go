@@ -1,10 +1,13 @@
 package zipper
 
 import (
-	"github.com/bookingcom/carbonapi/pkg/backend"
-	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"reflect"
 	"testing"
+
+	"go.uber.org/zap"
+
+	"github.com/bookingcom/carbonapi/pkg/backend"
+	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 )
 
 func TestGetBackendsForPrefix(t *testing.T) {
@@ -15,19 +18,19 @@ func TestGetBackendsForPrefix(t *testing.T) {
 		mock.Backend{Address: "3"},
 	}
 	var tt = []struct {
-		prefix      string
+		prefix      tldPrefix
 		backends    []backend.Backend
 		tldCache    map[string][]*backend.Backend
 		outBackends []*backend.Backend
 	}{
 		{
-			prefix:      "",
+			prefix:      tldPrefix{"", []string{}, 0},
 			backends:    allBackends,
 			tldCache:    map[string][]*backend.Backend{},
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1], &allBackends[2], &allBackends[3]},
 		},
 		{
-			prefix:   "a",
+			prefix:   tldPrefix{"a", []string{"a"}, 1},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"b": {&allBackends[0], &allBackends[1]},
@@ -36,7 +39,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1], &allBackends[2], &allBackends[3]},
 		},
 		{
-			prefix:   "a",
+			prefix:   tldPrefix{"a", []string{"a"}, 1},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a": {&allBackends[0], &allBackends[1]},
@@ -45,7 +48,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1]},
 		},
 		{
-			prefix:   "a.b.c",
+			prefix:   tldPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a": {&allBackends[0], &allBackends[1]},
@@ -54,7 +57,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1]},
 		},
 		{
-			prefix:   "a.b.c",
+			prefix:   tldPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a":   {&allBackends[0], &allBackends[1]},
@@ -79,29 +82,155 @@ func TestGetBackendsForPrefix(t *testing.T) {
 	}
 }
 
-func TestSortedByNsCount(t *testing.T) {
+func TestGetTargetTopLevelDomain(t *testing.T) {
 	var tt = []struct {
-		prefixes    []string
-		outPrefixes []string
+		target   string
+		prefixes []string
+		outTLD   string
 	}{
 		{
-			prefixes:    []string{"a.b", "", "a.b.c", "a"},
-			outPrefixes: []string{"", "a", "a.b", "a.b.c"},
+			target:   "a.b.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a.b.f",
 		},
 		{
-			prefixes:    []string{"a.b.c", "a", "a.a.a"},
-			outPrefixes: []string{"a", "a.b.c", "a.a.a"},
+			target:   "a.b.c.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a.b.c.g",
 		},
 		{
-			prefixes:    []string{""},
-			outPrefixes: []string{""},
+			target:   "a.h.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "a",
+		},
+		{
+			target:   "b.h.f.g.h",
+			prefixes: []string{"a.b", "a.b.c", "v", "b"},
+			outTLD:   "b.h",
 		},
 	}
 
 	for _, tst := range tt {
-		res := sortedByNsCount(tst.prefixes)
+		tldPrefixes := InitTLDPrefixes(nil, tst.prefixes)
+		tld := getTargetTopLevelDomain(tst.target, tldPrefixes)
+		if tld != tst.outTLD {
+			t.Fatalf("unexpected tld: expected %+v, got %+v", tst.outTLD, tld)
+		}
+	}
+}
+
+func TestInitTLDPrefixes(t *testing.T) {
+	var tt = []struct {
+		prefixes    []string
+		outPrefixes []tldPrefix
+	}{
+		{
+			prefixes: []string{"a.b", "", "a.b.c", "a"},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+				{
+					prefix:        "a",
+					segments:      []string{"a"},
+					segmentsCount: 1,
+				},
+				{
+					prefix:        "a.b",
+					segments:      []string{"a", "b"},
+					segmentsCount: 2,
+				},
+				{
+					prefix:        "a.b.c",
+					segments:      []string{"a", "b", "c"},
+					segmentsCount: 3,
+				},
+			},
+		},
+		{
+			prefixes: []string{"a.b.c", "a", "a.a.a"},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+				{
+					prefix:        "a",
+					segments:      []string{"a"},
+					segmentsCount: 1,
+				},
+				{
+					prefix:        "a.b.c",
+					segments:      []string{"a", "b", "c"},
+					segmentsCount: 3,
+				},
+				{
+					prefix:        "a.a.a",
+					segments:      []string{"a", "a", "a"},
+					segmentsCount: 3,
+				},
+			},
+		},
+		{
+			prefixes: []string{},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+			},
+		},
+		{
+			prefixes: []string{""},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+			},
+		},
+		{
+			prefixes: []string{"a", "a"},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+				{
+					prefix:        "a",
+					segments:      []string{"a"},
+					segmentsCount: 1,
+				},
+			},
+		},
+		{
+			prefixes: []string{"a", "a..b", ".c.f"},
+			outPrefixes: []tldPrefix{
+				{
+					prefix:        "",
+					segments:      nil,
+					segmentsCount: 0,
+				},
+				{
+					prefix:        "a",
+					segments:      []string{"a"},
+					segmentsCount: 1,
+				},
+			},
+		},
+	}
+
+	lg := zap.NewNop()
+	for _, tst := range tt {
+		res := InitTLDPrefixes(lg, tst.prefixes)
 		if !reflect.DeepEqual(res, tst.outPrefixes) {
-			t.Fatalf("unexpected sort: expected %+v, got %+v", tst.outPrefixes, res)
+			t.Fatalf("unexpected tld prefix init: expected %+v, got %+v", tst.outPrefixes, res)
 		}
 	}
 }
