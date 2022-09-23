@@ -26,6 +26,7 @@ type App struct {
 	Metrics             *PrometheusMetrics
 	Backends            []backend.Backend
 	TopLevelDomainCache *expirecache.Cache
+	TLDPrefixes         []tldPrefix
 }
 
 // Start start launches the goroutines starts the app execution

@@ -22,6 +22,7 @@ import (
 
 // Backend is a mock backend.
 type Backend struct {
+	Address  string
 	find     func(context.Context, types.FindRequest) (types.Matches, error)
 	info     func(context.Context, types.InfoRequest) ([]types.Info, error)
 	render   func(context.Context, types.RenderRequest) ([]types.Metric, error)
@@ -100,7 +101,7 @@ func (b Backend) Contains(targets []string) bool {
 }
 
 func (b Backend) GetServerAddress() string {
-	return ""
+	return b.Address
 }
 
 func (b Backend) GetCluster() string {
