@@ -14,7 +14,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 
-	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"go.uber.org/zap"
 )
@@ -31,17 +30,7 @@ type App struct {
 
 // Start start launches the goroutines starts the app execution
 func (app *App) Start(lg *zap.Logger) {
-	httputil.PublishTrackedConnections("httptrack")
-
 	handler := initHandlers(app, app.Metrics, lg)
-
-	if app.Config.Graphite.Pattern == "" {
-		app.Config.Graphite.Pattern = "{prefix}.{fqdn}"
-	}
-
-	if app.Config.Graphite.Prefix == "" {
-		app.Config.Graphite.Prefix = "carbon.zipper"
-	}
 
 	go app.probeTopLevelDomains(app.Metrics)
 

@@ -18,13 +18,13 @@ type PrometheusMetrics struct {
 	Renders                   prometheus.Counter
 	FindNotFound              prometheus.Counter
 	RequestCancel             *prometheus.CounterVec
-	DurationExp               prometheus.Histogram
-	DurationLin               prometheus.Histogram
+
 	RenderDurationExp         prometheus.Histogram
 	RenderOutDurationExp      *prometheus.HistogramVec
 	FindDurationExp           prometheus.Histogram
 	FindDurationLin           prometheus.Histogram
 	FindOutDuration           *prometheus.HistogramVec
+
 	TimeInQueueSeconds        *prometheus.HistogramVec
 
 	TLDCacheProbeReqTotal  prometheus.Counter
@@ -87,26 +87,6 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Context cancellations or incoming requests due to manual cancels or timeouts",
 			},
 			[]string{"handler", "cause"},
-		),
-		DurationExp: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "http_request_duration_seconds_exp",
-				Help: "The duration of HTTP requests (exponential)",
-				Buckets: prometheus.ExponentialBuckets(
-					config.Monitoring.RequestDurationExp.Start,
-					config.Monitoring.RequestDurationExp.BucketSize,
-					config.Monitoring.RequestDurationExp.BucketsNum),
-			},
-		),
-		DurationLin: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "http_request_duration_seconds_lin",
-				Help: "The duration of HTTP requests (linear)",
-				Buckets: prometheus.LinearBuckets(
-					config.Monitoring.RequestDurationLin.Start,
-					config.Monitoring.RequestDurationLin.BucketSize,
-					config.Monitoring.RequestDurationLin.BucketsNum),
-			},
 		),
 		RenderDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -217,8 +197,6 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
 	prometheus.MustRegister(app.Metrics.FindNotFound)
 	prometheus.MustRegister(app.Metrics.RequestCancel)
-	prometheus.MustRegister(app.Metrics.DurationExp)
-	prometheus.MustRegister(app.Metrics.DurationLin)
 	prometheus.MustRegister(app.Metrics.RenderDurationExp)
 	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
 	prometheus.MustRegister(app.Metrics.FindDurationExp)
@@ -248,17 +226,4 @@ func metricsServer(app *App) *http.Server {
 	}
 
 	return s
-}
-
-func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	app.Metrics.DurationExp.Observe(t.Seconds())
-	app.Metrics.DurationLin.Observe(t.Seconds())
-
-	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
-		app.Metrics.RenderDurationExp.Observe(t.Seconds())
-	}
-	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
-		app.Metrics.FindDurationExp.Observe(t.Seconds())
-		app.Metrics.FindDurationLin.Observe(t.Seconds())
-	}
 }

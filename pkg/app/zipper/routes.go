@@ -7,7 +7,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/pkg/util"
-	"github.com/dgryski/httputil"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
@@ -19,9 +18,9 @@ func initHandlers(app *App, ms *PrometheusMetrics, lg *zap.Logger) http.Handler 
 	r.Use(util.UUIDHandler)
 	r.Use(muxtrace.Middleware("carbonzipper"))
 
-	r.HandleFunc("/metrics/find/", httputil.TrackConnections(httputil.TimeHandler(withMetricsAndLogger(app.findHandler, ms, lg), app.bucketRequestTimes)))
-	r.HandleFunc("/render/", httputil.TrackConnections(httputil.TimeHandler(withMetricsAndLogger(app.renderHandler, ms, lg), app.bucketRequestTimes)))
-	r.HandleFunc("/info/", httputil.TrackConnections(httputil.TimeHandler(withMetricsAndLogger(app.infoHandler, ms, lg), app.bucketRequestTimes)))
+	r.HandleFunc("/metrics/find/", withMetricsAndLogger(app.findHandler, ms, lg))
+	r.HandleFunc("/render/", withMetricsAndLogger(app.renderHandler, ms, lg))
+	r.HandleFunc("/info/", withMetricsAndLogger(app.infoHandler, ms, lg))
 	r.HandleFunc("/lb_check", withMetricsAndLogger(app.lbCheckHandler, ms, lg))
 
 	return r

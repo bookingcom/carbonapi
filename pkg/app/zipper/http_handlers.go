@@ -26,6 +26,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/api/kv"
 	"go.opentelemetry.io/otel/api/trace"
 
@@ -48,6 +49,11 @@ const (
 
 func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
+
+	tExp := prometheus.NewTimer(app.Metrics.FindDurationExp)
+	tLin := prometheus.NewTimer(app.Metrics.FindDurationLin)
+	defer tExp.ObserveDuration()
+	defer tLin.ObserveDuration()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
@@ -188,6 +194,10 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
+
+	tExp := prometheus.NewTimer(app.Metrics.RenderDurationExp)
+	defer tExp.ObserveDuration()
+
 	memoryUsage := 0
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
