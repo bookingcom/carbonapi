@@ -6,7 +6,7 @@
 #
 # Needs to be run from the root directory of the project.
 
-docker-compose --ansi never up -d || { printf ">>> ERROR: Launching containers failed"; exit 2; }
+docker-compose --ansi never up --build -d || { printf ">>> ERROR: Launching containers failed"; exit 2; }
 
 CARBON_HOST=127.0.0.1
 CARBON_PORT=2003

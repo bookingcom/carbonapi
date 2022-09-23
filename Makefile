@@ -34,6 +34,9 @@ build:
 	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
 	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
+.PHONY: check
+check: test lint
+
 .PHONY: lint
 lint:
 	golangci-lint run

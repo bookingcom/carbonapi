@@ -1,7 +1,6 @@
 package carbonapi
 
 import (
-	"expvar"
 	"net/http"
 	"net/http/pprof"
 	"strings"
@@ -21,12 +20,8 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/block-headers", httputil.TimeHandler(handlerlog.WithLogger(app.blockHeaders, logger), app.bucketRequestTimes))
-
 	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handlerlog.WithLogger(app.unblockHeaders, logger), app.bucketRequestTimes))
 
-	r.HandleFunc("/debug/version", app.debugVersionHandler)
-
-	r.Handle("/debug/vars", expvar.Handler())
 	r.PathPrefix("/debug/pprof").HandlerFunc(pprof.Index)
 
 	r.Handle("/metrics", promhttp.Handler())

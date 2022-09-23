@@ -31,9 +31,6 @@ type App struct {
 
 // Start start launches the goroutines starts the app execution
 func (app *App) Start(lg *zap.Logger) {
-	timeBuckets = make([]int64, app.Config.Buckets+1)
-	expTimeBuckets = make([]int64, app.Config.Buckets+1)
-
 	httputil.PublishTrackedConnections("httptrack")
 
 	handler := initHandlers(app, app.Metrics, lg)
@@ -44,11 +41,6 @@ func (app *App) Start(lg *zap.Logger) {
 
 	if app.Config.Graphite.Prefix == "" {
 		app.Config.Graphite.Prefix = "carbon.zipper"
-	}
-
-	// only register g2g if we have a graphite host
-	if app.Config.Graphite.Host != "" {
-		initGraphite(app)
 	}
 
 	go app.probeTopLevelDomains(app.Metrics)

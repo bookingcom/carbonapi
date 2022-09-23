@@ -1,7 +1,6 @@
 package zipper
 
 import (
-	"expvar"
 	"net/http"
 	"net/http/pprof"
 
@@ -33,7 +32,6 @@ func initMetricHandlers() http.Handler {
 
 	r.Handle("/metrics", promhttp.Handler())
 
-	r.Handle("/debug/vars", expvar.Handler())
 	r.PathPrefix("/debug/pprof").HandlerFunc(pprof.Index)
 
 	return r

@@ -2,15 +2,11 @@ package carbonapi
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"runtime"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -24,24 +20,17 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
-	"github.com/bookingcom/carbonapi/pkg/mstats"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/pkg/trace"
-	"github.com/bookingcom/carbonapi/pkg/util"
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 // BuildVersion is provided to be overridden at build time. Eg. go build -ldflags -X 'main.BuildVersion=...'
 var BuildVersion string
-
-func init() {
-	expvar.NewString("GoVersion").Set(runtime.Version())
-}
 
 // App is the main carbonapi runnable
 type App struct {
@@ -162,9 +151,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 
 	functions.New(app.config.FunctionsConfigs, logger)
 
-	// TODO (grzkv): Move expvars to init since they are global to the package
-	expvar.Publish("config", expvar.Func(func() interface{} { return app.config }))
-
 	switch app.config.Cache.Type {
 	case "memcache":
 		if len(app.config.Cache.MemcachedServers) == 0 {
@@ -245,52 +231,6 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		parser.RangeTables = append(parser.RangeTables, unicode.Latin)
 	}
 
-	var host string
-	if envhost := os.Getenv("GRAPHITEHOST") + ":" + os.Getenv("GRAPHITEPORT"); envhost != ":" || app.config.Graphite.Host != "" {
-		switch {
-		case envhost != ":" && app.config.Graphite.Host != "":
-			host = app.config.Graphite.Host
-		case envhost != ":":
-			host = envhost
-		case app.config.Graphite.Host != "":
-			host = app.config.Graphite.Host
-		}
-	}
-
-	// +1 to track every over the number of buckets we track
-	timeBuckets = make([]int64, app.config.Buckets+1)
-	expTimeBuckets = make([]int64, app.config.Buckets+1)
-	expvar.Publish("requestBuckets", expvar.Func(renderTimeBuckets))
-	expvar.Publish("expRequestBuckets", expvar.Func(renderExpTimeBuckets))
-
-	if host != "" {
-		// register our metrics with graphite
-		graphite := g2g.NewGraphite(host, app.config.Graphite.Interval, 10*time.Second)
-
-		hostname, _ := os.Hostname()
-		hostname = strings.Replace(hostname, ".", "_", -1)
-
-		prefix := app.config.Graphite.Prefix
-
-		pattern := app.config.Graphite.Pattern
-		pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
-		pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
-
-		for i := 0; i <= app.config.Buckets; i++ {
-			graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
-			lower, upper := util.Bounds(i)
-			graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), bucketEntry(i))
-		}
-
-		go mstats.Start(app.config.Graphite.Interval)
-
-		graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
-		graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
-		graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
-		graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
-
-	}
-
 	if app.config.PidFile != "" {
 		pidfile.SetPidfilePath(app.config.PidFile)
 	}
@@ -331,47 +271,7 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 }
 
-var timeBuckets []int64
-var expTimeBuckets []int64
-
-type bucketEntry int
-
-func (b bucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
-}
-
-func renderTimeBuckets() interface{} {
-	return timeBuckets
-}
-
-func renderExpTimeBuckets() interface{} {
-	return timeBuckets
-}
-
-func findBucketIndex(buckets []int64, bucket int) int {
-	var i int
-	if bucket < 0 {
-		i = 0
-	} else if bucket < len(buckets)-1 {
-		i = bucket
-	} else {
-		i = len(buckets) - 1
-	}
-
-	return i
-}
-
 func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	ms := t.Nanoseconds() / int64(time.Millisecond)
-
-	bucket := int(ms / 100)
-	bucketIdx := findBucketIndex(timeBuckets, bucket)
-	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
-
-	expBucket := util.Bucket(ms, app.config.Buckets)
-	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
-	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
-
 	app.prometheusMetrics.DurationExp.Observe(t.Seconds())
 	app.prometheusMetrics.DurationLin.Observe(t.Seconds())
 
