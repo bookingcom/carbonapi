@@ -19,13 +19,13 @@ type PrometheusMetrics struct {
 	FindNotFound              prometheus.Counter
 	RequestCancel             *prometheus.CounterVec
 
-	RenderDurationExp         prometheus.Histogram
-	RenderOutDurationExp      *prometheus.HistogramVec
-	FindDurationExp           prometheus.Histogram
-	FindDurationLin           prometheus.Histogram
-	FindOutDuration           *prometheus.HistogramVec
+	RenderDurationExp    prometheus.Histogram
+	RenderOutDurationExp *prometheus.HistogramVec
+	FindDurationExp      prometheus.Histogram
+	FindDurationLin      prometheus.Histogram
+	FindOutDuration      *prometheus.HistogramVec
 
-	TimeInQueueSeconds        *prometheus.HistogramVec
+	TimeInQueueSeconds *prometheus.HistogramVec
 
 	TLDCacheProbeReqTotal  prometheus.Counter
 	TLDCacheProbeErrors    prometheus.Counter

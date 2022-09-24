@@ -32,7 +32,7 @@ type App struct {
 func (app *App) Start(lg *zap.Logger) {
 	handler := initHandlers(app, app.Metrics, lg)
 
-	go app.probeTopLevelDomains(app.Metrics)
+	go probeTopLevelDomains(app.TopLevelDomainCache, app.TLDPrefixes, app.Backends, app.Config.InternalRoutingCache, app.Metrics)
 
 	metricsServer := metricsServer(app)
 	gracehttp.SetLogger(zap.NewStdLog(lg))
