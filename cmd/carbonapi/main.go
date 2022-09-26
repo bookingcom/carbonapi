@@ -1,7 +1,6 @@
 package main
 
 import (
-	"expvar"
 	"flag"
 	"fmt"
 	"log"
@@ -40,7 +39,6 @@ func main() {
 	if apiConfig.MaxProcs != 0 {
 		runtime.GOMAXPROCS(apiConfig.MaxProcs)
 	}
-	expvar.NewString("BuildVersion").Set(BuildVersion)
 	logger, err := apiConfig.LoggerConfig.Build()
 	if err != nil {
 		log.Fatalf("Failed to initiate logger: %s", err)

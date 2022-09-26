@@ -1,5 +1,4 @@
 listen: ":8000"
-# Expvars and performance metrics endpoint
 listenInternal: ":7000"
 maxProcs: 0
 # graphite:

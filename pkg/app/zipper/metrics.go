@@ -1,18 +1,10 @@
 package zipper
 
 import (
-	"fmt"
 	"net/http"
-	"os"
-	"strconv"
-	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/cfg"
-	"github.com/bookingcom/carbonapi/pkg/mstats"
-	"github.com/bookingcom/carbonapi/pkg/util"
-	"github.com/peterbourgon/g2g"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -26,14 +18,14 @@ type PrometheusMetrics struct {
 	Renders                   prometheus.Counter
 	FindNotFound              prometheus.Counter
 	RequestCancel             *prometheus.CounterVec
-	DurationExp               prometheus.Histogram
-	DurationLin               prometheus.Histogram
-	RenderDurationExp         prometheus.Histogram
-	RenderOutDurationExp      *prometheus.HistogramVec
-	FindDurationExp           prometheus.Histogram
-	FindDurationLin           prometheus.Histogram
-	FindOutDuration           *prometheus.HistogramVec
-	TimeInQueueSeconds        *prometheus.HistogramVec
+
+	RenderDurationExp    prometheus.Histogram
+	RenderOutDurationExp *prometheus.HistogramVec
+	FindDurationExp      prometheus.Histogram
+	FindDurationLin      prometheus.Histogram
+	FindOutDuration      *prometheus.HistogramVec
+
+	TimeInQueueSeconds *prometheus.HistogramVec
 
 	TLDCacheProbeReqTotal  prometheus.Counter
 	TLDCacheProbeErrors    prometheus.Counter
@@ -95,26 +87,6 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 				Help: "Context cancellations or incoming requests due to manual cancels or timeouts",
 			},
 			[]string{"handler", "cause"},
-		),
-		DurationExp: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "http_request_duration_seconds_exp",
-				Help: "The duration of HTTP requests (exponential)",
-				Buckets: prometheus.ExponentialBuckets(
-					config.Monitoring.RequestDurationExp.Start,
-					config.Monitoring.RequestDurationExp.BucketSize,
-					config.Monitoring.RequestDurationExp.BucketsNum),
-			},
-		),
-		DurationLin: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "http_request_duration_seconds_lin",
-				Help: "The duration of HTTP requests (linear)",
-				Buckets: prometheus.LinearBuckets(
-					config.Monitoring.RequestDurationLin.Start,
-					config.Monitoring.RequestDurationLin.BucketSize,
-					config.Monitoring.RequestDurationLin.BucketsNum),
-			},
 		),
 		RenderDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -216,61 +188,6 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 	}
 }
 
-var timeBuckets []int64
-var expTimeBuckets []int64
-
-type bucketEntry int
-type expBucketEntry int
-
-func (b bucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&timeBuckets[b])))
-}
-
-func (b expBucketEntry) String() string {
-	return strconv.Itoa(int(atomic.LoadInt64(&expTimeBuckets[b])))
-}
-
-func findBucketIndex(buckets []int64, bucket int) int {
-	var i int
-	if bucket < 0 {
-		i = 0
-	} else if bucket < len(buckets)-1 {
-		i = bucket
-	} else {
-		i = len(buckets) - 1
-	}
-
-	return i
-}
-
-func initGraphite(app *App) {
-	// register our metrics with graphite
-	graphite := g2g.NewGraphite(app.Config.Graphite.Host, app.Config.Graphite.Interval, 10*time.Second)
-
-	/* #nosec */
-	hostname, _ := os.Hostname()
-	hostname = strings.Replace(hostname, ".", "_", -1)
-
-	prefix := app.Config.Graphite.Prefix
-
-	pattern := app.Config.Graphite.Pattern
-	pattern = strings.Replace(pattern, "{prefix}", prefix, -1)
-	pattern = strings.Replace(pattern, "{fqdn}", hostname, -1)
-
-	for i := 0; i <= app.Config.Buckets; i++ {
-		graphite.Register(fmt.Sprintf("%s.requests_in_%dms_to_%dms", pattern, i*100, (i+1)*100), bucketEntry(i))
-		lower, upper := util.Bounds(i)
-		graphite.Register(fmt.Sprintf("%s.exp.requests_in_%05dms_to_%05dms", pattern, lower, upper), expBucketEntry(i))
-	}
-
-	go mstats.Start(app.Config.Graphite.Interval)
-
-	graphite.Register(fmt.Sprintf("%s.alloc", pattern), &mstats.Alloc)
-	graphite.Register(fmt.Sprintf("%s.total_alloc", pattern), &mstats.TotalAlloc)
-	graphite.Register(fmt.Sprintf("%s.num_gc", pattern), &mstats.NumGC)
-	graphite.Register(fmt.Sprintf("%s.pause_ns", pattern), &mstats.PauseNS)
-}
-
 func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.Metrics.Requests)
 	prometheus.MustRegister(app.Metrics.Responses)
@@ -280,8 +197,6 @@ func metricsServer(app *App) *http.Server {
 	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
 	prometheus.MustRegister(app.Metrics.FindNotFound)
 	prometheus.MustRegister(app.Metrics.RequestCancel)
-	prometheus.MustRegister(app.Metrics.DurationExp)
-	prometheus.MustRegister(app.Metrics.DurationLin)
 	prometheus.MustRegister(app.Metrics.RenderDurationExp)
 	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
 	prometheus.MustRegister(app.Metrics.FindDurationExp)
@@ -311,27 +226,4 @@ func metricsServer(app *App) *http.Server {
 	}
 
 	return s
-}
-
-func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	ms := t.Nanoseconds() / int64(time.Millisecond)
-
-	bucket := int(ms / 100)
-	bucketIdx := findBucketIndex(timeBuckets, bucket)
-	atomic.AddInt64(&timeBuckets[bucketIdx], 1)
-
-	expBucket := util.Bucket(ms, app.Config.Buckets)
-	expBucketIdx := findBucketIndex(expTimeBuckets, expBucket)
-	atomic.AddInt64(&expTimeBuckets[expBucketIdx], 1)
-
-	app.Metrics.DurationExp.Observe(t.Seconds())
-	app.Metrics.DurationLin.Observe(t.Seconds())
-
-	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
-		app.Metrics.RenderDurationExp.Observe(t.Seconds())
-	}
-	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
-		app.Metrics.FindDurationExp.Observe(t.Seconds())
-		app.Metrics.FindDurationLin.Observe(t.Seconds())
-	}
 }

@@ -1368,15 +1368,6 @@ func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	}()
 }
 
-func (app *App) debugVersionHandler(w http.ResponseWriter, r *http.Request) {
-	app.prometheusMetrics.Requests.Inc()
-	defer func() {
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "debugversion", "false").Inc()
-	}()
-
-	fmt.Fprintf(w, "GIT_TAG: %s\n", BuildVersion)
-}
-
 func buildParseErrorString(target, e string, err error) string {
 	msg := fmt.Sprintf("%s\n\n%-20s: %s\n", http.StatusText(http.StatusBadRequest), "Target", target)
 	if err != nil {

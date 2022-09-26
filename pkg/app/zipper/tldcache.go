@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -19,12 +20,12 @@ type tldPrefix struct {
 	segmentsCount int
 }
 
-func (app *App) probeTopLevelDomains(ms *PrometheusMetrics) {
-	probeTicker := time.NewTicker(time.Duration(app.Config.InternalRoutingCache) * time.Second) // TODO: The ticker resources are never freed
+func probeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, backends []backend.Backend, period int32, ms *PrometheusMetrics) {
+	probeTicker := time.NewTicker(time.Duration(period) * time.Second) // TODO: The ticker resources are never freed
 	for {
 		topLevelDomainCache := make(map[string][]*backend.Backend)
-		for _, prefix := range app.TLDPrefixes {
-			bs := getBackendsForPrefix(prefix, app.Backends, topLevelDomainCache)
+		for _, prefix := range TLDPrefixes {
+			bs := getBackendsForPrefix(prefix, backends, topLevelDomainCache)
 			for i := range bs {
 				topLevelDomains, err := getTopLevelDomains(*bs[i], prefix)
 				ms.TLDCacheProbeReqTotal.Inc()
@@ -41,7 +42,7 @@ func (app *App) probeTopLevelDomains(ms *PrometheusMetrics) {
 		for tld, num := range topLevelDomainCache {
 			ms.TLDCacheHostsPerDomain.WithLabelValues(tld).Set(float64(len(num)))
 		}
-		app.TopLevelDomainCache.Set("tlds", topLevelDomainCache, 0, 2*app.Config.InternalRoutingCache)
+		TLDCache.Set("tlds", topLevelDomainCache, 0, 2*period)
 
 		<-probeTicker.C
 	}
@@ -139,4 +140,48 @@ func getTargetTopLevelDomain(target string, prefixes []tldPrefix) string {
 		}
 	}
 	return tld
+}
+
+func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backend {
+	targetTlds := make([]string, 0, len(targets))
+	for _, target := range targets {
+		targetTlds = append(targetTlds, getTargetTopLevelDomain(target, app.TLDPrefixes))
+	}
+
+	bs := app.filterByTopLevelDomain(app.Backends, targetTlds)
+	if len(bs) > 0 {
+		return bs
+	}
+	return app.Backends
+}
+
+func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []string) []backend.Backend {
+	bs := make([]backend.Backend, 0)
+	allTLDBackends := make([]*backend.Backend, 0)
+
+	topLevelDomainCache, _ := app.TopLevelDomainCache.Get("tlds")
+	tldCache := make(map[string][]*backend.Backend)
+	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
+		tldCache = x
+	}
+
+	if tldCache == nil {
+		return backends
+	}
+	alreadyAddedBackends := make(map[string]bool)
+	for _, target := range targetTLDs {
+		tldBackends := tldCache[target]
+		for _, backend := range tldBackends {
+			a := *backend
+			if !alreadyAddedBackends[a.GetServerAddress()] {
+				alreadyAddedBackends[a.GetServerAddress()] = true
+				allTLDBackends = append(allTLDBackends, backend)
+			}
+		}
+	}
+	for _, tldBackend := range allTLDBackends {
+		bs = append(bs, *tldBackend)
+	}
+
+	return bs
 }
