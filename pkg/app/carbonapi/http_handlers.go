@@ -748,7 +748,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, _, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog)
+	glob, fromCache, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -756,6 +756,17 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 
 	if app.sendGlobs(glob) {
 		return []string{m.Metric}, nil
+	}
+
+	// If we reach here, it means that we will break the globs into single metring render
+	// request, and they will be sent individually to zipper.
+	// In order to populate backend caches in carbonzipper, we send the preflight find request
+	// to backends. This is crucial for performance and avoids unnecessary overload.
+	if fromCache {
+		_, _, err := app.resolveGlobs(ctx, m.Metric, false, toLog)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	toLog.SendGlobs = false
