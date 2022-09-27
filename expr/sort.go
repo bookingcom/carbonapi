@@ -39,7 +39,7 @@ func getPart(metric *types.MetricData, part int) string {
 	if part < len(parts) {
 		return parts[part]
 	}
-	// otherwise return last part
+	// TODO: that should never happen, maybe we should log it
 	return parts[len(parts)-1]
 }
 
