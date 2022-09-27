@@ -1,11 +1,30 @@
 package expr
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
+
+func TestSplitByDotsIgnoringBraces(t *testing.T) {
+	tests := []struct {
+		str    string
+		result []string
+	}{
+		{
+			"a.*.[c-d].{b-*,c*}.[e].{j,k}.l.m.{*.Status,*}.JVM.Memory.Heap.*",
+			[]string{"a", "*", "[c-d]", "{b-*,c*}", "[e]", "{j,k}", "l", "m", "{*.Status,*}", "JVM", "Memory", "Heap", "*"},
+		},
+	}
+	for i, test := range tests {
+		res := SplitByDotsIgnoringBraces(test.str)
+		if !reflect.DeepEqual(res, test.result) {
+			t.Errorf("[%d] Expected %q but have %q", i, test.result, res)
+		}
+	}
+}
 
 func TestSortMetrics(t *testing.T) {
 	const (
