@@ -31,8 +31,15 @@ func (b byPartBase) Swap(i, j int) {
 }
 
 func getPart(metric *types.MetricData, part int) string {
+	// metric name should not contain braces
+	// we can use normal split here
 	parts := strings.Split(metric.Name, ".")
-	return parts[part]
+	// returning proper part if in range
+	if part < len(parts) {
+		return parts[part]
+	}
+	// TODO: that should never happen, maybe we should log it or generate error
+	return parts[len(parts)-1]
 }
 
 // Given two indices, i and j, and a comparator function that returns whether
@@ -114,13 +121,35 @@ func sortByBraces(metrics []*types.MetricData, part int, pattern string) {
 	}
 }
 
+// SplitByDotsIgnoringBraces split string by dots, ignoring dots in curly and normal braces
+// please note it doesn't support enclosed brackets because we don't need it
+func splitByDotsIgnoringBraces(str string) []string {
+	result := make([]string, 0, len(str))
+	item := make([]rune, 0, len(str))
+	inBracket := false
+	for _, c := range str {
+		ch := string(c)
+		if ch == "." && !inBracket {
+			result = append(result, string(item))
+			item = make([]rune, 0, len(str))
+			continue
+		} else if ch == "[" || ch == "{" {
+			inBracket = true
+		} else if ch == "]" || ch == "}" {
+			inBracket = false
+		}
+		item = append(item, c)
+	}
+	return append(result, string(item))
+}
+
 // SortMetrics sort metric data alphabetically.
 func SortMetrics(metrics []*types.MetricData, mfetch parser.MetricRequest) {
 	// Don't do any work if there are no globs in the metric name
 	if !strings.ContainsAny(mfetch.Metric, "*?[{") {
 		return
 	}
-	parts := strings.Split(mfetch.Metric, ".")
+	parts := splitByDotsIgnoringBraces(mfetch.Metric)
 	// Proceed backwards by segments, sorting once for each segment that has a glob that calls for sorting.
 	// By using a stable sort, the rightmost segments will be preserved as "sub-sorts" of any more leftward segments.
 	for i := len(parts) - 1; i >= 0; i-- {

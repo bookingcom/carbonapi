@@ -1,11 +1,30 @@
 package expr
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/bookingcom/carbonapi/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 )
+
+func TestSplitByDotsIgnoringBraces(t *testing.T) {
+	tests := []struct {
+		str    string
+		result []string
+	}{
+		{
+			"a.*.[c-d].{b-*,c*}.[e].{j,k}.l.m.{*.Status,*}.JVM.Memory.Heap.*",
+			[]string{"a", "*", "[c-d]", "{b-*,c*}", "[e]", "{j,k}", "l", "m", "{*.Status,*}", "JVM", "Memory", "Heap", "*"},
+		},
+	}
+	for i, test := range tests {
+		res := splitByDotsIgnoringBraces(test.str)
+		if !reflect.DeepEqual(res, test.result) {
+			t.Errorf("[%d] Expected %q but have %q", i, test.result, res)
+		}
+	}
+}
 
 func TestSortMetrics(t *testing.T) {
 	const (
@@ -24,7 +43,7 @@ func TestSortMetrics(t *testing.T) {
 	}{
 		{
 			[]*types.MetricData{
-				//NOTE(nnuss): keep these lines lexically sorted ;)
+				// Note that these lines lexically sorted
 				types.MakeMetricData(bronze, []float64{}, 1, 0),
 				types.MakeMetricData(first, []float64{}, 1, 0),
 				types.MakeMetricData(fourth, []float64{}, 1, 0),
@@ -39,16 +58,62 @@ func TestSortMetrics(t *testing.T) {
 				Until:  1,
 			},
 			[]*types.MetricData{
-				//These are in the brace appearance order
+				// First part : These are in the brace appearance order
 				types.MakeMetricData(first, []float64{}, 1, 0),
 				types.MakeMetricData(second, []float64{}, 1, 0),
 				types.MakeMetricData(third, []float64{}, 1, 0),
 				types.MakeMetricData(fourth, []float64{}, 1, 0),
-
-				//These are in the slice order as above and come after
+				//Second part: These are in the slice order as above and come after
 				types.MakeMetricData(bronze, []float64{}, 1, 0),
 				types.MakeMetricData(gold, []float64{}, 1, 0),
 				types.MakeMetricData(silver, []float64{}, 1, 0),
+			},
+		},
+		{
+			[]*types.MetricData{
+				// Note that source now it's in random order
+				types.MakeMetricData(third, []float64{}, 1, 0),
+				types.MakeMetricData(silver, []float64{}, 1, 0),
+				types.MakeMetricData(first, []float64{}, 1, 0),
+				types.MakeMetricData(gold, []float64{}, 1, 0),
+				types.MakeMetricData(second, []float64{}, 1, 0),
+				types.MakeMetricData(bronze, []float64{}, 1, 0),
+				types.MakeMetricData(fourth, []float64{}, 1, 0),
+			},
+			parser.MetricRequest{
+				Metric: "a.*.c.d",
+				From:   0,
+				Until:  1,
+			},
+			[]*types.MetricData{
+				// And result is sorted by glob in 2nd field
+				types.MakeMetricData(bronze, []float64{}, 1, 0),
+				types.MakeMetricData(first, []float64{}, 1, 0),
+				types.MakeMetricData(fourth, []float64{}, 1, 0),
+				types.MakeMetricData(gold, []float64{}, 1, 0),
+				types.MakeMetricData(second, []float64{}, 1, 0),
+				types.MakeMetricData(silver, []float64{}, 1, 0),
+				types.MakeMetricData(third, []float64{}, 1, 0),
+			},
+		},
+		{
+			[]*types.MetricData{
+				// Just picking 3 random metric
+				types.MakeMetricData(first, []float64{}, 1, 0),
+				types.MakeMetricData(fourth, []float64{}, 1, 0),
+				types.MakeMetricData(bronze, []float64{}, 1, 0),
+			},
+			parser.MetricRequest{
+				Metric: "a.{*.first,*}.c.d",
+				From:   0,
+				Until:  1,
+			},
+			[]*types.MetricData{
+				// Sorted by glob in 2nd field, also but should be no error
+				// despite query have 4 dots and metric has 3
+				types.MakeMetricData(bronze, []float64{}, 1, 0),
+				types.MakeMetricData(first, []float64{}, 1, 0),
+				types.MakeMetricData(fourth, []float64{}, 1, 0),
 			},
 		},
 	}
