@@ -19,7 +19,7 @@ func newTestApp() (*App, *PrometheusMetrics, *zap.Logger) {
 	lg, _ := zap.NewDevelopment()
 	config := cfg.DefaultZipperConfig()
 
-	ms := NewPrometheusMetrics(config)
+	ms := NewPrometheusMetrics(config, "")
 
 	bs, err := InitBackends(config, ms, lg)
 	if err != nil {
@@ -28,7 +28,7 @@ func newTestApp() (*App, *PrometheusMetrics, *zap.Logger) {
 
 	app := App{
 		Config:              config,
-		Metrics:             NewPrometheusMetrics(config),
+		Metrics:             NewPrometheusMetrics(config, ""),
 		Backends:            bs,
 		TopLevelDomainCache: expirecache.New(0),
 	}

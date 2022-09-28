@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"go.uber.org/zap/zapcore"
 
@@ -511,7 +512,15 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	atomic.AddInt64(&toLog.ZipperRequests, 1)
 
 	request := dataTypes.NewRenderRequest([]string{path}, from, until)
-	metrics, err := app.backend.Render(ctx, request)
+
+	var err error
+	var metrics []dataTypes.Metric
+	if app.Zipper != nil {
+		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until),
+			app.Zipper.Metrics, app.Zipper.Lg)
+	} else {
+		metrics, err = app.backend.Render(ctx, request)
+	}
 
 	// time in queue is converted to ms
 	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -726,7 +735,16 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	request := dataTypes.NewFindRequest(metric)
 	request.IncCall()
-	matches, err := app.backend.Find(ctx, request)
+
+	var err error
+	var matches dataTypes.Matches
+
+	if app.Zipper != nil {
+		matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
+	} else {
+		matches, err = app.backend.Find(ctx, request)
+	}
+
 	if err != nil {
 		return matches, false, err
 	}
@@ -1024,7 +1042,15 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 
 	request := dataTypes.NewInfoRequest(query)
 	request.IncCall()
-	infos, err := app.backend.Info(ctx, request)
+
+	var infos []dataTypes.Info
+	var err error
+	if app.Zipper != nil {
+		infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
+	} else {
+		infos, err = app.backend.Info(ctx, request)
+	}
+
 	if err != nil {
 		var notFound dataTypes.ErrNotFound
 		if errors.As(err, &notFound) {

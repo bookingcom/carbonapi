@@ -14,6 +14,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/blocker"
@@ -44,6 +45,9 @@ type App struct {
 	backend backend.Backend
 
 	prometheusMetrics PrometheusMetrics
+	Lg *zap.Logger
+
+	Zipper *zipper.App
 }
 
 // New creates a new app

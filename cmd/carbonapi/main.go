@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/bookingcom/carbonapi/pkg/app/carbonapi"
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"go.uber.org/zap"
 )
@@ -16,12 +17,6 @@ import (
 var BuildVersion = "(development build)"
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "PANIC: %v\n", r)
-		}
-	}()
-
 	configPath := flag.String("config", "", "Path to the `config file`.")
 	flag.Parse()
 
@@ -39,27 +34,31 @@ func main() {
 	if apiConfig.MaxProcs != 0 {
 		runtime.GOMAXPROCS(apiConfig.MaxProcs)
 	}
-	logger, err := apiConfig.LoggerConfig.Build()
+	lg, err := apiConfig.LoggerConfig.Build()
 	if err != nil {
 		log.Fatalf("Failed to initiate logger: %s", err)
 	}
-	logger = logger.Named("carbonapi")
-	defer func() {
-		if syncErr := logger.Sync(); syncErr != nil {
-			log.Fatalf("could not sync the logger: %s", syncErr)
-		}
-	}()
+	lg = lg.Named("carbonapi")
 
-	log.Printf("starting carbonapi - build_version: %s, apiConfig: %+v", BuildVersion, apiConfig)
-	logger.Info("starting carbonapi",
+	lg.Info("starting carbonapi",
 		zap.String("build_version", BuildVersion),
 		zap.String("apiConfig", fmt.Sprintf("%+v", apiConfig)),
 	)
 
-	app, err := carbonapi.New(apiConfig, logger, BuildVersion)
+	app, err := carbonapi.New(apiConfig, lg, BuildVersion)
 	if err != nil {
-		logger.Error("Error initializing app")
+		lg.Error("Error initializing app")
 	}
-	flush := app.Start(logger)
+
+	if apiConfig.EmbedZipper {
+		lg.Info("starting embedded zipper")
+		var zlg *zap.Logger
+		app.Zipper, zlg = zipper.Setup(apiConfig.ZipperConfig, BuildVersion, "zipper", lg)
+		// flush := trace.InitTracer(BuildVersion, "carbonzipper", zlg, app.Zipper.Config.Traces)
+		// defer flush()
+		go app.Zipper.Start(false, zlg)
+	}
+
+	flush := app.Start(lg)
 	defer flush()
 }
