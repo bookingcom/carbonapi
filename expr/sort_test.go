@@ -19,7 +19,7 @@ func TestSplitByDotsIgnoringBraces(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		res := SplitByDotsIgnoringBraces(test.str)
+		res := splitByDotsIgnoringBraces(test.str)
 		if !reflect.DeepEqual(res, test.result) {
 			t.Errorf("[%d] Expected %q but have %q", i, test.result, res)
 		}

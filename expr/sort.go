@@ -38,7 +38,7 @@ func getPart(metric *types.MetricData, part int) string {
 	if part < len(parts) {
 		return parts[part]
 	}
-	// TODO: that should never happen, maybe we should log it
+	// TODO: that should never happen, maybe we should log it or generate error
 	return parts[len(parts)-1]
 }
 
@@ -123,7 +123,7 @@ func sortByBraces(metrics []*types.MetricData, part int, pattern string) {
 
 // SplitByDotsIgnoringBraces split string by dots, ignoring dots in curly and normal braces
 // please note it doesn't support enclosed brackets because we don't need it
-func SplitByDotsIgnoringBraces(str string) []string {
+func splitByDotsIgnoringBraces(str string) []string {
 	result := make([]string, 0, len(str))
 	item := make([]rune, 0, len(str))
 	inBracket := false
@@ -149,7 +149,7 @@ func SortMetrics(metrics []*types.MetricData, mfetch parser.MetricRequest) {
 	if !strings.ContainsAny(mfetch.Metric, "*?[{") {
 		return
 	}
-	parts := SplitByDotsIgnoringBraces(mfetch.Metric)
+	parts := splitByDotsIgnoringBraces(mfetch.Metric)
 	// Proceed backwards by segments, sorting once for each segment that has a glob that calls for sorting.
 	// By using a stable sort, the rightmost segments will be preserved as "sub-sorts" of any more leftward segments.
 	for i := len(parts) - 1; i >= 0; i-- {
