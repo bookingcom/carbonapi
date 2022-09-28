@@ -6,6 +6,7 @@ package png
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"io/ioutil"
@@ -967,6 +968,17 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 
 		yUnitSystem: p.YUnitSystem,
 		yDivisors:   p.YDivisors,
+	}
+
+	// See https://github.com/Automattic/node-canvas/issues/1374#issuecomment-467918480
+	// and https://github.com/freedesktop/cairo/blob/929262dd54ffae81721ffe9b2c59faa7b045c663/src/cairo-image-surface.c#L59-L62
+	var maxImageSize float64
+	maxImageSize = 32767
+	if params.width > maxImageSize {
+		return nil, errors.New(fmt.Sprintf("Invalid picture width %g, should be =< %g", params.width, maxImageSize))
+	}
+	if params.height > maxImageSize {
+		return nil, errors.New(fmt.Sprintf("Invalid picture height %g, should be =< %g", params.height, maxImageSize))
 	}
 
 	margin := float64(params.margin)
