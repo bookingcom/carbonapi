@@ -39,7 +39,7 @@ check: test lint
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	golangci-lint run --enable gofmt,goimports,gocritic,gochecknoglobals --disable errcheck
 
 .PHONY: test
 test:

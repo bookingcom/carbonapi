@@ -19,7 +19,7 @@ jobs:
       - name: install cairo
         run: sudo apt-get install libcairo2-dev -y
       - name: setup linter
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sudo sh -s -- -b /usr/local/bin v1.45.2
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sudo sh -s -- -b /usr/local/bin v1.49.0
       - name: checkout code
         uses: actions/checkout@v2
       - name: test
@@ -28,13 +28,3 @@ jobs:
         run: make lint
       - name: integration test
         run: tests/system_test.sh
-  # golangci:
-  #   name: lint
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: golangci-lint
-  #       uses: golangci/golangci-lint-action@v2
-  #       with:
-  #         # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-  #         version: v1.45.2
