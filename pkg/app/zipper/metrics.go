@@ -36,62 +36,71 @@ type PrometheusMetrics struct {
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
-func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
+func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 	return &PrometheusMetrics{
 		Requests: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "http_request_total",
-				Help: "Count of HTTP requests",
+				Namespace: ns,
+				Name:      "http_request_total",
+				Help:      "Count of HTTP requests",
 			},
 		),
 		Responses: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "http_responses_total",
-				Help: "Count of HTTP responses, partitioned by return code and handler",
+				Namespace: ns,
+				Name:      "http_responses_total",
+				Help:      "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
 		),
 		RenderMismatchedResponses: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "render_mismatched_responses_total",
-				Help: "Count of mismatched (unfixed) render responses",
+				Namespace: ns,
+				Name:      "render_mismatched_responses_total",
+				Help:      "Count of mismatched (unfixed) render responses",
 			},
 		),
 		RenderFixedMismatches: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "render_fixed_mismatches_total",
-				Help: "Count of fixed mismatched rendered data points",
+				Namespace: ns,
+				Name:      "render_fixed_mismatches_total",
+				Help:      "Count of fixed mismatched rendered data points",
 			},
 		),
 		RenderMismatches: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "render_mismatches_total",
-				Help: "Count of mismatched rendered data points",
+				Namespace: ns,
+				Name:      "render_mismatches_total",
+				Help:      "Count of mismatched rendered data points",
 			},
 		),
 		Renders: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "render_total",
-				Help: "Count of rendered data points",
+				Namespace: ns,
+				Name:      "render_total",
+				Help:      "Count of rendered data points",
 			},
 		),
 		FindNotFound: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "find_not_found",
-				Help: "Count of not-found /find responses",
+				Namespace: ns,
+				Name:      "find_not_found",
+				Help:      "Count of not-found /find responses",
 			},
 		),
 		RequestCancel: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "request_cancel",
-				Help: "Context cancellations or incoming requests due to manual cancels or timeouts",
+				Namespace: ns,
+				Name:      "request_cancel",
+				Help:      "Context cancellations or incoming requests due to manual cancels or timeouts",
 			},
 			[]string{"handler", "cause"},
 		),
 		RenderDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "render_request_duration_seconds_exp",
-				Help: "The duration of render requests (exponential)",
+				Namespace: ns,
+				Name:      "render_request_duration_seconds_exp",
+				Help:      "The duration of render requests (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Monitoring.RenderDurationExp.Start,
 					config.Monitoring.RenderDurationExp.BucketSize,
@@ -100,8 +109,9 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		RenderOutDurationExp: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "render_outbound_request_duration_seconds_exp",
-				Help: "The durations of render requests sent to storages (exponential)",
+				Namespace: ns,
+				Name:      "render_outbound_request_duration_seconds_exp",
+				Help:      "The durations of render requests sent to storages (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
 					// TODO (grzkv) Do we need a separate config?
 					// The buckets should be of comparable size.
@@ -113,8 +123,9 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		FindDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "find_request_duration_seconds_exp",
-				Help: "The duration of find requests (exponential)",
+				Namespace: ns,
+				Name:      "find_request_duration_seconds_exp",
+				Help:      "The duration of find requests (exponential)",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Monitoring.FindDurationExp.Start,
 					config.Monitoring.FindDurationExp.BucketSize,
@@ -123,8 +134,9 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		FindDurationLin: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
-				Name: "find_request_duration_seconds_lin",
-				Help: "The duration of find requests (linear), in ms",
+				Namespace: ns,
+				Name:      "find_request_duration_seconds_lin",
+				Help:      "The duration of find requests (linear), in ms",
 				Buckets: prometheus.LinearBuckets(
 					config.Monitoring.FindDurationLin.Start,
 					config.Monitoring.FindDurationLin.BucketSize,
@@ -133,8 +145,9 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		FindOutDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "find_out_duration_seconds",
-				Help: "Duration of outgoing find requests per backend cluster.",
+				Namespace: ns,
+				Name:      "find_out_duration_seconds",
+				Help:      "Duration of outgoing find requests per backend cluster.",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Monitoring.FindOutDuration.Start,
 					config.Monitoring.FindOutDuration.BucketSize,
@@ -144,8 +157,9 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		TimeInQueueSeconds: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "time_in_queue",
-				Help: "Time a request spends in queue in seconds.",
+				Namespace: ns,
+				Name:      "time_in_queue",
+				Help:      "Time a request spends in queue in seconds.",
 				Buckets: prometheus.ExponentialBuckets(
 					config.Monitoring.TimeInQueueExpHistogram.Start/1000, // converstion ms -> s
 					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
@@ -155,40 +169,45 @@ func NewPrometheusMetrics(config cfg.Zipper) *PrometheusMetrics {
 		),
 		TLDCacheProbeReqTotal: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "tldcache_probe_req_total",
-				Help: "The total number of find requests sent by TLD cache as probes.",
+				Namespace: ns,
+				Name:      "tldcache_probe_req_total",
+				Help:      "The total number of find requests sent by TLD cache as probes.",
 			},
 		),
 		TLDCacheProbeErrors: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "tldcache_probe_errors_total",
-				Help: "The total number of failed find requests sent by TLD cache as probes.",
+				Namespace: ns,
+				Name:      "tldcache_probe_errors_total",
+				Help:      "The total number of failed find requests sent by TLD cache as probes.",
 			},
 		),
 		TLDCacheHostsPerDomain: *prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: "tldcache_num_hosts_per_domain",
-				Help: "The number of hosts per top-level domain.",
+				Namespace: ns,
+				Name:      "tldcache_num_hosts_per_domain",
+				Help:      "The number of hosts per top-level domain.",
 			},
 			[]string{"domain"},
 		),
 		PathCacheFilteredRequests: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "path_cache_filtered_requests_total",
-				Help: "The total number of requests with successful backend filter by path caches",
+				Namespace: ns,
+				Name:      "path_cache_filtered_requests_total",
+				Help:      "The total number of requests with successful backend filter by path caches",
 			},
 		),
 		BackendResponses: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "backend_responses_total",
-				Help: "Count of backend responses, partitioned by return code and handler",
+				Namespace: ns,
+				Name:      "backend_responses_total",
+				Help:      "Count of backend responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler"},
 		),
 	}
 }
 
-func metricsServer(app *App) *http.Server {
+func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.Requests)
 	prometheus.MustRegister(app.Metrics.Responses)
 	prometheus.MustRegister(app.Metrics.Renders)
@@ -216,14 +235,19 @@ func metricsServer(app *App) *http.Server {
 		writeTimeout = time.Minute
 	}
 
-	r := initMetricHandlers()
+	if serve {
+		r := initMetricHandlers()
+		s := &http.Server{
+			Handler:      r,
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: writeTimeout,
+		}
 
-	s := &http.Server{
-		Addr:         app.Config.ListenInternal,
-		Handler:      r,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: writeTimeout,
+		s.Addr = app.Config.ListenInternal
+
+		return s
+	} else {
+		return nil
 	}
 
-	return s
 }

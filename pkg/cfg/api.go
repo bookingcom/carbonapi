@@ -98,6 +98,11 @@ type API struct {
 	DefaultColors             map[string]string `yaml:"defaultColors"`
 	FunctionsConfigs          map[string]string `yaml:"functionsConfig"`
 	GraphiteVersionForGrafana string            `yaml:"graphiteVersionForGrafana"`
+
+	// EmbedZipper makes carbonapi to use zipper as a package, not as a service.
+	EmbedZipper bool `yaml:"embedZipper"`
+	// ZipperConfig represents the config for the embedded zipper.
+	ZipperConfig string `yaml:"zipperConfig"`
 }
 
 // CacheConfig configs the cache

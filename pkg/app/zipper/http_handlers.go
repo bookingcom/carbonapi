@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/json"
@@ -81,14 +80,17 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		kv.String("graphite.target", originalQuery),
 	)
 
-	metrics, err := Find(app, ctx, originalQuery, &span, ms, logger)
+	metrics, err := Find(app, ctx, originalQuery, ms, logger)
 	if err != nil {
+		span.SetAttribute("error", true)
+		span.SetAttribute("error.message", err.Error())
 		code := http.StatusInternalServerError
 		logger.Error("find failed", zap.Int("http_code", code), zap.Duration("runtime_seconds", time.Since(t0)), zap.Error(err))
 		http.Error(w, err.Error(), code)
 		ms.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 		return
 	}
+	span.SetAttribute("graphite.total_metric_count", len(metrics.Matches))
 
 	var contentType string
 	var blob []byte
@@ -172,8 +174,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 
 	target := req.FormValue("target")
 	format := req.FormValue("format")
-	logger = logger.With( zap.String("format", format), zap.String("target", target))
-	span.SetAttributes( kv.String("graphite.target", target), kv.String("graphite.format", format))
+	logger = logger.With(zap.String("format", format), zap.String("target", target))
+	span.SetAttributes(kv.String("graphite.target", target), kv.String("graphite.format", format))
 
 	from, err := strconv.ParseInt(req.FormValue("from"), 10, 64)
 	if err != nil {
@@ -304,25 +306,22 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	logger.Info("request served", zap.Int("memory_usage_bytes", memoryUsage), zap.Int("http_code", http.StatusOK), zap.Duration("runtime_seconds", time.Since(t0)))
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
+func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, lg *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
 
-	logger = logger.With(
-		zap.String("handler", "info"),
-		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-	)
+	lg = lg.With(zap.String("handler", "info"), zap.String("carbonapi_uuid", util.GetUUID(ctx)))
 
-	logger.Debug("request", zap.String("request", req.URL.RequestURI()))
+	lg.Debug("request", zap.String("request", req.URL.RequestURI()))
 
 	app.Metrics.Requests.Inc()
 
 	err := req.ParseForm()
 	if err != nil {
 		http.Error(w, "failed to parse arguments", http.StatusBadRequest)
-		logger.Info("request failed",
+		lg.Info("request failed",
 			zap.String("reason", "failed to parse arguments"),
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -335,13 +334,10 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 
-	logger = logger.With(
-		zap.String("target", target),
-		zap.String("format", format),
-	)
+	lg = lg.With(zap.String("target", target), zap.String("format", format))
 
 	if target == "" {
-		logger.Info("request failed",
+		lg.Info("request failed",
 			zap.Int("http_code", http.StatusBadRequest),
 			zap.String("reason", "empty target"),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -351,20 +347,12 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		return
 	}
 
-	request := types.NewInfoRequest(target)
-	bs := app.filterBackendByTopLevelDomain([]string{target})
-	var filteredByPathCache bool
-	bs, filteredByPathCache = backend.Filter(bs, []string{target})
-	if filteredByPathCache {
-		ms.PathCacheFilteredRequests.Inc()
-	}
-	infos, errs := backend.Infos(ctx, bs, request)
-	err = errorsFanIn(errs, len(bs))
-	if err != nil {
+	infos, err := Info(app, ctx, target, ms, lg)
 
+	if err != nil {
 		var notFound types.ErrNotFound
 		if errors.As(err, &notFound) {
-			logger.Info("info not found",
+			lg.Info("info not found",
 				zap.Int("http_code", http.StatusNotFound),
 				zap.Error(err),
 				zap.Duration("runtime_seconds", time.Since(t0)),
@@ -373,7 +361,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 			return
 		}
 
-		logger.Error("info failed",
+		lg.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Error(err),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -398,7 +386,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	if err != nil {
 		http.Error(w, "error marshaling data", http.StatusInternalServerError)
-		logger.Error("info failed",
+		lg.Error("info failed",
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.String("reason", "error marshaling data"),
 			zap.Duration("runtime_seconds", time.Since(t0)),
@@ -413,7 +401,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	if writeErr != nil {
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(499), "info").Inc()
-		logger.Warn("error writing the response",
+		lg.Warn("error writing the response",
 			zap.Int("http_code", 499),
 			zap.Duration("runtime_seconds", time.Since(t0)),
 			zap.Error(writeErr),
@@ -423,7 +411,7 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "info").Inc()
 
-	logger.Info("request served",
+	lg.Info("request served",
 		zap.Int("http_code", http.StatusOK),
 		zap.Duration("runtime_seconds", time.Since(t0)),
 	)
@@ -433,7 +421,7 @@ func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *Pro
 	t0 := time.Now()
 
 	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
-		ce.Write( zap.String("request", req.URL.RequestURI()))
+		ce.Write(zap.String("request", req.URL.RequestURI()))
 	}
 
 	app.Metrics.Requests.Inc()

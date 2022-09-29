@@ -19,29 +19,36 @@ import (
 )
 
 // App represents the main zipper runnable
-// TODO: Remove.
+// TODO: Remove after merge.
 type App struct {
 	Config              cfg.Zipper
 	Metrics             *PrometheusMetrics
 	Backends            []backend.Backend
 	TopLevelDomainCache *expirecache.Cache
 	TLDPrefixes         []tldPrefix
+	Lg                  *zap.Logger
 }
 
 // Start start launches the goroutines starts the app execution
-func (app *App) Start(lg *zap.Logger) {
+// `server` and `promPortOverride` are temporary to implement api and zipper merge.
+// TODO: Clean-up this function after merge is done.
+func (app *App) Start(serve bool, lg *zap.Logger) {
 	handler := initHandlers(app, app.Metrics, lg)
 
 	go probeTopLevelDomains(app.TopLevelDomainCache, app.TLDPrefixes, app.Backends, app.Config.InternalRoutingCache, app.Metrics)
 
-	metricsServer := metricsServer(app)
+	metricsServer := metricsServer(app, serve)
 	gracehttp.SetLogger(zap.NewStdLog(lg))
-	err := gracehttp.Serve(&http.Server{
-		Addr:         app.Config.Listen,
-		Handler:      handler,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: app.Config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
-	}, metricsServer)
+
+	var err error
+	if serve {
+		err = gracehttp.Serve(&http.Server{
+			Addr:         app.Config.Listen,
+			Handler:      handler,
+			ReadTimeout:  1 * time.Second,
+			WriteTimeout: app.Config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
+		}, metricsServer)
+	}
 
 	if err != nil {
 		log.Fatal("error during gracehttp.Serve()", zap.Error(err))
@@ -49,7 +56,6 @@ func (app *App) Start(lg *zap.Logger) {
 }
 
 // InitBackends inits backends.
-// TODO: Move to where the main func is.
 func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) ([]backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
