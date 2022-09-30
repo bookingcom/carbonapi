@@ -214,7 +214,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			return
 		}
 		if cacheErr != cache.ErrNotFound {
-			toLog.CacheErrs += err.Error() + ", "
+			toLog.CacheErrs += cacheErr.Error() + ", "
 		}
 	}
 	span.SetAttribute("from_cache", false)
