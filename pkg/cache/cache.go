@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,13 +20,13 @@ var (
 
 type BytesCache interface {
 	Get(k string) ([]byte, error)
-	Set(k string, v []byte, expire int32)
+	Set(k string, v []byte, expire int32) error
 }
 
 type NullCache struct{}
 
-func (NullCache) Get(string) ([]byte, error) { return nil, ErrNotFound }
-func (NullCache) Set(string, []byte, int32)  {}
+func (NullCache) Get(string) ([]byte, error)      { return nil, ErrNotFound }
+func (NullCache) Set(string, []byte, int32) error { return nil }
 
 func NewExpireCache(maxsize uint64) BytesCache {
 	ec := expirecache.New(maxsize)
@@ -49,8 +48,9 @@ func (ec ExpireCache) Get(k string) ([]byte, error) {
 	return v.([]byte), nil
 }
 
-func (ec ExpireCache) Set(k string, v []byte, expire int32) {
+func (ec ExpireCache) Set(k string, v []byte, expire int32) error {
 	ec.ec.Set(k, v, uint64(len(v)), expire)
+	return nil
 }
 
 func (ec ExpireCache) Items() int { return ec.ec.Items() }
@@ -73,8 +73,7 @@ type MemcachedCache struct {
 }
 
 func (m *MemcachedCache) Get(k string) ([]byte, error) {
-	key := sha256.Sum256([]byte(k))
-	hk := hex.EncodeToString(key[:])
+	hk := getCacheHashKey(k)
 	done := make(chan bool, 1)
 
 	var err error
@@ -109,10 +108,9 @@ func (m *MemcachedCache) Get(k string) ([]byte, error) {
 	return item.Value, nil
 }
 
-func (m *MemcachedCache) Set(k string, v []byte, expire int32) {
-	key := sha256.Sum256([]byte(k))
-	hk := hex.EncodeToString(key[:])
-	go m.client.Set(&memcache.Item{Key: m.prefix + hk, Value: v, Expiration: expire})
+func (m *MemcachedCache) Set(k string, v []byte, expire int32) error {
+	hk := getCacheHashKey(k)
+	return m.client.Set(&memcache.Item{Key: m.prefix + hk, Value: v, Expiration: expire})
 }
 
 func (m *MemcachedCache) Timeouts() uint64 {
@@ -161,44 +159,63 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 
 	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
 	var cacheErrs strings.Builder
+	notFounds := 0
+	timedOut := false
 	for range m.instances {
 		select {
 		case res := <-resCh:
 			if res.err != nil {
 				cacheErrs.WriteString("; " + res.err.Error())
+				continue
 			} else if !res.found {
-				return nil, ErrNotFound
+				notFounds++
+				continue
 			}
 
 			return res.data, nil
 		case <-tout:
-			return nil, ErrTimeout
+			cacheErrs.WriteString("; " + ErrTimeout.Error())
+			timedOut = true
+		}
+		if timedOut {
+			break
 		}
 	}
+	if notFounds > len(m.instances)/2 {
+		return nil, ErrNotFound
+	}
 
-	// if this point is reached, it means that all caches returned errors
-	return nil, errors.New("all caches failed with errors: " + cacheErrs.String())
+	// if this point is reached, it means that majority of caches returned errors
+	return nil, errors.New("majority of caches failed with errors: " + cacheErrs.String())
 }
 
 // Set sets the key-value pair for all cache instances.
-func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) {
-	key := sha256.Sum256([]byte(k))
-	hk := hex.EncodeToString(key[:])
-
-	var wg sync.WaitGroup
+func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) error {
+	hk := getCacheHashKey(k)
+	errCh := make(chan error, len(rm.instances))
 	for _, m := range rm.instances {
-		wg.Add(1)
 		go func(k_ string, val_ []byte, expire_ int32, m_ Cache) {
-			_ = m_.Set(&memcache.Item{
+			err := m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
 				Expiration: expire_,
 			})
-			wg.Done()
+			errCh <- err
 		}(hk, val, expire, m)
 	}
-
-	wg.Wait()
+	var cacheErrs strings.Builder
+	errorFound := false
+	for i := 0; i < len(rm.instances); i++ {
+		err := <-errCh
+		if err != nil {
+			errorFound = true
+			cacheErrs.WriteString("; " + err.Error())
+		}
+	}
+	if !errorFound {
+		return nil
+	}
+	return errors.New("caches failed with errors: " + cacheErrs.String())
 }
 
 type cacheResponse struct {
@@ -208,9 +225,7 @@ type cacheResponse struct {
 }
 
 func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) {
-	key := sha256.Sum256([]byte(k))
-	hk := hex.EncodeToString(key[:])
-
+	hk := getCacheHashKey(k)
 	item, err := m.Get(prefix + hk)
 
 	if err != nil {
@@ -218,8 +233,15 @@ func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) 
 			res <- cacheResponse{found: false, data: nil}
 			return
 		}
+		res <- cacheResponse{found: false, data: nil, err: err}
 		return
 	}
 
 	res <- cacheResponse{found: true, data: item.Value}
+}
+
+func getCacheHashKey(k string) string {
+	key := sha256.Sum256([]byte(k))
+	hk := hex.EncodeToString(key[:])
+	return hk
 }
