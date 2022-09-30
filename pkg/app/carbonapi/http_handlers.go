@@ -214,7 +214,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			return
 		}
 		if cacheErr != cache.ErrNotFound {
-			toLog.CacheErrs += cacheErr.Error() + ", "
+			addCacheErrorToLogDetails(&toLog, true, cacheErr)
 		}
 	}
 	span.SetAttribute("from_cache", false)
@@ -326,7 +326,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		// Looks like things are mixed.
 		err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
 		if err != nil {
-			toLog.CacheErrs += err.Error() + ", "
+			addCacheErrorToLogDetails(&toLog, false, err)
 		}
 	}
 
@@ -736,7 +736,9 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 		if err == nil {
 			return matches, true, nil
 		}
-		accessLogDetails.CacheErrs += err.Error() + ", "
+		if err != cache.ErrNotFound {
+			addCacheErrorToLogDetails(accessLogDetails, true, err)
+		}
 	}
 
 	accessLogDetails.ZipperRequests++
@@ -761,7 +763,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	if err == nil {
 		err := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
 		if err != nil {
-			accessLogDetails.CacheErrs += err.Error() + ", "
+			addCacheErrorToLogDetails(accessLogDetails, false, err)
 		}
 	}
 
@@ -1427,4 +1429,15 @@ func buildParseErrorString(target, e string, err error) string {
 			"Could not parse", e)
 	}
 	return msg
+}
+
+func addCacheErrorToLogDetails(d *carbonapipb.AccessLogDetails, isRead bool, err error) {
+	if err == nil {
+		return
+	}
+	prefix := "set: "
+	if isRead {
+		prefix = "get: "
+	}
+	d.CacheErrs += prefix + err.Error() + ","
 }
