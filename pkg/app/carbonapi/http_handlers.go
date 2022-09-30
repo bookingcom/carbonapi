@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
@@ -12,8 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bookingcom/carbonapi/pkg/app/zipper"
-	"github.com/bookingcom/carbonapi/pkg/handlerlog"
+	"go.opentelemetry.io/otel/api/kv"
+	"go.opentelemetry.io/otel/api/trace"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/bookingcom/carbonapi/expr"
@@ -21,20 +23,17 @@ import (
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
+	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/date"
+	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/pkg/util"
-
-	"errors"
-
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
-	"go.uber.org/zap"
 )
 
 const (
@@ -214,6 +213,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			toLog.HttpCode = http.StatusOK
 			return
 		}
+		if cacheErr != cache.ErrNotFound {
+			toLog.CacheErrs += err.Error() + ", "
+		}
 	}
 	span.SetAttribute("from_cache", false)
 
@@ -322,7 +324,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	if len(results) != 0 {
 		// TODO (grzkv): Timeout is passed as "expire" argument.
 		// Looks like things are mixed.
-		app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
+		err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
+		if err != nil {
+			toLog.CacheErrs += err.Error() + ", "
+		}
 	}
 
 	if partiallyFailed {
@@ -731,6 +736,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 		if err == nil {
 			return matches, true, nil
 		}
+		accessLogDetails.CacheErrs += err.Error() + ", "
 	}
 
 	accessLogDetails.ZipperRequests++
@@ -753,7 +759,10 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
-		app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
+		err := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
+		if err != nil {
+			accessLogDetails.CacheErrs += err.Error() + ", "
+		}
 	}
 
 	return matches, false, nil
