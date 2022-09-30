@@ -22,6 +22,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/trace"
 
 	"github.com/facebookgo/grace/gracehttp"
@@ -48,6 +49,7 @@ type App struct {
 	Lg *zap.Logger
 
 	Zipper *zipper.App
+	ZipperLimiter *prioritylimiter.Limiter
 }
 
 // New creates a new app

@@ -516,8 +516,10 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	var err error
 	var metrics []dataTypes.Metric
 	if app.Zipper != nil {
-		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until),
-			app.Zipper.Metrics, app.Zipper.Lg)
+		// TODO: Cleanup the limiter.
+		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx)) // This is a temporary fix.
+		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
+		app.ZipperLimiter.Leave()
 	} else {
 		metrics, err = app.backend.Render(ctx, request)
 	}
