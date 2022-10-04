@@ -141,7 +141,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 		config:            config,
 		queryCache:        cache.NewMemcached("capi", 50, ""),
 		findCache:         cache.NewExpireCache(1000),
-		prometheusMetrics: newPrometheusMetrics(config),
+		ms: newPrometheusMetrics(config),
 	}
 	app.backend = mock.New(mock.Config{
 		Find:   find,

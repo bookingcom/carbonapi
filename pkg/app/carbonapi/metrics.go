@@ -15,6 +15,8 @@ type PrometheusMetrics struct {
 	DurationExp       prometheus.Histogram
 	DurationLin       prometheus.Histogram
 
+	RequestsOut *prometheus.CounterVec
+
 	RenderDurationExp         prometheus.Histogram
 	RenderDurationLinSimple   prometheus.Histogram
 	RenderDurationExpSimple   prometheus.Histogram
@@ -30,6 +32,10 @@ type PrometheusMetrics struct {
 	TimeInQueueLin          prometheus.Histogram
 	ActiveUpstreamRequests  prometheus.Gauge
 	WaitingUpstreamRequests prometheus.Gauge
+
+	CacheRequests *prometheus.CounterVec
+	CacheRespRead *prometheus.CounterVec
+	CacheTimeouts *prometheus.CounterVec
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -75,6 +81,12 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.RequestDurationExp.BucketSize,
 					config.Zipper.Common.Monitoring.RequestDurationExp.BucketsNum),
 			},
+		),
+		RequestsOut: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "requests_out_total",
+				Help: "The number of requests that are propagated to be queried to backends",
+			}, []string{"request"},
 		),
 		DurationLin: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -208,6 +220,27 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Name: "waiting_upstream_requests",
 				Help: "Number of upstream requests waiting on the limiter",
 			},
+		),
+		CacheRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "cache_requests",
+				Help: "Counter of requests to the top-level cache",
+			},
+			[]string{"request", "operation"},
+		),
+		CacheRespRead: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "cache_resp_read",
+				Help: "Counter of responses from the top-level cache that we have acutally read",
+			},
+			[]string{"request", "operation", "status"},
+		),
+		CacheTimeouts: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "cache_timeouts",
+				Help: "Counter of top-level cache timed-out requests",
+			},
+			[]string{"request"},
 		),
 	}
 }
