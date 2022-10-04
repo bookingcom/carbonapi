@@ -161,21 +161,21 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	defer func() {
 		//TODO: cleanup RenderDurationPerPointExp
 		if size > 0 {
-			app.prometheusMetrics.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
+			app.ms.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
 		}
 		//2xx response code is treated as success
 		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
-				app.prometheusMetrics.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
-				app.prometheusMetrics.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
+				app.ms.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
+				app.ms.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
-				app.prometheusMetrics.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
+				app.ms.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
 		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
 	}()
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
 	if err != nil {
@@ -286,7 +286,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			case errors.Is(targetErr, context.DeadlineExceeded):
 				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog, span)
 				logLevel = zapcore.ErrorLevel
-				app.prometheusMetrics.RequestCancel.WithLabelValues(
+				app.ms.RequestCancel.WithLabelValues(
 					"render", ctx.Err().Error(),
 				).Inc()
 				return
@@ -302,7 +302,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
 	if ctx.Err() != nil {
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
+		app.ms.RequestCancel.WithLabelValues(
 			"render", ctx.Err().Error(),
 		).Inc()
 	}
@@ -331,7 +331,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	}
 
 	if partiallyFailed {
-		app.prometheusMetrics.RenderPartialFail.Inc()
+		app.ms.RenderPartialFail.Inc()
 	}
 }
 
@@ -522,7 +522,8 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	var metrics []dataTypes.Metric
 	if app.Zipper != nil {
 		// TODO: Cleanup the limiter.
-		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx)) // This is a temporary fix.
+		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
+		app.ms.RequestsOut.WithLabelValues("render").Inc()
 		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
 		app.ZipperLimiter.Leave()
 	} else {
@@ -530,8 +531,8 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	}
 
 	// time in queue is converted to ms
-	app.prometheusMetrics.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-	app.prometheusMetrics.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+	app.ms.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+	app.ms.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
 
 	metricData := make([]*types.MetricData, 0)
 	for i := range metrics {
@@ -750,7 +751,10 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	var matches dataTypes.Matches
 
 	if app.Zipper != nil {
+		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
+		app.ms.RequestsOut.WithLabelValues("find").Inc()
 		matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
+		app.ZipperLimiter.Leave()
 	} else {
 		matches, err = app.backend.Find(ctx, request)
 	}
@@ -819,7 +823,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	span := trace.SpanFromContext(ctx)
 	uuid := util.GetUUID(ctx)
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 
 	format := r.FormValue("format")
 	jsonp := r.FormValue("jsonp")
@@ -837,9 +841,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	defer func() {
 		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
-				app.prometheusMetrics.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
+				app.ms.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
-				app.prometheusMetrics.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
+				app.ms.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
 		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
@@ -877,7 +881,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 			// request that finds nothing. We are however interested in knowing
 			// that we found nothing on the monitoring side, so we claim we
 			// returned a 404 code to Prometheus.
-			app.prometheusMetrics.FindNotFound.Inc()
+			app.ms.FindNotFound.Inc()
 		case errors.Is(err, context.DeadlineExceeded):
 			writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", "", &toLog, span)
 			logLevel = zapcore.ErrorLevel
@@ -890,7 +894,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	}
 
 	if ctx.Err() != nil {
-		app.prometheusMetrics.RequestCancel.WithLabelValues(
+		app.ms.RequestCancel.WithLabelValues(
 			"find", ctx.Err().Error(),
 		).Inc()
 	}
@@ -1042,7 +1046,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 
 	format := r.FormValue("format")
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 
 	if format == "" {
 		format = jsonFormat
@@ -1070,6 +1074,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	var infos []dataTypes.Info
 	var err error
 	if app.Zipper != nil {
+		app.ms.RequestsOut.WithLabelValues("info").Inc()
 		infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
 	} else {
 		infos, err = app.backend.Info(ctx, request)
@@ -1126,7 +1131,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "lbcheck", &app.config)
 	logLevel := zap.InfoLevel
 	defer func() {
@@ -1146,7 +1151,7 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *z
 func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "version", &app.config)
 	toLog.HttpCode = http.StatusOK
 	logLevel := zap.InfoLevel
@@ -1182,7 +1187,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
 
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
 	logLevel := zap.InfoLevel
@@ -1394,7 +1399,7 @@ supported requests:
 
 func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
 	t0 := time.Now()
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 	toLog := carbonapipb.NewAccessLogDetails(r, "usage", &app.config)
 	logLevel := zap.InfoLevel
 	defer func() {
@@ -1412,9 +1417,9 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
 func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
-	app.prometheusMetrics.Requests.Inc()
+	app.ms.Requests.Inc()
 	defer func() {
-		app.prometheusMetrics.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "tags", "false").Inc()
+		app.ms.Responses.WithLabelValues(strconv.Itoa(http.StatusOK), "tags", "false").Inc()
 	}()
 }
 

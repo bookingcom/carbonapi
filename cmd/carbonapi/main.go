@@ -8,9 +8,7 @@ import (
 	"runtime"
 
 	"github.com/bookingcom/carbonapi/pkg/app/carbonapi"
-	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
-	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"go.uber.org/zap"
 )
 
@@ -49,16 +47,6 @@ func main() {
 	app, err := carbonapi.New(apiConfig, lg, BuildVersion)
 	if err != nil {
 		lg.Error("Error initializing app")
-	}
-
-	if apiConfig.EmbedZipper {
-		lg.Info("starting embedded zipper")
-		var zlg *zap.Logger
-		app.Zipper, zlg = zipper.Setup(apiConfig.ZipperConfig, BuildVersion, "zipper", lg)
-		app.ZipperLimiter = prioritylimiter.New(apiConfig.ConcurrencyLimitPerServer)
-		// flush := trace.InitTracer(BuildVersion, "carbonzipper", zlg, app.Zipper.Config.Traces)
-		// defer flush()
-		go app.Zipper.Start(false, zlg)
 	}
 
 	flush := app.Start(lg)

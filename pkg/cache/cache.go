@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dgryski/go-expirecache"
 )
@@ -121,9 +122,13 @@ func (m *MemcachedCache) Timeouts() uint64 {
 // are identical. Each read and write refers to all of them.
 type ReplicatedMemcached struct {
 	prefix    string
-	instances []Cache
+	instances []*memcache.Client
 
-	timeoutMs uint64 // timeout for getting data
+	timeoutMs uint64
+
+	reqCount      *prometheus.CounterVec
+	respReadCount *prometheus.CounterVec
+	timeoutCount  prometheus.Counter
 }
 
 // Cache is a cache interface. Mainly for testing abilities.
@@ -133,10 +138,14 @@ type Cache interface {
 }
 
 // NewReplicatedMemcached creates a set of identical memcached instances.
-func NewReplicatedMemcached(prefix string, timeout uint64, servers ...string) BytesCache {
+func NewReplicatedMemcached(prefix string, timeout uint64, reqCount *prometheus.CounterVec,
+	respCount *prometheus.CounterVec, timeoutCount prometheus.Counter, servers ...string) BytesCache {
 	m := ReplicatedMemcached{
-		prefix:    prefix,
-		timeoutMs: timeout,
+		prefix:        prefix,
+		timeoutMs:     timeout,
+		reqCount:      reqCount,
+		respReadCount: respCount,
+		timeoutCount:  timeoutCount,
 	}
 
 	for _, s := range servers {
@@ -154,6 +163,7 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 	resCh := make(chan cacheResponse, len(m.instances))
 
 	for _, replica := range m.instances {
+		m.reqCount.With(prometheus.Labels{"operation": "get"}).Inc()
 		go getFromReplica(replica, k, m.prefix, resCh)
 	}
 
@@ -165,15 +175,19 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 		select {
 		case res := <-resCh:
 			if res.err != nil {
+				m.respReadCount.With(prometheus.Labels{"operation": "get", "status": "error"}).Inc()
 				cacheErrs.WriteString("; " + res.err.Error())
 				continue
 			} else if !res.found {
+				m.respReadCount.With(prometheus.Labels{"operation": "get", "status": "not_found"}).Inc()
 				notFounds++
 				continue
 			}
 
+			m.respReadCount.With(prometheus.Labels{"operation": "get", "status": "ok"}).Inc()
 			return res.data, nil
 		case <-tout:
+			m.timeoutCount.Inc()
 			cacheErrs.WriteString("; " + ErrTimeout.Error())
 			timedOut = true
 		}
@@ -194,6 +208,7 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) error {
 	hk := getCacheHashKey(k)
 	errCh := make(chan error, len(rm.instances))
 	for _, m := range rm.instances {
+		rm.reqCount.With(prometheus.Labels{"operation": "set"}).Inc()
 		go func(k_ string, val_ []byte, expire_ int32, m_ Cache) {
 			err := m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
@@ -208,8 +223,11 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) error {
 	for i := 0; i < len(rm.instances); i++ {
 		err := <-errCh
 		if err != nil {
+			rm.respReadCount.With(prometheus.Labels{"operation": "set", "status": "error"}).Inc()
 			errorFound = true
 			cacheErrs.WriteString("; " + err.Error())
+		} else {
+			rm.respReadCount.With(prometheus.Labels{"operation": "set", "status": "ok"}).Inc()
 		}
 	}
 	if !errorFound {

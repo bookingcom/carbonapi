@@ -45,40 +45,49 @@ type App struct {
 
 	backend backend.Backend
 
-	prometheusMetrics PrometheusMetrics
+	ms PrometheusMetrics
 	Lg *zap.Logger
 
-	Zipper *zipper.App
+	Zipper        *zipper.App
 	ZipperLimiter *prioritylimiter.Limiter
 }
 
 // New creates a new app
-func New(config cfg.API, logger *zap.Logger, buildVersion string) (*App, error) {
+func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	if len(config.Backends) == 0 {
-		logger.Fatal("no backends specified for upstreams!")
+		lg.Fatal("no backends specified for upstreams!")
 	}
 
 	BuildVersion = buildVersion
 	app := &App{
-		config:            config,
-		queryCache:        cache.NullCache{},
-		findCache:         cache.NullCache{},
-		defaultTimeZone:   time.Local,
-		prometheusMetrics: newPrometheusMetrics(config),
-		requestBlocker:    blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, logger),
+		config:          config,
+		queryCache:      cache.NullCache{},
+		findCache:       cache.NullCache{},
+		defaultTimeZone: time.Local,
+		ms:              newPrometheusMetrics(config),
+		requestBlocker:  blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
 	}
 	app.requestBlocker.ReloadRules()
 
 	// TODO(gmagnusson): Setup backends
-	backend, err := initBackend(app.config, logger,
-		app.prometheusMetrics.ActiveUpstreamRequests,
-		app.prometheusMetrics.WaitingUpstreamRequests)
+	backend, err := initBackend(app.config, lg,
+		app.ms.ActiveUpstreamRequests,
+		app.ms.WaitingUpstreamRequests)
 	if err != nil {
-		logger.Fatal("couldn't initialize backends", zap.Error(err))
+		lg.Fatal("couldn't initialize backends", zap.Error(err))
 	}
 
 	app.backend = backend
-	setUpConfig(app, logger)
+	setUpConfig(app, lg)
+
+	if config.EmbedZipper {
+		lg.Info("starting embedded zipper")
+		var zlg *zap.Logger
+		app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
+		app.ZipperLimiter = prioritylimiter.New(config.ConcurrencyLimitPerServer,
+			prioritylimiter.WithMetrics(app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests))
+		go app.Zipper.Start(false, zlg)
+	}
 
 	return app, nil
 }
@@ -109,26 +118,30 @@ func (app *App) Start(logger *zap.Logger) func() {
 }
 
 func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Server {
-	prometheus.MustRegister(app.prometheusMetrics.Requests)
-	prometheus.MustRegister(app.prometheusMetrics.Responses)
-	prometheus.MustRegister(app.prometheusMetrics.FindNotFound)
-	prometheus.MustRegister(app.prometheusMetrics.RenderPartialFail)
-	prometheus.MustRegister(app.prometheusMetrics.RequestCancel)
-	prometheus.MustRegister(app.prometheusMetrics.DurationExp)
-	prometheus.MustRegister(app.prometheusMetrics.DurationLin)
-	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExp)
-	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpSimple)
-	prometheus.MustRegister(app.prometheusMetrics.RenderDurationExpComplex)
-	prometheus.MustRegister(app.prometheusMetrics.RenderDurationLinSimple)
-	prometheus.MustRegister(app.prometheusMetrics.RenderDurationPerPointExp)
-	prometheus.MustRegister(app.prometheusMetrics.FindDurationExp)
-	prometheus.MustRegister(app.prometheusMetrics.FindDurationLin)
-	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinSimple)
-	prometheus.MustRegister(app.prometheusMetrics.FindDurationLinComplex)
-	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueExp)
-	prometheus.MustRegister(app.prometheusMetrics.TimeInQueueLin)
-	prometheus.MustRegister(app.prometheusMetrics.ActiveUpstreamRequests)
-	prometheus.MustRegister(app.prometheusMetrics.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.ms.Requests)
+	prometheus.MustRegister(app.ms.Responses)
+	prometheus.MustRegister(app.ms.FindNotFound)
+	prometheus.MustRegister(app.ms.RenderPartialFail)
+	prometheus.MustRegister(app.ms.RequestCancel)
+	prometheus.MustRegister(app.ms.DurationExp)
+	prometheus.MustRegister(app.ms.DurationLin)
+	prometheus.MustRegister(app.ms.RequestsOut)
+	prometheus.MustRegister(app.ms.RenderDurationExp)
+	prometheus.MustRegister(app.ms.RenderDurationExpSimple)
+	prometheus.MustRegister(app.ms.RenderDurationExpComplex)
+	prometheus.MustRegister(app.ms.RenderDurationLinSimple)
+	prometheus.MustRegister(app.ms.RenderDurationPerPointExp)
+	prometheus.MustRegister(app.ms.FindDurationExp)
+	prometheus.MustRegister(app.ms.FindDurationLin)
+	prometheus.MustRegister(app.ms.FindDurationLinSimple)
+	prometheus.MustRegister(app.ms.FindDurationLinComplex)
+	prometheus.MustRegister(app.ms.TimeInQueueExp)
+	prometheus.MustRegister(app.ms.TimeInQueueLin)
+	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.ms.CacheRequests)
+	prometheus.MustRegister(app.ms.CacheRespRead)
+	prometheus.MustRegister(app.ms.CacheTimeouts)
 
 	writeTimeout := app.config.Timeouts.Global
 	if writeTimeout < 30*time.Second {
@@ -177,8 +190,35 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		logger.Info("replicated memcached configured",
 			zap.Strings("servers", app.config.Cache.MemcachedServers))
 
-		app.queryCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
-		app.findCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix, app.config.Cache.QueryTimeoutMs, app.config.Cache.MemcachedServers...)
+		respReadRender, err := app.ms.CacheRespRead.CurryWith(prometheus.Labels{"request": "render"})
+		if err != nil {
+			logger.Fatal("could not form respRead metric for the render cache", zap.Error(err))
+		}
+		reqsRender, err := app.ms.CacheRequests.CurryWith(prometheus.Labels{"request": "render"})
+		if err != nil {
+			logger.Fatal("could not form reqests counter metric for the render cache", zap.Error(err))
+		}
+		app.queryCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
+			app.config.Cache.QueryTimeoutMs,
+			reqsRender,
+			respReadRender,
+			app.ms.CacheTimeouts.WithLabelValues("render"),
+			app.config.Cache.MemcachedServers...)
+
+		respReadFind, err := app.ms.CacheRespRead.CurryWith(prometheus.Labels{"request": "find"})
+		if err != nil {
+			logger.Fatal("could not form respRead metrics for the find cache", zap.Error(err))
+		}
+		reqsFind, err := app.ms.CacheRequests.CurryWith(prometheus.Labels{"request": "find"})
+		if err != nil {
+			logger.Fatal("could not form reqests counter metric for the find cache", zap.Error(err))
+		}
+		app.findCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
+			app.config.Cache.QueryTimeoutMs,
+			reqsFind,
+			respReadFind,
+			app.ms.CacheTimeouts.WithLabelValues("find"),
+			app.config.Cache.MemcachedServers...)
 
 	case "mem":
 		app.queryCache = cache.NewExpireCache(uint64(app.config.Cache.Size * 1024 * 1024))
@@ -270,7 +310,7 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 
 	if app != nil {
-		app.prometheusMetrics.Responses.WithLabelValues(
+		app.ms.Responses.WithLabelValues(
 			fmt.Sprintf("%d", accessLogDetails.HttpCode),
 			accessLogDetails.Handler,
 			fmt.Sprintf("%t", accessLogDetails.FromCache)).Inc()
@@ -278,15 +318,15 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 }
 
 func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	app.prometheusMetrics.DurationExp.Observe(t.Seconds())
-	app.prometheusMetrics.DurationLin.Observe(t.Seconds())
+	app.ms.DurationExp.Observe(t.Seconds())
+	app.ms.DurationLin.Observe(t.Seconds())
 
 	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
-		app.prometheusMetrics.RenderDurationExp.Observe(t.Seconds())
+		app.ms.RenderDurationExp.Observe(t.Seconds())
 	}
 	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
-		app.prometheusMetrics.FindDurationExp.Observe(t.Seconds())
-		app.prometheusMetrics.FindDurationLin.Observe(t.Seconds())
+		app.ms.FindDurationExp.Observe(t.Seconds())
+		app.ms.FindDurationLin.Observe(t.Seconds())
 	}
 }
 
