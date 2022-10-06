@@ -37,8 +37,12 @@ type Limiter struct {
 	wantToEnter   chan *request
 	cancelRequest chan *request
 	loopCount     uint32
-	activeGauge   prometheus.Gauge
-	waitingGauge  prometheus.Gauge
+
+	activeGauge  prometheus.Gauge
+	waitingGauge prometheus.Gauge
+
+	entersCount prometheus.Counter
+	exitsCount  *prometheus.CounterVec
 }
 
 type LimiterOption func(*Limiter)
@@ -61,15 +65,22 @@ func New(limit int, options ...LimiterOption) *Limiter {
 }
 
 // WithMetrics adds prometheus metrics to the Limiter instanace
-func WithMetrics(activeGauge, waitingGauge prometheus.Gauge) LimiterOption {
+func WithMetrics(activeGauge, waitingGauge prometheus.Gauge,
+	enterCount prometheus.Counter, exitCount *prometheus.CounterVec) LimiterOption {
 	return func(l *Limiter) {
 		l.activeGauge = activeGauge
 		l.waitingGauge = waitingGauge
+		l.entersCount = enterCount
+		l.exitsCount = exitCount
 	}
 }
 
 // Enter blocks this request until it's turn comes
 func (l *Limiter) Enter(ctx context.Context, priority int, uuid string) error {
+	if l.entersCount != nil {
+		l.entersCount.Inc()
+	}
+
 	canEnter := make(chan struct{})
 
 	req := &request{
@@ -84,14 +95,23 @@ func (l *Limiter) Enter(ctx context.Context, priority int, uuid string) error {
 	select {
 	// Check first if the ctx is not closed
 	case <-ctx.Done():
+		if l.exitsCount != nil {
+			l.exitsCount.WithLabelValues("ctx_cancel").Inc()
+		}
 		l.cancelRequest <- req
 		return ctx.Err()
 	default:
 		select {
 		case <-ctx.Done():
 			l.cancelRequest <- req
+			if l.exitsCount != nil {
+				l.exitsCount.WithLabelValues("ctx_cancel").Inc()
+			}
 			return ctx.Err()
 		case <-canEnter:
+			if l.exitsCount != nil {
+				l.exitsCount.WithLabelValues("ok").Inc()
+			}
 			return nil
 		}
 	}

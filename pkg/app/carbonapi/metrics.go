@@ -15,8 +15,6 @@ type PrometheusMetrics struct {
 	DurationExp       prometheus.Histogram
 	DurationLin       prometheus.Histogram
 
-	RequestsOut *prometheus.CounterVec
-
 	RenderDurationExp         prometheus.Histogram
 	RenderDurationLinSimple   prometheus.Histogram
 	RenderDurationExpSimple   prometheus.Histogram
@@ -28,10 +26,14 @@ type PrometheusMetrics struct {
 	FindDurationLinSimple  prometheus.Histogram
 	FindDurationLinComplex prometheus.Histogram
 
-	TimeInQueueExp          prometheus.Histogram
-	TimeInQueueLin          prometheus.Histogram
+	TimeInQueueExp prometheus.Histogram
+	TimeInQueueLin prometheus.Histogram
+
+	UpstreamRequests        *prometheus.CounterVec
 	ActiveUpstreamRequests  prometheus.Gauge
 	WaitingUpstreamRequests prometheus.Gauge
+	UpstreamLimiterEnters   prometheus.Counter
+	UpstreamLimiterExits    *prometheus.CounterVec
 
 	CacheRequests *prometheus.CounterVec
 	CacheRespRead *prometheus.CounterVec
@@ -82,10 +84,10 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.RequestDurationExp.BucketsNum),
 			},
 		),
-		RequestsOut: prometheus.NewCounterVec(
+		UpstreamRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "requests_out_total",
-				Help: "The number of requests that are propagated to be queried to backends",
+				Name: "upstream_requests_total",
+				Help: "The number of requests that are propagated to be queried upstream and forwarded to backends",
 			}, []string{"request"},
 		),
 		DurationLin: prometheus.NewHistogram(
@@ -221,6 +223,14 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Help: "Number of upstream requests waiting on the limiter",
 			},
 		),
+		UpstreamLimiterEnters: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "upstream_limiter_enters",
+			Help: "The counter of requests that entered the upstream limiter",
+		}),
+		UpstreamLimiterExits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "upstream_limiter_exits",
+			Help: "The counter of requests that exit the limiter by status",
+		}, []string{"status"}),
 		CacheRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_requests",

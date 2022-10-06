@@ -71,8 +71,8 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 
 	// TODO(gmagnusson): Setup backends
 	backend, err := initBackend(app.config, lg,
-		app.ms.ActiveUpstreamRequests,
-		app.ms.WaitingUpstreamRequests)
+		app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
+		app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits)
 	if err != nil {
 		lg.Fatal("couldn't initialize backends", zap.Error(err))
 	}
@@ -85,7 +85,8 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		var zlg *zap.Logger
 		app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
 		app.ZipperLimiter = prioritylimiter.New(config.ConcurrencyLimitPerServer,
-			prioritylimiter.WithMetrics(app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests))
+			prioritylimiter.WithMetrics(app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
+				app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits))
 		go app.Zipper.Start(false, zlg)
 	}
 
@@ -125,7 +126,7 @@ func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Se
 	prometheus.MustRegister(app.ms.RequestCancel)
 	prometheus.MustRegister(app.ms.DurationExp)
 	prometheus.MustRegister(app.ms.DurationLin)
-	prometheus.MustRegister(app.ms.RequestsOut)
+	prometheus.MustRegister(app.ms.UpstreamRequests)
 	prometheus.MustRegister(app.ms.RenderDurationExp)
 	prometheus.MustRegister(app.ms.RenderDurationExpSimple)
 	prometheus.MustRegister(app.ms.RenderDurationExpComplex)
@@ -139,6 +140,8 @@ func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Se
 	prometheus.MustRegister(app.ms.TimeInQueueLin)
 	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
 	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
+	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
 	prometheus.MustRegister(app.ms.CacheRequests)
 	prometheus.MustRegister(app.ms.CacheRespRead)
 	prometheus.MustRegister(app.ms.CacheTimeouts)
@@ -330,7 +333,8 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 }
 
-func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, waitingUpstreamRequests prometheus.Gauge) (backend.Backend, error) {
+func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, waitingUpstreamRequests prometheus.Gauge,
+	limiterEnters prometheus.Counter, limiterExits *prometheus.CounterVec) (backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -356,6 +360,8 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		Logger:             logger,
 		ActiveRequests:     activeUpstreamRequests,
 		WaitingRequests:    waitingUpstreamRequests,
+		LimiterEnters:      limiterEnters,
+		LimiterExits:       limiterExits,
 	})
 
 	if err != nil {
