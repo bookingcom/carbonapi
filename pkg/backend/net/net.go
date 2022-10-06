@@ -53,9 +53,10 @@ type Backend struct {
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
-	qHist     *prometheus.HistogramVec // note: we do not use zipper's metrics to separate from capi
-	responses *prometheus.CounterVec
-	logger    *zap.Logger
+	qHist          *prometheus.HistogramVec
+	responsesCount *prometheus.CounterVec
+
+	logger *zap.Logger
 }
 
 // Config configures an HTTP backend.
@@ -75,10 +76,14 @@ type Config struct {
 	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
-	ActiveRequests     prometheus.Gauge
-	WaitingRequests    prometheus.Gauge
-	QHist              *prometheus.HistogramVec
-	Responses          *prometheus.CounterVec
+
+	// TODO (grzkv): Make metrics mandatory to simplify code. Nil can be replaced by the mock metrics in tests.
+	ActiveRequests  prometheus.Gauge
+	WaitingRequests prometheus.Gauge
+	LimiterEnters   prometheus.Counter
+	LimiterExits    *prometheus.CounterVec
+	QHist           *prometheus.HistogramVec
+	Responses       *prometheus.CounterVec
 }
 
 var fmtProto = []string{"protobuf"}
@@ -118,15 +123,18 @@ func New(cfg Config) (*Backend, error) {
 	}
 
 	if cfg.Limit > 0 {
-		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil {
-			b.limiter = prioritylimiter.New(cfg.Limit, prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests))
+		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil &&
+			cfg.LimiterEnters != nil && cfg.LimiterExits != nil {
+
+			b.limiter = prioritylimiter.New(cfg.Limit, prioritylimiter.WithMetrics(
+				cfg.ActiveRequests, cfg.WaitingRequests, cfg.LimiterEnters, cfg.LimiterExits))
 		} else {
 			b.limiter = prioritylimiter.New(cfg.Limit)
 		}
 	}
 
 	b.qHist = cfg.QHist
-	b.responses = cfg.Responses
+	b.responsesCount = cfg.Responses
 
 	if cfg.Logger != nil {
 		b.logger = cfg.Logger
@@ -211,14 +219,16 @@ func (b Backend) request(ctx context.Context, u *url.URL) (*http.Request, error)
 	return req, nil
 }
 
-func (b Backend) do(trace types.Trace, req *http.Request) (string, []byte, error) {
-
+func (b Backend) do(trace types.Trace, req *http.Request, request string) (string, []byte, error) {
 	t0 := time.Now()
 	resp, err := b.client.Do(req)
 	trace.AddHTTPCall(t0)
 	trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 
 	if err != nil {
+		if b.responsesCount != nil {
+			b.responsesCount.WithLabelValues("http_client_error", request).Inc()
+		}
 		return "", nil, err
 	}
 
@@ -229,11 +239,17 @@ func (b Backend) do(trace types.Trace, req *http.Request) (string, []byte, error
 		t1 := time.Now()
 		body, bodyErr = ioutil.ReadAll(resp.Body)
 		if bodyErr != nil {
+			if b.responsesCount != nil {
+				b.responsesCount.WithLabelValues("http_body_error", request).Inc()
+			}
 			return "", nil, bodyErr
 		}
 		trace.AddReadBody(t1)
 	}
 
+	if b.responsesCount != nil {
+		b.responsesCount.WithLabelValues(strconv.Itoa(resp.StatusCode), request).Inc()
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", body, ErrHTTPCode(resp.StatusCode)
 	}
@@ -282,17 +298,7 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, reques
 		return "", nil, err
 	}
 
-	contentType, body, err := b.do(trace, req)
-	if b.responses == nil {
-		return contentType, body, err
-	}
-	if err != nil {
-		if code, ok := err.(ErrHTTPCode); ok {
-			b.responses.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
-		}
-	} else {
-		b.responses.WithLabelValues(strconv.Itoa(http.StatusOK), request).Inc()
-	}
+	contentType, body, err := b.do(trace, req, request)
 	return contentType, body, err
 }
 

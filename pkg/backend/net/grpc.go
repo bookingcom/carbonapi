@@ -261,16 +261,16 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 }
 
 func (gb *GrpcBackend) countResponse(err error, request string) {
-	if gb.responses == nil {
+	if gb.responsesCount == nil {
 		return
 	}
 	if err == nil {
-		gb.responses.WithLabelValues(strconv.Itoa(int(codes.OK)), request).Inc()
+		gb.responsesCount.WithLabelValues(strconv.Itoa(int(codes.OK)), request).Inc()
 	} else {
 		code := status.Code(err)
 		if code == codes.Unknown {
 			return
 		}
-		gb.responses.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
+		gb.responsesCount.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
 	}
 }

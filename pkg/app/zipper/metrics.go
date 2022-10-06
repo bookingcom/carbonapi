@@ -19,6 +19,12 @@ type PrometheusMetrics struct {
 	FindNotFound              prometheus.Counter
 	RequestCancel             *prometheus.CounterVec
 
+	BackendResponses        *prometheus.CounterVec
+	ActiveUpstreamRequests  *prometheus.GaugeVec
+	WaitingUpstreamRequests *prometheus.GaugeVec
+	BackendLimiterEnters    *prometheus.CounterVec
+	BackendLimiterExits     *prometheus.CounterVec
+
 	RenderDurationExp    prometheus.Histogram
 	RenderOutDurationExp *prometheus.HistogramVec
 	FindDurationExp      prometheus.Histogram
@@ -32,7 +38,6 @@ type PrometheusMetrics struct {
 	TLDCacheHostsPerDomain prometheus.GaugeVec
 
 	PathCacheFilteredRequests prometheus.Counter
-	BackendResponses          *prometheus.CounterVec
 }
 
 // NewPrometheusMetrics creates a set of default Prom metrics
@@ -96,6 +101,26 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 			},
 			[]string{"handler", "cause"},
 		),
+		ActiveUpstreamRequests: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "active_upstream_requests",
+			Help:      "Number of in-flight requests to a backend",
+		}, []string{"backend"}),
+		WaitingUpstreamRequests: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "waiting_upstream_requests",
+			Help:      "Number of requests to a backend currently blocked in the limiter",
+		}, []string{"backend"}),
+		BackendLimiterEnters: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name: "backend_limiter_enters",
+			Help: "Counter of requests that entered a backend limiter by backend",
+		}, []string{"backend"}),
+		BackendLimiterExits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name: "backend_limiter_exits",
+			Help: "Counter of backend limiter exits by backend and by status",
+		}, []string{"backend", "status"}),
 		RenderDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
 				Namespace: ns,
@@ -200,9 +225,9 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 			prometheus.CounterOpts{
 				Namespace: ns,
 				Name:      "backend_responses_total",
-				Help:      "Count of backend responses, partitioned by return code and handler",
+				Help:      "Count of backend responses, partitioned by status and request type",
 			},
-			[]string{"code", "handler"},
+			[]string{"status", "request"},
 		),
 	}
 }
@@ -216,6 +241,13 @@ func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
 	prometheus.MustRegister(app.Metrics.FindNotFound)
 	prometheus.MustRegister(app.Metrics.RequestCancel)
+
+	prometheus.MustRegister(app.Metrics.BackendResponses)
+	prometheus.MustRegister(app.Metrics.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.Metrics.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.Metrics.BackendLimiterEnters)
+	prometheus.MustRegister(app.Metrics.BackendLimiterExits)
+
 	prometheus.MustRegister(app.Metrics.RenderDurationExp)
 	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
 	prometheus.MustRegister(app.Metrics.FindDurationExp)
@@ -228,7 +260,6 @@ func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
 
 	prometheus.MustRegister(app.Metrics.PathCacheFilteredRequests)
-	prometheus.MustRegister(app.Metrics.BackendResponses)
 
 	writeTimeout := app.Config.Timeouts.Global
 	if writeTimeout < 30*time.Second {

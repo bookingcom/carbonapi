@@ -523,7 +523,7 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 	if app.Zipper != nil {
 		// TODO: Cleanup the limiter.
 		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
-		app.ms.RequestsOut.WithLabelValues("render").Inc()
+		app.ms.UpstreamRequests.WithLabelValues("render").Inc()
 		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
 		app.ZipperLimiter.Leave()
 	} else {
@@ -752,7 +752,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	if app.Zipper != nil {
 		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
-		app.ms.RequestsOut.WithLabelValues("find").Inc()
+		app.ms.UpstreamRequests.WithLabelValues("find").Inc()
 		matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
 		app.ZipperLimiter.Leave()
 	} else {
@@ -1074,7 +1074,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	var infos []dataTypes.Info
 	var err error
 	if app.Zipper != nil {
-		app.ms.RequestsOut.WithLabelValues("info").Inc()
+		app.ms.UpstreamRequests.WithLabelValues("info").Inc()
 		infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
 	} else {
 		infos, err = app.backend.Info(ctx, request)
