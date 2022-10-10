@@ -31,7 +31,11 @@ func initMetricHandlers() http.Handler {
 
 	r.Handle("/metrics", promhttp.Handler())
 
-	r.PathPrefix("/debug/pprof").HandlerFunc(pprof.Index)
+	r.HandleFunc("/debug/pprof", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	return r
 }

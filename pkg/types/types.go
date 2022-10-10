@@ -89,7 +89,7 @@ type Trace struct {
 }
 
 func (t Trace) ObserveOutDuration(ti time.Duration, dc string, cluster string) {
-	if t.OutDuration != nil { // TODO: check when it is nil
+	if t.OutDuration != nil {
 		(*t.OutDuration).With(prometheus.Labels{"cluster": cluster, "dc": dc}).Observe(ti.Seconds())
 	}
 }
