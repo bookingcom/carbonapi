@@ -96,12 +96,24 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start(logger *zap.Logger) func() {
 	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
+	app.registerPrometheusMetrics()
 
 	handler := initHandlers(app, logger)
 	internalHandler := initHandlersInternal(app, logger)
-	prometheusServer := app.registerPrometheusMetrics(internalHandler)
 
 	app.requestBlocker.ScheduleRuleReload()
+
+	writeTimeout := app.config.Timeouts.Global
+	if writeTimeout < 30*time.Second {
+		writeTimeout = time.Minute
+	}
+
+	internalSrv := &http.Server{
+		Addr:         app.config.ListenInternal,
+		Handler:      internalHandler,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: writeTimeout,
+	}
 
 	gracehttp.SetLogger(zap.NewStdLog(logger))
 	err := gracehttp.Serve(&http.Server{
@@ -109,16 +121,14 @@ func (app *App) Start(logger *zap.Logger) func() {
 		Handler:      handler,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: app.config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
-	}, prometheusServer)
+	}, internalSrv)
 	if err != nil {
-		logger.Fatal("gracehttp failed",
-			zap.Error(err),
-		)
+		logger.Fatal("gracehttp failed", zap.Error(err))
 	}
 	return flush
 }
 
-func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Server {
+func (app *App) registerPrometheusMetrics() {
 	prometheus.MustRegister(app.ms.Requests)
 	prometheus.MustRegister(app.ms.Responses)
 	prometheus.MustRegister(app.ms.FindNotFound)
@@ -145,20 +155,6 @@ func (app *App) registerPrometheusMetrics(internalHandler http.Handler) *http.Se
 	prometheus.MustRegister(app.ms.CacheRequests)
 	prometheus.MustRegister(app.ms.CacheRespRead)
 	prometheus.MustRegister(app.ms.CacheTimeouts)
-
-	writeTimeout := app.config.Timeouts.Global
-	if writeTimeout < 30*time.Second {
-		writeTimeout = time.Minute
-	}
-
-	s := &http.Server{
-		Addr:         app.config.ListenInternal,
-		Handler:      internalHandler,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: writeTimeout,
-	}
-
-	return s
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {

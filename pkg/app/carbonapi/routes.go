@@ -22,11 +22,15 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r.HandleFunc("/block-headers", httputil.TimeHandler(handlerlog.WithLogger(app.blockHeaders, logger), app.bucketRequestTimes))
 	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handlerlog.WithLogger(app.unblockHeaders, logger), app.bucketRequestTimes))
 
-	r.PathPrefix("/debug/pprof").HandlerFunc(pprof.Index)
-
 	r.Handle("/metrics", promhttp.Handler())
 
-	return routeMiddleware(r)
+	r.HandleFunc("/debug/pprof", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	return removeTrailingSlash(r)
 }
 
 func initHandlers(app *App, logger *zap.Logger) http.Handler {
@@ -74,11 +78,10 @@ func initHandlers(app *App, logger *zap.Logger) http.Handler {
 		handlerlog.WithLogger(app.usageHandler, logger),
 		app.bucketRequestTimes)
 
-	return routeMiddleware(r)
+	return removeTrailingSlash(r)
 }
 
-// routeHelper formats the route using regex to accept optional trailing slash
-func routeMiddleware(next http.Handler) http.Handler {
+func removeTrailingSlash(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
