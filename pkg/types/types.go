@@ -276,10 +276,9 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 }
 
 func isStepTimeMatching(ms []Metric) bool {
-	if len(ms) != 0 {
-		defaultStep := ms[0].StepTime
-		for _, mr := range ms {
-			if defaultStep != mr.StepTime {
+	if len(ms) > 1 {
+		for i := 1; i < len(ms); i++ {
+			if ms[i].StepTime != ms[0].StepTime {
 				return false
 			}
 		}
