@@ -267,7 +267,7 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 	}
 	if len(diffResolutionMetrics) > 0 {
 		logger.Info("metric with different schema observed",
-			zap.Any("schema_mismatch_metrics", diffResolutionMetrics),
+			zap.Strings("schema_mismatch_metrics", diffResolutionMetrics),
 			zap.Int("metrics total", len(diffResolutionMetrics)),
 		)
 	}
