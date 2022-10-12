@@ -233,8 +233,12 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 		MismatchedPoints int    `json:"mismatched_points"`
 	}
 	var mismatchedMetricReports []metricReport
+	var diffResolutionMetrics []string
 	for _, ms := range metricByNames {
 		m, stats := mergeMetrics(ms, replicaMismatchConfig)
+		if !isStepTimeMatching(ms) {
+			diffResolutionMetrics = append(diffResolutionMetrics, m.Name)
+		}
 		unfixedMismatches := stats.MismatchCount - stats.FixedMismatchCount
 		if unfixedMismatches > 0 &&
 			len(mismatchedMetricReports) < replicaMismatchConfig.RenderReplicaMismatchReportLimit {
@@ -261,8 +265,26 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 			zap.Int("replica_points_total", metricsStat.DataPointCount),
 		)
 	}
+	if len(diffResolutionMetrics) > 0 {
+		logger.Info("metric with different schema observed",
+			zap.Any("schema_mismatch_metrics", diffResolutionMetrics),
+			zap.Int("metrics total", len(diffResolutionMetrics)),
+		)
+	}
 
 	return merged, metricsStat
+}
+
+func isStepTimeMatching(ms []Metric) bool {
+	if len(ms) != 0 {
+		defaultStep := ms[0].StepTime
+		for _, mr := range ms {
+			if defaultStep != mr.StepTime {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 type byStepTime []Metric
