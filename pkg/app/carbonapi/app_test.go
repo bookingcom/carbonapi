@@ -114,7 +114,6 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	testServer.Close()
 	os.Exit(code)
-
 }
 
 func TestAppHandlers(t *testing.T) {
@@ -136,12 +135,13 @@ func SetUpTestConfig() (*App, http.Handler) {
 
 	config := cfg.DefaultAPIConfig()
 
-	// TODO (grzkv): Should use New
 	app := &App{
-		config:            config,
-		queryCache:        cache.NewMemcached("capi", 50, ""),
-		findCache:         cache.NewExpireCache(1000),
-		ms: newPrometheusMetrics(config),
+		config:     config,
+		queryCache: cache.NewMemcached("capi", 50, ""),
+		findCache:  cache.NewExpireCache(1000),
+		ms:         newPrometheusMetrics(config),
+		slowQ:      make(chan *renderReq, config.QueueSize),
+		fastQ:      make(chan *renderReq, config.QueueSize),
 	}
 	app.backend = mock.New(mock.Config{
 		Find:   find,
@@ -155,6 +155,9 @@ func SetUpTestConfig() (*App, http.Handler) {
 
 	setUpConfig(app, logger)
 	handler := initHandlers(app, logger)
+
+	go ProcessRequests(app)
+
 	return app, handler
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -16,38 +15,37 @@ import (
 var BuildVersion = "(development build)"
 
 func main() {
-	configPath := flag.String("config", "", "Path to the `config file`.")
+	configPath := flag.String("config", "", "Path to the config file.")
 	flag.Parse()
 
 	fh, err := os.Open(*configPath)
 	if err != nil {
-		log.Fatalf("Failed to open config file: %s", err)
+		log.Fatalf("failed to open config file: %s", err)
 	}
 
 	apiConfig, err := cfg.ParseAPIConfig(fh)
 	if err != nil {
-		log.Fatalf("Failed to parse config file: %f", err)
+		log.Fatalf("failed to parse config file: %f", err)
 	}
-	fh.Close()
+	fh.Close() // TODO: Add error check.
 
 	if apiConfig.MaxProcs != 0 {
 		runtime.GOMAXPROCS(apiConfig.MaxProcs)
 	}
 	lg, err := apiConfig.LoggerConfig.Build()
 	if err != nil {
-		log.Fatalf("Failed to initiate logger: %s", err)
+		log.Fatalf("failed to initiate logger: %s", err)
 	}
 	lg = lg.Named("carbonapi")
 
-	lg.Info("starting carbonapi",
-		zap.String("build_version", BuildVersion),
-		zap.String("apiConfig", fmt.Sprintf("%+v", apiConfig)),
-	)
+	lg.Info("starting carbonapi", zap.String("build_version", BuildVersion))
 
 	app, err := carbonapi.New(apiConfig, lg, BuildVersion)
 	if err != nil {
-		lg.Error("Error initializing app")
+		lg.Error("error initializing app")
 	}
+
+	carbonapi.ProcessRequests(app)
 
 	flush := app.Start(lg)
 	defer flush()

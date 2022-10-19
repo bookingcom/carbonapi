@@ -67,6 +67,26 @@ func DefaultAPIConfig() API {
 			QueryTimeoutMs:    50,
 			Prefix:            "capi",
 		},
+		// This is an intentionally large number as an intermediate refactored state.
+		// This effectively turns off the queue size limitation.
+		QueueSize: 1000000,
+		// This is left large to make the limit light.
+		MaxConcurrentUpstreamRequests: 20000,
+		// In most cases a single worker should suffice.
+		// The default is set to 4 as a precaution against bottlenecks.
+		ProcWorkers:  4,
+		LargeReqSize: 10000,
+
+		UpstreamSubRenderNumHistParams: HistogramConfig{
+			Start:      1,
+			BucketsNum: 12,
+			BucketSize: 3,
+		},
+		UpstreamTimeInQSecHistParams: HistogramConfig{
+			Start:      0.1,
+			BucketsNum: 10,
+			BucketSize: 2,
+		},
 	}
 
 	cfg.Listen = ":8081"
@@ -78,26 +98,35 @@ func DefaultAPIConfig() API {
 
 // API is carbonapi-specific config
 type API struct {
-	// TODO (grzkv): Why does carbonapi config refer to zipper config?
-	// It should probably refer to the common one
 	Zipper `yaml:",inline"`
 
-	// TODO (grzkv): Move backends list to a single backend here
+	ResolveGlobs                     int               `yaml:"resolveGlobs"`
+	EnableCacheForRenderResolveGlobs bool              `yaml:"enableCacheForRenderResolveGlobs"`
+	Cache                            CacheConfig       `yaml:"cache"`
+	TimezoneString                   string            `yaml:"tz"`
+	PidFile                          string            `yaml:"pidFile"`
+	BlockHeaderFile                  string            `yaml:"blockHeaderFile"`
+	BlockHeaderUpdatePeriod          time.Duration     `yaml:"blockHeaderUpdatePeriod"`
+	HeadersToLog                     []string          `yaml:"headersToLog"`
+	UnicodeRangeTables               []string          `yaml:"unicodeRangeTables"`
+	IgnoreClientTimeout              bool              `yaml:"ignoreClientTimeout"`
+	DefaultColors                    map[string]string `yaml:"defaultColors"`
+	FunctionsConfigs                 map[string]string `yaml:"functionsConfig"`
+	GraphiteVersionForGrafana        string            `yaml:"graphiteVersionForGrafana"`
 
-	ResolveGlobs                     int           `yaml:"resolveGlobs"`
-	EnableCacheForRenderResolveGlobs bool          `yaml:"enableCacheForRenderResolveGlobs"`
-	Cache                            CacheConfig   `yaml:"cache"`
-	TimezoneString                   string        `yaml:"tz"`
-	PidFile                          string        `yaml:"pidFile"`
-	BlockHeaderFile                  string        `yaml:"blockHeaderFile"`
-	BlockHeaderUpdatePeriod          time.Duration `yaml:"blockHeaderUpdatePeriod"`
-	HeadersToLog                     []string      `yaml:"headersToLog"`
+	// The size of the requests queue propagated to backends.
+	// During this stage of refactoring it is a placeholder and should not fill-up.
+	// At the later stages it will play a key role in the request processing.
+	QueueSize                     int `yaml:"queueSize"`
+	MaxConcurrentUpstreamRequests int `yaml:"maxConcurrentUpstreamRequests"`
+	// The number of workers to process requests queue.
+	ProcWorkers int `yaml:"procWorkers"`
+	// The threshold of the number of sub-requests after which the render requests are considered large.
+	// It is used to select the processing queue: Small requests get on the fast queue, large ones on the slow one.
+	LargeReqSize int `yaml:"largeRequestSize"`
 
-	UnicodeRangeTables        []string          `yaml:"unicodeRangeTables"`
-	IgnoreClientTimeout       bool              `yaml:"ignoreClientTimeout"`
-	DefaultColors             map[string]string `yaml:"defaultColors"`
-	FunctionsConfigs          map[string]string `yaml:"functionsConfig"`
-	GraphiteVersionForGrafana string            `yaml:"graphiteVersionForGrafana"`
+	UpstreamSubRenderNumHistParams HistogramConfig `yaml:"upstreamSubRenderNumHistParams"`
+	UpstreamTimeInQSecHistParams   HistogramConfig `yaml:"upstreamTimeInQSecHistParams"`
 
 	// EmbedZipper makes carbonapi to use zipper as a package, not as a service.
 	EmbedZipper bool `yaml:"embedZipper"`

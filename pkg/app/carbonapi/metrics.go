@@ -26,6 +26,12 @@ type PrometheusMetrics struct {
 	FindDurationLinSimple  prometheus.Histogram
 	FindDurationLinComplex prometheus.Histogram
 
+	UpstreamRequestsInQueue     *prometheus.GaugeVec
+	UpstreamSemaphoreSaturation prometheus.Gauge
+	UpstreamEnqueuedRequests    *prometheus.CounterVec
+	UpstreamSubRenderNum        prometheus.Histogram
+	UpstreamTimeInQSec          *prometheus.HistogramVec
+
 	TimeInQueueExp prometheus.Histogram
 	TimeInQueueLin prometheus.Histogram
 
@@ -190,6 +196,37 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.FindDurationLinComplex.BucketsNum),
 			},
 		),
+
+		UpstreamRequestsInQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "upstream_requests_in_queue",
+			Help: "The number of upstream requests in the main processing queue.",
+		}, []string{"queue"}),
+		UpstreamSemaphoreSaturation: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "upstream_semaphore_saturation",
+			Help: "The number of requests put in the main queue semaphore. Needs to be compared to the semaphore size.",
+		}),
+		UpstreamEnqueuedRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "upstream_enqueued_requests",
+			Help: "The count of requests put into the queue.",
+		}, []string{"queue"}),
+		UpstreamSubRenderNum: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name: "upstream_render_subrequests_num",
+			Help: "The number of sub-requests for a render request after breaking the globs.",
+			Buckets: prometheus.ExponentialBuckets(
+				config.UpstreamSubRenderNumHistParams.Start,
+				config.UpstreamSubRenderNumHistParams.BucketSize,
+				config.UpstreamSubRenderNumHistParams.BucketsNum,
+			),
+		}),
+		UpstreamTimeInQSec: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name: "upstream_time_in_q_sec",
+			Help: "Duration between entering and exiting the queue.",
+			Buckets: prometheus.ExponentialBuckets(
+				config.UpstreamTimeInQSecHistParams.Start,
+				config.UpstreamTimeInQSecHistParams.BucketSize,
+				config.UpstreamTimeInQSecHistParams.BucketsNum,
+			),
+		}, []string{"queue"}),
 
 		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
