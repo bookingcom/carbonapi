@@ -418,16 +418,40 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
 			continue
 		}
+
 		renderRequestContext := ctx
 		subrequestCount := len(renderRequests)
 		if subrequestCount > 1 {
 			renderRequestContext = util.WithPriority(ctx, subrequestCount)
 		}
-		// TODO(dgryski): group the render requests into batches
+		app.ms.UpstreamSubRenderNum.Observe(float64(subrequestCount))
 		rch := make(chan renderResponse, len(renderRequests))
 		for _, m := range renderRequests {
-			// TODO (grzkv) Refactor to enable premature cancel
-			go app.sendRenderRequest(renderRequestContext, rch, m, mfetch.From, mfetch.Until, toLog)
+			// This blocks when the queue fills up, which is fine as the below result read would block anyway.
+			//
+			// TODO: Maybe handle record drops when the queue is full.
+			// TODO: Expand to cover all types of requests.
+			req := &renderReq{
+				Path:  m,
+				From:  mfetch.From,
+				Until: mfetch.Until,
+
+				Ctx:       renderRequestContext,
+				ToLog:     toLog,
+				StartTime: time.Now(),
+
+				Results: rch,
+			}
+
+			if subrequestCount > app.config.LargeReqSize {
+				app.slowQ <- req
+				app.ms.UpstreamEnqueuedRequests.WithLabelValues("slow").Inc()
+				app.ms.UpstreamRequestsInQueue.WithLabelValues("slow").Inc()
+			} else {
+				app.fastQ <- req
+				app.ms.UpstreamEnqueuedRequests.WithLabelValues("fast").Inc()
+				app.ms.UpstreamRequestsInQueue.WithLabelValues("fast").Inc()
+			}
 		}
 
 		errs := make([]error, 0)
@@ -511,8 +535,8 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 		" failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
 }
 
-func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
-	path string, from, until int32, toLog *carbonapipb.AccessLogDetails) {
+func (app *App) sendRenderRequest(ctx context.Context, path string, from, until int32,
+	toLog *carbonapipb.AccessLogDetails) renderResponse {
 
 	atomic.AddInt64(&toLog.ZipperRequests, 1)
 
@@ -536,12 +560,10 @@ func (app *App) sendRenderRequest(ctx context.Context, ch chan<- renderResponse,
 
 	metricData := make([]*types.MetricData, 0)
 	for i := range metrics {
-		metricData = append(metricData, &types.MetricData{
-			Metric: metrics[i],
-		})
+		metricData = append(metricData, &types.MetricData{Metric: metrics[i]})
 	}
 
-	ch <- renderResponse{
+	return renderResponse{
 		data:  metricData,
 		error: err,
 	}

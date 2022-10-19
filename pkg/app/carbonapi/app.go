@@ -45,6 +45,12 @@ type App struct {
 
 	backend backend.Backend
 
+	// During processing we use two independent queues that share a semaphore to prevent stampeding.
+	// fastQ includes regular requests
+	fastQ chan *renderReq
+	// slowQ contains large requests that could fill the queue and create a stampede.
+	slowQ chan *renderReq
+
 	ms PrometheusMetrics
 	Lg *zap.Logger
 
@@ -66,6 +72,8 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		defaultTimeZone: time.Local,
 		ms:              newPrometheusMetrics(config),
 		requestBlocker:  blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
+		fastQ:           make(chan *renderReq, config.QueueSize),
+		slowQ:           make(chan *renderReq, config.QueueSize),
 	}
 	app.requestBlocker.ReloadRules()
 
@@ -103,28 +111,25 @@ func (app *App) Start(logger *zap.Logger) func() {
 
 	app.requestBlocker.ScheduleRuleReload()
 
-	writeTimeout := app.config.Timeouts.Global
-	if writeTimeout < 30*time.Second {
-		writeTimeout = time.Minute
-	}
-
-	internalSrv := &http.Server{
-		Addr:         app.config.ListenInternal,
-		Handler:      internalHandler,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: writeTimeout,
-	}
-
 	gracehttp.SetLogger(zap.NewStdLog(logger))
-	err := gracehttp.Serve(&http.Server{
-		Addr:         app.config.Listen,
-		Handler:      handler,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: app.config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
-	}, internalSrv)
+	err := gracehttp.Serve(
+		&http.Server{
+			Addr:         app.config.Listen,
+			Handler:      handler,
+			ReadTimeout:  time.Second,
+			WriteTimeout: app.config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
+		},
+		&http.Server{
+			Addr:         app.config.ListenInternal,
+			Handler:      internalHandler,
+			ReadTimeout:  time.Second,
+			WriteTimeout: time.Minute, // This long timeout is necessary for profiling.
+		},
+	)
 	if err != nil {
 		logger.Fatal("gracehttp failed", zap.Error(err))
 	}
+
 	return flush
 }
 
@@ -146,12 +151,20 @@ func (app *App) registerPrometheusMetrics() {
 	prometheus.MustRegister(app.ms.FindDurationLin)
 	prometheus.MustRegister(app.ms.FindDurationLinSimple)
 	prometheus.MustRegister(app.ms.FindDurationLinComplex)
+
+	prometheus.MustRegister(app.ms.UpstreamRequestsInQueue)
+	prometheus.MustRegister(app.ms.UpstreamSemaphoreSaturation)
+	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
+	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
+	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
+
 	prometheus.MustRegister(app.ms.TimeInQueueExp)
 	prometheus.MustRegister(app.ms.TimeInQueueLin)
 	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
 	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
 	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
 	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
+
 	prometheus.MustRegister(app.ms.CacheRequests)
 	prometheus.MustRegister(app.ms.CacheRespRead)
 	prometheus.MustRegister(app.ms.CacheTimeouts)
