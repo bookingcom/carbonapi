@@ -15,10 +15,10 @@ import (
 
 func TestFilter(t *testing.T) {
 	backends := []Backend{
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Contains: func([]string) bool { return true },
 		}),
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Contains: func([]string) bool { return false },
 		}),
 	}
@@ -34,7 +34,7 @@ func TestFilter(t *testing.T) {
 
 func TestFilterNoneContains(t *testing.T) {
 	backends := []Backend{
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Contains: func([]string) bool { return false },
 		}),
 	}
@@ -105,7 +105,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 				},
 			}, nil
 		}
-		b := mock.New(mock.Config{Render: render})
+		b := NewMock(mock.Config{Render: render})
 		backends = append(backends, b)
 	}
 
@@ -146,7 +146,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 		return nil, errors.New("No")
 	}
 
-	backends := []Backend{mock.New(mock.Config{Render: render})}
+	backends := []Backend{NewMock(mock.Config{Render: render})}
 
 	logger := zap.NewNop()
 	_, _, err := Renders(context.Background(), backends, types.NewRenderRequest(nil, 0, 1), cfg.RenderReplicaMismatchConfig{
@@ -161,7 +161,7 @@ func TestCarbonapiv2RendersError(t *testing.T) {
 
 func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 	backends := []Backend{
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Info: func(context.Context, types.InfoRequest) ([]types.Info, error) {
 				return []types.Info{
 					types.Info{
@@ -172,7 +172,7 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 				}, nil
 			},
 		}),
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Info: func(context.Context, types.InfoRequest) ([]types.Info, error) {
 				return []types.Info{
 					types.Info{
@@ -203,7 +203,7 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 
 func TestCarbonapiv2InfosError(t *testing.T) {
 	backends := []Backend{
-		mock.New(mock.Config{
+		NewMock(mock.Config{
 			Info: func(context.Context, types.InfoRequest) ([]types.Info, error) {
 				return nil, errors.New("No")
 			},
@@ -229,7 +229,7 @@ func TestCarbonapiv2Infos(t *testing.T) {
 				},
 			}, nil
 		}
-		b := mock.New(mock.Config{Info: info})
+		b := NewMock(mock.Config{Info: info})
 		backends = append(backends, b)
 	}
 
@@ -250,7 +250,7 @@ func TestCarbonapiv2FindsError(t *testing.T) {
 		return types.Matches{}, errors.New("No")
 	}
 
-	backends := []Backend{mock.New(mock.Config{Find: find})}
+	backends := []Backend{NewMock(mock.Config{Find: find})}
 
 	_, err := Finds(context.Background(), backends, types.NewFindRequest(""), nil)
 	if err == nil {
@@ -275,7 +275,7 @@ func TestCarbonapiv2Finds(t *testing.T) {
 				},
 			}, nil
 		}
-		b := mock.New(mock.Config{Find: find})
+		b := NewMock(mock.Config{Find: find})
 		backends = append(backends, b)
 	}
 

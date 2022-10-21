@@ -41,8 +41,8 @@ func (e ErrHTTPCode) Error() string {
 	}
 }
 
-// Backend represents a host that accepts requests for metrics over HTTP.
-type Backend struct {
+// NetBackend represents a host that accepts requests for metrics over HTTP.
+type NetBackend struct {
 	address        string
 	scheme         string
 	dc             string
@@ -89,8 +89,8 @@ type Config struct {
 var fmtProto = []string{"protobuf"}
 
 // New creates a new backend from the given configuration.
-func New(cfg Config) (*Backend, error) {
-	b := &Backend{
+func New(cfg Config) (*NetBackend, error) {
+	b := &NetBackend{
 		cache: expirecache.New(0),
 	}
 
@@ -158,7 +158,7 @@ func parseAddress(address string) (string, string, error) {
 	return u.Host, u.Scheme, nil
 }
 
-func (b Backend) url(path string) *url.URL {
+func (b NetBackend) url(path string) *url.URL {
 	return &url.URL{
 		Scheme: b.scheme,
 		Host:   b.address,
@@ -167,21 +167,21 @@ func (b Backend) url(path string) *url.URL {
 }
 
 // GetServerAddress returns the server address for this backend.
-func (b Backend) GetServerAddress() string {
+func (b NetBackend) GetServerAddress() string {
 	return b.address
 }
 
 // GetCluster returns the backend cluster.
-func (b Backend) GetCluster() string {
+func (b NetBackend) GetCluster() string {
 	return b.cluster
 }
 
 // Logger returns logger for this backend. Needed to satisfy interface.
-func (b Backend) Logger() *zap.Logger {
+func (b NetBackend) Logger() *zap.Logger {
 	return b.logger
 }
 
-func (b Backend) enter(ctx context.Context) error {
+func (b NetBackend) enter(ctx context.Context) error {
 	if b.limiter == nil {
 		return nil
 	}
@@ -190,14 +190,14 @@ func (b Backend) enter(ctx context.Context) error {
 	return b.limiter.Enter(ctx, priority, uuid)
 }
 
-func (b Backend) leave() error {
+func (b NetBackend) leave() error {
 	if b.limiter == nil {
 		return nil
 	}
 	return b.limiter.Leave()
 }
 
-func (b Backend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (b NetBackend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if b.timeout > 0 {
 		return context.WithTimeout(ctx, b.timeout)
 	}
@@ -205,7 +205,7 @@ func (b Backend) setTimeout(ctx context.Context) (context.Context, context.Cance
 	return context.WithCancel(ctx)
 }
 
-func (b Backend) request(ctx context.Context, u *url.URL) (*http.Request, error) {
+func (b NetBackend) request(ctx context.Context, u *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest("GET", "", nil)
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func (b Backend) request(ctx context.Context, u *url.URL) (*http.Request, error)
 	return req, nil
 }
 
-func (b Backend) do(trace types.Trace, req *http.Request, request string) (string, []byte, error) {
+func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (string, []byte, error) {
 	t0 := time.Now()
 	resp, err := b.client.Do(req)
 	trace.AddHTTPCall(t0)
@@ -262,7 +262,7 @@ func (b Backend) do(trace types.Trace, req *http.Request, request string) (strin
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, request string) (string, []byte, error) {
+func (b NetBackend) call(ctx context.Context, trace types.Trace, u *url.URL, request string) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
@@ -309,7 +309,7 @@ func (b Backend) call(ctx context.Context, trace types.Trace, u *url.URL, reques
 // looking up metrics that it doesn't have, we maybe don't need to do this.
 
 // Contains reports whether the backend contains any of the given targets.
-func (b Backend) Contains(targets []string) bool {
+func (b NetBackend) Contains(targets []string) bool {
 	for _, target := range targets {
 		if _, ok := b.cache.Get(target); ok {
 			return true
@@ -320,7 +320,7 @@ func (b Backend) Contains(targets []string) bool {
 }
 
 // Render fetches raw metrics from a backend.
-func (b Backend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
 	from := request.From
 	until := request.Until
 	targets := request.Targets
@@ -383,7 +383,7 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 }
 
 // Info fetches metadata about a metric from a backend.
-func (b Backend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
+func (b NetBackend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
 	metric := request.Target
 
 	t0 := time.Now()
@@ -439,7 +439,7 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) *url.URL {
 }
 
 // Find resolves globs and finds metrics in a backend.
-func (b Backend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
+func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	query := request.Query
 
 	t0 := time.Now()

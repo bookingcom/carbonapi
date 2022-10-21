@@ -356,7 +356,7 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 
 	// TODO (grzkv): Stop using a list, move to a single value in config
 	if len(config.Backends) == 0 {
-		return nil, errors.New("got empty list of backends from config")
+		return backend.NewBackend(nil, 0, 0, nil, nil, nil), errors.New("got empty list of backends from config")
 	}
 	host := config.Backends[0]
 
@@ -374,8 +374,8 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 	})
 
 	if err != nil {
-		return b, fmt.Errorf("Couldn't create backend for '%s'", host)
+		return backend.NewBackend(b, 0, 0, nil, nil, nil), fmt.Errorf("Couldn't create backend for '%s'", host)
 	}
 
-	return b, nil
+	return backend.NewBackend(b, 0, 0, nil, nil, nil), nil
 }

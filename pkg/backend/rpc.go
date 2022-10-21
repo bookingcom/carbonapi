@@ -26,18 +26,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Backend codifies the RPC calls a Graphite backend responds to.
-type Backend interface {
-	Find(context.Context, types.FindRequest) (types.Matches, error)
-	Info(context.Context, types.InfoRequest) ([]types.Info, error)
-	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
-
-	Contains([]string) bool // Reports whether a backend contains any of the given targets.
-	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
-	GetServerAddress() string
-	GetCluster() string
-}
-
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
 // Doing math on NaN is expensive, but assuming that all functions will treat a
 // default value of 0 intelligently is wrong (see multiplication). Thus math
@@ -70,6 +58,13 @@ func Renders(
 				msgCh <- msg
 			}
 		}(backend)
+		// backend.RenderQ <- &renderReq{
+		// 	RenderRequest: request,
+		// 	Ctx:           ctx,
+		// 	StartTime:     time.Now(),
+		// 	Results:       msgCh,
+		// 	Errors:        errCh,
+		// }
 	}
 
 	msgs := make([][]types.Metric, 0, len(backends))

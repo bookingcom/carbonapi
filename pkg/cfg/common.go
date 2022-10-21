@@ -55,6 +55,10 @@ func DefaultCommonConfig() Common {
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
 
+		// The default is intentionally large since we don't want to use this as a limit,
+		// at least for now.
+		BackendQueueSize: 100000,
+
 		ExpireDelaySec:       int32(10 * time.Minute / time.Second),
 		InternalRoutingCache: int32(5 * time.Minute / time.Second),
 
@@ -163,6 +167,7 @@ func GetDefaultLoggerConfig() zap.Config {
 }
 
 // Common is the configuration shared by carbonapi and carbonzipper
+// TODO: This abstraction is not used and has to be removed.
 type Common struct {
 	Listen            string            `yaml:"listen"`
 	ListenInternal    string            `yaml:"listenInternal"`
@@ -176,6 +181,9 @@ type Common struct {
 	ConcurrencyLimitPerServer int           `yaml:"concurrencyLimit"`
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
+
+	BackendQueueSize             int `yaml:"backendQueueSize"`
+	BackendMaxConcurrentRequests int `yaml:"backendMaxConcurrentRequests"`
 
 	ExpireDelaySec             int32    `yaml:"expireDelaySec"`
 	InternalRoutingCache       int32    `yaml:"internalRoutingCache"`
