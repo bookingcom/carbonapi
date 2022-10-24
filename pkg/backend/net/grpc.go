@@ -22,7 +22,7 @@ import (
 // GrpcBackend represents a host that accepts requests for metrics over gRPC and HTTP.
 // This struct overrides Backend interface functions to use gRPC.
 type GrpcBackend struct {
-	*Backend
+	*NetBackend
 	GrpcAddress    string
 	carbonV2Client capi_v2_grpc.CarbonV2Client
 	maxRecvMsgSize int
@@ -47,7 +47,7 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 	c := capi_v2_grpc.NewCarbonV2Client(conn)
 
 	return &GrpcBackend{
-		Backend:        b,
+		NetBackend:     b,
 		GrpcAddress:    cfg.GrpcAddress,
 		carbonV2Client: c,
 		maxRecvMsgSize: 100 * 1024 * 1024, // TODO: Make configurable

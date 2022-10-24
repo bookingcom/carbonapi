@@ -71,7 +71,7 @@ func TestRenderSingleBackend(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
@@ -108,7 +108,7 @@ func TestRenderSingleGenericBackendError(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
@@ -133,7 +133,7 @@ func TestRenderSingleNotFoundBackendError(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
@@ -158,17 +158,17 @@ func TestRenderMultipleBackends(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
@@ -193,27 +193,27 @@ func TestRenderMultipleBackendsSomeErrors(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
@@ -238,17 +238,17 @@ func TestRenderMultipleBackendsAllNotfoundErrors(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
@@ -273,32 +273,32 @@ func TestRenderMultipleBackendsAllMixedErrorsBelowThreshold(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
@@ -323,47 +323,47 @@ func TestRenderMultipleBackendsAllErrorsMajorityOther(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithGenericError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: renderWithNotFoundError,
@@ -420,7 +420,7 @@ func TestFindSingleBackend(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
@@ -462,7 +462,7 @@ func TestFindSingleBackendWithGenericError(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
@@ -487,7 +487,7 @@ func TestFindSingleBackendWithNotfoundError(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
@@ -512,22 +512,22 @@ func TestFindManyBackendsAllNotfound(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
@@ -552,27 +552,27 @@ func TestFindManyBackendsAllErrorsNotFoundMajority(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
@@ -597,12 +597,12 @@ func TestFindManyBackendsAllErrorsOthersMajority2(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
@@ -627,12 +627,12 @@ func TestFindManyBackendsAllErrorsOthersMajoritySmallAmount(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
@@ -657,57 +657,57 @@ func TestFindManyBackendsAllErrorsOthersMajority(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
@@ -732,27 +732,27 @@ func TestFindManyBackendsSomeMixedErrors(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithNotfoundError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   findWithGenericError,
 			Info:   info,
 			Render: render,
 		}),
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,
@@ -803,7 +803,7 @@ func TestInfoSingleBackend(t *testing.T) {
 	app, ms, lg := newTestApp()
 	defer lg.Sync()
 	app.Backends = []backend.Backend{
-		mock.New(mock.Config{
+		backend.NewMock(mock.Config{
 			Find:   find,
 			Info:   info,
 			Render: render,

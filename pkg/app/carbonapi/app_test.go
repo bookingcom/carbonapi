@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"github.com/bookingcom/carbonapi/pkg/blocker"
 	"github.com/bookingcom/carbonapi/pkg/cache"
@@ -143,7 +144,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 		slowQ:      make(chan *renderReq, config.QueueSize),
 		fastQ:      make(chan *renderReq, config.QueueSize),
 	}
-	app.backend = mock.New(mock.Config{
+	app.backend = backend.NewMock(mock.Config{
 		Find:   find,
 		Info:   info,
 		Render: render,
@@ -156,7 +157,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 	setUpConfig(app, logger)
 	handler := initHandlers(app, logger)
 
-	go ProcessRequests(app)
+	ProcessRequests(app)
 
 	return app, handler
 }
@@ -177,7 +178,7 @@ func SetUpTestConfig() (*App, http.Handler) {
 // 		findCache:         cache.NewExpireCache(1000),
 // 		prometheusMetrics: newPrometheusMetrics(config),
 // 	}
-// 	app.backend = mock.New(mock.Config{
+// 	app.backend = backend.NewMock(mock.Config{
 // 		Find:   find,
 // 		Info:   info,
 // 		Render: renderErr,
@@ -198,7 +199,7 @@ func renderHandler(t *testing.T) {
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
 	// TODO (grzkv): Fix this
-	testApp.backend = mock.New(mock.Config{
+	testApp.backend = backend.NewMock(mock.Config{
 		Find:   find,
 		Info:   info,
 		Render: render,
@@ -247,7 +248,7 @@ func renderHandlerErrs(t *testing.T) {
 
 			// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
 			// TODO (grzkv): Fix this
-			testApp.backend = mock.New(mock.Config{
+			testApp.backend = backend.NewMock(mock.Config{
 				Find:   find,
 				Info:   info,
 				Render: renderErr,
@@ -269,7 +270,7 @@ func renderHandlerNotFoundErrs(t *testing.T) {
 
 	// WARNING: Test results depend on the order of execution now. ENJOY THE GLOBAL STATE!!!
 	// TODO (grzkv): Fix this
-	testApp.backend = mock.New(mock.Config{
+	testApp.backend = backend.NewMock(mock.Config{
 		Find:   find,
 		Info:   info,
 		Render: renderErrNotFound,

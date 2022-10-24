@@ -24,11 +24,12 @@ import (
 // TODO: Remove after merge.
 type App struct {
 	Config              cfg.Zipper
-	Metrics             *PrometheusMetrics
 	Backends            []backend.Backend
 	TopLevelDomainCache *expirecache.Cache
 	TLDPrefixes         []tldPrefix
-	Lg                  *zap.Logger
+
+	Metrics *PrometheusMetrics
+	Lg      *zap.Logger
 }
 
 // Start start launches the goroutines starts the app execution
@@ -90,7 +91,7 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
-			Limit:              config.ConcurrencyLimitPerServer,
+			Limit:              0, // the old limiter is disabled
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			QHist:              ms.TimeInQueueSeconds,
 			Responses:          ms.BackendResponses,
@@ -100,14 +101,22 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			LimiterEnters:      ms.BackendLimiterEnters.WithLabelValues(host.Http),
 			LimiterExits:       limiterExits,
 		}
+		var be backend.BackendImpl
 		if host.Grpc != "" {
-			b, err = bnet.NewGrpc(bnet.GrpcConfig{
+			be, err = bnet.NewGrpc(bnet.GrpcConfig{
 				Config:      bConf,
 				GrpcAddress: host.Grpc,
 			})
 		} else {
-			b, err = bnet.New(bConf)
+			be, err = bnet.New(bConf)
 		}
+		b = backend.NewBackend(be,
+			config.BackendQueueSize,
+			config.ConcurrencyLimitPerServer,
+			ms.BackendRequestsInQueue,
+			ms.BackendSemaphoreSaturation,
+			ms.TimeInQueueSeconds,
+			ms.BackendEnqueuedRequests)
 
 		if err != nil {
 			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)

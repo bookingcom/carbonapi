@@ -329,25 +329,6 @@ func TestEnterLimiter(t *testing.T) {
 	}
 }
 
-func TestEnterLimiterTimeout(t *testing.T) {
-	b, err := New(Config{Limit: 1})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if err := b.enter(context.Background()); err != nil {
-		t.Error("Expected to enter limiter")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-
-	if got := b.enter(ctx); got == nil {
-		t.Error("Expected to time out")
-	}
-}
-
 func TestExitNilLimiter(t *testing.T) {
 	b, err := New(Config{})
 	if err != nil {
@@ -373,18 +354,6 @@ func TestEnterExitLimiter(t *testing.T) {
 
 	if err := b.leave(); err != nil {
 		t.Error("Expected to leave limiter")
-	}
-}
-
-func TestEnterExitLimiterError(t *testing.T) {
-	b, err := New(Config{Limit: 1})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if err := b.leave(); err == nil {
-		t.Error("Expected to get error")
 	}
 }
 

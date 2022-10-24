@@ -26,18 +26,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Backend codifies the RPC calls a Graphite backend responds to.
-type Backend interface {
-	Find(context.Context, types.FindRequest) (types.Matches, error)
-	Info(context.Context, types.InfoRequest) ([]types.Info, error)
-	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
-
-	Contains([]string) bool // Reports whether a backend contains any of the given targets.
-	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
-	GetServerAddress() string
-	GetCluster() string
-}
-
 // TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
 // Doing math on NaN is expensive, but assuming that all functions will treat a
 // default value of 0 intelligently is wrong (see multiplication). Thus math
@@ -62,14 +50,7 @@ func Renders(
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			msg, err := b.Render(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.SendRender(ctx, request, msgCh, errCh)
 	}
 
 	msgs := make([][]types.Metric, 0, len(backends))
@@ -97,14 +78,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			msg, err := b.Info(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.SendInfo(ctx, request, msgCh, errCh)
 	}
 
 	msgs := make([][]types.Info, 0, len(backends))
@@ -131,24 +105,7 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest, d
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			var t *prometheus.Timer
-			if durationHist != nil {
-				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetCluster()))
-			}
-			defer func() {
-				if t != nil {
-					t.ObserveDuration()
-				}
-			}()
-
-			msg, err := b.Find(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.SendFind(ctx, request, msgCh, errCh, durationHist)
 	}
 
 	msgs := make([]types.Matches, 0, len(backends))

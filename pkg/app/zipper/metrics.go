@@ -31,6 +31,11 @@ type PrometheusMetrics struct {
 	FindDurationLin      prometheus.Histogram
 	FindOutDuration      *prometheus.HistogramVec
 
+	BackendEnqueuedRequests    *prometheus.CounterVec
+	BackendRequestsInQueue     *prometheus.GaugeVec
+	BackendSemaphoreSaturation prometheus.Gauge
+	BackendTimeInQSec          *prometheus.HistogramVec
+
 	TimeInQueueSeconds *prometheus.HistogramVec
 
 	TLDCacheProbeReqTotal  prometheus.Counter
@@ -113,13 +118,13 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 		}, []string{"backend"}),
 		BackendLimiterEnters: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
-			Name: "backend_limiter_enters",
-			Help: "Counter of requests that entered a backend limiter by backend",
+			Name:      "backend_limiter_enters",
+			Help:      "Counter of requests that entered a backend limiter by backend",
 		}, []string{"backend"}),
 		BackendLimiterExits: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
-			Name: "backend_limiter_exits",
-			Help: "Counter of backend limiter exits by backend and by status",
+			Name:      "backend_limiter_exits",
+			Help:      "Counter of backend limiter exits by backend and by status",
 		}, []string{"backend", "status"}),
 		RenderDurationExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -180,6 +185,44 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 			},
 			[]string{"cluster"},
 		),
+
+		BackendEnqueuedRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: ns,
+				Name:      "backend_enqueued_requests",
+				Help:      "The number of requests to backends put in their respective queues.",
+			},
+			[]string{"request"},
+		),
+		BackendRequestsInQueue: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: ns,
+				Name:      "backend_requests_in_queue",
+				Help:      "The number of requests currently in the queue by request type.",
+			},
+			[]string{"request"},
+		),
+		BackendSemaphoreSaturation: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: ns,
+				Name:      "backend_semaphore_saturation",
+				Help:      "The number of requests currently in flight that saturate the semaphore.",
+			},
+		),
+		BackendTimeInQSec: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: ns,
+				Name:      "backend_time_in_queue",
+				Help:      "Time a request to backend spends waiting in queue by request type",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.BackendTimeInQSecHistParams.Start,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketSize,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketsNum,
+				),
+			},
+			[]string{"request"},
+		),
+
 		TimeInQueueSeconds: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: ns,
@@ -254,6 +297,11 @@ func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.FindDurationLin)
 	prometheus.MustRegister(app.Metrics.FindOutDuration)
 	prometheus.MustRegister(app.Metrics.TimeInQueueSeconds)
+
+	prometheus.MustRegister(app.Metrics.BackendEnqueuedRequests)
+	prometheus.MustRegister(app.Metrics.BackendRequestsInQueue)
+	prometheus.MustRegister(app.Metrics.BackendSemaphoreSaturation)
+	prometheus.MustRegister(app.Metrics.BackendTimeInQSec)
 
 	prometheus.MustRegister(app.Metrics.TLDCacheHostsPerDomain)
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
