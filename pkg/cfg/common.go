@@ -126,6 +126,11 @@ func DefaultCommonConfig() Common {
 				BucketSize: 1.5,
 				BucketsNum: 20,
 			},
+			BackendTimeInQSecHistParams: HistogramConfig{
+				Start:      0.01,
+				BucketSize: 2,
+				BucketsNum: 12,
+			},
 		},
 		Traces: Traces{
 			Timeout:              10 * time.Second,
@@ -334,17 +339,18 @@ func (common Common) InfoOfBackend(address string) (string, string, error) {
 
 // MonitoringConfig allows setting custom monitoring parameters
 type MonitoringConfig struct {
-	RequestDurationExp      HistogramConfig `yaml:"requestDurationExpHistogram"`
-	RequestDurationLin      HistogramConfig `yaml:"requestDurationLinHistogram"`
-	RenderDurationExp       HistogramConfig `yaml:"renderDurationExpHistogram"`
-	RenderDurationLinSimple HistogramConfig `yaml:"renderDurationLinHistogram"`
-	FindDurationExp         HistogramConfig `yaml:"findDurationExpHistogram"`
-	FindDurationLin         HistogramConfig `yaml:"findDurationLinHistogram"`
-	FindDurationLinSimple   HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
-	FindDurationLinComplex  HistogramConfig `yaml:"findDurationComplexLinHistogram"`
-	FindOutDuration         HistogramConfig `yaml:"findDurationByBackend"`
-	TimeInQueueExpHistogram HistogramConfig `yaml:"timeInQueueExpHistogram"` // TODO Change to seconds.
-	TimeInQueueLinHistogram HistogramConfig `yaml:"timeInQueueLinHistogram"`
+	RequestDurationExp          HistogramConfig `yaml:"requestDurationExpHistogram"`
+	RequestDurationLin          HistogramConfig `yaml:"requestDurationLinHistogram"`
+	RenderDurationExp           HistogramConfig `yaml:"renderDurationExpHistogram"`
+	RenderDurationLinSimple     HistogramConfig `yaml:"renderDurationLinHistogram"`
+	FindDurationExp             HistogramConfig `yaml:"findDurationExpHistogram"`
+	FindDurationLin             HistogramConfig `yaml:"findDurationLinHistogram"`
+	FindDurationLinSimple       HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
+	FindDurationLinComplex      HistogramConfig `yaml:"findDurationComplexLinHistogram"`
+	FindOutDuration             HistogramConfig `yaml:"findDurationByBackend"`
+	TimeInQueueExpHistogram     HistogramConfig `yaml:"timeInQueueExpHistogram"` // TODO Change to seconds.
+	TimeInQueueLinHistogram     HistogramConfig `yaml:"timeInQueueLinHistogram"`
+	BackendTimeInQSecHistParams HistogramConfig `yaml:"backendTimeInQSecHistParams"`
 }
 
 // HistogramConfig is histogram config for Prometheus metrics

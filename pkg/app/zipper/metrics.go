@@ -212,8 +212,13 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 		BackendTimeInQSec: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: ns,
-				Name: "backend_time_in_queue",
-				Help: "Time a request to backend spends waiting in queue by request type",
+				Name:      "backend_time_in_queue",
+				Help:      "Time a request to backend spends waiting in queue by request type",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.BackendTimeInQSecHistParams.Start,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketSize,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketsNum,
+				),
 			},
 			[]string{"request"},
 		),
