@@ -100,7 +100,11 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 		enqueuedRequests: enqueuedRequests,
 	}
 
-	b.Proc()
+	// The channel capacity is used to indicate enabling of the new processing.
+	// When it is indicated as 0, the backend can only be used as a proxy to the implementation.
+	if qSize > 0 {
+		b.Proc()
+	}
 
 	return b
 }
@@ -117,16 +121,10 @@ func (b *Backend) Proc() {
 	// the solution below — I've tried.
 	go func() {
 		for r := range b.renderQ {
-			if b.requestsInQueue != nil {
-				b.requestsInQueue.WithLabelValues("render").Dec()
-			}
+			b.requestsInQueue.WithLabelValues("render").Dec()
 			semaphore <- true
-			if b.saturation != nil {
-				b.saturation.Inc()
-			}
-			if b.timeInQSec != nil {
-				b.timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
-			}
+			b.saturation.Inc()
+			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
 			go func(req *renderReq) {
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
 				if err != nil {
@@ -135,9 +133,7 @@ func (b *Backend) Proc() {
 					req.Results <- res
 				}
 				<-semaphore
-				if b.saturation != nil {
-					b.saturation.Dec()
-				}
+				b.saturation.Dec()
 			}(r)
 		}
 	}()
