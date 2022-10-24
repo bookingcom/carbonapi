@@ -354,9 +354,8 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		}).DialContext,
 	}
 
-	// TODO (grzkv): Stop using a list, move to a single value in config
 	if len(config.Backends) == 0 {
-		return backend.NewBackend(nil, 0, 0, nil, nil, nil), errors.New("got empty list of backends from config")
+		return backend.NewBackend(nil, 0, 0, nil, nil, nil, nil), errors.New("got empty list of backends from config")
 	}
 	host := config.Backends[0]
 
@@ -364,7 +363,7 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		Address:            host,
 		Client:             client,
 		Timeout:            config.Timeouts.AfterStarted,
-		Limit:              config.ConcurrencyLimitPerServer,
+		Limit:              config.ConcurrencyLimitPerServer, // the old limiter stays enabled for carbonapi
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
 		ActiveRequests:     activeUpstreamRequests,
@@ -374,8 +373,8 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 	})
 
 	if err != nil {
-		return backend.NewBackend(b, 0, 0, nil, nil, nil), fmt.Errorf("Couldn't create backend for '%s'", host)
+		return backend.NewBackend(b, 0, 0, nil, nil, nil, nil), fmt.Errorf("Couldn't create backend for '%s'", host)
 	}
 
-	return backend.NewBackend(b, 0, 0, nil, nil, nil), nil
+	return backend.NewBackend(b, 0, 0, nil, nil, nil, nil), nil
 }

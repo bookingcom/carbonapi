@@ -126,10 +126,8 @@ func New(cfg Config) (*NetBackend, error) {
 		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil &&
 			cfg.LimiterEnters != nil && cfg.LimiterExits != nil {
 
-			b.limiter = prioritylimiter.New(cfg.Limit, prioritylimiter.WithMetrics(
-				cfg.ActiveRequests, cfg.WaitingRequests, cfg.LimiterEnters, cfg.LimiterExits))
-		} else {
-			b.limiter = prioritylimiter.New(cfg.Limit)
+			b.limiter = prioritylimiter.New(cfg.Limit,
+				prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests, cfg.LimiterEnters, cfg.LimiterExits))
 		}
 	}
 

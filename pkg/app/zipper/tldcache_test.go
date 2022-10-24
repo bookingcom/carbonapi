@@ -12,10 +12,10 @@ import (
 
 func TestGetBackendsForPrefix(t *testing.T) {
 	allBackends := []backend.Backend{
-		backend.NewBackend(mock.Backend{Address: "0"}, 0, 0, nil, nil, nil),
-		backend.NewBackend(mock.Backend{Address: "1"}, 0, 0, nil, nil, nil),
-		backend.NewBackend(mock.Backend{Address: "2"}, 0, 0, nil, nil, nil),
-		backend.NewBackend(mock.Backend{Address: "3"}, 0, 0, nil, nil, nil),
+		backend.NewBackend(mock.Backend{Address: "0"}, 0, 0, nil, nil, nil, nil),
+		backend.NewBackend(mock.Backend{Address: "1"}, 0, 0, nil, nil, nil, nil),
+		backend.NewBackend(mock.Backend{Address: "2"}, 0, 0, nil, nil, nil, nil),
+		backend.NewBackend(mock.Backend{Address: "3"}, 0, 0, nil, nil, nil, nil),
 	}
 	var tt = []struct {
 		prefix      tldPrefix

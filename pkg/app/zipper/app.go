@@ -91,7 +91,7 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
-			Limit:              config.ConcurrencyLimitPerServer,
+			Limit:              0, // the old limiter is disabled
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			QHist:              ms.TimeInQueueSeconds,
 			Responses:          ms.BackendResponses,
@@ -114,8 +114,9 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			config.BackendQueueSize,
 			config.ConcurrencyLimitPerServer,
 			ms.BackendRequestsInQueue,
-			&ms.BackendSemaphoreSaturation,
-			ms.TimeInQueueSeconds)
+			ms.BackendSemaphoreSaturation,
+			ms.TimeInQueueSeconds,
+			ms.BackendEnqueuedRequests)
 
 		if err != nil {
 			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)

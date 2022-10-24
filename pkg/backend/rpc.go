@@ -50,21 +50,7 @@ func Renders(
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			msg, err := b.Render(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
-		// backend.RenderQ <- &renderReq{
-		// 	RenderRequest: request,
-		// 	Ctx:           ctx,
-		// 	StartTime:     time.Now(),
-		// 	Results:       msgCh,
-		// 	Errors:        errCh,
-		// }
+		backend.SendRender(ctx, request, msgCh, errCh)
 	}
 
 	msgs := make([][]types.Metric, 0, len(backends))
@@ -92,14 +78,7 @@ func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) (
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			msg, err := b.Info(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.SendInfo(ctx, request, msgCh, errCh)
 	}
 
 	msgs := make([][]types.Info, 0, len(backends))
@@ -126,24 +105,7 @@ func Finds(ctx context.Context, backends []Backend, request types.FindRequest, d
 	errCh := make(chan error, len(backends))
 	for _, backend := range backends {
 		request.IncCall()
-		go func(b Backend) {
-			var t *prometheus.Timer
-			if durationHist != nil {
-				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetCluster()))
-			}
-			defer func() {
-				if t != nil {
-					t.ObserveDuration()
-				}
-			}()
-
-			msg, err := b.Find(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.SendFind(ctx, request, msgCh, errCh, durationHist)
 	}
 
 	msgs := make([]types.Matches, 0, len(backends))

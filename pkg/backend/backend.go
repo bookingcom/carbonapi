@@ -10,6 +10,46 @@ import (
 	"go.uber.org/zap"
 )
 
+// The backend to send requests to.
+type Backend struct {
+	BackendImpl
+
+	// Request queues.
+	// There's a separate one for each type, because the stampeding requests of one type should not
+	// impact the other types of requests.
+	// This, for example, removes the dependency between the find and render requests performance.
+	// A big wave of render requests will not have direct impact on the find requests besides through the semphore.
+	renderQ chan *renderReq
+	findQ   chan *findReq
+	infoQ   chan *infoReq // the info requests are expected to be relatively rare
+
+	// The size of the requests semaphore:
+	// The maximum number of simultaneous requests.
+	semaSize int
+
+	requestsInQueue  *prometheus.GaugeVec
+	saturation       prometheus.Gauge
+	timeInQSec       *prometheus.HistogramVec
+	enqueuedRequests *prometheus.CounterVec
+}
+
+// The specific backend implementation.
+//
+// At the moment of writing, it can be one of:
+// * mock, used for tests
+// * net, the standard protocol
+// * grpc, used for streaming gRPC
+type BackendImpl interface {
+	Find(context.Context, types.FindRequest) (types.Matches, error)
+	Info(context.Context, types.InfoRequest) ([]types.Info, error)
+	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
+
+	Contains([]string) bool // Reports whether a backend contains any of the given targets.
+	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
+	GetServerAddress() string
+	GetCluster() string
+}
+
 type renderReq struct {
 	types.RenderRequest
 
@@ -40,47 +80,27 @@ type infoReq struct {
 	Errors  chan error
 }
 
-// The backend to send requests to.
-type Backend struct {
-	BackendImpl
-
-	// Request queues.
-	// There's a separate one for each type, because the stampeding requests of one type should not
-	// impact the other types of requests.
-	// This, for example, removes the dependency between the find and render requests performance.
-	// Huge amount of render requests will not have direct impact on the find requests besides the semphore.
-	RenderQ chan *renderReq
-	FindQ   chan *findReq
-	InfoQ   chan *infoReq // the info requests are expected to be relatively rare
-
-	// The size of the requests semaphore:
-	// The maximum number of simultaneous requests.
-	SemaSize int
-}
-
 // Creates a new backend and starts processing the queues if qSize > 0.
-//
-// Passing qSize == 0 disables async processing, and the backend only works as a proxy to the implementation functions.
-// Using the channels won't work in that mode.
-// TODO (redesign): Remove the option to have qSize == 0 and proxy processor when the redesign is finished.
 func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	requestsInQueue *prometheus.GaugeVec,
-	saturation *prometheus.Gauge,
-	timeInQSec *prometheus.HistogramVec) Backend {
+	saturation prometheus.Gauge,
+	timeInQSec *prometheus.HistogramVec,
+	enqueuedRequests *prometheus.CounterVec) Backend {
 	b := Backend{
 		BackendImpl: impl,
-		RenderQ:     make(chan *renderReq, qSize),
-		FindQ:       make(chan *findReq, qSize),
-		InfoQ:       make(chan *infoReq, qSize),
-		SemaSize:    semaSize,
+
+		renderQ:  make(chan *renderReq, qSize),
+		findQ:    make(chan *findReq, qSize),
+		infoQ:    make(chan *infoReq, qSize),
+		semaSize: semaSize,
+
+		requestsInQueue:  requestsInQueue,
+		saturation:       saturation,
+		timeInQSec:       timeInQSec,
+		enqueuedRequests: enqueuedRequests,
 	}
 
-	if qSize > 0 {
-		// Proc is the only function that uses the supplied metrics.
-		// The metrics can be nil if it's not called.
-		// Cannot be called w/ nil metrics.
-		b.Proc(requestsInQueue, *saturation, timeInQSec)
-	}
+	b.Proc()
 
 	return b
 }
@@ -88,19 +108,25 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 // Process the requests in the queue.
 // Should not be called when async processing is disabled.
 // Expects the metrics to be non-nil.
-func (b *Backend) Proc(
-	requestsInQueue *prometheus.GaugeVec,
-	saturation prometheus.Gauge,
-	timeInQSec *prometheus.HistogramVec) {
+func (b *Backend) Proc() {
+	semaphore := make(chan bool, b.semaSize)
 
-	semaphore := make(chan bool, b.SemaSize)
-
+	// The duplication below is the simplest solution at the moment without adding dynamic typing.
+	// After https://github.com/golang/go/issues/48522 is closed, we can use generics to avoid duplication.
+	// Without that issue resolved, the use of generics would produce too much boilerplate and would look much worse than
+	// the solution below — I've tried.
 	go func() {
-		for r := range b.RenderQ {
-			requestsInQueue.WithLabelValues("render").Dec()
+		for r := range b.renderQ {
+			if b.requestsInQueue != nil {
+				b.requestsInQueue.WithLabelValues("render").Dec()
+			}
 			semaphore <- true
-			saturation.Inc()
-			timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
+			if b.saturation != nil {
+				b.saturation.Inc()
+			}
+			if b.timeInQSec != nil {
+				b.timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
+			}
 			go func(req *renderReq) {
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
 				if err != nil {
@@ -109,16 +135,18 @@ func (b *Backend) Proc(
 					req.Results <- res
 				}
 				<-semaphore
-				saturation.Dec()
+				if b.saturation != nil {
+					b.saturation.Dec()
+				}
 			}(r)
 		}
 	}()
 	go func() {
-		for r := range b.FindQ {
-			requestsInQueue.WithLabelValues("find").Dec()
+		for r := range b.findQ {
+			b.requestsInQueue.WithLabelValues("find").Dec()
 			semaphore <- true
-			saturation.Inc()
-			timeInQSec.WithLabelValues("find").Observe(float64(time.Now().Sub(r.StartTime)))
+			b.saturation.Inc()
+			b.timeInQSec.WithLabelValues("find").Observe(float64(time.Now().Sub(r.StartTime)))
 			go func(req *findReq) {
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
 				if err != nil {
@@ -127,16 +155,16 @@ func (b *Backend) Proc(
 					req.Results <- res
 				}
 				<-semaphore
-				saturation.Dec()
+				b.saturation.Dec()
 			}(r)
 		}
 	}()
 	go func() {
-		for r := range b.InfoQ {
-			requestsInQueue.WithLabelValues("info").Dec()
+		for r := range b.infoQ {
+			b.requestsInQueue.WithLabelValues("info").Dec()
 			semaphore <- true
-			saturation.Inc()
-			timeInQSec.WithLabelValues("info").Observe(float64(time.Now().Sub(r.StartTime)))
+			b.saturation.Inc()
+			b.timeInQSec.WithLabelValues("info").Observe(float64(time.Now().Sub(r.StartTime)))
 			go func(req *infoReq) {
 				res, err := b.BackendImpl.Info(req.Ctx, req.InfoRequest)
 				if err != nil {
@@ -145,29 +173,108 @@ func (b *Backend) Proc(
 					req.Results <- res
 				}
 				<-semaphore
-				saturation.Dec()
+				b.saturation.Dec()
 			}(r)
 		}
 	}()
 }
 
-// The specific backend implementation.
-//
-// At the moment of writing can be one of:
-// * mock, used for tests
-// * net, used for standard comms
-// * grpc, used for streaming gRPC
-type BackendImpl interface {
-	Find(context.Context, types.FindRequest) (types.Matches, error)
-	Info(context.Context, types.InfoRequest) ([]types.Info, error)
-	Render(context.Context, types.RenderRequest) ([]types.Metric, error)
+// The duplication below is the simplest solution at the moment without adding dynamic typing.
+// After https://github.com/golang/go/issues/48522 is closed, we can use generics to avoid duplication.
+// Without that issue resolved, the use of generics would produce too much boilerplate and would look much worse than
+// the solution below — I've tried.
 
-	Contains([]string) bool // Reports whether a backend contains any of the given targets.
-	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
-	GetServerAddress() string
-	GetCluster() string
+func (backend Backend) SendRender(ctx context.Context, request types.RenderRequest, msgCh chan []types.Metric, errCh chan error) {
+	if cap(backend.renderQ) > 0 {
+		backend.renderQ <- &renderReq{
+			RenderRequest: request,
+			Ctx:           ctx,
+			StartTime:     time.Now(),
+			Results:       msgCh,
+			Errors:        errCh,
+		}
+		backend.requestsInQueue.WithLabelValues("render").Inc()
+		backend.enqueuedRequests.WithLabelValues("render").Inc()
+	} else {
+		// This branch is only necessary to satisfy the tests.
+		// After we clean-up and rework the tests to have mock metrics everywhere,
+		// this should be removed.
+		// TODO: Remove after tests cleanup.
+		go func(b Backend) {
+			msg, err := b.Render(ctx, request)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
+}
+
+func (backend Backend) SendFind(ctx context.Context, request types.FindRequest, msgCh chan types.Matches, errCh chan error, durationHist *prometheus.HistogramVec) {
+	if cap(backend.findQ) > 0 {
+		backend.findQ <- &findReq{
+			FindRequest: request,
+			Ctx:         ctx,
+			StartTime:   time.Now(),
+			Results:     msgCh,
+			Errors:      errCh,
+		}
+		backend.requestsInQueue.WithLabelValues("find").Inc()
+		backend.enqueuedRequests.WithLabelValues("find").Inc()
+	} else {
+		// This branch is only necessary to satisfy the tests.
+		// After we clean-up and rework the tests to have mock metrics everywhere,
+		// this should be removed.
+		// TODO: Remove after tests cleanup.
+		go func(b Backend) {
+			var t *prometheus.Timer
+			if durationHist != nil {
+				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetCluster()))
+			}
+			defer func() {
+				if t != nil {
+					t.ObserveDuration()
+				}
+			}()
+
+			msg, err := b.Find(ctx, request)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
+}
+
+func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, msgCh chan []types.Info, errCh chan error) {
+	if cap(backend.infoQ) > 0 {
+		backend.infoQ <- &infoReq{
+			InfoRequest: request,
+			Ctx:         ctx,
+			StartTime:   time.Now(),
+			Results:     msgCh,
+			Errors:      errCh,
+		}
+		backend.requestsInQueue.WithLabelValues("info").Inc()
+		backend.enqueuedRequests.WithLabelValues("info").Inc()
+	} else {
+		// This branch is only necessary to satisfy the tests.
+		// After we clean-up and rework the tests to have mock metrics everywhere,
+		// this should be removed.
+		// TODO: Remove after tests cleanup.
+		go func(b Backend) {
+			msg, err := b.Info(ctx, request)
+			if err != nil {
+				errCh <- err
+			} else {
+				msgCh <- msg
+			}
+		}(backend)
+	}
 }
 
 func NewMock(cfg mock.Config) Backend {
-	return NewBackend(mock.New(cfg), 0, 0, nil, nil, nil)
+	return NewBackend(mock.New(cfg), 0, 0, nil, nil, nil, nil)
 }
