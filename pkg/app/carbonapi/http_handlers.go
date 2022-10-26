@@ -442,6 +442,11 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 				Results: rch,
 			}
+			// TODO: Don't rely on context in the final solution.
+			if dl, ok := ctx.Deadline(); ok {
+				// we use microseconds to avoid undefined zero-time behaviour of UnixNano
+				req.DeadlineMicro = dl.UnixMicro()
+			}
 
 			if subrequestCount > app.config.LargeReqSize {
 				app.slowQ <- req
