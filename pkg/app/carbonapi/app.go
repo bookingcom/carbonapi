@@ -212,6 +212,8 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 		app.queryCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
 			app.config.Cache.QueryTimeoutMs,
+			app.config.Cache.MemcachedTimeoutMs,
+			app.config.Cache.MemcachedMaxIdleConns,
 			reqsRender,
 			respReadRender,
 			app.ms.CacheTimeouts.WithLabelValues("render"),
@@ -227,6 +229,8 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 		app.findCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
 			app.config.Cache.QueryTimeoutMs,
+			app.config.Cache.MemcachedTimeoutMs,
+			app.config.Cache.MemcachedMaxIdleConns,
 			reqsFind,
 			respReadFind,
 			app.ms.CacheTimeouts.WithLabelValues("find"),
