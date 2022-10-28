@@ -300,12 +300,6 @@ func (b NetBackend) call(ctx context.Context, trace types.Trace, u *url.URL, req
 	return contentType, body, err
 }
 
-// TODO(gmagnusson): Should Contains become something different, where instead
-// of answering yes/no to whether the backend contains any of the given
-// targets, it returns a filtered list of targets that the backend contains?
-// Is it worth it to make the distinction? If go-carbon isn't too unhappy about
-// looking up metrics that it doesn't have, we maybe don't need to do this.
-
 // Contains reports whether the backend contains any of the given targets.
 func (b NetBackend) Contains(targets []string) bool {
 	for _, target := range targets {

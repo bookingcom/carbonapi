@@ -1,18 +1,3 @@
-/*
-Package backend defines an interface and RPC methods for communication
-with Graphite backends.
-
-Example use:
-
-    var b Backend
-    metrics, err := Render(ctx, b, from, until, targets)
-
-The package will transparently handle concurrent requests to multiple
-backends:
-
-    var bs []Backend
-    metrics, err := Renders(ctx, bs, from, until, targets)
-*/
 package backend
 
 import (
@@ -25,12 +10,6 @@ import (
 
 	"go.uber.org/zap"
 )
-
-// TODO(gmagnusson): ^ Remove IsAbsent: IsAbsent[i] => Values[i] == NaN
-// Doing math on NaN is expensive, but assuming that all functions will treat a
-// default value of 0 intelligently is wrong (see multiplication). Thus math
-// needs an if IsAbsent[i] check anyway, which is also expensive if we're
-// worrying about those levels of performance in the first place.
 
 // Renders makes Render calls to multiple backends.
 // replicaMatchMode indicates how data points of the metrics fetched from replicas

@@ -115,7 +115,7 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			config.ConcurrencyLimitPerServer,
 			ms.BackendRequestsInQueue,
 			ms.BackendSemaphoreSaturation,
-			ms.TimeInQueueSeconds,
+			ms.BackendTimeInQSec,
 			ms.BackendEnqueuedRequests)
 
 		if err != nil {

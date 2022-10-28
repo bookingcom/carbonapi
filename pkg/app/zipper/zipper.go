@@ -71,7 +71,7 @@ func Setup(configFile string, BuildVersion string, metricsNS string, lgOverride 
 		Backends:            bs,
 		TopLevelDomainCache: expirecache.New(0),
 		TLDPrefixes:         InitTLDPrefixes(logger, config.TLDCacheExtraPrefixes),
-		Lg: logger,
+		Lg:                  logger,
 	}
 
 	return app, logger

@@ -138,8 +138,9 @@ type Cache interface {
 }
 
 // NewReplicatedMemcached creates a set of identical memcached instances.
-func NewReplicatedMemcached(prefix string, timeout uint64, reqCount *prometheus.CounterVec,
-	respCount *prometheus.CounterVec, timeoutCount prometheus.Counter, servers ...string) BytesCache {
+func NewReplicatedMemcached(prefix string, timeout uint64, memTimeoutMs int, maxIdleConn int,
+	reqCount *prometheus.CounterVec, respCount *prometheus.CounterVec, timeoutCount prometheus.Counter,
+	servers ...string) BytesCache {
 	m := ReplicatedMemcached{
 		prefix:        prefix,
 		timeoutMs:     timeout,
@@ -149,7 +150,10 @@ func NewReplicatedMemcached(prefix string, timeout uint64, reqCount *prometheus.
 	}
 
 	for _, s := range servers {
-		m.instances = append(m.instances, memcache.New(s))
+		cl := memcache.New(s)
+		cl.MaxIdleConns = maxIdleConn
+		cl.Timeout = time.Duration(memTimeoutMs) * time.Millisecond
+		m.instances = append(m.instances, cl)
 	}
 
 	return &m

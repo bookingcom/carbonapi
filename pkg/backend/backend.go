@@ -207,7 +207,8 @@ func (backend Backend) SendRender(ctx context.Context, request types.RenderReque
 	}
 }
 
-func (backend Backend) SendFind(ctx context.Context, request types.FindRequest, msgCh chan types.Matches, errCh chan error, durationHist *prometheus.HistogramVec) {
+func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,
+	msgCh chan types.Matches, errCh chan error, durationHist *prometheus.HistogramVec) {
 	if cap(backend.findQ) > 0 {
 		backend.findQ <- &findReq{
 			FindRequest: request,

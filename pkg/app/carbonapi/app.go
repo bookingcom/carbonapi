@@ -77,7 +77,6 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	}
 	app.requestBlocker.ReloadRules()
 
-	// TODO(gmagnusson): Setup backends
 	backend, err := initBackend(app.config, lg,
 		app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
 		app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits)
@@ -157,6 +156,7 @@ func (app *App) registerPrometheusMetrics() {
 	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
 	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
 	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
+	prometheus.MustRegister(app.ms.UpstreamTimeouts)
 
 	prometheus.MustRegister(app.ms.TimeInQueueExp)
 	prometheus.MustRegister(app.ms.TimeInQueueLin)
@@ -212,6 +212,8 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 		app.queryCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
 			app.config.Cache.QueryTimeoutMs,
+			app.config.Cache.MemcachedTimeoutMs,
+			app.config.Cache.MemcachedMaxIdleConns,
 			reqsRender,
 			respReadRender,
 			app.ms.CacheTimeouts.WithLabelValues("render"),
@@ -227,6 +229,8 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		}
 		app.findCache = cache.NewReplicatedMemcached(app.config.Cache.Prefix,
 			app.config.Cache.QueryTimeoutMs,
+			app.config.Cache.MemcachedTimeoutMs,
+			app.config.Cache.MemcachedMaxIdleConns,
 			reqsFind,
 			respReadFind,
 			app.ms.CacheTimeouts.WithLabelValues("find"),
@@ -363,7 +367,7 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		Address:            host,
 		Client:             client,
 		Timeout:            config.Timeouts.AfterStarted,
-		Limit:              config.ConcurrencyLimitPerServer, // the old limiter stays enabled for carbonapi
+		Limit:              0, // the old limiter is DISABLED now. TODO: Cleanup.
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
 		ActiveRequests:     activeUpstreamRequests,

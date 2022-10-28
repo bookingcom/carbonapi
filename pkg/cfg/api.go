@@ -62,10 +62,12 @@ func DefaultAPIConfig() API {
 
 		ResolveGlobs: 100,
 		Cache: CacheConfig{
-			Type:              "mem",
-			DefaultTimeoutSec: 60,
-			QueryTimeoutMs:    50,
-			Prefix:            "capi",
+			Type:                  "mem",
+			DefaultTimeoutSec:     60,
+			QueryTimeoutMs:        50,
+			Prefix:                "capi",
+			MemcachedTimeoutMs:    1000,
+			MemcachedMaxIdleConns: 50,
 		},
 		// This is an intentionally large number as an intermediate refactored state.
 		// This effectively turns off the queue size limitation.
@@ -137,13 +139,14 @@ type API struct {
 // CacheConfig configs the cache
 type CacheConfig struct {
 	// possible values are: null, mem, memcache, replicatedMemcache
-	Type             string   `yaml:"type"`
-	Size             int      `yaml:"size_mb"`
-	MemcachedServers []string `yaml:"memcachedServers"`
-	// TODO (grzkv): This looks to be used as expiration time for cache
-	DefaultTimeoutSec int32  `yaml:"defaultTimeoutSec"`
-	QueryTimeoutMs    uint64 `yaml:"queryTimeoutMs"`
-	Prefix            string `yaml:"prefix"`
+	Type                  string   `yaml:"type"`
+	Size                  int      `yaml:"size_mb"`
+	MemcachedServers      []string `yaml:"memcachedServers"`
+	DefaultTimeoutSec     int32    `yaml:"defaultTimeoutSec"`
+	QueryTimeoutMs        uint64   `yaml:"queryTimeoutMs"`
+	Prefix                string   `yaml:"prefix"`
+	MemcachedTimeoutMs    int      `yaml:"memcachedTimeoutMs"`
+	MemcachedMaxIdleConns int      `yaml:"memcachedMaxIdleConns"`
 }
 
 type preAPI struct {

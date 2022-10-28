@@ -442,6 +442,11 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 				Results: rch,
 			}
+			// TODO: Don't rely on context in the final solution.
+			if dl, ok := ctx.Deadline(); ok {
+				// we use microseconds to avoid undefined zero-time behaviour of UnixNano
+				req.DeadlineMicro = dl.UnixMicro()
+			}
 
 			if subrequestCount > app.config.LargeReqSize {
 				app.slowQ <- req
@@ -512,7 +517,9 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	errStr := ""
 	for _, e := range errs {
 		var notFound dataTypes.ErrNotFound
-		errStr = errStr + e.Error() + ", "
+		if len(errStr) < 200 {
+			errStr = errStr + e.Error() + ", "
+		}
 		if !errors.As(e, &notFound) {
 			allErrorsNotFound = false
 		}
