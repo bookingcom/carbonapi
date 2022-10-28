@@ -552,11 +552,8 @@ func (app *App) sendRenderRequest(ctx context.Context, path string, from, until 
 	var err error
 	var metrics []dataTypes.Metric
 	if app.Zipper != nil {
-		// TODO: Cleanup the limiter.
-		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
 		app.ms.UpstreamRequests.WithLabelValues("render").Inc()
 		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
-		app.ZipperLimiter.Leave()
 	} else {
 		metrics, err = app.backend.Render(ctx, request)
 	}
@@ -780,10 +777,8 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	var matches dataTypes.Matches
 
 	if app.Zipper != nil {
-		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
 		app.ms.UpstreamRequests.WithLabelValues("find").Inc()
 		matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
-		app.ZipperLimiter.Leave()
 	} else {
 		matches, err = app.backend.Find(ctx, request)
 	}
