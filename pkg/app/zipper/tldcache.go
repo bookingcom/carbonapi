@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"
@@ -40,7 +41,9 @@ func probeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, 
 			}
 		}
 		for tld, num := range topLevelDomainCache {
-			ms.TLDCacheHostsPerDomain.WithLabelValues(tld).Set(float64(len(num)))
+			if utf8.ValidString(tld) {
+				ms.TLDCacheHostsPerDomain.WithLabelValues(tld).Set(float64(len(num)))
+			}
 		}
 		TLDCache.Set("tlds", topLevelDomainCache, 0, 2*period)
 
