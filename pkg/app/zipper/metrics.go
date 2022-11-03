@@ -38,9 +38,8 @@ type PrometheusMetrics struct {
 
 	TimeInQueueSeconds *prometheus.HistogramVec
 
-	TLDCacheProbeReqTotal  prometheus.Counter
-	TLDCacheProbeErrors    prometheus.Counter
-	TLDCacheHostsPerDomain prometheus.GaugeVec
+	TLDCacheProbeReqTotal prometheus.Counter
+	TLDCacheProbeErrors   prometheus.Counter
 
 	PathCacheFilteredRequests prometheus.Counter
 }
@@ -249,14 +248,6 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 				Help:      "The total number of failed find requests sent by TLD cache as probes.",
 			},
 		),
-		TLDCacheHostsPerDomain: *prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: ns,
-				Name:      "tldcache_num_hosts_per_domain",
-				Help:      "The number of hosts per top-level domain.",
-			},
-			[]string{"domain"},
-		),
 		PathCacheFilteredRequests: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Namespace: ns,
@@ -303,7 +294,6 @@ func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.BackendSemaphoreSaturation)
 	prometheus.MustRegister(app.Metrics.BackendTimeInQSec)
 
-	prometheus.MustRegister(app.Metrics.TLDCacheHostsPerDomain)
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
 
