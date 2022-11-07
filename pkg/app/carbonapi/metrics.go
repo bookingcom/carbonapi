@@ -31,12 +31,15 @@ type PrometheusMetrics struct {
 	UpstreamEnqueuedRequests    *prometheus.CounterVec
 	UpstreamSubRenderNum        prometheus.Histogram
 	UpstreamTimeInQSec          *prometheus.HistogramVec
-	UpstreamTimeouts            *prometheus.CounterVec
 
 	TimeInQueueExp prometheus.Histogram
 	TimeInQueueLin prometheus.Histogram
 
 	UpstreamRequests        *prometheus.CounterVec
+	ActiveUpstreamRequests  prometheus.Gauge
+	WaitingUpstreamRequests prometheus.Gauge
+	UpstreamLimiterEnters   prometheus.Counter
+	UpstreamLimiterExits    *prometheus.CounterVec
 
 	CacheRequests *prometheus.CounterVec
 	CacheRespRead *prometheus.CounterVec
@@ -224,10 +227,6 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				config.UpstreamTimeInQSecHistParams.BucketsNum,
 			),
 		}, []string{"queue"}),
-		UpstreamTimeouts: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "upstream_timedout_requests",
-			Help: "The counter of upstream requests that were never sent upstream because of timeout.",
-		}, []string{"queue", "request"}),
 
 		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{
@@ -249,6 +248,26 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketsNum),
 			},
 		),
+		ActiveUpstreamRequests: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "active_upstream_requests",
+				Help: "Number of in-flight upstream requests",
+			},
+		),
+		WaitingUpstreamRequests: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "waiting_upstream_requests",
+				Help: "Number of upstream requests waiting on the limiter",
+			},
+		),
+		UpstreamLimiterEnters: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "upstream_limiter_enters",
+			Help: "The counter of requests that entered the upstream limiter",
+		}),
+		UpstreamLimiterExits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "upstream_limiter_exits",
+			Help: "The counter of requests that exit the limiter by status",
+		}, []string{"status"}),
 		CacheRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_requests",

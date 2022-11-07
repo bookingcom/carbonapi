@@ -8,6 +8,8 @@ import (
 	"time"
 
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dgryski/go-expirecache"
 
@@ -79,6 +81,10 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 		var b backend.Backend
 		var err error
 
+		limiterExits, err := ms.BackendLimiterExits.CurryWith(prometheus.Labels{"backend": host.Http})
+		if err != nil {
+			return nil, errors.Wrap(err, "currying the metric for LimiterExits failed")
+		}
 		bConf := bnet.Config{
 			Address:            host.Http,
 			DC:                 dc,
@@ -90,6 +96,10 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			QHist:              ms.TimeInQueueSeconds,
 			Responses:          ms.BackendResponses,
 			Logger:             logger,
+			ActiveRequests:     ms.ActiveUpstreamRequests.WithLabelValues(host.Http),
+			WaitingRequests:    ms.WaitingUpstreamRequests.WithLabelValues(host.Http),
+			LimiterEnters:      ms.BackendLimiterEnters.WithLabelValues(host.Http),
+			LimiterExits:       limiterExits,
 		}
 		var be backend.BackendImpl
 		if host.Grpc != "" {
