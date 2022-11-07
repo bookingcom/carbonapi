@@ -156,7 +156,6 @@ func (app *App) registerPrometheusMetrics() {
 	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
 	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
 	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
-	prometheus.MustRegister(app.ms.UpstreamTimeouts)
 
 	prometheus.MustRegister(app.ms.TimeInQueueExp)
 	prometheus.MustRegister(app.ms.TimeInQueueLin)
@@ -367,7 +366,7 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		Address:            host,
 		Client:             client,
 		Timeout:            config.Timeouts.AfterStarted,
-		Limit:              0, // the old limiter is DISABLED now. TODO: Cleanup.
+		Limit:              config.ConcurrencyLimitPerServer, // the old limiter stays enabled for carbonapi
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
 		ActiveRequests:     activeUpstreamRequests,

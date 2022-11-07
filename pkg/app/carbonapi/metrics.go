@@ -31,7 +31,6 @@ type PrometheusMetrics struct {
 	UpstreamEnqueuedRequests    *prometheus.CounterVec
 	UpstreamSubRenderNum        prometheus.Histogram
 	UpstreamTimeInQSec          *prometheus.HistogramVec
-	UpstreamTimeouts            *prometheus.CounterVec
 
 	TimeInQueueExp prometheus.Histogram
 	TimeInQueueLin prometheus.Histogram
@@ -228,10 +227,6 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				config.UpstreamTimeInQSecHistParams.BucketsNum,
 			),
 		}, []string{"queue"}),
-		UpstreamTimeouts: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "upstream_timedout_requests",
-			Help: "The counter of upstream requests that were never sent upstream because of timeout.",
-		}, []string{"queue", "request"}),
 
 		TimeInQueueExp: prometheus.NewHistogram(
 			prometheus.HistogramOpts{

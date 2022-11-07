@@ -2,13 +2,14 @@ package carbonapi
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 )
 
 // ProcessRequests processes the queued requests.
+// TODO: Handler request timeouts. The timed-out requests don't need to be forwarded.
+//       Currently, they'll be handled by the old limiter that's still in place.
 func ProcessRequests(app *App) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
 	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)
@@ -16,7 +17,7 @@ func ProcessRequests(app *App) {
 		go func() {
 			for {
 				var req *renderReq
-				var qLabel string
+				var label string
 
 				// During processing we use two independent queues that share the semaphore:
 				// fastQ includes regular requests while slowQ contains large requests.
@@ -28,25 +29,16 @@ func ProcessRequests(app *App) {
 				// effectively increases priority of the smaller requests.
 				select {
 				case req = <-app.fastQ:
-					qLabel = "fast"
+					label = "fast"
 				case req = <-app.slowQ:
-					qLabel = "slow"
+					label = "slow"
 				}
 
-				app.ms.UpstreamRequestsInQueue.WithLabelValues(qLabel).Dec()
-
-				// The use of the atomic load here is a for future safety.
-				// Currently, it's not strictly necessary.
-				dl := atomic.LoadInt64(&req.DeadlineMicro)
-				if dl != 0 && dl < time.Now().UnixMicro() {
-					app.ms.UpstreamTimeInQSec.WithLabelValues(qLabel).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
-					app.ms.UpstreamTimeouts.WithLabelValues(qLabel, "render")
-					continue
-				}
+				app.ms.UpstreamRequestsInQueue.WithLabelValues(label).Dec()
 
 				semaphore <- true
 				app.ms.UpstreamSemaphoreSaturation.Inc()
-				app.ms.UpstreamTimeInQSec.WithLabelValues(qLabel).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
+				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
 
 				go func(r *renderReq) {
 					r.Results <- app.sendRenderRequest(r.Ctx, r.Path, r.From, r.Until, r.ToLog)
@@ -65,10 +57,9 @@ type renderReq struct {
 	From  int32
 	Until int32
 
-	Ctx           context.Context
-	ToLog         *carbonapipb.AccessLogDetails
-	StartTime     time.Time
-	DeadlineMicro int64
+	Ctx       context.Context
+	ToLog     *carbonapipb.AccessLogDetails
+	StartTime time.Time
 
 	Results chan renderResponse
 }
