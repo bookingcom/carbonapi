@@ -22,6 +22,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/trace"
 
 	"github.com/facebookgo/grace/gracehttp"
@@ -53,7 +54,8 @@ type App struct {
 	ms PrometheusMetrics
 	Lg *zap.Logger
 
-	Zipper *zipper.App
+	Zipper        *zipper.App
+	ZipperLimiter *prioritylimiter.Limiter
 }
 
 // New creates a new app
@@ -75,7 +77,9 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	}
 	app.requestBlocker.ReloadRules()
 
-	backend, err := initBackend(app.config, lg)
+	backend, err := initBackend(app.config, lg,
+		app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
+		app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits)
 	if err != nil {
 		lg.Fatal("couldn't initialize backends", zap.Error(err))
 	}
@@ -87,6 +91,9 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		lg.Info("starting embedded zipper")
 		var zlg *zap.Logger
 		app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
+		app.ZipperLimiter = prioritylimiter.New(config.ConcurrencyLimitPerServer,
+			prioritylimiter.WithMetrics(app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
+				app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits))
 		go app.Zipper.Start(false, zlg)
 	}
 
@@ -153,6 +160,10 @@ func (app *App) registerPrometheusMetrics() {
 
 	prometheus.MustRegister(app.ms.TimeInQueueExp)
 	prometheus.MustRegister(app.ms.TimeInQueueLin)
+	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
+	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
 
 	prometheus.MustRegister(app.ms.CacheRequests)
 	prometheus.MustRegister(app.ms.CacheRespRead)
@@ -335,7 +346,8 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 	}
 }
 
-func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
+func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, waitingUpstreamRequests prometheus.Gauge,
+	limiterEnters prometheus.Counter, limiterExits *prometheus.CounterVec) (backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -358,6 +370,10 @@ func initBackend(config cfg.API, logger *zap.Logger) (backend.Backend, error) {
 		Limit:              0, // the old limiter is DISABLED now. TODO: Cleanup.
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
+		ActiveRequests:     activeUpstreamRequests,
+		WaitingRequests:    waitingUpstreamRequests,
+		LimiterEnters:      limiterEnters,
+		LimiterExits:       limiterExits,
 	})
 
 	if err != nil {

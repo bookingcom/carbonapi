@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -48,6 +49,7 @@ type NetBackend struct {
 	cluster        string
 	client         *http.Client
 	timeout        time.Duration
+	limiter        *prioritylimiter.Limiter
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
@@ -75,6 +77,11 @@ type Config struct {
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 
+	// TODO (grzkv): Make metrics mandatory to simplify code. Nil can be replaced by the mock metrics in tests.
+	ActiveRequests  prometheus.Gauge
+	WaitingRequests prometheus.Gauge
+	LimiterEnters   prometheus.Counter
+	LimiterExits    *prometheus.CounterVec
 	QHist           *prometheus.HistogramVec
 	Responses       *prometheus.CounterVec
 }
@@ -113,6 +120,15 @@ func New(cfg Config) (*NetBackend, error) {
 		b.client = cfg.Client
 	} else {
 		b.client = http.DefaultClient
+	}
+
+	if cfg.Limit > 0 {
+		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil &&
+			cfg.LimiterEnters != nil && cfg.LimiterExits != nil {
+
+			b.limiter = prioritylimiter.New(cfg.Limit,
+				prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests, cfg.LimiterEnters, cfg.LimiterExits))
+		}
 	}
 
 	b.qHist = cfg.QHist
@@ -164,11 +180,19 @@ func (b NetBackend) Logger() *zap.Logger {
 }
 
 func (b NetBackend) enter(ctx context.Context) error {
-	return nil
+	if b.limiter == nil {
+		return nil
+	}
+	priority := util.GetPriority(ctx)
+	uuid := util.GetUUID(ctx)
+	return b.limiter.Enter(ctx, priority, uuid)
 }
 
 func (b NetBackend) leave() error {
-	return nil
+	if b.limiter == nil {
+		return nil
+	}
+	return b.limiter.Leave()
 }
 
 func (b NetBackend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
