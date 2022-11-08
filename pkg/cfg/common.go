@@ -164,11 +164,15 @@ func GetDefaultLoggerConfig() zap.Config {
 			StacktraceKey:  "stacktrace",
 			LineEnding:     zapcore.DefaultLineEnding,
 			EncodeLevel:    zapcore.CapitalLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
+			EncodeTime:     DateNanoEncoder,
 			EncodeDuration: zapcore.SecondsDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		},
 	}
+}
+
+func DateNanoEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+	enc.AppendString(t.Format("2006-01-02T15:04:05.000000000Z0700"))
 }
 
 // Common is the configuration shared by carbonapi and carbonzipper

@@ -62,7 +62,7 @@ func (rl *RequestBlocker) ScheduleRuleReload() bool {
 func (rl *RequestBlocker) ReloadRules() {
 	fileData, err := rl.config.load()
 	if err != nil {
-		rl.logger.Debug("failed to load header block rules", zap.Error(err))
+		rl.logger.Info("failed to load header block rules", zap.Error(err))
 		rl.rules.Store(RuleConfig{})
 		return
 	}
