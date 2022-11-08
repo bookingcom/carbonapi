@@ -144,7 +144,7 @@ type renderResponse struct {
 	error error
 }
 
-func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
 	size := 0
 
@@ -152,6 +152,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 	uuid := util.GetUUID(ctx)
+
+	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "render"))
+	Trace(lg, "received request")
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
@@ -172,12 +175,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 				app.ms.RenderDurationExpComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
-		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
 
 	app.ms.Requests.Inc()
 
-	form, err := app.renderHandlerProcessForm(r, &toLog, logger)
+	form, err := app.renderHandlerProcessForm(r, &toLog, lg)
 	if err != nil {
 		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog, span)
 		return
@@ -198,12 +201,16 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 	}
 
 	if form.useCache {
+		Trace(lg, "query request cache")
+
 		response, cacheErr := app.queryCache.Get(form.cacheKey)
 
 		toLog.CarbonzipperResponseSizeBytes = 0
 		toLog.CarbonapiResponseSizeBytes = int64(len(response))
 
 		if cacheErr == nil {
+			Trace(lg, "request found in cache")
+
 			writeErr := writeResponse(ctx, w, response, form.format, form.jsonp)
 			if writeErr != nil {
 				logLevel = zapcore.WarnLevel
@@ -214,8 +221,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			return
 		}
 		if cacheErr != cache.ErrNotFound {
+			Trace(lg, "request cache error", zap.Error(cacheErr))
+
 			addCacheErrorToLogDetails(&toLog, true, cacheErr)
 		}
+		Trace(lg, "request not found in cache")
 	}
 	span.SetAttribute("from_cache", false)
 
@@ -223,13 +233,19 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 
 	tracer := span.Tracer()
 	var results []*types.MetricData
+
 	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
 		target := form.targets[targetIdx]
+
+		lgt := lg.With(zap.String("target", target))
+		Trace(lgt, "querying target")
+
 		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
 			kv.String("graphite.target", target),
 		))
 		exp, e, parseErr := parser.ParseExpr(target)
 		if parseErr != nil || e != "" {
+			Trace(lgt, "parsing target expression failed", zap.Error(parseErr))
 			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
 			return
@@ -237,12 +253,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		targetSpan.AddEvent(targetCtx, "parsed expression")
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
-			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, logger, &partiallyFailed, targetSpan)
+			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, lgt, &partiallyFailed, targetSpan)
 		}
 		targetSpan.AddEvent(targetCtx, "retrieved target data")
 
 		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
-			form.useCache, form.from32, form.until32, &toLog, logger, &partiallyFailed, targetSpan)
+			form.useCache, form.from32, form.until32, &toLog, lgt, &partiallyFailed, targetSpan)
 
 		// Continue query execution even though no metric is found in
 		// prefetch as there are Graphite query functions that are able
@@ -265,8 +281,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 			var parseError parser.ParseError
 			switch {
 			case errors.As(targetErr, &notFound):
+				Trace(lgt, "target not found", zap.Error(targetErr))
 				// When not found, graphite answers with  http 200 and []
 			case errors.Is(targetErr, parser.ErrSeriesDoesNotExist):
+				Trace(lgt, "target error: series does not exist; continuing execution", zap.Error(targetErr))
 				// As now carbonapi continues query execution
 				// when no metrics are returned, it's possible
 				// to have evalExprRender returning this error.
@@ -281,33 +299,34 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/types.go\#L5-L8
 				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/graphite.go\#L162-L167
 			case errors.As(targetErr, &parseError):
+				// no tracing is needed as deferred log will have the error details
 				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
 				return
 			case errors.Is(targetErr, context.DeadlineExceeded):
+				// no tracing is needed as deferred log will have the error details
 				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog, span)
 				logLevel = zapcore.ErrorLevel
-				app.ms.RequestCancel.WithLabelValues(
-					"render", ctx.Err().Error(),
-				).Inc()
+				app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
 				return
 			default:
+				// no tracing is needed as deferred log will have the error details
 				writeError(uuid, r, w, http.StatusInternalServerError, targetErr.Error(), form.format, &toLog, span)
 				logLevel = zapcore.ErrorLevel
 				return
 			}
 		}
 		size += metricSize
+
+		Trace(lgt, "target succeeded")
 		targetSpan.End()
 	}
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
 	if ctx.Err() != nil {
-		app.ms.RequestCancel.WithLabelValues(
-			"render", ctx.Err().Error(),
-		).Inc()
+		app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
 	}
 
-	body, err := app.renderWriteBody(results, form, r, logger)
+	body, err := app.renderWriteBody(results, form, r, lg)
 	if err != nil {
 		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), form.format, &toLog, span)
 		logLevel = zapcore.ErrorLevel
@@ -326,11 +345,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, logger *za
 		// Looks like things are mixed.
 		err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
 		if err != nil {
+			Trace(lg, "writing request to cache failed", zap.Error(err))
 			addCacheErrorToLogDetails(&toLog, false, err)
 		}
 	}
 
 	if partiallyFailed {
+		Trace(lg, "request partially failed")
 		app.ms.RenderPartialFail.Inc()
 	}
 }
@@ -340,7 +361,6 @@ func writeError(uuid string,
 	code int, s string, format string,
 	accessLogDetails *carbonapipb.AccessLogDetails,
 	span trace.Span) {
-	// TODO (grzkv) Maybe add SVG format handling
 
 	accessLogDetails.HttpCode = int32(code)
 	accessLogDetails.Reason = s
@@ -392,12 +412,17 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool,
 	span trace.Span) (error, int) {
 
+	Trace(lg, "getting target data from upstream")
+
 	size := 0
 	metrics := 0
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 
 	for _, m := range exp.Metrics() {
+		lgm := lg.With(zap.String("metric", m.Metric))
+		Trace(lgm, "getting metric data from upstream")
+
 		mfetch := m
 		mfetch.From += from
 		mfetch.Until += until
@@ -410,14 +435,17 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 		// This _sometimes_ sends a *find* request
 		useCacheForRenderResolveGlobs := useCache && app.config.EnableCacheForRenderResolveGlobs
-		renderRequests, err := app.getRenderRequests(ctx, m, useCacheForRenderResolveGlobs, toLog)
+		renderRequests, err := app.getRenderRequests(ctx, m, useCacheForRenderResolveGlobs, toLog, lgm)
 		if err != nil {
+			Trace(lgm, "failed getting sub-requests", zap.Error(err))
 			metricErrs = append(metricErrs, err)
 			continue
 		} else if len(renderRequests) == 0 {
+			Trace(lgm, "got no sub-requests")
 			metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
 			continue
 		}
+		Trace(lgm, "got sub-requests. sending them upstream", zap.Int("sub-requests", len(renderRequests)))
 
 		renderRequestContext := ctx
 		subrequestCount := len(renderRequests)
@@ -469,9 +497,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			}
 		}
 		close(rch)
+
+		Trace(lgm, "sub-requests returned", zap.Int("errors", len(errs)), zap.Int("total requests", len(renderRequests)))
 		// We have to check it here because we don't want to return before closing rch
 		select {
 		case <-ctx.Done():
+			Trace(lgm, "context done while getting target data", zap.Error(ctx.Err()))
 			return ctx.Err(), 0
 		default:
 		}
@@ -487,6 +518,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 	span.SetAttribute("graphite.metrics", metrics)
 	span.SetAttribute("graphite.datapoints", size)
+
+	Trace(lg, "got metrics for target", zap.Int("metrics", len(exp.Metrics())), zap.Int("errors", len(metricErrs)))
 
 	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
@@ -509,32 +542,29 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	// everything failed.
 	// If all the failures are not-founds, it's a not-found
 	allErrorsNotFound := true
-	errStr := ""
+	ss := strings.Builder{}
 	for _, e := range errs {
 		var notFound dataTypes.ErrNotFound
-		if len(errStr) < 200 {
-			errStr = errStr + e.Error() + ", "
+		if ss.Len() < 500 {
+			ss.WriteString(e.Error())
+			ss.WriteString(", ")
 		}
 		if !errors.As(e, &notFound) {
 			allErrorsNotFound = false
 		}
 	}
 
-	if len(errStr) > 200 {
-		errStr = errStr[0:200]
-	}
+	errStr := ss.String()
 
 	if nErrs < n {
 		return nil, errStr
 	}
 
 	if allErrorsNotFound {
-		return dataTypes.ErrNotFound("all " + subj +
-			" not found; merged errs: (" + errStr + ")"), errStr
+		return dataTypes.ErrNotFound("all " + subj + " not found; merged errs: (" + errStr + ")"), errStr
 	}
 
-	return errors.New("all " + subj +
-		" failed with mixed errrors; merged errs: (" + errStr + ")"), errStr
+	return errors.New("all " + subj + " failed; merged errs: (" + errStr + ")"), errStr
 }
 
 func (app *App) sendRenderRequest(ctx context.Context, path string, from, until int32,
@@ -755,15 +785,23 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 	return matches, nil
 }
 
-func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails) (dataTypes.Matches, bool, error) {
+func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, lg *zap.Logger) (dataTypes.Matches, bool, error) {
+
+	lg.With(zap.String("find_query", metric))
+	Trace(lg, "executing find")
+
 	if useCache {
+		Trace(lg, "query cache for find")
 		matches, err := app.resolveGlobsFromCache(metric)
 		if err == nil {
+			Trace(lg, "find result found in cache")
 			return matches, true, nil
 		}
 		if err != cache.ErrNotFound {
+			Trace(lg, "cache error for find", zap.Error(err))
 			addCacheErrorToLogDetails(accessLogDetails, true, err)
 		}
+		Trace(lg, "find not found in cache")
 	}
 
 	accessLogDetails.ZipperRequests++
@@ -774,6 +812,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	var err error
 	var matches dataTypes.Matches
 
+	Trace(lg, "sending find request upstream")
 	if app.Zipper != nil {
 		_ = app.ZipperLimiter.Enter(ctx, util.GetPriority(ctx), util.GetUUID(ctx))
 		app.ms.UpstreamRequests.WithLabelValues("find").Inc()
@@ -784,22 +823,28 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	}
 
 	if err != nil {
+		Trace(lg, "upstream find request failed", zap.Error(err))
 		return matches, false, err
 	}
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
-		err := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
-		if err != nil {
-			addCacheErrorToLogDetails(accessLogDetails, false, err)
+		errCache := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
+		if errCache != nil {
+			Trace(lg, "writing find to cache failed", zap.Error(errCache))
+			addCacheErrorToLogDetails(accessLogDetails, false, errCache)
 		}
+	} else {
+		Trace(lg, "encoding find for caching failed", zap.Error(err))
 	}
 
 	return matches, false, nil
 }
 
 func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, useCache bool,
-	toLog *carbonapipb.AccessLogDetails) ([]string, error) {
+	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) ([]string, error) {
+	Trace(lg, "getting sub-requests")
+
 	if app.config.ResolveGlobs == 0 {
 		return []string{m.Metric}, nil
 	}
@@ -807,7 +852,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 		return []string{m.Metric}, nil
 	}
 
-	glob, fromCache, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog)
+	glob, fromCache, err := app.resolveGlobs(ctx, m.Metric, useCache, toLog, lg)
 	toLog.TotalMetricCount += int64(len(glob.Matches))
 	if err != nil {
 		return nil, err
@@ -822,7 +867,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	// In order to populate backend caches in carbonzipper, we send the preflight find request
 	// to backends. This is crucial for performance and avoids unnecessary overload.
 	if fromCache {
-		_, _, err := app.resolveGlobs(ctx, m.Metric, false, toLog)
+		_, _, err := app.resolveGlobs(ctx, m.Metric, false, toLog, lg)
 		if err != nil {
 			return nil, err
 		}
@@ -839,7 +884,7 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 	return renderRequests, nil
 }
 
-func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
@@ -861,6 +906,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 		kv.String("graphite.username", toLog.Username),
 	)
 
+	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "find"), zap.String("target", query))
+	Trace(lg, "received request")
+
 	logLevel := zap.InfoLevel
 	defer func() {
 		if toLog.HttpCode/100 == 2 {
@@ -870,7 +918,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 				app.ms.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
 			}
 		}
-		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
 
 	if format == completerFormat {
@@ -886,20 +934,17 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 		return
 	}
 	span.SetAttribute("graphite.format", format)
-	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog)
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
 	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
 		span.SetAttribute("graphite.total_metric_count", toLog.TotalMetricCount)
 	} else {
-		logger.Warn("zipper returned error in find request",
-			zap.String("carbonapi_uuid", util.GetUUID(ctx)),
-			zap.Error(err),
-		)
 		var notFound dataTypes.ErrNotFound
 
 		switch {
 		case errors.As(err, &notFound):
+			Trace(lg, "not found")
 			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
 			// body to be happy with its life, so we can't 404 a /metrics/find
 			// request that finds nothing. We are however interested in knowing
@@ -907,7 +952,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 			// returned a 404 code to Prometheus.
 			app.ms.FindNotFound.Inc()
 		case errors.Is(err, context.DeadlineExceeded):
-			writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", "", &toLog, span)
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog, span)
 			logLevel = zapcore.ErrorLevel
 			return
 		default:
@@ -918,9 +963,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 	}
 
 	if ctx.Err() != nil {
-		app.ms.RequestCancel.WithLabelValues(
-			"find", ctx.Err().Error(),
-		).Inc()
+		app.ms.RequestCancel.WithLabelValues("find", ctx.Err().Error()).Inc()
 	}
 
 	var contentType string
@@ -1062,7 +1105,7 @@ func findList(globs dataTypes.Matches) []byte {
 	return b.Bytes()
 }
 
-func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
@@ -1081,10 +1124,15 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, logger *zap.
 
 	logLevel := zap.InfoLevel
 	defer func() {
-		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
 
 	query := r.FormValue("target")
+
+	uuid := util.GetUUID(ctx)
+	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "info"), zap.String("target", query))
+	Trace(lg, "received request")
+
 	if query == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		toLog.HttpCode = http.StatusBadRequest

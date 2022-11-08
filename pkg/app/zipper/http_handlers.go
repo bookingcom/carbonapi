@@ -57,12 +57,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
 
-	if ce := logger.Check(zap.DebugLevel, "got find request"); ce != nil {
-		ce.Write(
-			zap.String("request", req.URL.RequestURI()),
-		)
-	}
-
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
 
@@ -146,10 +140,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
 	span := trace.SpanFromContext(ctx)
-
-	if ce := logger.Check(zap.DebugLevel, "got render request"); ce != nil {
-		ce.Write(zap.String("request", req.URL.RequestURI()))
-	}
 
 	app.Metrics.Requests.Inc()
 
@@ -314,8 +304,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	lg = lg.With(zap.String("handler", "info"), zap.String("carbonapi_uuid", util.GetUUID(ctx)))
 
-	lg.Debug("request", zap.String("request", req.URL.RequestURI()))
-
 	app.Metrics.Requests.Inc()
 
 	err := req.ParseForm()
@@ -419,10 +407,6 @@ func (app *App) infoHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 func (app *App) lbCheckHandler(w http.ResponseWriter, req *http.Request, ms *PrometheusMetrics, logger *zap.Logger) {
 	t0 := time.Now()
-
-	if ce := logger.Check(zap.DebugLevel, "loadbalancer"); ce != nil {
-		ce.Write(zap.String("request", req.URL.RequestURI()))
-	}
 
 	app.Metrics.Requests.Inc()
 
