@@ -48,7 +48,6 @@ func (app *App) Start(serve bool, lg *zap.Logger) {
 		err = gracehttp.Serve(&http.Server{
 			Addr:         app.Config.Listen,
 			Handler:      handler,
-			ReadTimeout:  1 * time.Second,
 			WriteTimeout: app.Config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
 		}, metricsServer)
 	}
