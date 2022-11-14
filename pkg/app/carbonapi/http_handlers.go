@@ -341,13 +341,12 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		toLog.HttpCode = http.StatusOK
 	}
 	if len(results) != 0 {
-		// TODO (grzkv): Timeout is passed as "expire" argument.
-		// Looks like things are mixed.
-		err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
-		if err != nil {
-			Trace(lg, "writing request to cache failed", zap.Error(err))
-			addCacheErrorToLogDetails(&toLog, false, err)
-		}
+		go func() {
+			err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
+			if err != nil {
+				Trace(lg, "writing request to cache failed", zap.Error(err))
+			}
+		}()
 	}
 
 	if partiallyFailed {
@@ -786,7 +785,6 @@ func (app *App) resolveGlobsFromCache(metric string) (dataTypes.Matches, error) 
 }
 
 func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, accessLogDetails *carbonapipb.AccessLogDetails, lg *zap.Logger) (dataTypes.Matches, bool, error) {
-
 	lg.With(zap.String("find_query", metric))
 	Trace(lg, "executing find")
 
@@ -829,11 +827,12 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	blob, err := carbonapi_v2.FindEncoder(matches)
 	if err == nil {
-		errCache := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
-		if errCache != nil {
-			Trace(lg, "writing find to cache failed", zap.Error(errCache))
-			addCacheErrorToLogDetails(accessLogDetails, false, errCache)
-		}
+		go func() {
+			errCache := app.findCache.Set(metric, blob, app.config.Cache.DefaultTimeoutSec)
+			if errCache != nil {
+				Trace(lg, "writing find to cache failed", zap.Error(errCache))
+			}
+		}()
 	} else {
 		Trace(lg, "encoding find for caching failed", zap.Error(err))
 	}

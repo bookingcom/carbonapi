@@ -131,12 +131,6 @@ type ReplicatedMemcached struct {
 	timeoutCount  prometheus.Counter
 }
 
-// Cache is a cache interface. Mainly for testing abilities.
-type Cache interface {
-	Get(string) (*memcache.Item, error)
-	Set(*memcache.Item) error
-}
-
 // NewReplicatedMemcached creates a set of identical memcached instances.
 func NewReplicatedMemcached(prefix string, timeout uint64, memTimeoutMs int, maxIdleConn int,
 	reqCount *prometheus.CounterVec, respCount *prometheus.CounterVec, timeoutCount prometheus.Counter,
@@ -161,9 +155,8 @@ func NewReplicatedMemcached(prefix string, timeout uint64, memTimeoutMs int, max
 
 // Get gets value for the key from the replicated memcached.
 // It sends the request to all replicas and picks the first valid answer
-// (event if it's a not-found) or times out.
+// (even if it's a not-found) or times out.
 func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
-	// chan size is selected so that timeouts do not block getFromReplica goroutines
 	resCh := make(chan cacheResponse, len(m.instances))
 
 	for _, replica := range m.instances {
@@ -171,10 +164,10 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 		go getFromReplica(replica, k, m.prefix, resCh)
 	}
 
-	tout := time.After(time.Duration(m.timeoutMs) * time.Millisecond)
+	tout := time.NewTimer(time.Duration(m.timeoutMs) * time.Millisecond)
+	defer tout.Stop()
+
 	var cacheErrs strings.Builder
-	notFounds := 0
-	timedOut := false
 	for range m.instances {
 		select {
 		case res := <-resCh:
@@ -184,27 +177,19 @@ func (m *ReplicatedMemcached) Get(k string) ([]byte, error) {
 				continue
 			} else if !res.found {
 				m.respReadCount.With(prometheus.Labels{"operation": "get", "status": "not_found"}).Inc()
-				notFounds++
-				continue
+				return nil, ErrNotFound
 			}
 
 			m.respReadCount.With(prometheus.Labels{"operation": "get", "status": "ok"}).Inc()
 			return res.data, nil
-		case <-tout:
+		case <-tout.C:
 			m.timeoutCount.Inc()
 			cacheErrs.WriteString("; " + ErrTimeout.Error())
-			timedOut = true
+			return nil, errors.New("cache timed out; errors: " + cacheErrs.String())
 		}
-		if timedOut {
-			break
-		}
-	}
-	if notFounds > len(m.instances)/2 {
-		return nil, ErrNotFound
 	}
 
-	// if this point is reached, it means that majority of caches returned errors
-	return nil, errors.New("majority of caches failed with errors: " + cacheErrs.String())
+	return nil, errors.New("cache failed; individual errors: " + cacheErrs.String())
 }
 
 // Set sets the key-value pair for all cache instances.
@@ -213,7 +198,7 @@ func (rm *ReplicatedMemcached) Set(k string, val []byte, expire int32) error {
 	errCh := make(chan error, len(rm.instances))
 	for _, m := range rm.instances {
 		rm.reqCount.With(prometheus.Labels{"operation": "set"}).Inc()
-		go func(k_ string, val_ []byte, expire_ int32, m_ Cache) {
+		go func(k_ string, val_ []byte, expire_ int32, m_ *memcache.Client) {
 			err := m_.Set(&memcache.Item{
 				Key:        rm.prefix + k_,
 				Value:      val_,
@@ -246,9 +231,8 @@ type cacheResponse struct {
 	err   error
 }
 
-func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) {
-	hk := getCacheHashKey(k)
-	item, err := m.Get(prefix + hk)
+func getFromReplica(m *memcache.Client, k string, prefix string, res chan<- cacheResponse) {
+	item, err := m.Get(prefix + getCacheHashKey(k))
 
 	if err != nil {
 		if err == memcache.ErrCacheMiss {
@@ -264,6 +248,5 @@ func getFromReplica(m Cache, k string, prefix string, res chan<- cacheResponse) 
 
 func getCacheHashKey(k string) string {
 	key := sha256.Sum256([]byte(k))
-	hk := hex.EncodeToString(key[:])
-	return hk
+	return hex.EncodeToString(key[:])
 }
