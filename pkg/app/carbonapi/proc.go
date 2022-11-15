@@ -24,17 +24,26 @@ func ProcessRequests(app *App) {
 				//
 				// Large requests could stampede a queue for a long time if we only had a single one. This would prevent any new requests
 				// to be processed. Two queues guarantee that we still process incoming requests while a large request is in progress.
-				//
-				// Both queues have equal chances to be processed, but since large requests have much more sub-requests, this
-				// effectively increases priority of the smaller requests.
 				select {
 				case req = <-app.fastQ:
 					label = "fast"
-				case req = <-app.slowQ:
-					label = "slow"
+				default:
+					select {
+					case req = <-app.fastQ:
+						label = "fast"
+					case req = <-app.slowQ:
+						label = "slow"
+					}
 				}
 
 				app.ms.UpstreamRequestsInQueue.WithLabelValues(label).Dec()
+
+				select {
+				case <-req.Ctx.Done():
+					req.Results <- renderResponse{nil, req.Ctx.Err()}
+					continue
+				default:
+				}
 
 				semaphore <- true
 				app.ms.UpstreamSemaphoreSaturation.Inc()

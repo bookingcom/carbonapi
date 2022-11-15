@@ -6,6 +6,7 @@ import (
 
 	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -19,9 +20,10 @@ type Backend struct {
 	// impact the other types of requests.
 	// This, for example, removes the dependency between the find and render requests performance.
 	// A big wave of render requests will not have direct impact on the find requests besides through the semphore.
-	renderQ chan *renderReq
-	findQ   chan *findReq
-	infoQ   chan *infoReq // the info requests are expected to be relatively rare
+	fastRenderQ chan *renderReq
+	slowRenderQ chan *renderReq
+	findQ       chan *findReq
+	infoQ       chan *infoReq // the info requests are expected to be relatively rare
 
 	// The size of the requests semaphore:
 	// The maximum number of simultaneous requests.
@@ -89,10 +91,11 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	b := Backend{
 		BackendImpl: impl,
 
-		renderQ:  make(chan *renderReq, qSize),
-		findQ:    make(chan *findReq, qSize),
-		infoQ:    make(chan *infoReq, qSize),
-		semaSize: semaSize,
+		fastRenderQ: make(chan *renderReq, qSize),
+		slowRenderQ: make(chan *renderReq, qSize),
+		findQ:       make(chan *findReq, qSize),
+		infoQ:       make(chan *infoReq, qSize),
+		semaSize:    semaSize,
 
 		requestsInQueue:  requestsInQueue,
 		saturation:       saturation,
@@ -120,8 +123,24 @@ func (b *Backend) Proc() {
 	// Without that issue resolved, the use of generics would produce too much boilerplate and would look much worse than
 	// the solution below — I've tried.
 	go func() {
-		for r := range b.renderQ {
+		for {
+			var r *renderReq
+			select {
+			case r = <-b.fastRenderQ:
+			default:
+				select {
+				case r = <-b.fastRenderQ:
+				case r = <-b.slowRenderQ:
+				}
+			}
+
 			b.requestsInQueue.WithLabelValues("render").Dec()
+			select {
+			case <-r.Ctx.Done():
+				r.Errors <- r.Ctx.Err()
+				continue
+			default:
+			}
 			semaphore <- true
 			b.saturation.Inc()
 			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
@@ -181,13 +200,23 @@ func (b *Backend) Proc() {
 // the solution below — I've tried.
 
 func (backend Backend) SendRender(ctx context.Context, request types.RenderRequest, msgCh chan []types.Metric, errCh chan error) {
-	if cap(backend.renderQ) > 0 {
-		backend.renderQ <- &renderReq{
-			RenderRequest: request,
-			Ctx:           ctx,
-			StartTime:     time.Now(),
-			Results:       msgCh,
-			Errors:        errCh,
+	if cap(backend.fastRenderQ) > 0 {
+		if util.GetPriority(ctx) < 10000 {
+			backend.fastRenderQ <- &renderReq{
+				RenderRequest: request,
+				Ctx:           ctx,
+				StartTime:     time.Now(),
+				Results:       msgCh,
+				Errors:        errCh,
+			}
+		} else {
+			backend.slowRenderQ <- &renderReq{
+				RenderRequest: request,
+				Ctx:           ctx,
+				StartTime:     time.Now(),
+				Results:       msgCh,
+				Errors:        errCh,
+			}
 		}
 		backend.requestsInQueue.WithLabelValues("render").Inc()
 		backend.enqueuedRequests.WithLabelValues("render").Inc()
