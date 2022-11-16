@@ -132,13 +132,6 @@ func DefaultCommonConfig() Common {
 				BucketsNum: 12,
 			},
 		},
-		Traces: Traces{
-			Timeout:              10 * time.Second,
-			Tags:                 Tags{},
-			JaegerBufferMaxCount: 500000, // If size of one span is 3k, we will hold max ~1.5g in memory
-			JaegerBatchMaxCount:  500,    // If size of one span is 3k, total request size will be ~1.5m
-
-		},
 		PrintErrorStackTrace: false,
 
 		RenderReplicaMismatchConfig: RenderReplicaMismatchConfig{
@@ -205,8 +198,7 @@ type Common struct {
 
 	Monitoring MonitoringConfig `yaml:"monitoring"`
 
-	Traces               Traces `yaml:"traces"`
-	PrintErrorStackTrace bool   `yaml:"printErrorStackTrace"`
+	PrintErrorStackTrace bool `yaml:"printErrorStackTrace"`
 
 	// RenderReplicaMismatchConfig configures the render mismatch related operations.
 	RenderReplicaMismatchConfig RenderReplicaMismatchConfig `yaml:"renderReplicaMismatchConfig"`

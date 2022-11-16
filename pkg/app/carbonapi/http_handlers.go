@@ -13,8 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -150,7 +148,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
-	span := trace.SpanFromContext(ctx)
 	uuid := util.GetUUID(ctx)
 
 	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "render"))
@@ -158,7 +155,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
-	span.SetAttribute("graphite.username", toLog.Username)
 
 	logLevel := zap.InfoLevel
 	defer func() {
@@ -182,7 +178,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	form, err := app.renderHandlerProcessForm(r, &toLog, lg)
 	if err != nil {
-		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog, span)
+		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog)
 		return
 	}
 
@@ -194,7 +190,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 			clientErrMsgFmt = "parameter from=%s greater than parameter until=%s. Result time range is empty"
 		}
 		clientErrMsg := fmt.Sprintf(clientErrMsgFmt, form.from, form.until)
-		writeError(uuid, r, w, http.StatusBadRequest, clientErrMsg, form.format, &toLog, span)
+		writeError(uuid, r, w, http.StatusBadRequest, clientErrMsg, form.format, &toLog)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = "invalid empty time range"
 		return
@@ -216,7 +212,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 				logLevel = zapcore.WarnLevel
 			}
 			toLog.FromCache = true
-			span.SetAttribute("from_cache", true)
 			toLog.HttpCode = http.StatusOK
 			return
 		}
@@ -227,11 +222,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		}
 		Trace(lg, "request not found in cache")
 	}
-	span.SetAttribute("from_cache", false)
 
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
-	tracer := span.Tracer()
 	var results []*types.MetricData
 
 	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
@@ -240,25 +233,20 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		lgt := lg.With(zap.String("target", target))
 		Trace(lgt, "querying target")
 
-		targetCtx, targetSpan := tracer.Start(ctx, "carbonapi render", trace.WithAttributes(
-			kv.String("graphite.target", target),
-		))
 		exp, e, parseErr := parser.ParseExpr(target)
 		if parseErr != nil || e != "" {
 			Trace(lgt, "parsing target expression failed", zap.Error(parseErr))
 			msg := buildParseErrorString(target, e, parseErr)
-			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog, span)
+			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog)
 			return
 		}
-		targetSpan.AddEvent(targetCtx, "parsed expression")
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
-			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, lgt, &partiallyFailed, targetSpan)
+			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, lgt, &partiallyFailed)
 		}
-		targetSpan.AddEvent(targetCtx, "retrieved target data")
 
-		targetErr, metricSize := app.getTargetData(targetCtx, target, exp, metricMap,
-			form.useCache, form.from32, form.until32, &toLog, lgt, &partiallyFailed, targetSpan)
+		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap,
+			form.useCache, form.from32, form.until32, &toLog, lgt, &partiallyFailed)
 
 		// Continue query execution even though no metric is found in
 		// prefetch as there are Graphite query functions that are able
@@ -269,9 +257,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		// Refrence behaviour in graphite-web: https://github.com/graphite-project/graphite-web/blob/1.1.8/webapp/graphite/render/evaluator.py#L14-L46
 		var notFound dataTypes.ErrNotFound
 		if targetErr == nil || errors.As(targetErr, &notFound) {
-			targetErr = evalExprRender(targetCtx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
+			targetErr = evalExprRender(ctx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
 		}
-		targetSpan.AddEvent(targetCtx, "evaluated expression")
 
 		if targetErr != nil {
 			// we can have 3 error types here
@@ -300,17 +287,17 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/graphite.go\#L162-L167
 			case errors.As(targetErr, &parseError):
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog, span)
+				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog)
 				return
 			case errors.Is(targetErr, context.DeadlineExceeded):
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog, span)
+				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog)
 				logLevel = zapcore.ErrorLevel
 				app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
 				return
 			default:
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusInternalServerError, targetErr.Error(), form.format, &toLog, span)
+				writeError(uuid, r, w, http.StatusInternalServerError, targetErr.Error(), form.format, &toLog)
 				logLevel = zapcore.ErrorLevel
 				return
 			}
@@ -318,7 +305,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		size += metricSize
 
 		Trace(lgt, "target succeeded")
-		targetSpan.End()
 	}
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
@@ -328,7 +314,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	body, err := app.renderWriteBody(results, form, r, lg)
 	if err != nil {
-		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), form.format, &toLog, span)
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), form.format, &toLog)
 		logLevel = zapcore.ErrorLevel
 		return
 	}
@@ -358,13 +344,10 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 func writeError(uuid string,
 	r *http.Request, w http.ResponseWriter,
 	code int, s string, format string,
-	accessLogDetails *carbonapipb.AccessLogDetails,
-	span trace.Span) {
+	accessLogDetails *carbonapipb.AccessLogDetails) {
 
 	accessLogDetails.HttpCode = int32(code)
 	accessLogDetails.Reason = s
-	span.SetAttribute("error", true)
-	span.SetAttribute("error.message", s)
 	if format == pngFormat {
 		shortErrStr := http.StatusText(code) + " (" + strconv.Itoa(code) + ")"
 		w.Header().Set("X-Carbonapi-UUID", uuid)
@@ -408,8 +391,7 @@ func evalExprRender(ctx context.Context, exp parser.Expr, res *([]*types.MetricD
 func (app *App) getTargetData(ctx context.Context, target string, exp parser.Expr,
 	metricMap map[parser.MetricRequest][]*types.MetricData,
 	useCache bool, from, until int32,
-	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool,
-	span trace.Span) (error, int) {
+	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger, partFail *bool) (error, int) {
 
 	Trace(lg, "getting target data from upstream")
 
@@ -515,16 +497,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
-	span.SetAttribute("graphite.metrics", metrics)
-	span.SetAttribute("graphite.datapoints", size)
-
 	Trace(lg, "got metrics for target", zap.Int("metrics", len(exp.Metrics())), zap.Int("errors", len(metricErrs)))
 
 	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
 
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
-	span.SetAttribute("graphite.metric_errors", targetErrStr)
 
 	return targetErr, size
 }
@@ -685,18 +663,6 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	accessLogDetails.CacheTimeout = res.cacheTimeout
 	accessLogDetails.Format = res.format
 	accessLogDetails.Targets = res.targets
-
-	span := trace.SpanFromContext(r.Context())
-	span.SetAttributes(
-		kv.Bool("graphite.useCache", res.useCache),
-		kv.String("graphite.fromRaw", res.from),
-		kv.Int32("graphite.from", res.from32),
-		kv.String("graphite.untilRaw", res.until),
-		kv.Int32("graphite.until", res.until32),
-		kv.String("graphite.tz", res.qtz),
-		kv.Int32("graphite.cacheTimeout", res.cacheTimeout),
-		kv.String("graphite.format", res.format),
-	)
 
 	if errFrom != nil || errUntil != nil {
 		errFmt := "%s, invalid parameter %s=%s"
@@ -888,7 +854,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
-	span := trace.SpanFromContext(ctx)
 	uuid := util.GetUUID(ctx)
 
 	app.ms.Requests.Inc()
@@ -900,10 +865,6 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "find", &app.config)
 	toLog.Targets = []string{query}
-	span.SetAttributes(
-		kv.String("grahite.target", query),
-		kv.String("graphite.username", toLog.Username),
-	)
 
 	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "find"), zap.String("target", query))
 	Trace(lg, "received request")
@@ -929,15 +890,13 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	}
 
 	if query == "" {
-		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog, span)
+		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog)
 		return
 	}
-	span.SetAttribute("graphite.format", format)
 	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
 	toLog.FromCache = fromCache
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
-		span.SetAttribute("graphite.total_metric_count", toLog.TotalMetricCount)
 	} else {
 		var notFound dataTypes.ErrNotFound
 
@@ -951,11 +910,11 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 			// returned a 404 code to Prometheus.
 			app.ms.FindNotFound.Inc()
 		case errors.Is(err, context.DeadlineExceeded):
-			writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog, span)
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog)
 			logLevel = zapcore.ErrorLevel
 			return
 		default:
-			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog, span)
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog)
 			logLevel = zapcore.ErrorLevel
 			return
 		}
@@ -992,7 +951,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	}
 
 	if err != nil {
-		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog, span)
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog)
 		logLevel = zapcore.ErrorLevel
 		return
 	}

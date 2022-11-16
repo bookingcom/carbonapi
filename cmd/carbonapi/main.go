@@ -47,6 +47,5 @@ func main() {
 
 	carbonapi.ProcessRequests(app)
 
-	flush := app.Start(lg)
-	defer flush()
+	app.Start(lg)
 }
