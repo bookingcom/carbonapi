@@ -25,8 +25,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/trace"
 
 	"go.uber.org/zap"
 )
@@ -55,7 +53,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
-	span := trace.SpanFromContext(ctx)
 
 	originalQuery := req.FormValue("query")
 	format := req.FormValue("format")
@@ -69,22 +66,14 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		zap.String("carbonapi_uuid", util.GetUUID(ctx)),
 	)
 
-	span.SetAttributes(
-		kv.String("graphite.format", format),
-		kv.String("graphite.target", originalQuery),
-	)
-
 	metrics, err := Find(app, ctx, originalQuery, ms, logger)
 	if err != nil {
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", err.Error())
 		code := http.StatusInternalServerError
 		logger.Error("find failed", zap.Int("http_code", code), zap.Duration("runtime_seconds", time.Since(t0)), zap.Error(err))
 		http.Error(w, err.Error(), code)
 		ms.Responses.WithLabelValues(strconv.Itoa(code), "find").Inc()
 		return
 	}
-	span.SetAttribute("graphite.total_metric_count", len(metrics.Matches))
 
 	var contentType string
 	var blob []byte
@@ -111,8 +100,6 @@ func (app *App) findHandler(w http.ResponseWriter, req *http.Request, ms *Promet
 		logger.Error("find failed", zap.Int("http_code", http.StatusInternalServerError), zap.String("reason", "error marshaling data"),
 			zap.Duration("runtime_seconds", time.Since(t0)), zap.Error(err))
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "find").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", err.Error())
 		return
 	}
 
@@ -139,7 +126,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 
 	ctx, cancel := context.WithTimeout(req.Context(), app.Config.Timeouts.Global)
 	defer cancel()
-	span := trace.SpanFromContext(ctx)
 
 	app.Metrics.Requests.Inc()
 
@@ -165,7 +151,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 	target := req.FormValue("target")
 	format := req.FormValue("format")
 	logger = logger.With(zap.String("format", format), zap.String("target", target))
-	span.SetAttributes(kv.String("graphite.target", target), kv.String("graphite.format", format))
 
 	from, err := strconv.ParseInt(req.FormValue("from"), 10, 64)
 	if err != nil {
@@ -178,8 +163,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Error(err),
 		)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", "from is not a integer")
 		return
 	}
 
@@ -194,12 +177,8 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Error(err),
 		)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", "until is not a integer")
 		return
 	}
-
-	span.SetAttributes(kv.Int64("graphite.from", from), kv.Int64("graphite.until", until))
 
 	if target == "" {
 		http.Error(w, "empty target", http.StatusBadRequest)
@@ -210,19 +189,14 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Duration("runtime_seconds", time.Since(t0)),
 		)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusBadRequest), "render").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", "empty target")
 		return
 	}
 
 	metrics, err := Render(app, ctx, target, from, until, ms, logger)
 
-	span.SetAttribute("graphite.metrics", len(metrics))
 	if ctx.Err() != nil {
 		// context was cancelled even if some of the requests succeeded
 		app.Metrics.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", ctx.Err().Error())
 	}
 
 	if err != nil {
@@ -245,8 +219,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 		}
 
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(code), "render").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", err.Error())
 		return
 	}
 
@@ -276,8 +248,6 @@ func (app *App) renderHandler(w http.ResponseWriter, req *http.Request, ms *Prom
 			zap.Error(err),
 		)
 		app.Metrics.Responses.WithLabelValues(strconv.Itoa(http.StatusInternalServerError), "render").Inc()
-		span.SetAttribute("error", true)
-		span.SetAttribute("error.message", err.Error())
 
 		return
 	}

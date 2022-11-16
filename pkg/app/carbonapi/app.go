@@ -23,7 +23,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
-	"github.com/bookingcom/carbonapi/pkg/trace"
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
@@ -101,8 +100,7 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start(logger *zap.Logger) func() {
-	flush := trace.InitTracer(BuildVersion, "carbonapi", logger, app.config.Traces)
+func (app *App) Start(logger *zap.Logger) {
 	app.registerPrometheusMetrics()
 
 	handler := initHandlers(app, logger)
@@ -128,8 +126,6 @@ func (app *App) Start(logger *zap.Logger) func() {
 	if err != nil {
 		logger.Fatal("gracehttp failed", zap.Error(err))
 	}
-
-	return flush
 }
 
 func (app *App) registerPrometheusMetrics() {

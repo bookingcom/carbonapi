@@ -21,7 +21,6 @@ import (
 
 	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/instrumentation/httptrace"
 	"go.uber.org/zap"
 )
 
@@ -212,7 +211,6 @@ func (b NetBackend) request(ctx context.Context, u *url.URL) (*http.Request, err
 
 	req = req.WithContext(ctx)
 	req = util.MarshalCtx(ctx, req)
-	httptrace.Inject(ctx, req)
 
 	return req, nil
 }

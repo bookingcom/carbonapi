@@ -65,10 +65,6 @@ monitoring:
         start: 0.1
         bucketsNum: 20
         bucketSize: 1
-traces:
-     jaegerEndpoint: "http://abc:8080"
-     tags:
-       a: 1
 `
 
 	r := strings.NewReader(input)

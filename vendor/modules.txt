@@ -4,9 +4,6 @@ github.com/JaderDias/movingmedian
 # github.com/aclements/go-moremath v0.0.0-20180329182055-b1aff36309c7
 ## explicit
 github.com/aclements/go-moremath/mathx
-# github.com/apache/thrift v0.13.0
-## explicit
-github.com/apache/thrift/lib/go/thrift
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -139,7 +136,6 @@ go.opentelemetry.io/otel/api/global/internal
 go.opentelemetry.io/otel/api/internal
 go.opentelemetry.io/otel/api/kv
 go.opentelemetry.io/otel/api/kv/value
-go.opentelemetry.io/otel/api/label
 go.opentelemetry.io/otel/api/metric
 go.opentelemetry.io/otel/api/metric/registry
 go.opentelemetry.io/otel/api/oterror
@@ -147,19 +143,6 @@ go.opentelemetry.io/otel/api/propagation
 go.opentelemetry.io/otel/api/standard
 go.opentelemetry.io/otel/api/trace
 go.opentelemetry.io/otel/api/unit
-go.opentelemetry.io/otel/instrumentation/httptrace
-go.opentelemetry.io/otel/internal/trace/parent
-go.opentelemetry.io/otel/sdk
-go.opentelemetry.io/otel/sdk/export/trace
-go.opentelemetry.io/otel/sdk/instrumentation
-go.opentelemetry.io/otel/sdk/internal
-go.opentelemetry.io/otel/sdk/resource
-go.opentelemetry.io/otel/sdk/trace
-go.opentelemetry.io/otel/sdk/trace/internal
-# go.opentelemetry.io/otel/exporters/trace/jaeger v0.8.0
-## explicit; go 1.13
-go.opentelemetry.io/otel/exporters/trace/jaeger
-go.opentelemetry.io/otel/exporters/trace/jaeger/internal/gen-go/jaeger
 # go.uber.org/atomic v1.3.2
 ## explicit
 go.uber.org/atomic
@@ -182,9 +165,6 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-## explicit
-golang.org/x/sync/semaphore
 # golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
@@ -213,9 +193,6 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.30.0
-## explicit; go 1.11
-google.golang.org/api/support/bundler
 # google.golang.org/genproto v0.0.0-20200825200019-8632dd797987
 ## explicit; go 1.11
 google.golang.org/genproto/googleapis/rpc/status
