@@ -177,7 +177,6 @@ func BenchmarkRendersStorm(b *testing.B) {
 		bk, err := bnet.New(bnet.Config{
 			Address: server.URL,
 			Client:  client,
-			Limit:   1,
 		})
 		if err != nil {
 			b.Fatal(err)
@@ -282,7 +281,6 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 		bk, err := bnet.New(bnet.Config{
 			Address: server.URL,
 			Client:  client,
-			Limit:   1,
 		})
 		if err != nil {
 			b.Fatal(err)

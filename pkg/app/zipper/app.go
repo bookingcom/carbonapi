@@ -90,7 +90,6 @@ func InitBackends(config cfg.Zipper, ms *PrometheusMetrics, logger *zap.Logger) 
 			Cluster:            cluster,
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
-			Limit:              0, // the old limiter is disabled
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
 			QHist:              ms.TimeInQueueSeconds,
 			Responses:          ms.BackendResponses,

@@ -153,53 +153,6 @@ func TestCallTimeout(t *testing.T) {
 	}
 }
 
-func TestCallLimiterTimeout(t *testing.T) {
-	b, err := New(Config{
-		Address: "localhost",
-		Limit:   1,
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if b.enter(context.Background()) != nil {
-		t.Error("Expected to enter limiter")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), "render")
-	if err == nil {
-		t.Error("Expected to time out")
-	}
-
-	if ctx.Err() == nil {
-		t.Error("Expected context error")
-	}
-}
-
-func TestCallTimeoutLeavesLimiter(t *testing.T) {
-	b, err := New(Config{
-		Address: "localhost",
-		Limit:   1,
-	})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-
-	_, _, err = b.call(ctx, types.NewTrace(), b.url("/render"), "render")
-	if err == nil {
-		t.Error("Expected to time out")
-	}
-
-}
-
 func TestDo(t *testing.T) {
 	exp := []byte("OK")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -299,61 +252,6 @@ func TestRequest(t *testing.T) {
 	_, err = b.request(context.Background(), b.url("/render"))
 	if err != nil {
 		t.Error(err)
-	}
-}
-
-func TestEnterNilLimiter(t *testing.T) {
-	b, err := New(Config{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-
-	if got := b.enter(ctx); got != nil {
-		t.Error("Expected to enter limiter")
-	}
-}
-
-func TestEnterLimiter(t *testing.T) {
-	b, err := New(Config{Limit: 1})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if got := b.enter(context.Background()); got != nil {
-		t.Error("Expected to enter limiter")
-	}
-}
-
-func TestExitNilLimiter(t *testing.T) {
-	b, err := New(Config{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if err := b.leave(); err != nil {
-		t.Error("Expected to leave limiter")
-	}
-}
-
-func TestEnterExitLimiter(t *testing.T) {
-	b, err := New(Config{Limit: 1})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if err := b.enter(context.Background()); err != nil {
-		t.Error("Expected to enter limiter")
-	}
-
-	if err := b.leave(); err != nil {
-		t.Error("Expected to leave limiter")
 	}
 }
 

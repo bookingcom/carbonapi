@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -48,7 +47,6 @@ type NetBackend struct {
 	cluster        string
 	client         *http.Client
 	timeout        time.Duration
-	limiter        *prioritylimiter.Limiter
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
@@ -72,7 +70,6 @@ type Config struct {
 	Cluster            string        // The cluster where backend belongs to
 	Client             *http.Client  // The client to use to communicate with backend. Defaults to http.DefaultClient.
 	Timeout            time.Duration // Set request timeout. Defaults to no timeout.
-	Limit              int           // Set limit of concurrent requests to backend. Defaults to no limit.
 	PathCacheExpirySec uint32        // Set time in seconds before items in path cache expire. Defaults to 10 minutes.
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 
@@ -121,15 +118,6 @@ func New(cfg Config) (*NetBackend, error) {
 		b.client = http.DefaultClient
 	}
 
-	if cfg.Limit > 0 {
-		if cfg.ActiveRequests != nil && cfg.WaitingRequests != nil &&
-			cfg.LimiterEnters != nil && cfg.LimiterExits != nil {
-
-			b.limiter = prioritylimiter.New(cfg.Limit,
-				prioritylimiter.WithMetrics(cfg.ActiveRequests, cfg.WaitingRequests, cfg.LimiterEnters, cfg.LimiterExits))
-		}
-	}
-
 	b.qHist = cfg.QHist
 	b.responsesCount = cfg.Responses
 
@@ -176,22 +164,6 @@ func (b NetBackend) GetCluster() string {
 // Logger returns logger for this backend. Needed to satisfy interface.
 func (b NetBackend) Logger() *zap.Logger {
 	return b.logger
-}
-
-func (b NetBackend) enter(ctx context.Context) error {
-	if b.limiter == nil {
-		return nil
-	}
-	priority := util.GetPriority(ctx)
-	uuid := util.GetUUID(ctx)
-	return b.limiter.Enter(ctx, priority, uuid)
-}
-
-func (b NetBackend) leave() error {
-	if b.limiter == nil {
-		return nil
-	}
-	return b.limiter.Leave()
 }
 
 func (b NetBackend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -261,30 +233,6 @@ func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (st
 func (b NetBackend) call(ctx context.Context, trace types.Trace, u *url.URL, request string) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
-
-	var t *prometheus.Timer
-	if b.qHist != nil { // TODO: remove condition when capi is merged with zipper
-		t = prometheus.NewTimer(b.qHist.WithLabelValues(request))
-	}
-
-	err := b.enter(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if t != nil {
-		t.ObserveDuration()
-	}
-
-	defer func() {
-		if limiterErr := b.leave(); limiterErr != nil {
-			b.logger.Error("Backend limiter full",
-				zap.String("host", b.address),
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(limiterErr),
-			)
-		}
-	}()
 
 	t1 := time.Now()
 	req, err := b.request(ctx, u)
