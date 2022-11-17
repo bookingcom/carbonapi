@@ -22,7 +22,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/parser"
-	"github.com/bookingcom/carbonapi/pkg/prioritylimiter"
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
@@ -54,7 +53,6 @@ type App struct {
 	Lg *zap.Logger
 
 	Zipper        *zipper.App
-	ZipperLimiter *prioritylimiter.Limiter
 }
 
 // New creates a new app
@@ -90,9 +88,6 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		lg.Info("starting embedded zipper")
 		var zlg *zap.Logger
 		app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
-		app.ZipperLimiter = prioritylimiter.New(config.ConcurrencyLimitPerServer,
-			prioritylimiter.WithMetrics(app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
-				app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits))
 		go app.Zipper.Start(false, zlg)
 	}
 
@@ -362,7 +357,6 @@ func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, wai
 		Address:            host,
 		Client:             client,
 		Timeout:            config.Timeouts.AfterStarted,
-		Limit:              config.ConcurrencyLimitPerServer, // the old limiter stays enabled for carbonapi
 		PathCacheExpirySec: uint32(config.ExpireDelaySec),
 		Logger:             logger,
 		ActiveRequests:     activeUpstreamRequests,

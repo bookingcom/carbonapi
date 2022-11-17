@@ -8,8 +8,6 @@ import (
 
 	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -78,27 +76,6 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	var t *prometheus.Timer
-	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
-		t = prometheus.NewTimer(gb.qHist.WithLabelValues("render"))
-	}
-	err := gb.enter(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if t != nil {
-		t.ObserveDuration()
-	}
-	defer func() {
-		if limiterErr := gb.leave(); limiterErr != nil {
-			gb.logger.Error("Backend limiter full",
-				zap.String("host", gb.GrpcAddress),
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(limiterErr),
-			)
-		}
-	}()
-
 	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	if err != nil {
 		return nil, err
@@ -147,27 +124,6 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	var t *prometheus.Timer
-	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
-		t = prometheus.NewTimer(gb.qHist.WithLabelValues("find"))
-	}
-	err := gb.enter(ctx)
-	if err != nil {
-		return types.Matches{}, err
-	}
-	if t != nil {
-		t.ObserveDuration()
-	}
-	defer func() {
-		if limiterErr := gb.leave(); limiterErr != nil {
-			gb.logger.Error("Backend limiter full",
-				zap.String("host", gb.GrpcAddress),
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(limiterErr),
-			)
-		}
-	}()
-
 	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	gb.countResponse(err, "find")
 	if err != nil {
@@ -210,27 +166,6 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
-
-	var t *prometheus.Timer
-	if gb.qHist != nil { // TODO: remove condition when capi is merged with zipper
-		t = prometheus.NewTimer(gb.qHist.WithLabelValues("info"))
-	}
-	err := gb.enter(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if t != nil {
-		t.ObserveDuration()
-	}
-	defer func() {
-		if limiterErr := gb.leave(); limiterErr != nil {
-			gb.logger.Error("Backend limiter full",
-				zap.String("host", gb.GrpcAddress),
-				zap.String("uuid", util.GetUUID(ctx)),
-				zap.Error(limiterErr),
-			)
-		}
-	}()
 
 	resp, err := gb.carbonV2Client.Info(ctx, infoRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
 	gb.countResponse(err, "info")
