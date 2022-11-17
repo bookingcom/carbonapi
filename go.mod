@@ -1,6 +1,6 @@
 module github.com/bookingcom/carbonapi
 
-go 1.18
+go 1.19
 
 require (
 	github.com/JaderDias/movingmedian v0.0.0-20170611140316-de8c410559fa

@@ -5,15 +5,13 @@ run:
   skip-dirs: []
   skip-files:
     - ".*\\.pb\\.go$"
+    - "function_test.go"
+    - "expr_test.go"
+    - "cairo_test.go"
   # activate after switching to go modules (#131, #190)
   # modules-download-mode: vendor
 
-  # TODO: This is hard-coded here because of https://github.com/golangci/golangci-lint/issues/2649#issuecomment-1070528726
-  # golangci-lint had issues with go1.18 so some of the linters are disabled. As we are not using go1.18 features
-  # at the moment, we have set it to 1.17. it should be updated if:
-  #   1. we use 1.18 logic.
-  #   2. golangci-lint issues with 1.18 are resolved.
-  go: "1.17"
+  go: "1.19"
 
 # output configuration options
 output:

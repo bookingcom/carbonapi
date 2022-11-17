@@ -2,7 +2,7 @@ package net
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -76,7 +76,7 @@ func BenchmarkCallOld(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		_, err = ioutil.ReadAll(resp.Body)
+		_, err = io.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			b.Fatal(err)

@@ -5,7 +5,7 @@ package net
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -205,7 +205,7 @@ func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (st
 	if resp.Body != nil {
 		defer resp.Body.Close()
 		t1 := time.Now()
-		body, bodyErr = ioutil.ReadAll(resp.Body)
+		body, bodyErr = io.ReadAll(resp.Body)
 		if bodyErr != nil {
 			if b.responsesCount != nil {
 				b.responsesCount.WithLabelValues("http_body_error", request).Inc()

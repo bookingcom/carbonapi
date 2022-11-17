@@ -45,6 +45,7 @@ func (app *App) Start(serve bool, lg *zap.Logger) {
 
 	var err error
 	if serve {
+		//nolint:gosec
 		err = gracehttp.Serve(&http.Server{
 			Addr:         app.Config.Listen,
 			Handler:      handler,
