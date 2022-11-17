@@ -69,7 +69,7 @@ curl 'http://localhost:8081/render?target=test.test&format=json&from=-10m'
 
 ## Requirements
 
-We officially support `go 1.18`.
+We officially support `go 1.19`.
 
 ## OSX Build Notes
 
