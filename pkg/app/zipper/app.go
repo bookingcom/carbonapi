@@ -2,7 +2,6 @@ package zipper
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 
-	"github.com/facebookgo/grace/gracehttp"
 	"go.uber.org/zap"
 )
 
@@ -35,27 +33,10 @@ type App struct {
 // Start start launches the goroutines starts the app execution
 // `server` and `promPortOverride` are temporary to implement api and zipper merge.
 // TODO: Clean-up this function after merge is done.
-func (app *App) Start(serve bool, lg *zap.Logger) {
-	handler := initHandlers(app, app.Metrics, lg)
-
+func (app *App) Start(lg *zap.Logger) {
 	go probeTopLevelDomains(app.TopLevelDomainCache, app.TLDPrefixes, app.Backends, app.Config.InternalRoutingCache, app.Metrics)
 
-	metricsServer := metricsServer(app, serve)
-	gracehttp.SetLogger(zap.NewStdLog(lg))
-
-	var err error
-	if serve {
-		//nolint:gosec
-		err = gracehttp.Serve(&http.Server{
-			Addr:         app.Config.Listen,
-			Handler:      handler,
-			WriteTimeout: app.Config.Timeouts.Global * 2, // It has to be greater than Timeout.Global because we use that value as per-request context timeout
-		}, metricsServer)
-	}
-
-	if err != nil {
-		log.Fatal("error during gracehttp.Serve()", zap.Error(err))
-	}
+	metricsServer(app)
 }
 
 // InitBackends inits backends.

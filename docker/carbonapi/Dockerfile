@@ -6,6 +6,7 @@ RUN apt-get install -y libcairo2-dev
 WORKDIR /go/src/github.com/bookingcom/carbonapi
 COPY . .
 COPY ./config/carbonapi.yaml /etc/carbonapi.yaml
+COPY ./config/carbonzipper.yaml /etc/carbonzipper.yaml
 
 RUN make build
 

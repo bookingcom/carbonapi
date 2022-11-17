@@ -553,12 +553,8 @@ func (app *App) sendRenderRequest(ctx context.Context, path string, from, until 
 
 	var err error
 	var metrics []dataTypes.Metric
-	if app.Zipper != nil {
-		app.ms.UpstreamRequests.WithLabelValues("render").Inc()
-		metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
-	} else {
-		metrics, err = app.backend.Render(ctx, request)
-	}
+	app.ms.UpstreamRequests.WithLabelValues("render").Inc()
+	metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
 
 	// time in queue is converted to ms
 	app.ms.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -774,12 +770,8 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	var matches dataTypes.Matches
 
 	Trace(lg, "sending find request upstream")
-	if app.Zipper != nil {
-		app.ms.UpstreamRequests.WithLabelValues("find").Inc()
-		matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
-	} else {
-		matches, err = app.backend.Find(ctx, request)
-	}
+	app.ms.UpstreamRequests.WithLabelValues("find").Inc()
+	matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
 
 	if err != nil {
 		Trace(lg, "upstream find request failed", zap.Error(err))
@@ -1098,12 +1090,8 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 
 	var infos []dataTypes.Info
 	var err error
-	if app.Zipper != nil {
-		app.ms.UpstreamRequests.WithLabelValues("info").Inc()
-		infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
-	} else {
-		infos, err = app.backend.Info(ctx, request)
-	}
+	app.ms.UpstreamRequests.WithLabelValues("info").Inc()
+	infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
 
 	if err != nil {
 		var notFound dataTypes.ErrNotFound
@@ -1438,7 +1426,7 @@ func (app *App) usageHandler(w http.ResponseWriter, r *http.Request, logger *zap
 	}
 }
 
-//TODO : Fix this handler if and when tag support is added
+// TODO : Fix this handler if and when tag support is added
 // This responds to grafana's tag requests, which were falling through to the usageHandler,
 // preventing a random, garbage list of tags (constructed from usageMsg) being added to the metrics list
 func (app *App) tagsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {

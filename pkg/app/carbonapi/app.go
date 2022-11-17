@@ -1,9 +1,7 @@
 package carbonapi
 
 import (
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,8 +13,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/functions"
 	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/pkg/app/zipper"
-	"github.com/bookingcom/carbonapi/pkg/backend"
-	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/blocker"
 	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
@@ -41,8 +37,6 @@ type App struct {
 
 	defaultTimeZone *time.Location
 
-	backend backend.Backend
-
 	// During processing we use two independent queues that share a semaphore to prevent stampeding.
 	// fastQ includes regular requests
 	fastQ chan *renderReq
@@ -52,7 +46,7 @@ type App struct {
 	ms PrometheusMetrics
 	Lg *zap.Logger
 
-	Zipper        *zipper.App
+	Zipper *zipper.App
 }
 
 // New creates a new app
@@ -74,22 +68,11 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	}
 	app.requestBlocker.ReloadRules()
 
-	backend, err := initBackend(app.config, lg,
-		app.ms.ActiveUpstreamRequests, app.ms.WaitingUpstreamRequests,
-		app.ms.UpstreamLimiterEnters, app.ms.UpstreamLimiterExits)
-	if err != nil {
-		lg.Fatal("couldn't initialize backends", zap.Error(err))
-	}
-
-	app.backend = backend
 	setUpConfig(app, lg)
 
-	if config.EmbedZipper {
-		lg.Info("starting embedded zipper")
-		var zlg *zap.Logger
-		app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
-		go app.Zipper.Start(false, zlg)
-	}
+	var zlg *zap.Logger
+	app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
+	go app.Zipper.Start(zlg)
 
 	return app, nil
 }
@@ -334,40 +317,4 @@ func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
 		app.ms.FindDurationExp.Observe(t.Seconds())
 		app.ms.FindDurationLin.Observe(t.Seconds())
 	}
-}
-
-func initBackend(config cfg.API, logger *zap.Logger, activeUpstreamRequests, waitingUpstreamRequests prometheus.Gauge,
-	limiterEnters prometheus.Counter, limiterExits *prometheus.CounterVec) (backend.Backend, error) {
-	client := &http.Client{}
-	client.Transport = &http.Transport{
-		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
-		DialContext: (&net.Dialer{
-			Timeout:   config.Timeouts.Connect,
-			KeepAlive: config.KeepAliveInterval,
-			DualStack: true,
-		}).DialContext,
-	}
-
-	if len(config.Backends) == 0 {
-		return backend.NewBackend(nil, 0, 0, nil, nil, nil, nil), errors.New("got empty list of backends from config")
-	}
-	host := config.Backends[0]
-
-	b, err := bnet.New(bnet.Config{
-		Address:            host,
-		Client:             client,
-		Timeout:            config.Timeouts.AfterStarted,
-		PathCacheExpirySec: uint32(config.ExpireDelaySec),
-		Logger:             logger,
-		ActiveRequests:     activeUpstreamRequests,
-		WaitingRequests:    waitingUpstreamRequests,
-		LimiterEnters:      limiterEnters,
-		LimiterExits:       limiterExits,
-	})
-
-	if err != nil {
-		return backend.NewBackend(b, 0, 0, nil, nil, nil, nil), fmt.Errorf("Couldn't create backend for '%s'", host)
-	}
-
-	return backend.NewBackend(b, 0, 0, nil, nil, nil, nil), nil
 }
