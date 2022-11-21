@@ -8,7 +8,6 @@ endif
 VERSION ?= $(shell git rev-parse --short HEAD)
 
 PKG_CARBONAPI=github.com/bookingcom/carbonapi/cmd/carbonapi
-PKG_CARBONZIPPER=github.com/bookingcom/carbonapi/cmd/carbonzipper
 
 GCFLAGS :=
 debug: GCFLAGS += -gcflags=all='-l -N'
@@ -32,7 +31,6 @@ debug: build
 .PHONY: build
 build:
 	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
-	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONZIPPER)
 
 .PHONY: check
 check: test lint

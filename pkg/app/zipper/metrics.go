@@ -1,9 +1,6 @@
 package zipper
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -266,7 +263,7 @@ func NewPrometheusMetrics(config cfg.Zipper, ns string) *PrometheusMetrics {
 	}
 }
 
-func metricsServer(app *App, serve bool) *http.Server {
+func metricsServer(app *App) {
 	prometheus.MustRegister(app.Metrics.Requests)
 	prometheus.MustRegister(app.Metrics.Responses)
 	prometheus.MustRegister(app.Metrics.Renders)
@@ -298,25 +295,4 @@ func metricsServer(app *App, serve bool) *http.Server {
 	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
 
 	prometheus.MustRegister(app.Metrics.PathCacheFilteredRequests)
-
-	writeTimeout := app.Config.Timeouts.Global
-	if writeTimeout < 30*time.Second {
-		writeTimeout = time.Minute
-	}
-
-	if serve {
-		r := initMetricHandlers()
-		s := &http.Server{
-			Handler:      r,
-			ReadTimeout:  1 * time.Second,
-			WriteTimeout: writeTimeout,
-		}
-
-		s.Addr = app.Config.ListenInternal
-
-		return s
-	} else {
-		return nil
-	}
-
 }

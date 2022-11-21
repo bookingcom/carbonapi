@@ -160,12 +160,4 @@ monitoring:
         bucketsNum: 20
         bucketSize: 0.5
 
-traces:
-    # Where to send Jeaeger traces. Note that this value can be overriden by the JAEGER_ENDPOINT environment variable.
-    # If empty, no traces will be generated
-    jaegerEndpoint: ""
-    timeout: 10s
-    # Max number of spans that are stored in memory
-    jaegerBufferMaxCount: 500000
-    # Max number of spans sent in one batch
-    jaegerBatchMaxCount: 500
+zipperConfig: "/etc/carbonzipper.yaml"
