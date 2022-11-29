@@ -134,7 +134,7 @@ headersToLog:
     - X-Real-Ip
     - X-Webauth-User
 loggerConfig:
-  outputPaths: ["stdout", "/var/log/carbonapi.log"]
+  outputPaths: ["stdout"]
   level: "info"
   encoding: "json"
 
@@ -160,4 +160,4 @@ monitoring:
         bucketsNum: 20
         bucketSize: 0.5
 
-zipperConfig: "/etc/carbonzipper.yaml"
+zipperConfig: "./config/carbonzipper.yaml"

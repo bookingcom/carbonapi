@@ -1,0 +1,72 @@
+listen: ":8081"
+listenInternal: ":7081"
+concurrencyLimitPerServer: 1025
+concurrencyLimit: 1024
+cache:
+   type: "mem"
+   size_mb: 0
+   defaultTimeoutSec: 60
+   queryTimeoutMs: 50
+   prefix: "capi"
+   memcachedServers:
+       - "127.0.0.1:11211"
+cpus: 0
+
+tz: ""
+
+resolveGlobs: 100
+enableCacheForRenderResolveGlobs: false
+
+graphite:
+    host: ""
+    interval: "60s"
+    prefix: "carbon.api"
+    pattern: "{prefix}.{fqdn}"
+keepAliveInterval: "30s"
+graphiteVersionForGrafana: 1.1.0
+pidFile: ""
+upstreams:
+    buckets: 10
+    timeouts:
+        global: "600s"
+    maxIdleConnsPerHost: 1030
+    backends:
+      - http://zipper:8000
+
+    graphite09compat: false
+expireDelaySec: 10
+blockHeaderFile: "block_header_list.yaml"
+blockHeaderUpdatePeriod: "30s"
+headersToLog:
+    - X-Panel-Id
+    - X-Dashboard-Id
+    - X-Real-Ip
+    - X-Webauth-User
+loggerConfig:
+  outputPaths: ["stdout"]
+  level: "info"
+  encoding: "json"
+
+monitoring:
+    timeInQueueExpHistogram:
+        start: 0.05
+        bucketsNum: 25
+        bucketSize: 2
+    requestDurationExpHistogram:
+        start: 0.05
+        bucketsNum: 20
+        bucketSize: 2
+    requestDurationLinHistogram:
+        start: 0.0
+        bucketsNum: 40
+        bucketSize: 0.05
+    findDurationExpHistogram:
+        start: 0.001
+        bucketsNum: 20
+        bucketSize: 2
+    findDurationLinHistogram:
+        start: 0.5
+        bucketsNum: 20
+        bucketSize: 0.5
+
+zipperConfig: "/etc/carbonzipper.yaml"
