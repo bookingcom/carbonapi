@@ -190,6 +190,8 @@ type Common struct {
 	ExpireDelaySec             int32    `yaml:"expireDelaySec"`
 	InternalRoutingCache       int32    `yaml:"internalRoutingCache"`
 	TLDCacheExtraPrefixes      []string `yaml:"tldCacheExtraPrefixes"`
+	// Enable compatibility with graphite-web 0.9
+    // This will affect graphite-web 1.0+ with multiple cluster_servers
 	GraphiteWeb09Compatibility bool     `yaml:"graphite09compat"`
 
 	Buckets      int            `yaml:"buckets"`

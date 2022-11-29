@@ -1,133 +1,39 @@
-# Need to be URL, http or https
-# This url specifies the backend or a loadbalancer
-#
-# Is you are using carbonzipper you should set it to
-# zipper's url
-#
-# If you are using plain go-carbon or graphite-clickhouse
-# you should set it to URL of go-carbon's carbonserver module
-# or graphite-clickhouse's http url.
-# Listen address, should always include hostname or ip address and a port.
 listen: ":8081"
 listenInternal: ":7081"
-# Max concurrent requests to CarbonZipper
 concurrencyLimitPerServer: 1025
 concurrencyLimit: 1024
 cache:
-   # Type of caching. Valid: "mem", "memcache", "null", "memcacheReplicated"
    type: "mem"
-   # Cache limit in megabytes
    size_mb: 0
-   # Cache entries expiration time. Identical to DEFAULT_CACHE_DURATION in graphite-web.
    defaultTimeoutSec: 60
-   # timeout for cache request. Applies to memcache and memcacheReplicated.
    queryTimeoutMs: 50
-   # prefix is added to every key in memcache
    prefix: "capi"
-   # Only used by "memcache" or "memcacheReplicated" type of cache. List of memcache servers.
    memcachedServers:
        - "127.0.0.1:11211"
-# Amount of CPUs to use. 0 - unlimited
+
 cpus: 0
-
-# Timezone, default - local
 tz: ""
-
-# Deprecated and removed:
-#  sendGlobsAsIs: true|false
-#  alwaysSendGlobsAsIs: true|false
-#  maxBatchSize: int
-# Migration path
-#  alwaysSendGlobsAsIs: true                -> resolveGlobs: 0
-#  sendGlobsAsIs: false                     -> resolveGlobs: 1
-#  sendGlobsAsIs: true && maxBatchSize: int -> resolveGlobs: int
-
 resolveGlobs: 100
-# = 0 - faster (no 'find in advance', direct render)
-# = 1 - slower (always 'find in advance' and every metric rendered individually)
-# > 1 - slower (always 'find in advance' and then render strategy depend on amount of metrics) 
-# If resolveGlobs is = 0 (zero) then /metrics/find request won't be send and a query will be passed
-# to a /render as it is.
-#
-# If resolveGlobs is = 1 (zero) then send /metrics/find request and send /render for every metric separately
-#
-# If resolveGlobs is set > 1 (one) then carbonapi will send a /metrics/find request and it will check
-# the resulting response if it contain more than resolveGlobs metrics
-#  If find returns MORE metrics than resolveGlobs - carbonapi will query metrics one by one
-#  If find returns LESS metrics than resolveGlobs - revert to the old behaviour and send the query as it is.
-# This allows you to use benifits of passing globs as is but keep memory usage in carbonzipper within sane limits.
-#
-# For go-carbon you might want to keep it in some reasonable limits, 100 is a good "safe" default
-# For some backends you might want to set it to 0
-# If you noticing carbonzipper OOM then this is a parameter to tune.
-
-# Indicates if carbonapi should use cache when sending preflight find requests to resolve the globs.
-# Note that useCache parameter should be sent in the request for this config to be taken into account.
 enableCacheForRenderResolveGlobs: false
 
 # functionsConfigs:
 #     graphiteWeb: ./graphiteWeb.example.yaml
 
-graphite:
-    # Host:port where to send internal metrics
-    # Empty = disabled
-    host: ""
-    interval: "60s"
-    prefix: "carbon.api"
-    # rules on how to construct metric name. For now only {prefix} and {fqdn} is supported.
-    # {prefix} will be replaced with the content of {prefix}
-    # {fqdn} will be repalced with fqdn
-    pattern: "{prefix}.{fqdn}"
-# Configures how often keep alive packets will be sent out
 keepAliveInterval: "30s"
-# Config to ensure we return version needed for providing integrated graphite docs in grafana
-# without supporting tags
 graphiteVersionForGrafana: 1.1.0
 pidFile: ""
-# See https://github.com/go-graphite/carbonzipper/blob/master/example.conf#L70-L108 for format explanation
 upstreams:
-    # Number of 100ms buckets to track request distribution in. Used to build
-    # 'carbon.zipper.hostname.requests_in_0ms_to_100ms' metric and friends.
     buckets: 10
-#    resolveGlobs: 200
-#    concurrencyLimitPerServer: 100
     timeouts:
-#        # Maximum backend request time for find requests.
-#        find: "600s"
-#        # Maximum backend request time for render requests. This is total one and doesn't take into account in-flight requests
-#        render: "600s"
-#        # Timeout to connect to the server
-#        connect: "200ms"
         global: "600s"
-#        afterStarted: "600s"
-    # Control http.MaxIdleConnsPerHost. Large values can lead to more idle
-    # connections on the backend servers which may bump into limits; tune with care.
     maxIdleConnsPerHost: 1030
     backends:
       - http://zipper:8000
 
-    # Number of concurrent requests to any given backend - default is no limit.
-    # If set, you likely want >= MaxIdleConnsPerHost
-#    concurrencyLimit: 0
-
-    # Enable compatibility with graphite-web 0.9
-    # This will affect graphite-web 1.0+ with multiple cluster_servers
-    # Default: disabled
     graphite09compat: false
-# If not zero, enabled cache for find requests
-# This parameter controls when it will expire (in seconds)
-# Default: 600 (10 minutes)
 expireDelaySec: 10
-# The path and the name of the file with a list of headers to block.
-# Based on the value of header you can block requests which are coming to carbonapi
-# This file can be updated via API call to the port specified in listenInternal: config option,
-# like so:
-# curl 'localhost:7081/block-headers/?x-webauth-user=el-diablo&x-real-ip=1.2.3.4'
-# carbonapi needs to have write access to this file/folder
 blockHeaderFile: "block_header_list.yaml"
 blockHeaderUpdatePeriod: "30s"
-# List of HTTP headers to log. This can be usefull to track request to the source of it.
-# Defaults allow you to find grafana user/dashboard/panel which send a request
 headersToLog:
     - X-Panel-Id
     - X-Dashboard-Id

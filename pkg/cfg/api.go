@@ -102,19 +102,49 @@ func DefaultAPIConfig() API {
 type API struct {
 	Zipper `yaml:",inline"`
 
-	ResolveGlobs                     int               `yaml:"resolveGlobs"`
-	EnableCacheForRenderResolveGlobs bool              `yaml:"enableCacheForRenderResolveGlobs"`
-	Cache                            CacheConfig       `yaml:"cache"`
-	TimezoneString                   string            `yaml:"tz"`
-	PidFile                          string            `yaml:"pidFile"`
-	BlockHeaderFile                  string            `yaml:"blockHeaderFile"`
-	BlockHeaderUpdatePeriod          time.Duration     `yaml:"blockHeaderUpdatePeriod"`
-	HeadersToLog                     []string          `yaml:"headersToLog"`
-	UnicodeRangeTables               []string          `yaml:"unicodeRangeTables"`
-	IgnoreClientTimeout              bool              `yaml:"ignoreClientTimeout"`
-	DefaultColors                    map[string]string `yaml:"defaultColors"`
-	FunctionsConfigs                 map[string]string `yaml:"functionsConfig"`
-	GraphiteVersionForGrafana        string            `yaml:"graphiteVersionForGrafana"`
+	// = 0 - faster (no 'find in advance', direct render)
+	// = 1 - slower (always 'find in advance' and every metric rendered individually)
+	// > 1 - slower (always 'find in advance' and then render strategy depend on amount of metrics)
+	// If resolveGlobs is = 0 (zero) then /metrics/find request won't be send and a query will be passed
+	// to a /render as it is.
+	//
+	// If resolveGlobs is = 1 (zero) then send /metrics/find request and send /render for every metric separately
+	//
+	// If resolveGlobs is set > 1 (one) then carbonapi will send a /metrics/find request and it will check
+	// the resulting response if it contain more than resolveGlobs metrics
+	//  If find returns MORE metrics than resolveGlobs - carbonapi will query metrics one by one
+	//  If find returns LESS metrics than resolveGlobs - revert to the old behaviour and send the query as it is.
+	// This allows you to use benifits of passing globs as is but keep memory usage in carbonzipper within sane limits.
+	//
+	// For go-carbon you might want to keep it in some reasonable limits, 100 is a good "safe" default
+	// For some backends you might want to set it to 0
+	// If you noticing carbonzipper OOM then this is a parameter to tune.
+	ResolveGlobs int `yaml:"resolveGlobs"`
+	// Indicates if carbonapi should use cache when sending preflight find requests to resolve the globs.
+	// Note that useCache parameter should be sent in the request for this config to be taken into account.
+	EnableCacheForRenderResolveGlobs bool        `yaml:"enableCacheForRenderResolveGlobs"`
+	Cache                            CacheConfig `yaml:"cache"`
+	// Timezone, default - local
+	TimezoneString string `yaml:"tz"`
+	PidFile        string `yaml:"pidFile"`
+	// The path and the name of the file with a list of headers to block.
+	// Based on the value of header you can block requests which are coming to carbonapi
+	// This file can be updated via API call to the port specified in listenInternal: config option,
+	// like so:
+	// curl 'localhost:7081/block-headers/?x-webauth-user=el-diablo&x-real-ip=1.2.3.4'
+	// carbonapi needs to have write access to this file/folder
+	BlockHeaderFile         string        `yaml:"blockHeaderFile"`
+	BlockHeaderUpdatePeriod time.Duration `yaml:"blockHeaderUpdatePeriod"`
+	// List of HTTP headers to log. This can be usefull to track request to the source of it.
+	// Defaults allow you to find grafana user/dashboard/panel which send a request
+	HeadersToLog        []string          `yaml:"headersToLog"`
+	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`
+	IgnoreClientTimeout bool              `yaml:"ignoreClientTimeout"`
+	DefaultColors       map[string]string `yaml:"defaultColors"`
+	FunctionsConfigs    map[string]string `yaml:"functionsConfig"`
+	// Config to ensure we return version needed for providing integrated graphite docs in grafana
+	// without supporting tags
+	GraphiteVersionForGrafana string `yaml:"graphiteVersionForGrafana"`
 
 	// The size of the requests queue propagated to backends.
 	// During this stage of refactoring it is a placeholder and should not fill-up.
@@ -139,19 +169,23 @@ type API struct {
 // CacheConfig configs the cache
 type CacheConfig struct {
 	// possible values are: null, mem, memcache, replicatedMemcache
-	Type                  string   `yaml:"type"`
-	Size                  int      `yaml:"size_mb"`
-	MemcachedServers      []string `yaml:"memcachedServers"`
-	DefaultTimeoutSec     int32    `yaml:"defaultTimeoutSec"`
-	QueryTimeoutMs        uint64   `yaml:"queryTimeoutMs"`
-	Prefix                string   `yaml:"prefix"`
-	MemcachedTimeoutMs    int      `yaml:"memcachedTimeoutMs"`
-	MemcachedMaxIdleConns int      `yaml:"memcachedMaxIdleConns"`
+	Type string `yaml:"type"`
+	// Cache limit in megabytes
+	Size             int      `yaml:"size_mb"`
+	MemcachedServers []string `yaml:"memcachedServers"`
+	// Cache entries expiration time. Identical to DEFAULT_CACHE_DURATION in graphite-web.
+	DefaultTimeoutSec int32  `yaml:"defaultTimeoutSec"`
+	QueryTimeoutMs    uint64 `yaml:"queryTimeoutMs"`
+	// prefix is added to every key in memcache
+	Prefix                string `yaml:"prefix"`
+	MemcachedTimeoutMs    int    `yaml:"memcachedTimeoutMs"`
+	MemcachedMaxIdleConns int    `yaml:"memcachedMaxIdleConns"`
 }
 
 type preAPI struct {
-	API             `yaml:",inline"`
-	Concurrency     int    `yaml:"concurency"`
+	API         `yaml:",inline"`
+	Concurrency int `yaml:"concurency"`
+	// Amount of CPUs to use. 0 - unlimited
 	CPUs            int    `yaml:"cpus"`
 	IdleConnections int    `yaml:"idleConnections"`
 	Upstreams       Common `yaml:"upstreams"`
