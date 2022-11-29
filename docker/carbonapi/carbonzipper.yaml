@@ -1,0 +1,43 @@
+listen: ":8000"
+listenInternal: ":7000"
+maxProcs: 0
+buckets: 10
+
+timeouts:
+    global: "100s"
+    afterStarted: "200s"
+    connect: "200ms"
+
+concurrencyLimit: 2048
+keepAliveInterval: "30s"
+maxIdleConnsPerHost: 100
+expireDelaySec: 120
+
+backendsByDC:
+    - name: "dc1"
+      clusters:
+          - name: "sys"
+            protocolBackends:
+            - grpc: "go-carbon:7004"
+              http: "http://go-carbon:8080"
+
+graphite09compat: true
+
+loggerConfig:
+  outputPaths: ["stdout"]
+  level: "info"
+  encoding: "json"
+
+monitoring:
+    timeInQueueExpHistogram:
+        start: 0.05
+        bucketsNum: 25
+        bucketSize: 2
+    requestDurationExpHistogram:
+        start: 0.05
+        bucketsNum: 20
+        bucketSize: 2
+    requestDurationLinHistogram:
+        start: 0.0
+        bucketsNum: 40
+        bucketSize: 0.05

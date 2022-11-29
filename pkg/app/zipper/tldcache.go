@@ -20,7 +20,7 @@ type tldPrefix struct {
 	segmentsCount int
 }
 
-func probeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, backends []backend.Backend, period int32, ms *PrometheusMetrics) {
+func ProbeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, backends []backend.Backend, period int32, ms *PrometheusMetrics) {
 	probeTicker := time.NewTicker(time.Duration(period) * time.Second) // TODO: The ticker resources are never freed
 	for {
 		topLevelDomainCache := make(map[string][]*backend.Backend)

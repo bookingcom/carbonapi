@@ -1,9 +1,10 @@
 package functions
 
 import (
-	"go.uber.org/zap"
 	"sort"
 	"strings"
+
+	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/expr/functions/absolute"
 	"github.com/bookingcom/carbonapi/expr/functions/alias"
@@ -105,7 +106,7 @@ type initFunc struct {
 }
 
 func New(configs map[string]string, logger *zap.Logger) {
-	funcs := make([]initFunc, 0, 87)
+	funcs := []initFunc{}
 
 	funcs = append(funcs, initFunc{name: "absolute", order: absolute.GetOrder(), f: absolute.New})
 
@@ -285,6 +286,7 @@ func New(configs map[string]string, logger *zap.Logger) {
 
 	funcs = append(funcs, initFunc{name: "weightedAverage", order: weightedAverage.GetOrder(), f: weightedAverage.New})
 
+	// Sort functions in REVERSE order by name unless function's GetOrder() is set to Last.
 	sort.Slice(funcs, func(i, j int) bool {
 		if funcs[i].order == interfaces.Any && funcs[j].order == interfaces.Last {
 			return true

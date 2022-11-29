@@ -1,6 +1,7 @@
 package carbonapi
 
 import (
+	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -290,4 +291,59 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 			[]string{"request"},
 		),
 	}
+}
+
+func registerZipperMetrics(app *zipper.App) {
+	prometheus.MustRegister(app.Metrics.Renders)
+	prometheus.MustRegister(app.Metrics.RenderMismatches)
+	prometheus.MustRegister(app.Metrics.RenderFixedMismatches)
+	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
+	prometheus.MustRegister(app.Metrics.BackendResponses)
+	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
+	prometheus.MustRegister(app.Metrics.FindOutDuration)
+	prometheus.MustRegister(app.Metrics.TimeInQueueSeconds)
+	prometheus.MustRegister(app.Metrics.BackendEnqueuedRequests)
+	prometheus.MustRegister(app.Metrics.BackendRequestsInQueue)
+	prometheus.MustRegister(app.Metrics.BackendSemaphoreSaturation)
+	prometheus.MustRegister(app.Metrics.BackendTimeInQSec)
+	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
+	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
+	prometheus.MustRegister(app.Metrics.PathCacheFilteredRequests)
+}
+
+func (app *App) registerPrometheusMetrics() {
+	prometheus.MustRegister(app.ms.Requests)
+	prometheus.MustRegister(app.ms.Responses)
+	prometheus.MustRegister(app.ms.FindNotFound)
+	prometheus.MustRegister(app.ms.RenderPartialFail)
+	prometheus.MustRegister(app.ms.RequestCancel)
+	prometheus.MustRegister(app.ms.DurationExp)
+	prometheus.MustRegister(app.ms.DurationLin)
+	prometheus.MustRegister(app.ms.UpstreamRequests)
+	prometheus.MustRegister(app.ms.RenderDurationExp)
+	prometheus.MustRegister(app.ms.RenderDurationExpSimple)
+	prometheus.MustRegister(app.ms.RenderDurationExpComplex)
+	prometheus.MustRegister(app.ms.RenderDurationLinSimple)
+	prometheus.MustRegister(app.ms.RenderDurationPerPointExp)
+	prometheus.MustRegister(app.ms.FindDurationExp)
+	prometheus.MustRegister(app.ms.FindDurationLin)
+	prometheus.MustRegister(app.ms.FindDurationLinSimple)
+	prometheus.MustRegister(app.ms.FindDurationLinComplex)
+
+	prometheus.MustRegister(app.ms.UpstreamRequestsInQueue)
+	prometheus.MustRegister(app.ms.UpstreamSemaphoreSaturation)
+	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
+	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
+	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
+
+	prometheus.MustRegister(app.ms.TimeInQueueExp)
+	prometheus.MustRegister(app.ms.TimeInQueueLin)
+	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
+	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
+	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
+	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
+
+	prometheus.MustRegister(app.ms.CacheRequests)
+	prometheus.MustRegister(app.ms.CacheRespRead)
+	prometheus.MustRegister(app.ms.CacheTimeouts)
 }

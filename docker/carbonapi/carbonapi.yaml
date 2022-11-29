@@ -10,15 +10,18 @@ cache:
    prefix: "capi"
    memcachedServers:
        - "127.0.0.1:11211"
-
 cpus: 0
+
 tz: ""
+
 resolveGlobs: 100
 enableCacheForRenderResolveGlobs: false
 
-# functionsConfigs:
-#     graphiteWeb: ./graphiteWeb.example.yaml
-
+graphite:
+    host: ""
+    interval: "60s"
+    prefix: "carbon.api"
+    pattern: "{prefix}.{fqdn}"
 keepAliveInterval: "30s"
 graphiteVersionForGrafana: 1.1.0
 pidFile: ""
@@ -66,4 +69,4 @@ monitoring:
         bucketsNum: 20
         bucketSize: 0.5
 
-zipperConfig: "./config/carbonzipper.yaml"
+zipperConfig: "/etc/carbonzipper.yaml"

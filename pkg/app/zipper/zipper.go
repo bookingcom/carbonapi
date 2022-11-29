@@ -17,9 +17,7 @@ import (
 )
 
 // Setup sets up the zipper for future lanuch.
-// lgOverride optionally overrides logger if non-nil. TODO: Remove after merge is done.
-// metricsNS adds namespace to Prom metrics if non-empty. TODO: Remove after merge is done.
-func Setup(configFile string, BuildVersion string, metricsNS string, lgOverride *zap.Logger) (*App, *zap.Logger) {
+func Setup(configFile string, BuildVersion string, lg *zap.Logger) *App {
 	if configFile == "" {
 		log.Fatal("missing config file option")
 	}
@@ -43,26 +41,15 @@ func Setup(configFile string, BuildVersion string, metricsNS string, lgOverride 
 		log.Fatal("no Backends loaded -- exiting")
 	}
 
-	var logger *zap.Logger
-	if lgOverride != nil {
-		logger = lgOverride.With(zap.Bool("zipper", true))
-	} else {
-		logger, err = config.LoggerConfig.Build()
-		if err != nil {
-			log.Fatalf("failed to initiate logger: %s", err)
-		}
-		logger = logger.Named("carbonzipper")
-	}
-
-	logger.Info("starting carbonzipper",
+	lg.Info("starting carbonzipper",
 		zap.String("build_version", BuildVersion),
 		zap.String("zipperConfig", fmt.Sprintf("%+v", config)),
 	)
 
-	ms := NewPrometheusMetrics(config, metricsNS)
-	bs, err := InitBackends(config, ms, logger)
+	ms := NewPrometheusMetrics(config)
+	bs, err := InitBackends(config, ms, lg)
 	if err != nil {
-		logger.Fatal("failed to init backends", zap.Error(err))
+		lg.Fatal("failed to init backends", zap.Error(err))
 	}
 
 	app := &App{
@@ -70,11 +57,11 @@ func Setup(configFile string, BuildVersion string, metricsNS string, lgOverride 
 		Metrics:             ms,
 		Backends:            bs,
 		TopLevelDomainCache: expirecache.New(0),
-		TLDPrefixes:         InitTLDPrefixes(logger, config.TLDCacheExtraPrefixes),
-		Lg:                  logger,
+		TLDPrefixes:         InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes),
+		Lg:                  lg,
 	}
 
-	return app, logger
+	return app
 }
 
 // Find executes find request by checking cache and sending it to the backends.
@@ -89,23 +76,9 @@ func Find(app *App, ctx context.Context, originalQuery string, ms *PrometheusMet
 	metrics, errs := backend.Finds(ctx, bs, request, ms.FindOutDuration)
 	err := errorsFanIn(errs, len(bs))
 
-	if ctx.Err() != nil {
-		// context was cancelled even if some of the requests succeeded
-		ms.RequestCancel.WithLabelValues("find", ctx.Err().Error()).Inc()
-	}
-
 	if err != nil {
 		var notFound types.ErrNotFound
-		if errors.As(err, &notFound) {
-			// graphite-web 0.9.12 needs to get a 200 OK response with an empty
-			// body to be happy with its life, so we can't 404 a /metrics/find
-			// request that finds nothing. We are however interested in knowing
-			// that we found nothing on the monitoring side, so we claim we
-			// returned a 404 code to Prometheus.
-
-			ms.FindNotFound.Inc()
-			lg.Info("not found", zap.Error(err))
-		} else {
+		if !errors.As(err, &notFound) {
 			return metrics, err
 		}
 	}
