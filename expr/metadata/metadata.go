@@ -13,11 +13,11 @@ func RegisterFunction(name string, function interfaces.Function, logger *zap.Log
 	FunctionMD.Lock()
 	defer FunctionMD.Unlock()
 	function.SetEvaluator(FunctionMD.evaluator)
-	_, ok := FunctionMD.Functions[name]
+	f, ok := FunctionMD.Functions[name]
 	if ok {
 		logger.Warn("function already registered, will register new anyway",
-			zap.String("name", name),
-			zap.Stack("stack"),
+			zap.String("function name to register", name),
+			zap.Any("already registered to function", f.Description()[name].Name),
 		)
 	}
 	FunctionMD.Functions[name] = function
