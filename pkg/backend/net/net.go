@@ -74,12 +74,8 @@ type Config struct {
 	Logger             *zap.Logger   // Logger to use. Defaults to a no-op logger.
 
 	// TODO (grzkv): Make metrics mandatory to simplify code. Nil can be replaced by the mock metrics in tests.
-	ActiveRequests  prometheus.Gauge
-	WaitingRequests prometheus.Gauge
-	LimiterEnters   prometheus.Counter
-	LimiterExits    *prometheus.CounterVec
-	QHist           *prometheus.HistogramVec
-	Responses       *prometheus.CounterVec
+	QHist     *prometheus.HistogramVec
+	Responses *prometheus.CounterVec
 }
 
 var fmtProto = []string{"protobuf"}

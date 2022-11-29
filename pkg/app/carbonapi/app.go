@@ -70,9 +70,9 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 
 	setUpConfig(app, lg)
 
-	var zlg *zap.Logger
-	app.Zipper, zlg = zipper.Setup(config.ZipperConfig, BuildVersion, "zipper", lg)
-	go app.Zipper.Start(zlg)
+	app.Zipper = zipper.Setup(config.ZipperConfig, BuildVersion, lg)
+	go zipper.ProbeTopLevelDomains(app.Zipper.TopLevelDomainCache, app.Zipper.TLDPrefixes, app.Zipper.Backends, app.Zipper.Config.InternalRoutingCache, app.Zipper.Metrics)
+	registerZipperMetrics(app.Zipper)
 
 	return app, nil
 }
@@ -104,43 +104,6 @@ func (app *App) Start(logger *zap.Logger) {
 	if err != nil {
 		logger.Fatal("gracehttp failed", zap.Error(err))
 	}
-}
-
-func (app *App) registerPrometheusMetrics() {
-	prometheus.MustRegister(app.ms.Requests)
-	prometheus.MustRegister(app.ms.Responses)
-	prometheus.MustRegister(app.ms.FindNotFound)
-	prometheus.MustRegister(app.ms.RenderPartialFail)
-	prometheus.MustRegister(app.ms.RequestCancel)
-	prometheus.MustRegister(app.ms.DurationExp)
-	prometheus.MustRegister(app.ms.DurationLin)
-	prometheus.MustRegister(app.ms.UpstreamRequests)
-	prometheus.MustRegister(app.ms.RenderDurationExp)
-	prometheus.MustRegister(app.ms.RenderDurationExpSimple)
-	prometheus.MustRegister(app.ms.RenderDurationExpComplex)
-	prometheus.MustRegister(app.ms.RenderDurationLinSimple)
-	prometheus.MustRegister(app.ms.RenderDurationPerPointExp)
-	prometheus.MustRegister(app.ms.FindDurationExp)
-	prometheus.MustRegister(app.ms.FindDurationLin)
-	prometheus.MustRegister(app.ms.FindDurationLinSimple)
-	prometheus.MustRegister(app.ms.FindDurationLinComplex)
-
-	prometheus.MustRegister(app.ms.UpstreamRequestsInQueue)
-	prometheus.MustRegister(app.ms.UpstreamSemaphoreSaturation)
-	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
-	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
-	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
-
-	prometheus.MustRegister(app.ms.TimeInQueueExp)
-	prometheus.MustRegister(app.ms.TimeInQueueLin)
-	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
-	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
-	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
-	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
-
-	prometheus.MustRegister(app.ms.CacheRequests)
-	prometheus.MustRegister(app.ms.CacheRespRead)
-	prometheus.MustRegister(app.ms.CacheTimeouts)
 }
 
 func setUpConfig(app *App, logger *zap.Logger) {
