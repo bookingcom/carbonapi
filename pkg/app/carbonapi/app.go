@@ -14,8 +14,8 @@ import (
 
 	"go.uber.org/zap/zapcore"
 
-	"github.com/bookingcom/carbonapi/expr/functions"
-	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/pkg/expr/functions"
+	"github.com/bookingcom/carbonapi/pkg/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/blocker"
@@ -23,6 +23,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/tldcache"
 	"github.com/dgryski/go-expirecache"
 
 	"github.com/facebookgo/grace/gracehttp"
@@ -45,9 +46,9 @@ type App struct {
 
 	// During processing we use two independent queues that share a semaphore to prevent stampeding.
 	// fastQ includes regular requests
-	fastQ chan *renderReq
+	fastQ chan *RenderReq
 	// slowQ contains large requests that could fill the queue and create a stampede.
-	slowQ chan *renderReq
+	slowQ chan *RenderReq
 
 	ms PrometheusMetrics
 	Lg *zap.Logger
@@ -55,7 +56,7 @@ type App struct {
 	ZipperConfig              cfg.Zipper
 	ZipperBackends            []backend.Backend
 	ZipperTopLevelDomainCache *expirecache.Cache
-	ZipperTLDPrefixes         []TLDPrefix
+	ZipperTLDPrefixes         []tldcache.TLDPrefix
 	ZipperMetrics             *ZipperPrometheusMetrics
 	ZipperLg                  *zap.Logger
 }
@@ -74,15 +75,16 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		defaultTimeZone: time.Local,
 		ms:              newPrometheusMetrics(config),
 		requestBlocker:  blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
-		fastQ:           make(chan *renderReq, config.QueueSize),
-		slowQ:           make(chan *renderReq, config.QueueSize),
+		fastQ:           make(chan *RenderReq, config.QueueSize),
+		slowQ:           make(chan *RenderReq, config.QueueSize),
 	}
 	app.requestBlocker.ReloadRules()
 
 	setUpConfig(app, lg)
 
 	app.ZipperConfig, app.ZipperBackends, app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperMetrics, app.ZipperLg = SetupZipper(config.ZipperConfig, BuildVersion, lg)
-	go ProbeTopLevelDomains(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, app.ZipperConfig.InternalRoutingCache, app.ZipperMetrics)
+	go tldcache.ProbeTopLevelDomains(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, app.ZipperConfig.InternalRoutingCache,
+		app.ZipperMetrics.TLDCacheProbeReqTotal, app.ZipperMetrics.TLDCacheProbeErrors)
 
 	return app, nil
 }
@@ -354,7 +356,7 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 
 // Setup sets up the zipper for future lanuch.
 func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zipper, []backend.Backend, *expirecache.Cache,
-	[]TLDPrefix, *ZipperPrometheusMetrics, *zap.Logger) {
+	[]tldcache.TLDPrefix, *ZipperPrometheusMetrics, *zap.Logger) {
 	if configFile == "" {
 		log.Fatal("missing config file option")
 	}
@@ -389,5 +391,5 @@ func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zi
 		lg.Fatal("failed to init backends", zap.Error(err))
 	}
 
-	return config, bs, expirecache.New(0), InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), ms, lg
+	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), ms, lg
 }

@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -41,10 +42,10 @@ import (
 	"strings"
 `)
 	for _, m := range funcs {
-		fmt.Fprintf(writer, "	\"github.com/bookingcom/carbonapi/expr/functions/%s\"\n", m)
+		fmt.Fprintf(writer, "	\"github.com/bookingcom/carbonapi/pkg/expr/functions/%s\"\n", m)
 	}
-	fmt.Fprintf(writer, `	"github.com/bookingcom/carbonapi/expr/interfaces"
-	"github.com/bookingcom/carbonapi/expr/metadata"
+	fmt.Fprintf(writer, `	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
+	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
 )
 
 type initFunc struct {

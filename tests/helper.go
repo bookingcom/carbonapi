@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bookingcom/carbonapi/expr/interfaces"
-	"github.com/bookingcom/carbonapi/expr/metadata"
-	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
+	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
+	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
 )
