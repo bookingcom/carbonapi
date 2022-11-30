@@ -1,4 +1,4 @@
-package zipper
+package carbonapi
 
 import (
 	"context"
@@ -14,13 +14,13 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types"
 )
 
-type tldPrefix struct {
+type TLDPrefix struct {
 	prefix        string
 	segments      []string
 	segmentsCount int
 }
 
-func ProbeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, backends []backend.Backend, period int32, ms *PrometheusMetrics) {
+func ProbeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []TLDPrefix, backends []backend.Backend, period int32, ms *ZipperPrometheusMetrics) {
 	probeTicker := time.NewTicker(time.Duration(period) * time.Second) // TODO: The ticker resources are never freed
 	for {
 		topLevelDomainCache := make(map[string][]*backend.Backend)
@@ -45,7 +45,7 @@ func ProbeTopLevelDomains(TLDCache *expirecache.Cache, TLDPrefixes []tldPrefix, 
 	}
 }
 
-func (p *tldPrefix) query() string {
+func (p *TLDPrefix) query() string {
 	query := "*"
 	if p.prefix != "" {
 		query = p.prefix + ".*"
@@ -55,7 +55,7 @@ func (p *tldPrefix) query() string {
 
 // getBackendsForPrefix returns the backends that need to be queried in order to populate TLD cache for the prefix.
 // It reuses already fetched tlds to find out about the info. If no info is there, it returns all the backends.
-func getBackendsForPrefix(prefix tldPrefix, backends []backend.Backend, tldCache map[string][]*backend.Backend) []*backend.Backend {
+func getBackendsForPrefix(prefix TLDPrefix, backends []backend.Backend, tldCache map[string][]*backend.Backend) []*backend.Backend {
 	for i := prefix.segmentsCount; i > 0; i-- {
 		p := strings.Join(prefix.segments[:i], ".")
 		if filteredBackends, ok := tldCache[p]; ok {
@@ -70,7 +70,7 @@ func getBackendsForPrefix(prefix tldPrefix, backends []backend.Backend, tldCache
 }
 
 // Returns the backend's top-level domains.
-func getTopLevelDomains(backend backend.Backend, prefix tldPrefix) ([]string, error) {
+func getTopLevelDomains(backend backend.Backend, prefix TLDPrefix) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -88,8 +88,8 @@ func getTopLevelDomains(backend backend.Backend, prefix tldPrefix) ([]string, er
 
 // InitTLDPrefixes gets unprocessed prefixes read from config, validates them (discards invalid ones),
 // and sorts them in ascending order
-func InitTLDPrefixes(logger *zap.Logger, cfgPrefixes []string) []tldPrefix {
-	tldPrefixes := []tldPrefix{
+func InitTLDPrefixes(logger *zap.Logger, cfgPrefixes []string) []TLDPrefix {
+	tldPrefixes := []TLDPrefix{
 		// We should always have empty prefix to get default TLDs
 		{prefix: "", segments: nil, segmentsCount: 0},
 	}
@@ -107,7 +107,7 @@ func InitTLDPrefixes(logger *zap.Logger, cfgPrefixes []string) []tldPrefix {
 			logger.Warn("tld prefix invalid", zap.String("prefix", p))
 			continue
 		}
-		tldPrefixes = append(tldPrefixes, tldPrefix{
+		tldPrefixes = append(tldPrefixes, TLDPrefix{
 			prefix:        p,
 			segments:      segments,
 			segmentsCount: len(segments),
@@ -117,7 +117,7 @@ func InitTLDPrefixes(logger *zap.Logger, cfgPrefixes []string) []tldPrefix {
 	sort.Slice(tldPrefixes, func(i, j int) bool {
 		return tldPrefixes[i].segmentsCount < tldPrefixes[j].segmentsCount
 	})
-	var uniqueTLDPrefixes []tldPrefix
+	var uniqueTLDPrefixes []TLDPrefix
 	for i := range tldPrefixes {
 		if i == 0 || tldPrefixes[i].prefix != tldPrefixes[i-1].prefix {
 			uniqueTLDPrefixes = append(uniqueTLDPrefixes, tldPrefixes[i])
@@ -126,7 +126,7 @@ func InitTLDPrefixes(logger *zap.Logger, cfgPrefixes []string) []tldPrefix {
 	return uniqueTLDPrefixes
 }
 
-func getTargetTopLevelDomain(target string, prefixes []tldPrefix) string {
+func getTargetTopLevelDomain(target string, prefixes []TLDPrefix) string {
 	tld := strings.SplitN(target, ".", 2)[0]
 	for i := len(prefixes) - 1; i >= 0; i-- {
 		p := prefixes[i]
@@ -139,24 +139,24 @@ func getTargetTopLevelDomain(target string, prefixes []tldPrefix) string {
 	return tld
 }
 
-func (app *App) filterBackendByTopLevelDomain(targets []string) []backend.Backend {
+func filterBackendByTopLevelDomain(cache *expirecache.Cache, TLDPrefixes []TLDPrefix, backends []backend.Backend, targets []string) []backend.Backend {
 	targetTlds := make([]string, 0, len(targets))
 	for _, target := range targets {
-		targetTlds = append(targetTlds, getTargetTopLevelDomain(target, app.TLDPrefixes))
+		targetTlds = append(targetTlds, getTargetTopLevelDomain(target, TLDPrefixes))
 	}
 
-	bs := app.filterByTopLevelDomain(app.Backends, targetTlds)
+	bs := filterByTopLevelDomain(cache, backends, targetTlds)
 	if len(bs) > 0 {
 		return bs
 	}
-	return app.Backends
+	return backends
 }
 
-func (app *App) filterByTopLevelDomain(backends []backend.Backend, targetTLDs []string) []backend.Backend {
+func filterByTopLevelDomain(cache *expirecache.Cache, backends []backend.Backend, targetTLDs []string) []backend.Backend {
 	bs := make([]backend.Backend, 0)
 	allTLDBackends := make([]*backend.Backend, 0)
 
-	topLevelDomainCache, _ := app.TopLevelDomainCache.Get("tlds")
+	topLevelDomainCache, _ := cache.Get("tlds")
 	tldCache := make(map[string][]*backend.Backend)
 	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
 		tldCache = x

@@ -15,12 +15,9 @@ import (
 // replicaMatchMode indicates how data points of the metrics fetched from replicas
 // will be checked and applied on the final metrics. replicaMismatchReportLimit limits
 // the number of mismatched metrics reported in log for each render request.
-func Renders(
-	ctx context.Context,
-	backends []Backend,
-	request types.RenderRequest,
+func Renders( ctx context.Context, backends []Backend, request types.RenderRequest,
 	replicaMismatchConfig cfg.RenderReplicaMismatchConfig,
-	logger *zap.Logger) ([]types.Metric, types.MetricRenderStats, []error) {
+	lg *zap.Logger) ([]types.Metric, types.MetricRenderStats, []error) {
 	if len(backends) == 0 {
 		return nil, types.MetricRenderStats{}, nil
 	}
@@ -43,7 +40,7 @@ func Renders(
 		}
 	}
 
-	metrics, stats := types.MergeMetrics(msgs, replicaMismatchConfig, logger)
+	metrics, stats := types.MergeMetrics(msgs, replicaMismatchConfig, lg)
 	return metrics, stats, errs
 }
 

@@ -1,12 +1,10 @@
 package carbonapi
 
 import (
-	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PrometheusMetrics are metrix exported via /metrics endpoint for Prom scraping
 type PrometheusMetrics struct {
 	Requests          prometheus.Counter
 	Responses         *prometheus.CounterVec
@@ -293,57 +291,202 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 	}
 }
 
-func registerZipperMetrics(app *zipper.App) {
-	prometheus.MustRegister(app.Metrics.Renders)
-	prometheus.MustRegister(app.Metrics.RenderMismatches)
-	prometheus.MustRegister(app.Metrics.RenderFixedMismatches)
-	prometheus.MustRegister(app.Metrics.RenderMismatchedResponses)
-	prometheus.MustRegister(app.Metrics.BackendResponses)
-	prometheus.MustRegister(app.Metrics.RenderOutDurationExp)
-	prometheus.MustRegister(app.Metrics.FindOutDuration)
-	prometheus.MustRegister(app.Metrics.TimeInQueueSeconds)
-	prometheus.MustRegister(app.Metrics.BackendEnqueuedRequests)
-	prometheus.MustRegister(app.Metrics.BackendRequestsInQueue)
-	prometheus.MustRegister(app.Metrics.BackendSemaphoreSaturation)
-	prometheus.MustRegister(app.Metrics.BackendTimeInQSec)
-	prometheus.MustRegister(app.Metrics.TLDCacheProbeErrors)
-	prometheus.MustRegister(app.Metrics.TLDCacheProbeReqTotal)
-	prometheus.MustRegister(app.Metrics.PathCacheFilteredRequests)
+func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetrics) {
+	prometheus.MustRegister(ms.Requests)
+	prometheus.MustRegister(ms.Responses)
+	prometheus.MustRegister(ms.FindNotFound)
+	prometheus.MustRegister(ms.RenderPartialFail)
+	prometheus.MustRegister(ms.RequestCancel)
+	prometheus.MustRegister(ms.DurationExp)
+	prometheus.MustRegister(ms.DurationLin)
+	prometheus.MustRegister(ms.UpstreamRequests)
+	prometheus.MustRegister(ms.RenderDurationExp)
+	prometheus.MustRegister(ms.RenderDurationExpSimple)
+	prometheus.MustRegister(ms.RenderDurationExpComplex)
+	prometheus.MustRegister(ms.RenderDurationLinSimple)
+	prometheus.MustRegister(ms.RenderDurationPerPointExp)
+	prometheus.MustRegister(ms.FindDurationExp)
+	prometheus.MustRegister(ms.FindDurationLin)
+	prometheus.MustRegister(ms.FindDurationLinSimple)
+	prometheus.MustRegister(ms.FindDurationLinComplex)
+
+	prometheus.MustRegister(ms.UpstreamRequestsInQueue)
+	prometheus.MustRegister(ms.UpstreamSemaphoreSaturation)
+	prometheus.MustRegister(ms.UpstreamEnqueuedRequests)
+	prometheus.MustRegister(ms.UpstreamSubRenderNum)
+	prometheus.MustRegister(ms.UpstreamTimeInQSec)
+
+	prometheus.MustRegister(ms.TimeInQueueExp)
+	prometheus.MustRegister(ms.TimeInQueueLin)
+	prometheus.MustRegister(ms.ActiveUpstreamRequests)
+	prometheus.MustRegister(ms.WaitingUpstreamRequests)
+	prometheus.MustRegister(ms.UpstreamLimiterEnters)
+	prometheus.MustRegister(ms.UpstreamLimiterExits)
+
+	prometheus.MustRegister(ms.CacheRequests)
+	prometheus.MustRegister(ms.CacheRespRead)
+	prometheus.MustRegister(ms.CacheTimeouts)
+
+	prometheus.MustRegister(zms.Renders)
+	prometheus.MustRegister(zms.RenderMismatches)
+	prometheus.MustRegister(zms.RenderFixedMismatches)
+	prometheus.MustRegister(zms.RenderMismatchedResponses)
+	prometheus.MustRegister(zms.BackendResponses)
+	prometheus.MustRegister(zms.RenderOutDurationExp)
+	prometheus.MustRegister(zms.FindOutDuration)
+	prometheus.MustRegister(zms.TimeInQueueSeconds)
+	prometheus.MustRegister(zms.BackendEnqueuedRequests)
+	prometheus.MustRegister(zms.BackendRequestsInQueue)
+	prometheus.MustRegister(zms.BackendSemaphoreSaturation)
+	prometheus.MustRegister(zms.BackendTimeInQSec)
+	prometheus.MustRegister(zms.TLDCacheProbeErrors)
+	prometheus.MustRegister(zms.TLDCacheProbeReqTotal)
+	prometheus.MustRegister(zms.PathCacheFilteredRequests)
 }
 
-func (app *App) registerPrometheusMetrics() {
-	prometheus.MustRegister(app.ms.Requests)
-	prometheus.MustRegister(app.ms.Responses)
-	prometheus.MustRegister(app.ms.FindNotFound)
-	prometheus.MustRegister(app.ms.RenderPartialFail)
-	prometheus.MustRegister(app.ms.RequestCancel)
-	prometheus.MustRegister(app.ms.DurationExp)
-	prometheus.MustRegister(app.ms.DurationLin)
-	prometheus.MustRegister(app.ms.UpstreamRequests)
-	prometheus.MustRegister(app.ms.RenderDurationExp)
-	prometheus.MustRegister(app.ms.RenderDurationExpSimple)
-	prometheus.MustRegister(app.ms.RenderDurationExpComplex)
-	prometheus.MustRegister(app.ms.RenderDurationLinSimple)
-	prometheus.MustRegister(app.ms.RenderDurationPerPointExp)
-	prometheus.MustRegister(app.ms.FindDurationExp)
-	prometheus.MustRegister(app.ms.FindDurationLin)
-	prometheus.MustRegister(app.ms.FindDurationLinSimple)
-	prometheus.MustRegister(app.ms.FindDurationLinComplex)
+type ZipperPrometheusMetrics struct {
+	RenderMismatches          prometheus.Counter
+	RenderFixedMismatches     prometheus.Counter
+	RenderMismatchedResponses prometheus.Counter
+	Renders                   prometheus.Counter
 
-	prometheus.MustRegister(app.ms.UpstreamRequestsInQueue)
-	prometheus.MustRegister(app.ms.UpstreamSemaphoreSaturation)
-	prometheus.MustRegister(app.ms.UpstreamEnqueuedRequests)
-	prometheus.MustRegister(app.ms.UpstreamSubRenderNum)
-	prometheus.MustRegister(app.ms.UpstreamTimeInQSec)
+	BackendResponses *prometheus.CounterVec
 
-	prometheus.MustRegister(app.ms.TimeInQueueExp)
-	prometheus.MustRegister(app.ms.TimeInQueueLin)
-	prometheus.MustRegister(app.ms.ActiveUpstreamRequests)
-	prometheus.MustRegister(app.ms.WaitingUpstreamRequests)
-	prometheus.MustRegister(app.ms.UpstreamLimiterEnters)
-	prometheus.MustRegister(app.ms.UpstreamLimiterExits)
+	RenderOutDurationExp *prometheus.HistogramVec
+	FindOutDuration      *prometheus.HistogramVec
 
-	prometheus.MustRegister(app.ms.CacheRequests)
-	prometheus.MustRegister(app.ms.CacheRespRead)
-	prometheus.MustRegister(app.ms.CacheTimeouts)
+	BackendEnqueuedRequests    *prometheus.CounterVec
+	BackendRequestsInQueue     *prometheus.GaugeVec
+	BackendSemaphoreSaturation prometheus.Gauge
+	BackendTimeInQSec          *prometheus.HistogramVec
+
+	TimeInQueueSeconds *prometheus.HistogramVec
+
+	TLDCacheProbeReqTotal prometheus.Counter
+	TLDCacheProbeErrors   prometheus.Counter
+
+	PathCacheFilteredRequests prometheus.Counter
+}
+
+func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {
+	return &ZipperPrometheusMetrics{
+		RenderMismatchedResponses: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_mismatched_responses_total",
+				Help: "Count of mismatched (unfixed) render responses",
+			},
+		),
+		RenderFixedMismatches: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_fixed_mismatches_total",
+				Help: "Count of fixed mismatched rendered data points",
+			},
+		),
+		RenderMismatches: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_mismatches_total",
+				Help: "Count of mismatched rendered data points",
+			},
+		),
+		Renders: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "render_total",
+				Help: "Count of rendered data points",
+			},
+		),
+		RenderOutDurationExp: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "render_outbound_request_duration_seconds_exp",
+				Help: "The durations of render requests sent to storages (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					// TODO (grzkv) Do we need a separate config?
+					// The buckets should be of comparable size.
+					config.Monitoring.RenderDurationExp.Start,
+					config.Monitoring.RenderDurationExp.BucketSize,
+					config.Monitoring.RenderDurationExp.BucketsNum),
+			},
+			[]string{"dc", "cluster"},
+		),
+		FindOutDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "find_out_duration_seconds",
+				Help: "Duration of outgoing find requests per backend cluster.",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.FindOutDuration.Start,
+					config.Monitoring.FindOutDuration.BucketSize,
+					config.Monitoring.FindOutDuration.BucketsNum),
+			},
+			[]string{"cluster"},
+		),
+
+		BackendEnqueuedRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_enqueued_requests",
+				Help: "The number of requests to backends put in their respective queues.",
+			},
+			[]string{"request"},
+		),
+		BackendRequestsInQueue: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "backend_requests_in_queue",
+				Help: "The number of requests currently in the queue by request type.",
+			},
+			[]string{"request"},
+		),
+		BackendSemaphoreSaturation: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "backend_semaphore_saturation",
+				Help: "The number of requests currently in flight that saturate the semaphore.",
+			},
+		),
+		BackendTimeInQSec: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "backend_time_in_queue",
+				Help: "Time a request to backend spends waiting in queue by request type",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.BackendTimeInQSecHistParams.Start,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketSize,
+					config.Monitoring.BackendTimeInQSecHistParams.BucketsNum,
+				),
+			},
+			[]string{"request"},
+		),
+
+		TimeInQueueSeconds: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "time_in_queue",
+				Help: "Time a request spends in queue in seconds.",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Monitoring.TimeInQueueExpHistogram.Start/1000, // converstion ms -> s
+					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
+					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
+			},
+			[]string{"request"},
+		),
+		TLDCacheProbeReqTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "tldcache_probe_req_total",
+				Help: "The total number of find requests sent by TLD cache as probes.",
+			},
+		),
+		TLDCacheProbeErrors: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "tldcache_probe_errors_total",
+				Help: "The total number of failed find requests sent by TLD cache as probes.",
+			},
+		),
+		PathCacheFilteredRequests: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "path_cache_filtered_requests_total",
+				Help: "The total number of requests with successful backend filter by path caches",
+			},
+		),
+		BackendResponses: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "backend_responses_total",
+				Help: "Count of backend responses, partitioned by status and request type",
+			},
+			[]string{"status", "request"},
+		),
+	}
 }

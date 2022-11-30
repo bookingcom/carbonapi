@@ -21,7 +21,6 @@ import (
 	"github.com/bookingcom/carbonapi/expr/interfaces"
 	"github.com/bookingcom/carbonapi/expr/metadata"
 	"github.com/bookingcom/carbonapi/expr/types"
-	"github.com/bookingcom/carbonapi/pkg/app/zipper"
 	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/date"
@@ -554,7 +553,8 @@ func (app *App) sendRenderRequest(ctx context.Context, path string, from, until 
 	var err error
 	var metrics []dataTypes.Metric
 	app.ms.UpstreamRequests.WithLabelValues("render").Inc()
-	metrics, err = zipper.Render(app.Zipper, ctx, path, int64(from), int64(until), app.Zipper.Metrics, app.Zipper.Lg)
+	metrics, err = Render(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends,
+		app.ZipperConfig.RenderReplicaMismatchConfig, ctx, path, int64(from), int64(until), app.ZipperMetrics, app.ZipperLg)
 
 	// time in queue is converted to ms
 	app.ms.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
@@ -771,7 +771,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	Trace(lg, "sending find request upstream")
 	app.ms.UpstreamRequests.WithLabelValues("find").Inc()
-	matches, err = zipper.Find(app.Zipper, ctx, request.Query, app.Zipper.Metrics, app.Zipper.Lg)
+	matches, err = Find(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, ctx, request.Query, app.ZipperMetrics, app.ZipperLg)
 
 	if err != nil {
 		Trace(lg, "upstream find request failed", zap.Error(err))
@@ -1091,7 +1091,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	var infos []dataTypes.Info
 	var err error
 	app.ms.UpstreamRequests.WithLabelValues("info").Inc()
-	infos, err = zipper.Info(app.Zipper, ctx, query, app.Zipper.Metrics, app.Zipper.Lg)
+	infos, err = Info(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, ctx, query, app.ZipperMetrics, app.ZipperLg)
 
 	if err != nil {
 		var notFound dataTypes.ErrNotFound

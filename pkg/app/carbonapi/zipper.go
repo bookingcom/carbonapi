@@ -1,12 +1,9 @@
-package zipper
+package carbonapi
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"runtime"
 	"sort"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
@@ -16,58 +13,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// Setup sets up the zipper for future lanuch.
-func Setup(configFile string, BuildVersion string, lg *zap.Logger) *App {
-	if configFile == "" {
-		log.Fatal("missing config file option")
-	}
-
-	fh, err := os.Open(configFile)
-	if err != nil {
-		log.Fatalf("unable to read config file: %s", err)
-	}
-
-	config, err := cfg.ParseZipperConfig(fh)
-	if err != nil {
-		log.Fatalf("failed to parse config at %s: %s", configFile, err)
-	}
-	fh.Close()
-
-	if config.MaxProcs != 0 {
-		runtime.GOMAXPROCS(config.MaxProcs)
-	}
-
-	if len(config.GetBackends()) == 0 {
-		log.Fatal("no Backends loaded -- exiting")
-	}
-
-	lg.Info("starting carbonzipper",
-		zap.String("build_version", BuildVersion),
-		zap.String("zipperConfig", fmt.Sprintf("%+v", config)),
-	)
-
-	ms := NewPrometheusMetrics(config)
-	bs, err := InitBackends(config, ms, lg)
-	if err != nil {
-		lg.Fatal("failed to init backends", zap.Error(err))
-	}
-
-	app := &App{
-		Config:              config,
-		Metrics:             ms,
-		Backends:            bs,
-		TopLevelDomainCache: expirecache.New(0),
-		TLDPrefixes:         InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes),
-		Lg:                  lg,
-	}
-
-	return app
-}
-
 // Find executes find request by checking cache and sending it to the backends.
-func Find(app *App, ctx context.Context, originalQuery string, ms *PrometheusMetrics, lg *zap.Logger) (types.Matches, error) {
+func Find(cache *expirecache.Cache, TLDPrefixes []TLDPrefix, backends []backend.Backend, ctx context.Context,
+	originalQuery string, ms *ZipperPrometheusMetrics, lg *zap.Logger) (types.Matches, error) {
 	request := types.NewFindRequest(originalQuery)
-	bs := app.filterBackendByTopLevelDomain([]string{originalQuery})
+	bs := filterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{originalQuery})
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, []string{originalQuery})
 	if filteredByPathCache {
@@ -97,18 +47,18 @@ func Find(app *App, ctx context.Context, originalQuery string, ms *PrometheusMet
 }
 
 // Render executes the render request by checking cache and sending it to the backends.
-func Render(app *App, ctx context.Context, target string, from int64, until int64,
-	ms *PrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
+func Render(cache *expirecache.Cache, TLDPrefixes []TLDPrefix, backends []backend.Backend, mismatchConfig cfg.RenderReplicaMismatchConfig, ctx context.Context, target string, from int64, until int64,
+	ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
 	request.Trace.OutDuration = ms.RenderOutDurationExp
-	bs := app.filterBackendByTopLevelDomain(request.Targets)
+	bs := filterBackendByTopLevelDomain(cache, TLDPrefixes, backends, request.Targets)
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, request.Targets)
 	if filteredByPathCache {
 		ms.PathCacheFilteredRequests.Inc()
 	}
-	metrics, stats, errs := backend.Renders(ctx, bs, request, app.Config.RenderReplicaMismatchConfig, lg)
+	metrics, stats, errs := backend.Renders(ctx, bs, request, mismatchConfig, lg)
 	ms.Renders.Add(float64(stats.DataPointCount))
 	ms.RenderMismatches.Add(float64(stats.MismatchCount))
 	ms.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
@@ -125,10 +75,10 @@ func Render(app *App, ctx context.Context, target string, from int64, until int6
 }
 
 // Info executes the info request by checking cache and sending it to the backends.
-func Info(app *App, ctx context.Context, target string, ms *PrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
+func Info(cache *expirecache.Cache, TLDPrefixes []TLDPrefix, backends []backend.Backend, ctx context.Context, target string, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
 	request := types.NewInfoRequest(target)
 
-	bs := app.filterBackendByTopLevelDomain([]string{target})
+	bs := filterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{target})
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, []string{target})
 	if filteredByPathCache {
