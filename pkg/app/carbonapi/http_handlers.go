@@ -352,10 +352,7 @@ func writeError(uuid string,
 		w.Header().Set("X-Carbonapi-UUID", uuid)
 		w.Header().Set("Content-Type", contentTypePNG)
 		w.WriteHeader(code)
-		body, pngErr := png.MarshalPNGRequestErr(r, shortErrStr, "default")
-		if pngErr != nil {
-			// #pass
-		}
+		body, _ := png.MarshalPNGRequestErr(r, shortErrStr, "default")
 		_, err := w.Write(body)
 		if err != nil {
 			accessLogDetails.Reason += " 499"
@@ -1161,7 +1158,7 @@ func (app *App) lbcheckHandler(w http.ResponseWriter, r *http.Request, logger *z
 	}
 }
 
-func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
 
 	app.ms.Requests.Inc()
@@ -1173,12 +1170,12 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *z
 	if app.config.GraphiteVersionForGrafana != "" {
 		_, err := w.Write([]byte(app.config.GraphiteVersionForGrafana))
 		if err != nil {
-			// #pass, do not log
+			lg.Warn("error writing GraphiteVersionForGrafana", zap.Error(err))
 		}
 		return
 	}
 	defer func() {
-		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
 
 	if app.config.GraphiteWeb09Compatibility {
@@ -1196,7 +1193,7 @@ func (app *App) versionHandler(w http.ResponseWriter, r *http.Request, logger *z
 	toLog.Runtime = time.Since(t0).Seconds()
 }
 
-func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger *zap.Logger) {
+func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	// TODO: Implement helper for specific functions
 	t0 := time.Now()
 
@@ -1205,7 +1202,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, logger 
 	toLog := carbonapipb.NewAccessLogDetails(r, "functions", &app.config)
 	logLevel := zap.InfoLevel
 	defer func() {
-		app.deferredAccessLogging(logger, r, &toLog, t0, logLevel)
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
 
 	err := r.ParseForm()

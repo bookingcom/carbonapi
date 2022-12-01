@@ -47,7 +47,7 @@ func ProcessRequests(app *App) {
 
 				semaphore <- true
 				app.ms.UpstreamSemaphoreSaturation.Inc()
-				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
+				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Since(req.StartTime).Seconds()))
 
 				go func(r *RenderReq) {
 					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog)

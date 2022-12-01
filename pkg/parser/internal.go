@@ -98,7 +98,7 @@ func sliceExpr(args []interface{}) ([]*expr, map[string]*expr) {
 }
 
 func mapExpr(m NamedArgs) map[string]*expr {
-	if m == nil || len(m) == 0 {
+	if len(m) == 0 {
 		return nil
 	}
 	res := make(map[string]*expr)
