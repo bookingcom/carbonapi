@@ -8,26 +8,6 @@ run:
     - "expr_test.go"
     - "cairo_test.go"
 
-linters-settings:
-  govet:
-    # report about shadowed variables
-    check-shadowing: true
-  goimports:
-    # put imports beginning with prefix after 3rd-party packages;
-    # it's a comma-separated list of prefixes
-    local-prefixes: github.com/bookingcom/carbonapi
-  gocyclo:
-    # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 15
-  dupl:
-    # tokens count to trigger issue, 150 by default
-    threshold: 100
-  gocritic:
-    # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint` run to see all tags and checks.
-    # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
-    enabled-tags:
-      - performance
-
 issues:
   # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
   max-issues-per-linter: 0
@@ -39,7 +19,3 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
-    # Exclude lll issues for long lines with go:generate
-    - linters:
-        - lll
-      source: "^//go:generate "
