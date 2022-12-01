@@ -39,10 +39,6 @@ check: test lint
 lint:
 	golangci-lint run
 
-.PHONY: lint-comprehensive
-lint-comprehensive:
-	golangci-lint run -E revive -E gofmt -E gochecknoglobals -E unparam -E misspell --exclude-use-default=false --timeout 2m0s ./...
-
 .PHONY: test
 test:
 	$(PKGCONF) go test -timeout 10s -race ./... 

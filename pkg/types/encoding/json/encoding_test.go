@@ -19,14 +19,14 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 			in: types.Matches{
 				Name: "*.*",
 				Matches: []types.Match{
-					types.Match{
+					{
 						Path:   "*.sin",
 						IsLeaf: true,
 					},
 				},
 			},
 			out: []jsonMatch{
-				jsonMatch{
+				{
 					AllowChildren: 0,
 					Leaf:          1,
 					Expandable:    1,
@@ -41,22 +41,22 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 			in: types.Matches{
 				Name: "a.*.1",
 				Matches: []types.Match{
-					types.Match{
+					{
 						Path:   "a.*.1",
 						IsLeaf: true,
 					},
-					types.Match{
+					{
 						Path:   "a.*.1",
 						IsLeaf: true,
 					},
-					types.Match{
+					{
 						Path:   "a.*.1",
 						IsLeaf: true,
 					},
 				},
 			},
 			out: []jsonMatch{
-				jsonMatch{
+				{
 					AllowChildren: 0,
 					Leaf:          1,
 					Expandable:    1,
@@ -71,26 +71,26 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 			in: types.Matches{
 				Name: "a.b.*",
 				Matches: []types.Match{
-					types.Match{
+					{
 						Path:   "a.b.e",
 						IsLeaf: true,
 					},
-					types.Match{
+					{
 						Path:   "a.b.c",
 						IsLeaf: true,
 					},
-					types.Match{
+					{
 						Path:   "a.b.d",
 						IsLeaf: true,
 					},
-					types.Match{
+					{
 						Path:   "a.b.d",
 						IsLeaf: true,
 					},
 				},
 			},
 			out: []jsonMatch{
-				jsonMatch{
+				{
 					AllowChildren: 0,
 					Leaf:          1,
 					Expandable:    0,
@@ -98,7 +98,7 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 					ID:            "a.b.c",
 					Text:          "c",
 				},
-				jsonMatch{
+				{
 					AllowChildren: 0,
 					Leaf:          1,
 					Expandable:    0,
@@ -106,7 +106,7 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 					ID:            "a.b.d",
 					Text:          "d",
 				},
-				jsonMatch{
+				{
 					AllowChildren: 0,
 					Leaf:          1,
 					Expandable:    0,

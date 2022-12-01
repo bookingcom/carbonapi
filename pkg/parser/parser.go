@@ -562,9 +562,9 @@ func parseConst(s string) (float64, string, error) {
 var RangeTables []*unicode.RangeTable
 
 // parseName parses the next symbol from s and returns
-// 	* the parsed symbol (function or metric name),
-// 	* the rest of the string from s
-// 	* syntax error
+//   - the parsed symbol (function or metric name),
+//   - the rest of the string from s
+//   - syntax error
 func parseName(s string) (string, string, error) {
 	var (
 		braces, brackets int

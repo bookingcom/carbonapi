@@ -143,7 +143,7 @@ func (b *Backend) Proc() {
 			}
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Now().Sub(r.StartTime)))
+			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Since(r.StartTime)))
 			go func(req *renderReq) {
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
 				if err != nil {
@@ -161,7 +161,7 @@ func (b *Backend) Proc() {
 			b.requestsInQueue.WithLabelValues("find").Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("find").Observe(float64(time.Now().Sub(r.StartTime)))
+			b.timeInQSec.WithLabelValues("find").Observe(float64(time.Since(r.StartTime)))
 			go func(req *findReq) {
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
 				if err != nil {
@@ -179,7 +179,7 @@ func (b *Backend) Proc() {
 			b.requestsInQueue.WithLabelValues("info").Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("info").Observe(float64(time.Now().Sub(r.StartTime)))
+			b.timeInQSec.WithLabelValues("info").Observe(float64(time.Since(r.StartTime)))
 			go func(req *infoReq) {
 				res, err := b.BackendImpl.Info(req.Ctx, req.InfoRequest)
 				if err != nil {

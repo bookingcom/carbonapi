@@ -1,3 +1,4 @@
+//go:build cairo
 // +build cairo
 
 package types

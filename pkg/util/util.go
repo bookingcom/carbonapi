@@ -5,7 +5,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc/metadata"
 )
 

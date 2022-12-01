@@ -1,8 +1,9 @@
 package handlerlog
 
 import (
-	"go.uber.org/zap"
 	"net/http"
+
+	"go.uber.org/zap"
 )
 
 type HandlerWithLogger func(w http.ResponseWriter, r *http.Request, logger *zap.Logger)

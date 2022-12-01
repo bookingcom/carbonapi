@@ -277,7 +277,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 		CacheRespRead: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_resp_read",
-				Help: "Counter of responses from the top-level cache that we have acutally read",
+				Help: "Counter of responses from the top-level cache that we have actually read",
 			},
 			[]string{"request", "operation", "status"},
 		),
@@ -457,7 +457,7 @@ func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {
 				Name: "time_in_queue",
 				Help: "Time a request spends in queue in seconds.",
 				Buckets: prometheus.ExponentialBuckets(
-					config.Monitoring.TimeInQueueExpHistogram.Start/1000, // converstion ms -> s
+					config.Monitoring.TimeInQueueExpHistogram.Start/1000, // conversion ms -> s
 					config.Monitoring.TimeInQueueExpHistogram.BucketSize,
 					config.Monitoring.TimeInQueueExpHistogram.BucketsNum),
 			},

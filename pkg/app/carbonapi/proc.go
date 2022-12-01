@@ -9,7 +9,8 @@ import (
 
 // ProcessRequests processes the queued requests.
 // TODO: Handler request timeouts. The timed-out requests don't need to be forwarded.
-//       Currently, they'll be handled by the old limiter that's still in place.
+//
+//	Currently, they'll be handled by the old limiter that's still in place.
 func ProcessRequests(app *App) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
 	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)
@@ -47,7 +48,7 @@ func ProcessRequests(app *App) {
 
 				semaphore <- true
 				app.ms.UpstreamSemaphoreSaturation.Inc()
-				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
+				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Since(req.StartTime).Seconds()))
 
 				go func(r *RenderReq) {
 					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog)

@@ -1,15 +1,10 @@
-/*
-Package pickle defines encoding methods for Find and Render responses.
-
-The package does not define decoding methods or methods for handling Info
-responses:
-
-- The /info endpoint is a carbonapi invention. It's unlikely that any Python
-  stack will know about it.
-
-- For now, we do not expect to talk to Python stores. Patches to let us do that
-  are welcome.
-*/
+// Package pickle defines encoding methods for Find and Render responses.
+// The package does not define decoding methods or methods for handling Info
+// responses:
+//   - The /info endpoint is a carbonapi invention. It's unlikely that any Python
+//     stack will know about it.
+//   - For now, we do not expect to talk to Python stores. Patches to let us do that
+//     are welcome.
 package pickle
 
 import (

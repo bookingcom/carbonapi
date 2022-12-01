@@ -14,14 +14,14 @@ import (
 
 	"go.uber.org/zap/zapcore"
 
-	"github.com/bookingcom/carbonapi/pkg/expr/functions"
-	"github.com/bookingcom/carbonapi/pkg/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/blocker"
 	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
+	"github.com/bookingcom/carbonapi/pkg/expr/functions"
+	"github.com/bookingcom/carbonapi/pkg/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/pkg/tldcache"
 	"github.com/dgryski/go-expirecache"

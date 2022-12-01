@@ -95,7 +95,7 @@ func (f *seriesList) Description() map[string]types.FunctionDescription {
 			},
 		},
 		"diffSeriesLists": {
-			Description: "Iterates over a two lists and substracts list1[0} by list2[0}, list1[1} by list2[1} and so on.\nThe lists need to be the same length",
+			Description: "Iterates over a two lists and subtracts list1[0} by list2[0}, list1[1} by list2[1} and so on.\nThe lists need to be the same length",
 			Function:    "diffSeriesLists(firstSeriesList, secondSeriesList)",
 			Group:       "Combine",
 			Module:      "graphite.render.functions.custom",
