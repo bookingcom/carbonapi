@@ -16,11 +16,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/bookingcom/carbonapi/expr"
-	"github.com/bookingcom/carbonapi/expr/functions/cairo/png"
-	"github.com/bookingcom/carbonapi/expr/interfaces"
-	"github.com/bookingcom/carbonapi/expr/metadata"
-	"github.com/bookingcom/carbonapi/expr/types"
+	"github.com/bookingcom/carbonapi/pkg/expr"
+	"github.com/bookingcom/carbonapi/pkg/expr/functions/cairo/png"
+	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
+	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
+	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/cache"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/date"
@@ -136,7 +136,7 @@ const (
 	contentTypeSVG        = "image/svg+xml"
 )
 
-type renderResponse struct {
+type RenderResponse struct {
 	data  []*types.MetricData
 	error error
 }
@@ -433,13 +433,13 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			renderRequestContext = util.WithPriority(ctx, subrequestCount)
 		}
 		app.ms.UpstreamSubRenderNum.Observe(float64(subrequestCount))
-		rch := make(chan renderResponse, len(renderRequests))
+		rch := make(chan RenderResponse, len(renderRequests))
 		for _, m := range renderRequests {
 			// This blocks when the queue fills up, which is fine as the below result read would block anyway.
 			//
 			// TODO: Maybe handle record drops when the queue is full.
 			// TODO: Expand to cover all types of requests.
-			req := &renderReq{
+			req := &RenderReq{
 				Path:  m,
 				From:  mfetch.From,
 				Until: mfetch.Until,
@@ -543,8 +543,8 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 	return errors.New("all " + subj + " failed; merged errs: (" + errStr + ")"), errStr
 }
 
-func (app *App) sendRenderRequest(ctx context.Context, path string, from, until int32,
-	toLog *carbonapipb.AccessLogDetails) renderResponse {
+func sendRenderRequest(app *App, ctx context.Context, path string, from, until int32,
+	toLog *carbonapipb.AccessLogDetails) RenderResponse {
 
 	atomic.AddInt64(&toLog.ZipperRequests, 1)
 
@@ -565,7 +565,7 @@ func (app *App) sendRenderRequest(ctx context.Context, path string, from, until 
 		metricData = append(metricData, &types.MetricData{Metric: metrics[i]})
 	}
 
-	return renderResponse{
+	return RenderResponse{
 		data:  metricData,
 		error: err,
 	}

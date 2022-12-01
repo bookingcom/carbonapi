@@ -16,7 +16,7 @@ func ProcessRequests(app *App) {
 	for i := 0; i < app.config.ProcWorkers; i++ {
 		go func() {
 			for {
-				var req *renderReq
+				var req *RenderReq
 				var label string
 
 				// During processing we use two independent queues that share the semaphore:
@@ -40,7 +40,7 @@ func ProcessRequests(app *App) {
 
 				select {
 				case <-req.Ctx.Done():
-					req.Results <- renderResponse{nil, req.Ctx.Err()}
+					req.Results <- RenderResponse{nil, req.Ctx.Err()}
 					continue
 				default:
 				}
@@ -49,8 +49,8 @@ func ProcessRequests(app *App) {
 				app.ms.UpstreamSemaphoreSaturation.Inc()
 				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Now().Sub(req.StartTime).Seconds()))
 
-				go func(r *renderReq) {
-					r.Results <- app.sendRenderRequest(r.Ctx, r.Path, r.From, r.Until, r.ToLog)
+				go func(r *RenderReq) {
+					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog)
 
 					<-semaphore
 					app.ms.UpstreamSemaphoreSaturation.Dec()
@@ -60,8 +60,8 @@ func ProcessRequests(app *App) {
 	}
 }
 
-// renderReq represents a render requests in the processing queue.
-type renderReq struct {
+// RenderReq represents a render requests in the processing queue.
+type RenderReq struct {
 	Path  string
 	From  int32
 	Until int32
@@ -70,5 +70,5 @@ type renderReq struct {
 	ToLog     *carbonapipb.AccessLogDetails
 	StartTime time.Time
 
-	Results chan renderResponse
+	Results chan RenderResponse
 }
