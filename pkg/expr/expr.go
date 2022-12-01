@@ -23,6 +23,7 @@ func (eval evaluator) EvalExpr(ctx context.Context, e parser.Expr, from, until i
 
 var _evaluator = evaluator{}
 
+// nolint:gochecknoinits
 func init() {
 	helper.SetEvaluator(_evaluator)
 	metadata.SetEvaluator(_evaluator)

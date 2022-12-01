@@ -9,7 +9,8 @@ import (
 
 // ProcessRequests processes the queued requests.
 // TODO: Handler request timeouts. The timed-out requests don't need to be forwarded.
-//       Currently, they'll be handled by the old limiter that's still in place.
+//
+//	Currently, they'll be handled by the old limiter that's still in place.
 func ProcessRequests(app *App) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
 	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)

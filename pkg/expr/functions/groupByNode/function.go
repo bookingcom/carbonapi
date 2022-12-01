@@ -106,7 +106,7 @@ func (f *groupByNode) Do(ctx context.Context, e parser.Expr, from, until int32, 
 		nvalues := values
 		if e.Target() == "groupByNode" || e.Target() == "groupByNodes" {
 			nvalues = map[parser.MetricRequest][]*types.MetricData{
-				parser.MetricRequest{
+				{
 					Metric: k,
 					From:   from,
 					Until:  until,

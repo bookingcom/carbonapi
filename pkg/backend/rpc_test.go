@@ -68,7 +68,7 @@ func TestCarbonapiv2FindsEmpty(t *testing.T) {
 	}
 
 	if len(got.Matches) != 0 {
-		t.Error("Expected emtpy response")
+		t.Error("Expected empty response")
 	}
 }
 
@@ -95,7 +95,7 @@ func TestCarbonapiv2Renders(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		render := func(context.Context, types.RenderRequest) ([]types.Metric, error) {
 			return []types.Metric{
-				types.Metric{
+				{
 					Name:      "foo",
 					StartTime: 0,
 					StopTime:  5,
@@ -164,7 +164,7 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		NewMock(mock.Config{
 			Info: func(context.Context, types.InfoRequest) ([]types.Info, error) {
 				return []types.Info{
-					types.Info{
+					{
 						Host:              "host_A",
 						Name:              "metric",
 						AggregationMethod: "sum",
@@ -175,7 +175,7 @@ func TestCarbonapiv2InfosCorrectMerge(t *testing.T) {
 		NewMock(mock.Config{
 			Info: func(context.Context, types.InfoRequest) ([]types.Info, error) {
 				return []types.Info{
-					types.Info{
+					{
 						Host:              "host_B",
 						Name:              "metric",
 						AggregationMethod: "average",
@@ -223,7 +223,7 @@ func TestCarbonapiv2Infos(t *testing.T) {
 		j := i
 		info := func(context.Context, types.InfoRequest) ([]types.Info, error) {
 			return []types.Info{
-				types.Info{
+				{
 					Host: fmt.Sprintf("host_%d", j),
 					Name: fmt.Sprintf("foo/%d", j),
 				},
@@ -268,7 +268,7 @@ func TestCarbonapiv2Finds(t *testing.T) {
 			return types.Matches{
 				Name: "foo",
 				Matches: []types.Match{
-					types.Match{
+					{
 						Path:   fmt.Sprintf("foo/%d", j),
 						IsLeaf: true,
 					},

@@ -8,6 +8,34 @@ run:
     - "expr_test.go"
     - "cairo_test.go"
 
+linters:
+  enable:
+    - asciicheck
+    - bodyclose
+    - gochecknoinits
+    - gofmt
+    - goimports
+    - gosec
+    - misspell
+    - unparam
+
+    # The linters we need to enable ASAP.
+    # Enabling would require significant changes.
+    # - gochecknoglobals
+    # - unconvert
+    # - wrapcheck
+
+    # The linters that would be nice to have in order of decreasing priority.
+    # They are disabled now because they cause a lot of warnings that would require multiple changes.
+    # - revive
+    # - errorlint
+    # - promlinter
+    # - cyclop or gocyclo
+    # - whitespace
+    # - gomnd
+    # - lll
+    # - gocritic
+
 issues:
   # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
   max-issues-per-linter: 0

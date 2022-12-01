@@ -114,7 +114,7 @@ type API struct {
 	// the resulting response if it contain more than resolveGlobs metrics
 	//  If find returns MORE metrics than resolveGlobs - carbonapi will query metrics one by one
 	//  If find returns LESS metrics than resolveGlobs - revert to the old behaviour and send the query as it is.
-	// This allows you to use benifits of passing globs as is but keep memory usage in carbonzipper within sane limits.
+	// This allows you to use benefits of passing globs as is but keep memory usage in carbonzipper within sane limits.
 	//
 	// For go-carbon you might want to keep it in some reasonable limits, 100 is a good "safe" default
 	// For some backends you might want to set it to 0
@@ -135,7 +135,7 @@ type API struct {
 	// carbonapi needs to have write access to this file/folder
 	BlockHeaderFile         string        `yaml:"blockHeaderFile"`
 	BlockHeaderUpdatePeriod time.Duration `yaml:"blockHeaderUpdatePeriod"`
-	// List of HTTP headers to log. This can be usefull to track request to the source of it.
+	// List of HTTP headers to log. This can be useful to track request to the source of it.
 	// Defaults allow you to find grafana user/dashboard/panel which send a request
 	HeadersToLog        []string          `yaml:"headersToLog"`
 	UnicodeRangeTables  []string          `yaml:"unicodeRangeTables"`

@@ -11,8 +11,8 @@ import (
 
 func TestMergeInfos(t *testing.T) {
 	infos := [][]Info{
-		[]Info{Info{}},
-		[]Info{Info{}},
+		{{}},
+		{{}},
 	}
 
 	got := MergeInfos(infos)
@@ -23,13 +23,13 @@ func TestMergeInfos(t *testing.T) {
 
 func TestMergeMatches(t *testing.T) {
 	matches := []Matches{
-		Matches{
-			Matches: []Match{Match{
+		{
+			Matches: []Match{{
 				Path: "foo",
 			}},
 		},
-		Matches{
-			Matches: []Match{Match{
+		{
+			Matches: []Match{{
 				Path: "bar",
 			}},
 		},
@@ -43,13 +43,13 @@ func TestMergeMatches(t *testing.T) {
 
 func TestMergeMatchesDeduplicate(t *testing.T) {
 	matches := []Matches{
-		Matches{
-			Matches: []Match{Match{
+		{
+			Matches: []Match{{
 				Path: "foo",
 			}},
 		},
-		Matches{
-			Matches: []Match{Match{
+		{
+			Matches: []Match{{
 				Path: "foo",
 			}},
 		},
@@ -63,10 +63,10 @@ func TestMergeMatchesDeduplicate(t *testing.T) {
 
 func TestSortMetrics(t *testing.T) {
 	metrics := []Metric{
-		Metric{
+		{
 			StepTime: 2,
 		},
-		Metric{
+		{
 			StepTime: 1,
 		},
 	}
@@ -80,15 +80,15 @@ func TestSortMetrics(t *testing.T) {
 
 func TestMergeManyMetricsWithNormal(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{0},
 				IsAbsent: []bool{true},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1},
 				IsAbsent: []bool{false},
@@ -115,15 +115,15 @@ func TestMergeManyMetricsWithNormal(t *testing.T) {
 
 func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 1},
 				IsAbsent: []bool{false, false},
@@ -162,15 +162,15 @@ func TestMergeManyMismatchedMetricsWithCheck(t *testing.T) {
 
 func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 1},
 				IsAbsent: []bool{false, false},
@@ -209,22 +209,22 @@ func TestMergeManyMismatchedMetricsWithMajority(t *testing.T) {
 
 func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
@@ -262,22 +262,22 @@ func TestMergeManyMinorityMismatchedMetricsWithCheck(t *testing.T) {
 
 func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1},
 				IsAbsent: []bool{false, false},
@@ -316,22 +316,22 @@ func TestMergeManyMinorityMismatchedMetricsWithMajority(t *testing.T) {
 
 func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 0, 2},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 0, 3},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1, 4},
 				IsAbsent: []bool{false, false, false},
@@ -370,22 +370,22 @@ func TestMergeManyRiskyAndMismatchedMetricsWithCheck(t *testing.T) {
 
 func TestMergeManyRiskyAndMismatchedMetricsWithMajority(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{1, 0, 2},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 0, 3},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{2, 1, 4},
 				IsAbsent: []bool{false, false, false},
@@ -428,22 +428,22 @@ func TestMergeManyRiskyAndMismatchedMetricsWithMajorityApproximateBadFloat(t *te
 	f3 := 0.3
 	f3appr := f1 + f2
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{0.25, 0, 2},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{f3, 0, 3},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{f3appr, 1, 4},
 				IsAbsent: []bool{false, false, false},
@@ -489,22 +489,22 @@ func TestMergeMismatchedMetricsWithMajorityApproximateBadFloat(t *testing.T) {
 	f3 := 0.3
 	f3appr := f1 + f2
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{f3appr, 1, 4},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{f3, 1, 4},
 				IsAbsent: []bool{false, true, false},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric",
 				Values:   []float64{f3, 1, 4},
 				IsAbsent: []bool{false, false, false},
@@ -546,15 +546,15 @@ func TestMergeMismatchedMetricsWithMajorityApproximateBadFloat(t *testing.T) {
 
 func TestMergeManyMetricsDifferent(t *testing.T) {
 	input := [][]Metric{
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric1",
 				Values:   []float64{0},
 				IsAbsent: []bool{true},
 			},
 		},
-		[]Metric{
-			Metric{
+		{
+			{
 				Name:     "metric2",
 				Values:   []float64{1},
 				IsAbsent: []bool{false},
@@ -571,12 +571,12 @@ func TestMergeManyMetricsDifferent(t *testing.T) {
 
 func TestMergeMetricsNormal(t *testing.T) {
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0},
 			IsAbsent: []bool{true},
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
@@ -594,13 +594,13 @@ func TestMergeMetricsNormal(t *testing.T) {
 
 func TestMergeMetricsMismatchedNormal(t *testing.T) {
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 0},
 			IsAbsent: []bool{true, true},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
@@ -627,17 +627,17 @@ func TestMergeMetricsEmpty(t *testing.T) {
 
 func TestMergeMetricsPreferFirstPresent(t *testing.T) {
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0},
 			IsAbsent: []bool{true},
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{2},
 			IsAbsent: []bool{false},
@@ -656,19 +656,19 @@ func TestMergeMetricsPreferFirstPresent(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes1(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
 			StepTime: 2,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
@@ -689,19 +689,19 @@ func TestMergeMetricsDifferingStepTimes1(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes2(t *testing.T) {
 	// lower resolution metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
 			StepTime: 2,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
@@ -722,19 +722,19 @@ func TestMergeMetricsDifferingStepTimes2(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes3(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
 			StepTime: 2,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
@@ -755,19 +755,19 @@ func TestMergeMetricsDifferingStepTimes3(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes4(t *testing.T) {
 	// (0, 1) metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
@@ -788,19 +788,19 @@ func TestMergeMetricsDifferingStepTimes4(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes5(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},
 			StepTime: 2,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
@@ -821,19 +821,19 @@ func TestMergeMetricsDifferingStepTimes5(t *testing.T) {
 func TestMergeMetricsDifferingStepTimes6(t *testing.T) {
 	// (1, 0) metric first
 	input := []Metric{
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1, 0},
 			IsAbsent: []bool{false, true},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{0, 1},
 			IsAbsent: []bool{true, false},
 			StepTime: 1,
 		},
-		Metric{
+		{
 			Name:     "metric",
 			Values:   []float64{1},
 			IsAbsent: []bool{false},

@@ -12,15 +12,15 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-//Rule is a request blocking rule
+// Rule is a request blocking rule
 type Rule map[string]string
 
-//RuleConfig represents the request blocking rules
+// RuleConfig represents the request blocking rules
 type RuleConfig struct {
 	Rules []Rule
 }
 
-//RequestBlocker blocks request according to rules that defines which headers are not allowed
+// RequestBlocker blocks request according to rules that defines which headers are not allowed
 type RequestBlocker struct {
 	config              configFileManager
 	logger              *zap.Logger
@@ -29,8 +29,8 @@ type RequestBlocker struct {
 	blockRuleConfigName string
 }
 
-//NewRequestBlocker creates a new instance of request blocker without any rules
-//and sets name of config files that will be used as storage for rules
+// NewRequestBlocker creates a new instance of request blocker without any rules
+// and sets name of config files that will be used as storage for rules
 func NewRequestBlocker(blockHeaderFile string, updatePeriod time.Duration, logger *zap.Logger) *RequestBlocker {
 	instance := &RequestBlocker{
 		config:              newConfigFile(blockHeaderFile),
@@ -42,8 +42,8 @@ func NewRequestBlocker(blockHeaderFile string, updatePeriod time.Duration, logge
 	return instance
 }
 
-//ScheduleRuleReload starts reload rules from rules config file with
-//frequency defined by updatePeriod
+// ScheduleRuleReload starts reload rules from rules config file with
+// frequency defined by updatePeriod
 func (rl *RequestBlocker) ScheduleRuleReload() bool {
 	if rl.updatePeriod <= 0 {
 		return false
@@ -58,7 +58,7 @@ func (rl *RequestBlocker) ScheduleRuleReload() bool {
 	return true
 }
 
-//ReloadRules loads rules from config and updates blocker with these rules
+// ReloadRules loads rules from config and updates blocker with these rules
 func (rl *RequestBlocker) ReloadRules() {
 	fileData, err := rl.config.load()
 	if err != nil {
@@ -77,7 +77,7 @@ func (rl *RequestBlocker) ReloadRules() {
 	rl.rules.Store(rc)
 }
 
-//AddNewRules updates rule config file with new rules
+// AddNewRules updates rule config file with new rules
 func (rl *RequestBlocker) AddNewRules(queryParams url.Values) bool {
 	if !rl.isValidConfigFileName() {
 		return false
@@ -112,13 +112,13 @@ func (rl *RequestBlocker) AddNewRules(queryParams url.Values) bool {
 	return len(m) != 0 && err1 == nil
 }
 
-//Unblock deletes rule config file with all defined rules.
-//Next time rules will be reloaded, request blocker won't block any request
+// Unblock deletes rule config file with all defined rules.
+// Next time rules will be reloaded, request blocker won't block any request
 func (rl *RequestBlocker) Unblock() error {
 	return os.Remove(rl.blockRuleConfigName)
 }
 
-//ShouldBlockRequest checks request headers against block rules
+// ShouldBlockRequest checks request headers against block rules
 func (rl *RequestBlocker) ShouldBlockRequest(r *http.Request) bool {
 	blockingRules := rl.rules.Load().(RuleConfig)
 	for _, rule := range blockingRules.Rules {
@@ -151,7 +151,7 @@ func (rl *RequestBlocker) appendRuleToConfig(rc RuleConfig, r Rule) error {
 	return err
 }
 
-//isValid checks if file can be used to store rules
+// isValid checks if file can be used to store rules
 func (rl *RequestBlocker) isValidConfigFileName() bool {
 	return rl.blockRuleConfigName != ""
 }

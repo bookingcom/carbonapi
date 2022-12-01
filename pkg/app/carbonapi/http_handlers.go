@@ -16,14 +16,14 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/bookingcom/carbonapi/pkg/cache"
+	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
+	"github.com/bookingcom/carbonapi/pkg/date"
 	"github.com/bookingcom/carbonapi/pkg/expr"
 	"github.com/bookingcom/carbonapi/pkg/expr/functions/cairo/png"
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
 	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
-	"github.com/bookingcom/carbonapi/pkg/cache"
-	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
-	"github.com/bookingcom/carbonapi/pkg/date"
 	"github.com/bookingcom/carbonapi/pkg/handlerlog"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
@@ -253,7 +253,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		//
 		// 	fallbackSeries(metric.not.exist, constantLine(1))
 		//
-		// Refrence behaviour in graphite-web: https://github.com/graphite-project/graphite-web/blob/1.1.8/webapp/graphite/render/evaluator.py#L14-L46
+		// Reference behaviour in graphite-web: https://github.com/graphite-project/graphite-web/blob/1.1.8/webapp/graphite/render/evaluator.py#L14-L46
 		var notFound dataTypes.ErrNotFound
 		if targetErr == nil || errors.As(targetErr, &notFound) {
 			targetErr = evalExprRender(ctx, exp, &results, metricMap, &form, app.config.PrintErrorStackTrace, getTargetData)
