@@ -16,18 +16,27 @@ var BuildVersion = "(development build)"
 
 func main() {
 	configPath := flag.String("config", "", "Path to the config file.")
+	versionFlag := flag.Bool("version", false, "Display version and exit.")
 	flag.Parse()
+
+	if *versionFlag {
+		log.Println(BuildVersion)
+		return
+	}
 
 	fh, err := os.Open(*configPath)
 	if err != nil {
-		log.Fatalf("failed to open config file: %s", err)
+		log.Fatalf("failed to open config file: %f", err)
 	}
 
 	apiConfig, err := cfg.ParseAPIConfig(fh)
 	if err != nil {
 		log.Fatalf("failed to parse config file: %f", err)
 	}
-	fh.Close() // TODO: Add error check.
+	err = fh.Close()
+	if err != nil {
+		log.Fatalf("failed to close config file: %f", err)
+	}
 
 	if apiConfig.MaxProcs != 0 {
 		runtime.GOMAXPROCS(apiConfig.MaxProcs)
@@ -36,7 +45,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initiate logger: %s", err)
 	}
-	lg = lg.Named("carbonapi")
 
 	lg.Info("starting carbonapi", zap.String("build_version", BuildVersion))
 
