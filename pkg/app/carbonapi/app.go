@@ -92,6 +92,7 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 // Start starts the app: inits handlers, logger, starts HTTP server
 func (app *App) Start(logger *zap.Logger) {
 	registerPrometheusMetrics(&app.ms, app.ZipperMetrics)
+	app.ms.Version.WithLabelValues(BuildVersion).Set(1)
 
 	handler := initHandlers(app, logger)
 	internalHandler := initHandlersInternal(app, logger)

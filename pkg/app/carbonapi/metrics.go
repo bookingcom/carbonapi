@@ -43,6 +43,8 @@ type PrometheusMetrics struct {
 	CacheRequests *prometheus.CounterVec
 	CacheRespRead *prometheus.CounterVec
 	CacheTimeouts *prometheus.CounterVec
+
+	Version *prometheus.GaugeVec
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -288,6 +290,13 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 			},
 			[]string{"request"},
 		),
+		Version: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "version",
+				Help: "Label contains the version. The value should always be 1.",
+			},
+			[]string{"version"},
+		),
 	}
 }
 
@@ -326,6 +335,8 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.CacheRequests)
 	prometheus.MustRegister(ms.CacheRespRead)
 	prometheus.MustRegister(ms.CacheTimeouts)
+
+	prometheus.MustRegister(ms.Version)
 
 	prometheus.MustRegister(zms.Renders)
 	prometheus.MustRegister(zms.RenderMismatches)
