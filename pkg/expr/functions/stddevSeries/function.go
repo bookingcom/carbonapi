@@ -70,5 +70,20 @@ func (f *stddevSeries) Description() map[string]types.FunctionDescription {
 				},
 			},
 		},
+		"stddev": {
+			Description: "Takes one metric or a wildcard seriesList.\nDraws the standard deviation of all metrics passed at each time.\n\nExample:\n\n.. code-block:: none\n\n  &target=stddev(company.server.*.threads.busy)\n\nThis is an alias for :py:func:`aggregate <aggregate>` with aggregation ``stddev``.",
+			Function:    "stddev(*seriesLists)",
+			Group:       "Combine",
+			Module:      "graphite.render.functions",
+			Name:        "stddev",
+			Params: []types.FunctionParam{
+				{
+					Multiple: true,
+					Name:     "seriesLists",
+					Required: true,
+					Type:     types.SeriesList,
+				},
+			},
+		},
 	}
 }
