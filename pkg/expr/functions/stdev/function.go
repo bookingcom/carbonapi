@@ -22,7 +22,7 @@ func GetOrder() interfaces.Order {
 func New(configFile string) []interfaces.FunctionMetadata {
 	res := make([]interfaces.FunctionMetadata, 0)
 	f := &stdev{}
-	functions := []string{"stdev", "stddev"}
+	functions := []string{"stdev"}
 	for _, n := range functions {
 		res = append(res, interfaces.FunctionMetadata{Name: n, F: f})
 	}
@@ -30,7 +30,6 @@ func New(configFile string) []interfaces.FunctionMetadata {
 }
 
 // stdev(seriesList, points, missingThreshold=0.1)
-// Alias: stddev
 func (f *stdev) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
@@ -80,30 +79,6 @@ func (f *stdev) Do(ctx context.Context, e parser.Expr, from, until int32, values
 func (f *stdev) Description() map[string]types.FunctionDescription {
 	return map[string]types.FunctionDescription{
 		"stdev": {
-			Description: "Takes one metric or a wildcard seriesList followed by an integer N.\nDraw the Standard Deviation of all metrics passed for the past N datapoints.\nIf the ratio of null points in the window is greater than windowTolerance,\nskip the calculation. The default for windowTolerance is 0.1 (up to 10% of points\nin the window can be missing). Note that if this is set to 0.0, it will cause large\ngaps in the output anywhere a single point is missing.\n\nExample:\n\n.. code-block:: none\n\n  &target=stdev(server*.instance*.threads.busy,30)\n  &target=stdev(server*.instance*.cpu.system,30,0.0)",
-			Function:    "stdev(seriesList, points, windowTolerance=0.1)",
-			Group:       "Calculate",
-			Module:      "graphite.render.functions",
-			Name:        "stdev",
-			Params: []types.FunctionParam{
-				{
-					Name:     "seriesList",
-					Required: true,
-					Type:     types.SeriesList,
-				},
-				{
-					Name:     "points",
-					Required: true,
-					Type:     types.Integer,
-				},
-				{
-					Default: types.NewSuggestion(0.1),
-					Name:    "windowTolerance",
-					Type:    types.Float,
-				},
-			},
-		},
-		"stddev": {
 			Description: "Takes one metric or a wildcard seriesList followed by an integer N.\nDraw the Standard Deviation of all metrics passed for the past N datapoints.\nIf the ratio of null points in the window is greater than windowTolerance,\nskip the calculation. The default for windowTolerance is 0.1 (up to 10% of points\nin the window can be missing). Note that if this is set to 0.0, it will cause large\ngaps in the output anywhere a single point is missing.\n\nExample:\n\n.. code-block:: none\n\n  &target=stdev(server*.instance*.threads.busy,30)\n  &target=stdev(server*.instance*.cpu.system,30,0.0)",
 			Function:    "stdev(seriesList, points, windowTolerance=0.1)",
 			Group:       "Calculate",
