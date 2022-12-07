@@ -59,7 +59,6 @@ type App struct {
 
 	ms            PrometheusMetrics
 	ZipperMetrics *ZipperPrometheusMetrics
-	Lg            *zap.Logger
 }
 
 // New creates a new app
@@ -91,16 +90,16 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 }
 
 // Start starts the app: inits handlers, logger, starts HTTP server
-func (app *App) Start(logger *zap.Logger) {
+func (app *App) Start(lg *zap.Logger) {
 	registerPrometheusMetrics(&app.ms, app.ZipperMetrics)
 	app.ms.Version.WithLabelValues(BuildVersion).Set(1)
 
-	handler := initHandlers(app, logger)
-	internalHandler := initHandlersInternal(app, logger)
+	handler := initHandlers(app, lg)
+	internalHandler := initHandlersInternal(app, lg)
 
 	app.requestBlocker.ScheduleRuleReload()
 
-	gracehttp.SetLogger(zap.NewStdLog(logger))
+	gracehttp.SetLogger(zap.NewStdLog(lg))
 	err := gracehttp.Serve(
 		&http.Server{
 			Addr:         app.config.Listen,
@@ -116,7 +115,7 @@ func (app *App) Start(logger *zap.Logger) {
 		},
 	)
 	if err != nil {
-		logger.Fatal("gracehttp failed", zap.Error(err))
+		lg.Fatal("gracehttp failed", zap.Error(err))
 	}
 }
 

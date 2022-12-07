@@ -33,7 +33,7 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	return removeTrailingSlash(r)
 }
 
-func initHandlers(app *App, logger *zap.Logger) http.Handler {
+func initHandlers(app *App, lg *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
 	r.Use(handlers.CompressHandler)
@@ -43,39 +43,39 @@ func initHandlers(app *App, logger *zap.Logger) http.Handler {
 	r.Use(muxtrace.Middleware("carbonapi"))
 
 	r.HandleFunc("/render", httputil.TimeHandler(
-		app.validateRequest(app.renderHandler, "render", logger),
+		app.validateRequest(app.renderHandler, "render", lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/metrics/find", httputil.TimeHandler(
-		app.validateRequest(app.findHandler, "find", logger),
+		app.validateRequest(app.findHandler, "find", lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/info", httputil.TimeHandler(
-		app.validateRequest(app.infoHandler, "info", logger),
+		app.validateRequest(app.infoHandler, "info", lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/lb_check", httputil.TimeHandler(
-		handlerlog.WithLogger(app.lbcheckHandler, logger),
+		handlerlog.WithLogger(app.lbcheckHandler, lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/version", httputil.TimeHandler(
-		handlerlog.WithLogger(app.versionHandler, logger),
+		handlerlog.WithLogger(app.versionHandler, lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/functions", httputil.TimeHandler(
-		handlerlog.WithLogger(app.functionsHandler, logger),
+		handlerlog.WithLogger(app.functionsHandler, lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(
-		handlerlog.WithLogger(app.tagsHandler, logger),
+		handlerlog.WithLogger(app.tagsHandler, lg),
 		app.bucketRequestTimes))
 
 	r.HandleFunc("/", httputil.TimeHandler(
-		handlerlog.WithLogger(app.usageHandler, logger),
+		handlerlog.WithLogger(app.usageHandler, lg),
 		app.bucketRequestTimes))
 
 	r.NotFoundHandler = httputil.TimeHandler(
-		handlerlog.WithLogger(app.usageHandler, logger),
+		handlerlog.WithLogger(app.usageHandler, lg),
 		app.bucketRequestTimes)
 
 	return removeTrailingSlash(r)

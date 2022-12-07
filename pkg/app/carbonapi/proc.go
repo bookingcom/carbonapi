@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
+	"go.uber.org/zap"
 )
 
 // ProcessRequests processes the queued requests.
-func ProcessRequests(app *App) {
+func ProcessRequests(app *App, lg *zap.Logger) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
 	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)
 	for i := 0; i < app.config.ProcWorkers; i++ {
@@ -48,7 +49,7 @@ func ProcessRequests(app *App) {
 				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Since(req.StartTime).Seconds()))
 
 				go func(r *RenderReq) {
-					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog)
+					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog, lg)
 
 					<-semaphore
 					app.ms.UpstreamSemaphoreSaturation.Dec()
