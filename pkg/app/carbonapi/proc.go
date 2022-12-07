@@ -8,9 +8,6 @@ import (
 )
 
 // ProcessRequests processes the queued requests.
-// TODO: Handler request timeouts. The timed-out requests don't need to be forwarded.
-//
-//	Currently, they'll be handled by the old limiter that's still in place.
 func ProcessRequests(app *App) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
 	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)
@@ -26,7 +23,7 @@ func ProcessRequests(app *App) {
 				// Large requests could stampede a queue for a long time if we only had a single one. This would prevent any new requests
 				// to be processed. Two queues guarantee that we still process incoming requests while a large request is in progress.
 				select {
-				case req = <-app.fastQ:
+				case req = <-app.fastQ: // "fast" (i.e. small) requests are prioritised
 					label = "fast"
 				default:
 					select {

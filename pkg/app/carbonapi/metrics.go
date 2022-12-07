@@ -25,20 +25,13 @@ type PrometheusMetrics struct {
 	FindDurationLinSimple  prometheus.Histogram
 	FindDurationLinComplex prometheus.Histogram
 
+	UpstreamRequests            *prometheus.CounterVec
 	UpstreamRequestsInQueue     *prometheus.GaugeVec
 	UpstreamSemaphoreSaturation prometheus.Gauge
 	UpstreamEnqueuedRequests    *prometheus.CounterVec
 	UpstreamSubRenderNum        prometheus.Histogram
 	UpstreamTimeInQSec          *prometheus.HistogramVec
-
-	TimeInQueueExp prometheus.Histogram
-	TimeInQueueLin prometheus.Histogram
-
-	UpstreamRequests        *prometheus.CounterVec
-	ActiveUpstreamRequests  prometheus.Gauge
-	WaitingUpstreamRequests prometheus.Gauge
-	UpstreamLimiterEnters   prometheus.Counter
-	UpstreamLimiterExits    *prometheus.CounterVec
+	UpstreamRequestDuration     *prometheus.HistogramVec
 
 	CacheRequests *prometheus.CounterVec
 	CacheRespRead *prometheus.CounterVec
@@ -228,47 +221,6 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				config.UpstreamTimeInQSecHistParams.BucketsNum,
 			),
 		}, []string{"queue"}),
-
-		TimeInQueueExp: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "time_in_queue_ms_exp",
-				Help: "Time a request to backend spends in queue (exponential), in ms",
-				Buckets: prometheus.ExponentialBuckets(
-					config.Zipper.Common.Monitoring.TimeInQueueExpHistogram.Start,
-					config.Zipper.Common.Monitoring.TimeInQueueExpHistogram.BucketSize,
-					config.Zipper.Common.Monitoring.TimeInQueueExpHistogram.BucketsNum),
-			},
-		),
-		TimeInQueueLin: prometheus.NewHistogram(
-			prometheus.HistogramOpts{
-				Name: "time_in_queue_ms_lin",
-				Help: "Time a request to backend spends in queue (linear), in ms",
-				Buckets: prometheus.LinearBuckets(
-					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.Start,
-					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketSize,
-					config.Zipper.Common.Monitoring.TimeInQueueLinHistogram.BucketsNum),
-			},
-		),
-		ActiveUpstreamRequests: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "active_upstream_requests",
-				Help: "Number of in-flight upstream requests",
-			},
-		),
-		WaitingUpstreamRequests: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Name: "waiting_upstream_requests",
-				Help: "Number of upstream requests waiting on the limiter",
-			},
-		),
-		UpstreamLimiterEnters: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "upstream_limiter_enters",
-			Help: "The counter of requests that entered the upstream limiter",
-		}),
-		UpstreamLimiterExits: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "upstream_limiter_exits",
-			Help: "The counter of requests that exit the limiter by status",
-		}, []string{"status"}),
 		CacheRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_requests",
@@ -324,13 +276,6 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.UpstreamEnqueuedRequests)
 	prometheus.MustRegister(ms.UpstreamSubRenderNum)
 	prometheus.MustRegister(ms.UpstreamTimeInQSec)
-
-	prometheus.MustRegister(ms.TimeInQueueExp)
-	prometheus.MustRegister(ms.TimeInQueueLin)
-	prometheus.MustRegister(ms.ActiveUpstreamRequests)
-	prometheus.MustRegister(ms.WaitingUpstreamRequests)
-	prometheus.MustRegister(ms.UpstreamLimiterEnters)
-	prometheus.MustRegister(ms.UpstreamLimiterExits)
 
 	prometheus.MustRegister(ms.CacheRequests)
 	prometheus.MustRegister(ms.CacheRespRead)

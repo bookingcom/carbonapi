@@ -37,9 +37,14 @@ var BuildVersion string
 
 // App is the main carbonapi runnable
 type App struct {
-	config         cfg.API
-	queryCache     cache.BytesCache
-	findCache      cache.BytesCache
+	config       cfg.API
+	ZipperConfig cfg.Zipper
+
+	queryCache             cache.BytesCache
+	findCache              cache.BytesCache
+	TopLevelDomainCache    *expirecache.Cache
+	TopLevelDomainPrefixes []tldcache.TopLevelDomainPrefix
+
 	requestBlocker *blocker.RequestBlocker
 
 	defaultTimeZone *time.Location
@@ -50,15 +55,11 @@ type App struct {
 	// slowQ contains large requests that could fill the queue and create a stampede.
 	slowQ chan *RenderReq
 
-	ms PrometheusMetrics
-	Lg *zap.Logger
+	Backends []backend.Backend
 
-	ZipperConfig              cfg.Zipper
-	ZipperBackends            []backend.Backend
-	ZipperTopLevelDomainCache *expirecache.Cache
-	ZipperTLDPrefixes         []tldcache.TLDPrefix
-	ZipperMetrics             *ZipperPrometheusMetrics
-	ZipperLg                  *zap.Logger
+	ms            PrometheusMetrics
+	ZipperMetrics *ZipperPrometheusMetrics
+	Lg            *zap.Logger
 }
 
 // New creates a new app
@@ -82,8 +83,8 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 
 	setUpConfig(app, lg)
 
-	app.ZipperConfig, app.ZipperBackends, app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperMetrics, app.ZipperLg = SetupZipper(config.ZipperConfig, BuildVersion, lg)
-	go tldcache.ProbeTopLevelDomains(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, app.ZipperConfig.InternalRoutingCache,
+	app.ZipperConfig, app.Backends, app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.ZipperMetrics = SetupZipper(config.ZipperConfig, BuildVersion, lg)
+	go tldcache.ProbeTopLevelDomains(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, app.ZipperConfig.InternalRoutingCache,
 		app.ZipperMetrics.TLDCacheProbeReqTotal, app.ZipperMetrics.TLDCacheProbeErrors)
 
 	return app, nil
@@ -357,7 +358,7 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 
 // Setup sets up the zipper for future lanuch.
 func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zipper, []backend.Backend, *expirecache.Cache,
-	[]tldcache.TLDPrefix, *ZipperPrometheusMetrics, *zap.Logger) {
+	[]tldcache.TopLevelDomainPrefix, *ZipperPrometheusMetrics) {
 	if configFile == "" {
 		log.Fatal("missing config file option")
 	}
@@ -392,5 +393,5 @@ func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zi
 		lg.Fatal("failed to init backends", zap.Error(err))
 	}
 
-	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), ms, lg
+	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), ms
 }

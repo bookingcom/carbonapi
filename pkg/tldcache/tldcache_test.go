@@ -18,19 +18,19 @@ func TestGetBackendsForPrefix(t *testing.T) {
 		backend.NewBackend(mock.Backend{Address: "3"}, 0, 0, nil, nil, nil, nil),
 	}
 	var tt = []struct {
-		prefix      TLDPrefix
+		prefix      TopLevelDomainPrefix
 		backends    []backend.Backend
 		tldCache    map[string][]*backend.Backend
 		outBackends []*backend.Backend
 	}{
 		{
-			prefix:      TLDPrefix{"", []string{}, 0},
+			prefix:      TopLevelDomainPrefix{"", []string{}, 0},
 			backends:    allBackends,
 			tldCache:    map[string][]*backend.Backend{},
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1], &allBackends[2], &allBackends[3]},
 		},
 		{
-			prefix:   TLDPrefix{"a", []string{"a"}, 1},
+			prefix:   TopLevelDomainPrefix{"a", []string{"a"}, 1},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"b": {&allBackends[0], &allBackends[1]},
@@ -39,7 +39,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1], &allBackends[2], &allBackends[3]},
 		},
 		{
-			prefix:   TLDPrefix{"a", []string{"a"}, 1},
+			prefix:   TopLevelDomainPrefix{"a", []string{"a"}, 1},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a": {&allBackends[0], &allBackends[1]},
@@ -48,7 +48,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1]},
 		},
 		{
-			prefix:   TLDPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
+			prefix:   TopLevelDomainPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a": {&allBackends[0], &allBackends[1]},
@@ -57,7 +57,7 @@ func TestGetBackendsForPrefix(t *testing.T) {
 			outBackends: []*backend.Backend{&allBackends[0], &allBackends[1]},
 		},
 		{
-			prefix:   TLDPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
+			prefix:   TopLevelDomainPrefix{"a.b.c", []string{"a", "b", "c"}, 3},
 			backends: allBackends,
 			tldCache: map[string][]*backend.Backend{
 				"a":   {&allBackends[0], &allBackends[1]},
@@ -122,11 +122,11 @@ func TestGetTargetTopLevelDomain(t *testing.T) {
 func TestInitTLDPrefixes(t *testing.T) {
 	var tt = []struct {
 		prefixes    []string
-		outPrefixes []TLDPrefix
+		outPrefixes []TopLevelDomainPrefix
 	}{
 		{
 			prefixes: []string{"a.b", "", "a.b.c", "a"},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,
@@ -151,7 +151,7 @@ func TestInitTLDPrefixes(t *testing.T) {
 		},
 		{
 			prefixes: []string{"a.b.c", "a", "a.a.a"},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,
@@ -176,7 +176,7 @@ func TestInitTLDPrefixes(t *testing.T) {
 		},
 		{
 			prefixes: []string{},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,
@@ -186,7 +186,7 @@ func TestInitTLDPrefixes(t *testing.T) {
 		},
 		{
 			prefixes: []string{""},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,
@@ -196,7 +196,7 @@ func TestInitTLDPrefixes(t *testing.T) {
 		},
 		{
 			prefixes: []string{"a", "a"},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,
@@ -211,7 +211,7 @@ func TestInitTLDPrefixes(t *testing.T) {
 		},
 		{
 			prefixes: []string{"a", "a..b", ".c.f"},
-			outPrefixes: []TLDPrefix{
+			outPrefixes: []TopLevelDomainPrefix{
 				{
 					prefix:        "",
 					segments:      nil,

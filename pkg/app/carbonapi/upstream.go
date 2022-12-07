@@ -15,7 +15,7 @@ import (
 )
 
 // Find executes find request by checking cache and sending it to the backends.
-func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TLDPrefix, backends []backend.Backend, ctx context.Context,
+func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, ctx context.Context,
 	originalQuery string, ms *ZipperPrometheusMetrics, lg *zap.Logger) (types.Matches, error) {
 	request := types.NewFindRequest(originalQuery)
 	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{originalQuery})
@@ -48,7 +48,7 @@ func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TLDPrefix, backends [
 }
 
 // Render executes the render request by checking cache and sending it to the backends.
-func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TLDPrefix, backends []backend.Backend, mismatchConfig cfg.RenderReplicaMismatchConfig, ctx context.Context, target string, from int64, until int64,
+func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, mismatchConfig cfg.RenderReplicaMismatchConfig, ctx context.Context, target string, from int64, until int64,
 	ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
@@ -76,7 +76,7 @@ func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TLDPrefix, backends
 }
 
 // Info executes the info request by checking cache and sending it to the backends.
-func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TLDPrefix, backends []backend.Backend, ctx context.Context, target string, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
+func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, ctx context.Context, target string, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
 	request := types.NewInfoRequest(target)
 
 	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{target})
