@@ -16,8 +16,7 @@ import (
 // will be checked and applied on the final metrics. replicaMismatchReportLimit limits
 // the number of mismatched metrics reported in log for each render request.
 func Renders(ctx context.Context, backends []Backend, request types.RenderRequest,
-	replicaMismatchConfig cfg.RenderReplicaMismatchConfig,
-	lg *zap.Logger) ([]types.Metric, types.MetricRenderStats, []error) {
+	replicaMismatchConfig cfg.RenderReplicaMismatchConfig, lg *zap.Logger) ([]types.Metric, types.MetricRenderStats, []error) {
 	if len(backends) == 0 {
 		return nil, types.MetricRenderStats{}, nil
 	}

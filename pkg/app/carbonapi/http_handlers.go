@@ -435,7 +435,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			// This blocks when the queue fills up, which is fine as the below result read would block anyway.
 			//
 			// TODO: Maybe handle record drops when the queue is full.
-			// TODO: Expand to cover all types of requests.
 			req := &RenderReq{
 				Path:  m,
 				From:  mfetch.From,
@@ -541,21 +540,15 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 }
 
 func sendRenderRequest(app *App, ctx context.Context, path string, from, until int32,
-	toLog *carbonapipb.AccessLogDetails) RenderResponse {
+	toLog *carbonapipb.AccessLogDetails, lg *zap.Logger) RenderResponse {
 
 	atomic.AddInt64(&toLog.ZipperRequests, 1)
-
-	request := dataTypes.NewRenderRequest([]string{path}, from, until)
 
 	var err error
 	var metrics []dataTypes.Metric
 	app.ms.UpstreamRequests.WithLabelValues("render").Inc()
-	metrics, err = Render(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends,
-		app.ZipperConfig.RenderReplicaMismatchConfig, ctx, path, int64(from), int64(until), app.ZipperMetrics, app.ZipperLg)
-
-	// time in queue is converted to ms
-	app.ms.TimeInQueueExp.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
-	app.ms.TimeInQueueLin.Observe(float64(request.Trace.Report()[2]) / 1000 / 1000)
+	metrics, err = Render(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends,
+		app.ZipperConfig.RenderReplicaMismatchConfig, ctx, path, int64(from), int64(until), app.ZipperMetrics, lg)
 
 	metricData := make([]*types.MetricData, 0)
 	for i := range metrics {
@@ -768,7 +761,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	Trace(lg, "sending find request upstream")
 	app.ms.UpstreamRequests.WithLabelValues("find").Inc()
-	matches, err = Find(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, ctx, request.Query, app.ZipperMetrics, app.ZipperLg)
+	matches, err = Find(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, request.Query, app.ZipperMetrics, lg)
 
 	if err != nil {
 		Trace(lg, "upstream find request failed", zap.Error(err))
@@ -1088,7 +1081,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	var infos []dataTypes.Info
 	var err error
 	app.ms.UpstreamRequests.WithLabelValues("info").Inc()
-	infos, err = Info(app.ZipperTopLevelDomainCache, app.ZipperTLDPrefixes, app.ZipperBackends, ctx, query, app.ZipperMetrics, app.ZipperLg)
+	infos, err = Info(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, query, app.ZipperMetrics, lg)
 
 	if err != nil {
 		var notFound dataTypes.ErrNotFound

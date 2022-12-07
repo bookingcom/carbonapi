@@ -53,7 +53,7 @@ func main() {
 		lg.Error("error initializing app")
 	}
 
-	carbonapi.ProcessRequests(app)
+	carbonapi.ProcessRequests(app, lg)
 
 	app.Start(lg)
 }
