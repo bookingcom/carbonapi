@@ -112,6 +112,7 @@ var (
 	resultTouched   = []byte("TOUCHED\r\n")
 
 	resultClientErrorPrefix = []byte("CLIENT_ERROR ")
+	versionPrefix           = []byte("VERSION")
 )
 
 // New returns a memcache client using the provided server(s)
@@ -254,11 +255,6 @@ func (cte *ConnectTimeoutError) Error() string {
 }
 
 func (c *Client) dial(addr net.Addr) (net.Conn, error) {
-	type connError struct {
-		cn  net.Conn
-		err error
-	}
-
 	nc, err := net.DialTimeout(addr.Network(), addr.String(), c.netTimeout())
 	if err == nil {
 		return nc, nil
@@ -393,6 +389,30 @@ func (c *Client) flushAllFromAddr(addr net.Addr) error {
 			break
 		default:
 			return fmt.Errorf("memcache: unexpected response line from flush_all: %q", string(line))
+		}
+		return nil
+	})
+}
+
+// ping sends the version command to the given addr
+func (c *Client) ping(addr net.Addr) error {
+	return c.withAddrRw(addr, func(rw *bufio.ReadWriter) error {
+		if _, err := fmt.Fprintf(rw, "version\r\n"); err != nil {
+			return err
+		}
+		if err := rw.Flush(); err != nil {
+			return err
+		}
+		line, err := rw.ReadSlice('\n')
+		if err != nil {
+			return err
+		}
+
+		switch {
+		case bytes.HasPrefix(line, versionPrefix):
+			break
+		default:
+			return fmt.Errorf("memcache: unexpected response line from ping: %q", string(line))
 		}
 		return nil
 	})
@@ -541,6 +561,26 @@ func (c *Client) replace(rw *bufio.ReadWriter, item *Item) error {
 	return c.populateOne(rw, "replace", item)
 }
 
+// Append appends the given item to the existing item, if a value already
+// exists for its key. ErrNotStored is returned if that condition is not met.
+func (c *Client) Append(item *Item) error {
+	return c.onItem(item, (*Client).append)
+}
+
+func (c *Client) append(rw *bufio.ReadWriter, item *Item) error {
+	return c.populateOne(rw, "append", item)
+}
+
+// Prepend prepends the given item to the existing item, if a value already
+// exists for its key. ErrNotStored is returned if that condition is not met.
+func (c *Client) Prepend(item *Item) error {
+	return c.onItem(item, (*Client).prepend)
+}
+
+func (c *Client) prepend(rw *bufio.ReadWriter, item *Item) error {
+	return c.populateOne(rw, "prepend", item)
+}
+
 // CompareAndSwap writes the given item that was previously returned
 // by Get, if the value was neither modified or evicted between the
 // Get and the CompareAndSwap calls. The item's Key should not change
@@ -642,6 +682,12 @@ func (c *Client) DeleteAll() error {
 	return c.withKeyRw("", func(rw *bufio.ReadWriter) error {
 		return writeExpectf(rw, resultDeleted, "flush_all\r\n")
 	})
+}
+
+// Ping checks all instances if they are alive. Returns error if any
+// of them is down.
+func (c *Client) Ping() error {
+	return c.selector.Each(c.ping)
 }
 
 // Increment atomically increments key by delta. The return value is

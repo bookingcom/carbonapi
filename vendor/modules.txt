@@ -1,4 +1,4 @@
-# github.com/JaderDias/movingmedian v0.0.0-20170611140316-de8c410559fa
+# github.com/JaderDias/movingmedian v0.0.0-20220813210630-d8c6b6de8835
 ## explicit
 github.com/JaderDias/movingmedian
 # github.com/aclements/go-moremath v0.0.0-20180329182055-b1aff36309c7
@@ -7,8 +7,8 @@ github.com/aclements/go-moremath/mathx
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/bradfitz/gomemcache v0.0.0-20180710155616-bc664df96737
-## explicit
+# github.com/bradfitz/gomemcache v0.0.0-20221031212613-62deef7fc822
+## explicit; go 1.12
 github.com/bradfitz/gomemcache/memcache
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
@@ -73,7 +73,7 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/google/go-cmp v0.5.8
+# github.com/google/go-cmp v0.5.9
 ## explicit; go 1.13
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -180,13 +180,14 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# gonum.org/v1/gonum v0.6.2
-## explicit; go 1.12
+# gonum.org/v1/gonum v0.12.0
+## explicit; go 1.18
 gonum.org/v1/gonum/blas
 gonum.org/v1/gonum/blas/blas64
 gonum.org/v1/gonum/blas/cblas128
 gonum.org/v1/gonum/blas/gonum
 gonum.org/v1/gonum/floats
+gonum.org/v1/gonum/floats/scalar
 gonum.org/v1/gonum/internal/asm/c128
 gonum.org/v1/gonum/internal/asm/c64
 gonum.org/v1/gonum/internal/asm/f32

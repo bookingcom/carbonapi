@@ -3,8 +3,8 @@ module github.com/bookingcom/carbonapi
 go 1.19
 
 require (
-	github.com/JaderDias/movingmedian v0.0.0-20170611140316-de8c410559fa
-	github.com/bradfitz/gomemcache v0.0.0-20180710155616-bc664df96737
+	github.com/JaderDias/movingmedian v0.0.0-20220813210630-d8c6b6de8835
+	github.com/bradfitz/gomemcache v0.0.0-20221031212613-62deef7fc822
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-expirecache v0.0.0-20170314133854-743ef98b2adb
 	github.com/dgryski/go-onlinestats v0.0.0-20170612111826-1c7d19468768
@@ -14,7 +14,7 @@ require (
 	github.com/facebookgo/grace v0.0.0-20180706040059-75cf19382434
 	github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
 	github.com/go-graphite/protocol v1.0.1-0.20220718132526-4b842ba389ee
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
@@ -26,7 +26,7 @@ require (
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
 	go.uber.org/zap v1.24.0
-	gonum.org/v1/gonum v0.6.2
+	gonum.org/v1/gonum v0.12.0
 	google.golang.org/grpc v1.51.0
 	gopkg.in/yaml.v2 v2.4.0
 )
