@@ -22,9 +22,6 @@ github.com/dgryski/go-expirecache
 # github.com/dgryski/go-onlinestats v0.0.0-20170612111826-1c7d19468768
 ## explicit
 github.com/dgryski/go-onlinestats
-# github.com/dgryski/httputil v0.0.0-20160116060654-189c2918cd08
-## explicit
-github.com/dgryski/httputil
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize

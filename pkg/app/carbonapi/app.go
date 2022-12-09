@@ -282,19 +282,6 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 }
 
-func (app *App) bucketRequestTimes(req *http.Request, t time.Duration) {
-	app.ms.DurationExp.Observe(t.Seconds())
-	app.ms.DurationLin.Observe(t.Seconds())
-
-	if req.URL.Path == "/render" || req.URL.Path == "/render/" {
-		app.ms.RenderDurationExp.Observe(t.Seconds())
-	}
-	if req.URL.Path == "/metrics/find" || req.URL.Path == "/metrics/find/" {
-		app.ms.FindDurationExp.Observe(t.Seconds())
-		app.ms.FindDurationLin.Observe(t.Seconds())
-	}
-}
-
 func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Logger) ([]backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
@@ -324,7 +311,6 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
-			QHist:              ms.TimeInQueueSeconds,
 			Responses:          ms.BackendResponses,
 			Logger:             logger,
 		}

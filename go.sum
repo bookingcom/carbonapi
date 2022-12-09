@@ -74,8 +74,6 @@ github.com/dgryski/go-expirecache v0.0.0-20170314133854-743ef98b2adb h1:X9MwMz6m
 github.com/dgryski/go-expirecache v0.0.0-20170314133854-743ef98b2adb/go.mod h1:pD/+9DfmmQ+xvOI1fxUltHV69BxC1aeTILPQg9Kw1hE=
 github.com/dgryski/go-onlinestats v0.0.0-20170612111826-1c7d19468768 h1:Xzl7CSuSnGsyU+9xmSU2h8w3d7Tnis66xeoNN207tLo=
 github.com/dgryski/go-onlinestats v0.0.0-20170612111826-1c7d19468768/go.mod h1:alfmlCqcg4uw9jaoIU1nOp9RFdJLMuu8P07BCEgpgoo=
-github.com/dgryski/httputil v0.0.0-20160116060654-189c2918cd08 h1:BGzXzhmOgLHlylvQ27Tcgz235JvonPEgdMtpaZaeZt0=
-github.com/dgryski/httputil v0.0.0-20160116060654-189c2918cd08/go.mod h1:FdR8QjYJOW8OhZGga6zhJxYW2zdtZIqe7to/I3DOnwg=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
