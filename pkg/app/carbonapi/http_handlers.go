@@ -143,7 +143,11 @@ type RenderResponse struct {
 
 func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
-	size := 0
+	defer func() {
+		d := time.Since(t0).Seconds()
+		app.ms.DurationTotal.WithLabelValues("render").Observe(d)
+		app.ms.RenderDurationExp.Observe(d)
+	}()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
@@ -157,10 +161,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	logLevel := zap.InfoLevel
 	defer func() {
-		//TODO: cleanup RenderDurationPerPointExp
-		if size > 0 {
-			app.ms.RenderDurationPerPointExp.Observe(time.Since(t0).Seconds() * 1000 / float64(size))
-		}
 		//2xx response code is treated as success
 		if toLog.HttpCode/100 == 2 {
 			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
@@ -226,6 +226,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	var results []*types.MetricData
 
+	size := 0
 	for targetIdx := 0; targetIdx < len(form.targets); targetIdx++ {
 		target := form.targets[targetIdx]
 
@@ -546,9 +547,12 @@ func sendRenderRequest(app *App, ctx context.Context, path string, from, until i
 
 	var err error
 	var metrics []dataTypes.Metric
+
 	app.ms.UpstreamRequests.WithLabelValues("render").Inc()
+	t0 := time.Now()
 	metrics, err = Render(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends,
 		app.ZipperConfig.RenderReplicaMismatchConfig, ctx, path, int64(from), int64(until), app.ZipperMetrics, lg)
+	app.ms.UpstreamDuration.WithLabelValues("render").Observe(time.Since(t0).Seconds())
 
 	metricData := make([]*types.MetricData, 0)
 	for i := range metrics {
@@ -761,7 +765,9 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 
 	Trace(lg, "sending find request upstream")
 	app.ms.UpstreamRequests.WithLabelValues("find").Inc()
+	t0 := time.Now()
 	matches, err = Find(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, request.Query, app.ZipperMetrics, lg)
+	app.ms.UpstreamDuration.WithLabelValues("find").Observe(time.Since(t0).Seconds())
 
 	if err != nil {
 		Trace(lg, "upstream find request failed", zap.Error(err))
@@ -828,6 +834,12 @@ func (app *App) getRenderRequests(ctx context.Context, m parser.MetricRequest, u
 
 func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
+	defer func() {
+		d := time.Since(t0).Seconds()
+		app.ms.DurationTotal.WithLabelValues("find").Observe(d)
+		app.ms.FindDurationExp.Observe(d)
+		app.ms.FindDurationLin.Observe(d)
+	}()
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
@@ -1042,6 +1054,7 @@ func findList(globs dataTypes.Matches) []byte {
 
 func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
+	// note: We don't measure duration to reduce the number of exposed metrics.
 
 	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
 	defer cancel()
@@ -1082,6 +1095,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	var err error
 	app.ms.UpstreamRequests.WithLabelValues("info").Inc()
 	infos, err = Info(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, query, app.ZipperMetrics, lg)
+	// not counting the duration for info requests to reduce the number of exposed metrics
 
 	if err != nil {
 		var notFound dataTypes.ErrNotFound

@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/pkg/util"
-	"github.com/dgryski/httputil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -19,8 +18,8 @@ import (
 func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/block-headers", httputil.TimeHandler(handlerlog.WithLogger(app.blockHeaders, logger), app.bucketRequestTimes))
-	r.HandleFunc("/unblock-headers", httputil.TimeHandler(handlerlog.WithLogger(app.unblockHeaders, logger), app.bucketRequestTimes))
+	r.HandleFunc("/block-headers", handlerlog.WithLogger(app.blockHeaders, logger))
+	r.HandleFunc("/unblock-headers", handlerlog.WithLogger(app.unblockHeaders, logger))
 
 	r.Handle("/metrics", promhttp.Handler())
 
@@ -42,41 +41,16 @@ func initHandlers(app *App, lg *zap.Logger) http.Handler {
 	r.Use(util.UUIDHandler)
 	r.Use(muxtrace.Middleware("carbonapi"))
 
-	r.HandleFunc("/render", httputil.TimeHandler(
-		app.validateRequest(app.renderHandler, "render", lg),
-		app.bucketRequestTimes))
+	r.HandleFunc("/render", app.validateRequest(app.renderHandler, "render", lg))
+	r.HandleFunc("/metrics/find", app.validateRequest(app.findHandler, "find", lg))
+	r.HandleFunc("/info", app.validateRequest(app.infoHandler, "info", lg))
+	r.HandleFunc("/lb_check", handlerlog.WithLogger(app.lbcheckHandler, lg))
+	r.HandleFunc("/version", handlerlog.WithLogger(app.versionHandler, lg))
+	r.HandleFunc("/functions", handlerlog.WithLogger(app.functionsHandler, lg))
+	r.HandleFunc("/tags/autoComplete/tags", handlerlog.WithLogger(app.tagsHandler, lg))
+	r.HandleFunc("/", handlerlog.WithLogger(app.usageHandler, lg))
 
-	r.HandleFunc("/metrics/find", httputil.TimeHandler(
-		app.validateRequest(app.findHandler, "find", lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/info", httputil.TimeHandler(
-		app.validateRequest(app.infoHandler, "info", lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/lb_check", httputil.TimeHandler(
-		handlerlog.WithLogger(app.lbcheckHandler, lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/version", httputil.TimeHandler(
-		handlerlog.WithLogger(app.versionHandler, lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/functions", httputil.TimeHandler(
-		handlerlog.WithLogger(app.functionsHandler, lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/tags/autoComplete/tags", httputil.TimeHandler(
-		handlerlog.WithLogger(app.tagsHandler, lg),
-		app.bucketRequestTimes))
-
-	r.HandleFunc("/", httputil.TimeHandler(
-		handlerlog.WithLogger(app.usageHandler, lg),
-		app.bucketRequestTimes))
-
-	r.NotFoundHandler = httputil.TimeHandler(
-		handlerlog.WithLogger(app.usageHandler, lg),
-		app.bucketRequestTimes)
+	r.NotFoundHandler = handlerlog.WithLogger(app.usageHandler, lg)
 
 	return removeTrailingSlash(r)
 }

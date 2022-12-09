@@ -50,10 +50,9 @@ type NetBackend struct {
 	cache          *expirecache.Cache
 	cacheExpirySec int32
 
-	qHist          *prometheus.HistogramVec
 	responsesCount *prometheus.CounterVec
 
-	logger *zap.Logger
+	lg *zap.Logger
 }
 
 // Config configures an HTTP backend.
@@ -114,13 +113,12 @@ func New(cfg Config) (*NetBackend, error) {
 		b.client = http.DefaultClient
 	}
 
-	b.qHist = cfg.QHist
 	b.responsesCount = cfg.Responses
 
 	if cfg.Logger != nil {
-		b.logger = cfg.Logger
+		b.lg = cfg.Logger
 	} else {
-		b.logger = zap.New(nil)
+		b.lg = zap.New(nil)
 	}
 
 	return b, nil
@@ -159,7 +157,7 @@ func (b NetBackend) GetCluster() string {
 
 // Logger returns logger for this backend. Needed to satisfy interface.
 func (b NetBackend) Logger() *zap.Logger {
-	return b.logger
+	return b.lg
 }
 
 func (b NetBackend) setTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
