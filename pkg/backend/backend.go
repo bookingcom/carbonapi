@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/bookingcom/carbonapi/pkg/backend/mock"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,7 +81,7 @@ type infoReq struct {
 	Errors  chan error
 }
 
-// Creates a new backend and starts processing the queues if qSize > 0.
+// Creates a new backend and starts processing the queues
 func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	requestsInQueue *prometheus.GaugeVec,
 	saturation prometheus.Gauge,
@@ -103,11 +102,7 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 		enqueuedRequests: enqueuedRequests,
 	}
 
-	// The channel capacity is used to indicate enabling of the new processing.
-	// When it is indicated as 0, the backend can only be used as a proxy to the implementation.
-	if qSize > 0 {
-		b.Proc()
-	}
+	b.Proc()
 
 	return b
 }
@@ -200,107 +195,48 @@ func (b *Backend) Proc() {
 // the solution below — I've tried.
 
 func (backend Backend) SendRender(ctx context.Context, request types.RenderRequest, msgCh chan []types.Metric, errCh chan error) {
-	if cap(backend.fastRenderQ) > 0 {
-		if util.GetPriority(ctx) < 10000 {
-			backend.fastRenderQ <- &renderReq{
-				RenderRequest: request,
-				Ctx:           ctx,
-				StartTime:     time.Now(),
-				Results:       msgCh,
-				Errors:        errCh,
-			}
-		} else {
-			backend.slowRenderQ <- &renderReq{
-				RenderRequest: request,
-				Ctx:           ctx,
-				StartTime:     time.Now(),
-				Results:       msgCh,
-				Errors:        errCh,
-			}
+	if util.GetPriority(ctx) < 10000 {
+		backend.fastRenderQ <- &renderReq{
+			RenderRequest: request,
+			Ctx:           ctx,
+			StartTime:     time.Now(),
+			Results:       msgCh,
+			Errors:        errCh,
 		}
-		backend.requestsInQueue.WithLabelValues("render").Inc()
-		backend.enqueuedRequests.WithLabelValues("render").Inc()
 	} else {
-		// This branch is only necessary to satisfy the tests.
-		// After we clean-up and rework the tests to have mock metrics everywhere,
-		// this should be removed.
-		// TODO: Remove after tests cleanup.
-		go func(b Backend) {
-			msg, err := b.Render(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+		backend.slowRenderQ <- &renderReq{
+			RenderRequest: request,
+			Ctx:           ctx,
+			StartTime:     time.Now(),
+			Results:       msgCh,
+			Errors:        errCh,
+		}
 	}
+	backend.requestsInQueue.WithLabelValues("render").Inc()
+	backend.enqueuedRequests.WithLabelValues("render").Inc()
 }
 
 func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,
 	msgCh chan types.Matches, errCh chan error, durationHist *prometheus.HistogramVec) {
-	if cap(backend.findQ) > 0 {
-		backend.findQ <- &findReq{
-			FindRequest: request,
-			Ctx:         ctx,
-			StartTime:   time.Now(),
-			Results:     msgCh,
-			Errors:      errCh,
-		}
-		backend.requestsInQueue.WithLabelValues("find").Inc()
-		backend.enqueuedRequests.WithLabelValues("find").Inc()
-	} else {
-		// This branch is only necessary to satisfy the tests.
-		// After we clean-up and rework the tests to have mock metrics everywhere,
-		// this should be removed.
-		// TODO: Remove after tests cleanup.
-		go func(b Backend) {
-			var t *prometheus.Timer
-			if durationHist != nil {
-				t = prometheus.NewTimer(durationHist.WithLabelValues(b.GetCluster()))
-			}
-			defer func() {
-				if t != nil {
-					t.ObserveDuration()
-				}
-			}()
-
-			msg, err := b.Find(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+	backend.findQ <- &findReq{
+		FindRequest: request,
+		Ctx:         ctx,
+		StartTime:   time.Now(),
+		Results:     msgCh,
+		Errors:      errCh,
 	}
+	backend.requestsInQueue.WithLabelValues("find").Inc()
+	backend.enqueuedRequests.WithLabelValues("find").Inc()
 }
 
 func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, msgCh chan []types.Info, errCh chan error) {
-	if cap(backend.infoQ) > 0 {
-		backend.infoQ <- &infoReq{
-			InfoRequest: request,
-			Ctx:         ctx,
-			StartTime:   time.Now(),
-			Results:     msgCh,
-			Errors:      errCh,
-		}
-		backend.requestsInQueue.WithLabelValues("info").Inc()
-		backend.enqueuedRequests.WithLabelValues("info").Inc()
-	} else {
-		// This branch is only necessary to satisfy the tests.
-		// After we clean-up and rework the tests to have mock metrics everywhere,
-		// this should be removed.
-		// TODO: Remove after tests cleanup.
-		go func(b Backend) {
-			msg, err := b.Info(ctx, request)
-			if err != nil {
-				errCh <- err
-			} else {
-				msgCh <- msg
-			}
-		}(backend)
+	backend.infoQ <- &infoReq{
+		InfoRequest: request,
+		Ctx:         ctx,
+		StartTime:   time.Now(),
+		Results:     msgCh,
+		Errors:      errCh,
 	}
-}
-
-func NewMock(cfg mock.Config) Backend {
-	return NewBackend(mock.New(cfg), 0, 0, nil, nil, nil, nil)
+	backend.requestsInQueue.WithLabelValues("info").Inc()
+	backend.enqueuedRequests.WithLabelValues("info").Inc()
 }
