@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -944,25 +945,9 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 		logLevel = zapcore.ErrorLevel
 		return
 	}
-
+	// TODO: extend writeResponse w/new formats and migrate to it
 	if contentType == jsonFormat && jsonp != "" {
-		w.Header().Set("Content-Type", contentTypeJavaScript)
-		if _, writeErr := w.Write([]byte(jsonp)); writeErr != nil {
-			toLog.HttpCode = 499
-			logLevel = zapcore.WarnLevel
-			return
-		}
-		if _, writeErr := w.Write([]byte{'('}); writeErr != nil {
-			toLog.HttpCode = 499
-			logLevel = zapcore.WarnLevel
-			return
-		}
-		if _, writeErr := w.Write(blob); writeErr != nil {
-			toLog.HttpCode = 499
-			logLevel = zapcore.WarnLevel
-			return
-		}
-		if _, writeErr := w.Write([]byte{')'}); writeErr != nil {
+		if writeResponse(ctx, w, blob, jsonFormat, jsonp) != nil {
 			toLog.HttpCode = 499
 			logLevel = zapcore.WarnLevel
 			return
@@ -977,6 +962,122 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	}
 
 	toLog.HttpCode = http.StatusOK
+}
+
+func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
+	t0 := time.Now()
+	defer func() {
+		d := time.Since(t0).Seconds()
+		app.ms.DurationTotal.WithLabelValues("expand").Observe(d)
+		app.ms.ExpandDurationExp.Observe(d)
+		app.ms.ExpandDurationLin.Observe(d)
+	}()
+
+	ctx, cancel := context.WithTimeout(r.Context(), app.config.Timeouts.Global)
+	defer cancel()
+	uuid := util.GetUUID(ctx)
+
+	app.ms.Requests.Inc()
+
+	query := r.FormValue("query")
+	groupByExpr := r.FormValue("groupByExpr")
+	leavesOnly := r.FormValue("leavesOnly")
+	jsonp := r.FormValue("jsonp")
+	useCache := !parser.TruthyBool(r.FormValue("noCache"))
+
+	toLog := carbonapipb.NewAccessLogDetails(r, "expand", &app.config)
+	toLog.Targets = []string{query}
+
+	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "expand"), zap.String("target", query))
+	Trace(lg, "received request")
+
+	logLevel := zap.InfoLevel
+	defer func() {
+		if toLog.HttpCode/100 == 2 {
+			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
+				app.ms.ExpandDurationLinSimple.Observe(time.Since(t0).Seconds())
+			} else {
+				app.ms.ExpandDurationLinComplex.Observe(time.Since(t0).Seconds())
+			}
+		}
+		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
+	}()
+
+	if query == "" {
+		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog)
+		return
+	}
+	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
+	toLog.FromCache = fromCache
+	if err == nil {
+		toLog.TotalMetricCount = int64(len(metrics.Matches))
+	} else {
+		var notFound dataTypes.ErrNotFound
+
+		switch {
+		case errors.As(err, &notFound):
+			// we can generate 404 for expand, it's graphite-web-1.0 only
+			Trace(lg, "not found")
+			app.ms.ExpandNotFound.Inc()
+			writeError(uuid, r, w, http.StatusNotFound, err.Error(), "", &toLog)
+			logLevel = zapcore.ErrorLevel
+			return
+		case errors.Is(err, context.DeadlineExceeded):
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog)
+			logLevel = zapcore.ErrorLevel
+			return
+		default:
+			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog)
+			logLevel = zapcore.ErrorLevel
+			return
+		}
+	}
+
+	if ctx.Err() != nil {
+		app.ms.RequestCancel.WithLabelValues("expand", ctx.Err().Error()).Inc()
+	}
+
+	groups := make(map[string][]string)
+	seen := make(map[string]struct{})
+	nodeCount := len(strings.Split(metrics.Name, "."))
+	names := make([]string, 0, len(metrics.Matches))
+	for _, g := range metrics.Matches {
+		if leavesOnly == "1" && !g.IsLeaf {
+			continue
+		}
+		name := g.Path
+		nodes := strings.SplitN(name, ".", nodeCount+1)
+		if len(nodes) > nodeCount {
+			name = strings.Join(nodes[:nodeCount], ".")
+		} else {
+			name = strings.Join(nodes, ".")
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+		sort.Strings(names)
+	}
+	groups[metrics.Name] = names
+	data := map[string]interface{}{
+		"results": groups,
+	}
+	if groupByExpr != "1" {
+		flatData := make([]string, 0)
+		for _, group := range groups {
+			flatData = append(flatData, group...)
+		}
+		data["results"] = flatData
+	}
+
+	b, merr := json.Marshal(data)
+	if merr != nil {
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog)
+		logLevel = zapcore.ErrorLevel
+		return
+	}
+	writeResponse(ctx, w, b, jsonFormat, jsonp)
 }
 
 func getCompleterQuery(query string) string {
@@ -1408,6 +1509,7 @@ func isStepTimeMatching(value []*types.MetricData, defaultStepTime int32) bool {
 var usageMsg = []byte(`
 supported requests:
 	/render/?target=
+	/metrics/expand/?query=
 	/metrics/find/?query=
 	/info/?target=
 	/functions/

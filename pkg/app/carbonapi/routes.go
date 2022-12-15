@@ -43,6 +43,7 @@ func initHandlers(app *App, lg *zap.Logger) http.Handler {
 
 	r.HandleFunc("/render", app.validateRequest(app.renderHandler, "render", lg))
 	r.HandleFunc("/metrics/find", app.validateRequest(app.findHandler, "find", lg))
+	r.HandleFunc("/metrics/expand", app.validateRequest(app.expandHandler, "expand", lg))
 	r.HandleFunc("/info", app.validateRequest(app.infoHandler, "info", lg))
 	r.HandleFunc("/lb_check", handlerlog.WithLogger(app.lbcheckHandler, lg))
 	r.HandleFunc("/version", handlerlog.WithLogger(app.versionHandler, lg))
