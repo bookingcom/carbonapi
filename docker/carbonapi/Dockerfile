@@ -13,4 +13,4 @@ RUN make build
 EXPOSE 7081
 EXPOSE 8081
 
-ENTRYPOINT [ "/go/src/github.com/bookingcom/carbonapi/carbonapi",  "-config", "config/carbonapi.yaml" ]
+ENTRYPOINT [ "/go/src/github.com/bookingcom/carbonapi/carbonapi",  "-config", "/etc/carbonapi.yaml" ]
