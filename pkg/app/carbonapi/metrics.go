@@ -8,6 +8,7 @@ import (
 type PrometheusMetrics struct {
 	Requests          prometheus.Counter
 	Responses         *prometheus.CounterVec
+	ExpandNotFound    prometheus.Counter
 	FindNotFound      prometheus.Counter
 	RenderPartialFail prometheus.Counter
 	RequestCancel     *prometheus.CounterVec
@@ -25,6 +26,11 @@ type PrometheusMetrics struct {
 	FindDurationLin        prometheus.Histogram
 	FindDurationLinSimple  prometheus.Histogram
 	FindDurationLinComplex prometheus.Histogram
+
+	ExpandDurationExp        prometheus.Histogram
+	ExpandDurationLin        prometheus.Histogram
+	ExpandDurationLinSimple  prometheus.Histogram
+	ExpandDurationLinComplex prometheus.Histogram
 
 	UpstreamRequests            *prometheus.CounterVec
 	UpstreamRequestsInQueue     *prometheus.GaugeVec
@@ -53,6 +59,12 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Help: "Count of HTTP responses, partitioned by return code and handler",
 			},
 			[]string{"code", "handler", "from_cache"},
+		),
+		ExpandNotFound: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "expand_not_found",
+				Help: "Count of not-found /expand responses",
+			},
 		),
 		FindNotFound: prometheus.NewCounter(
 			prometheus.CounterOpts{
@@ -177,6 +189,46 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.FindDurationLinComplex.BucketsNum),
 			},
 		),
+		ExpandDurationExp: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "expand_request_duration_seconds_exp",
+				Help: "The duration of expand requests (exponential)",
+				Buckets: prometheus.ExponentialBuckets(
+					config.Zipper.Common.Monitoring.ExpandDurationExp.Start,
+					config.Zipper.Common.Monitoring.ExpandDurationExp.BucketSize,
+					config.Zipper.Common.Monitoring.ExpandDurationExp.BucketsNum),
+			},
+		),
+		ExpandDurationLin: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "expand_request_duration_seconds_lin",
+				Help: "The duration of expand requests (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.ExpandDurationLin.Start,
+					config.Zipper.Common.Monitoring.ExpandDurationLin.BucketSize,
+					config.Zipper.Common.Monitoring.ExpandDurationLin.BucketsNum),
+			},
+		),
+		ExpandDurationLinSimple: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "expand_request_duration_seconds_lin_simple",
+				Help: "The duration of simple expand requests (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.ExpandDurationLinSimple.Start,
+					config.Zipper.Common.Monitoring.ExpandDurationLinSimple.BucketSize,
+					config.Zipper.Common.Monitoring.ExpandDurationLinSimple.BucketsNum),
+			},
+		),
+		ExpandDurationLinComplex: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Name: "expand_request_duration_seconds_lin_complex",
+				Help: "The duration of complex expand requests (linear), in ms",
+				Buckets: prometheus.LinearBuckets(
+					config.Zipper.Common.Monitoring.ExpandDurationLinComplex.Start,
+					config.Zipper.Common.Monitoring.ExpandDurationLinComplex.BucketSize,
+					config.Zipper.Common.Monitoring.ExpandDurationLinComplex.BucketsNum),
+			},
+		),
 
 		UpstreamRequestsInQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "upstream_requests_in_queue",
@@ -242,6 +294,7 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetrics) {
 	prometheus.MustRegister(ms.Requests)
 	prometheus.MustRegister(ms.Responses)
+	prometheus.MustRegister(ms.ExpandNotFound)
 	prometheus.MustRegister(ms.FindNotFound)
 	prometheus.MustRegister(ms.RenderPartialFail)
 	prometheus.MustRegister(ms.RequestCancel)
@@ -258,6 +311,10 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.FindDurationLin)
 	prometheus.MustRegister(ms.FindDurationLinSimple)
 	prometheus.MustRegister(ms.FindDurationLinComplex)
+	prometheus.MustRegister(ms.ExpandDurationExp)
+	prometheus.MustRegister(ms.ExpandDurationLin)
+	prometheus.MustRegister(ms.ExpandDurationLinSimple)
+	prometheus.MustRegister(ms.ExpandDurationLinComplex)
 
 	prometheus.MustRegister(ms.UpstreamRequestsInQueue)
 	prometheus.MustRegister(ms.UpstreamSemaphoreSaturation)

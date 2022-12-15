@@ -126,6 +126,26 @@ func DefaultCommonConfig() Common {
 				BucketSize: 1.5,
 				BucketsNum: 20,
 			},
+			ExpandDurationExp: HistogramConfig{
+				Start:      0.05,
+				BucketSize: 2,
+				BucketsNum: 20,
+			},
+			ExpandDurationLin: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
+			ExpandDurationLinSimple: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
+			ExpandDurationLinComplex: HistogramConfig{
+				Start:      0.5,
+				BucketSize: 0.5,
+				BucketsNum: 20,
+			},
 			BackendTimeInQSecHistParams: HistogramConfig{
 				Start:      0.01,
 				BucketSize: 2,
@@ -346,6 +366,10 @@ type MonitoringConfig struct {
 	FindDurationLinSimple       HistogramConfig `yaml:"findDurationSimpleLinHistogram"`
 	FindDurationLinComplex      HistogramConfig `yaml:"findDurationComplexLinHistogram"`
 	FindOutDuration             HistogramConfig `yaml:"findDurationByBackend"`
+	ExpandDurationExp           HistogramConfig `yaml:"expandDurationExpHistogram"`
+	ExpandDurationLin           HistogramConfig `yaml:"expandDurationLinHistogram"`
+	ExpandDurationLinSimple     HistogramConfig `yaml:"expandDurationSimpleLinHistogram"`
+	ExpandDurationLinComplex    HistogramConfig `yaml:"expandDurationComplexLinHistogram"`
 	TimeInQueueExpHistogram     HistogramConfig `yaml:"timeInQueueExpHistogram"` // TODO Change to seconds.
 	TimeInQueueLinHistogram     HistogramConfig `yaml:"timeInQueueLinHistogram"`
 	BackendTimeInQSecHistParams HistogramConfig `yaml:"backendTimeInQSecHistParams"`

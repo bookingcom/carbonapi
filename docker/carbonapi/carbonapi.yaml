@@ -68,5 +68,13 @@ monitoring:
         start: 0.5
         bucketsNum: 20
         bucketSize: 0.5
+    expandDurationExpHistogram:
+        start: 0.001
+        bucketsNum: 20
+        bucketSize: 2
+    expandDurationLinHistogram:
+        start: 0.5
+        bucketsNum: 20
+        bucketSize: 0.5
 
 zipperConfig: "/etc/carbonzipper.yaml"
