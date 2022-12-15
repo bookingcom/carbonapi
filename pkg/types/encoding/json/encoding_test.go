@@ -29,7 +29,7 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 				{
 					AllowChildren: 0,
 					Leaf:          1,
-					Expandable:    1,
+					Expandable:    0,
 					Context:       make(map[string]int),
 					ID:            "*.sin",
 					Text:          "sin",
@@ -59,7 +59,7 @@ func TestFindMatchesJSONEncoding(t *testing.T) {
 				{
 					AllowChildren: 0,
 					Leaf:          1,
-					Expandable:    1,
+					Expandable:    0,
 					Context:       make(map[string]int),
 					ID:            "a.*.1",
 					Text:          "1",
