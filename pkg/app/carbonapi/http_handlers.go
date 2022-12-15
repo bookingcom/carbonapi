@@ -1077,7 +1077,10 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		logLevel = zapcore.ErrorLevel
 		return
 	}
-	writeResponse(ctx, w, b, jsonFormat, jsonp)
+	writeErr := writeResponse(ctx, w, b, jsonFormat, jsonp)
+	if writeErr != nil {
+		logLevel = zapcore.ErrorLevel
+	}
 }
 
 func getCompleterQuery(query string) string {
