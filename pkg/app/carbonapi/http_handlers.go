@@ -964,6 +964,45 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	toLog.HttpCode = http.StatusOK
 }
 
+func expandEncoder(globs dataTypes.Matches, leavesOnly string, groupByExpr string) ([]byte, error) {
+	var b bytes.Buffer
+	groups := make(map[string][]string)
+	seen := make(map[string]struct{})
+	nodeCount := len(strings.Split(globs.Name, "."))
+	names := make([]string, 0, len(globs.Matches))
+	for _, g := range globs.Matches {
+		if leavesOnly == "1" && !g.IsLeaf {
+			continue
+		}
+		name := g.Path
+		nodes := strings.SplitN(name, ".", nodeCount+1)
+		if len(nodes) > nodeCount {
+			name = strings.Join(nodes[:nodeCount], ".")
+		} else {
+			name = strings.Join(nodes, ".")
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+		sort.Strings(names)
+	}
+	groups[globs.Name] = names
+	data := map[string]interface{}{
+		"results": groups,
+	}
+	if groupByExpr != "1" {
+		flatData := make([]string, 0)
+		for _, group := range groups {
+			flatData = append(flatData, group...)
+		}
+		data["results"] = flatData
+	}
+	err := json.NewEncoder(&b).Encode(data)
+	return b.Bytes(), err
+}
+
 func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
 	t0 := time.Now()
 	defer func() {
@@ -1037,49 +1076,16 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		app.ms.RequestCancel.WithLabelValues("expand", ctx.Err().Error()).Inc()
 	}
 
-	groups := make(map[string][]string)
-	seen := make(map[string]struct{})
-	nodeCount := len(strings.Split(metrics.Name, "."))
-	names := make([]string, 0, len(metrics.Matches))
-	for _, g := range metrics.Matches {
-		if leavesOnly == "1" && !g.IsLeaf {
-			continue
-		}
-		name := g.Path
-		nodes := strings.SplitN(name, ".", nodeCount+1)
-		if len(nodes) > nodeCount {
-			name = strings.Join(nodes[:nodeCount], ".")
-		} else {
-			name = strings.Join(nodes, ".")
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		names = append(names, name)
-		sort.Strings(names)
-	}
-	groups[metrics.Name] = names
-	data := map[string]interface{}{
-		"results": groups,
-	}
-	if groupByExpr != "1" {
-		flatData := make([]string, 0)
-		for _, group := range groups {
-			flatData = append(flatData, group...)
-		}
-		data["results"] = flatData
-	}
-
-	b, merr := json.Marshal(data)
-	if merr != nil {
+	blob, err := expandEncoder(metrics, leavesOnly, groupByExpr)
+	if err != nil {
 		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog)
 		logLevel = zapcore.ErrorLevel
 		return
 	}
-	writeErr := writeResponse(ctx, w, b, jsonFormat, jsonp)
-	if writeErr != nil {
+	if writeResponse(ctx, w, blob, jsonFormat, jsonp) != nil {
+		toLog.HttpCode = 499
 		logLevel = zapcore.ErrorLevel
+		return
 	}
 }
 
