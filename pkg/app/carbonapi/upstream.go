@@ -52,7 +52,6 @@ func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefi
 	ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	request.Trace.OutDuration = ms.RenderOutDurationExp
 	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, request.Targets)
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, request.Targets)
