@@ -181,11 +181,8 @@ func (b NetBackend) request(ctx context.Context, u *url.URL) (*http.Request, err
 	return req, nil
 }
 
-func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (string, []byte, error) {
-	t0 := time.Now()
+func (b NetBackend) do(req *http.Request, request string) (string, []byte, error) {
 	resp, err := b.client.Do(req)
-	trace.AddHTTPCall(t0)
-	trace.ObserveOutDuration(time.Since(t0), b.dc, b.cluster)
 
 	if err != nil {
 		if b.responsesCount != nil {
@@ -198,7 +195,6 @@ func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (st
 	var bodyErr error
 	if resp.Body != nil {
 		defer resp.Body.Close()
-		t1 := time.Now()
 		body, bodyErr = io.ReadAll(resp.Body)
 		if bodyErr != nil {
 			if b.responsesCount != nil {
@@ -206,7 +202,6 @@ func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (st
 			}
 			return "", nil, bodyErr
 		}
-		trace.AddReadBody(t1)
 	}
 
 	if b.responsesCount != nil {
@@ -224,19 +219,16 @@ func (b NetBackend) do(trace types.Trace, req *http.Request, request string) (st
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b NetBackend) call(ctx context.Context, trace types.Trace, u *url.URL, request string) (string, []byte, error) {
+func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (string, []byte, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
-	t1 := time.Now()
 	req, err := b.request(ctx, u)
-
-	trace.AddMarshal(t1)
 	if err != nil {
 		return "", nil, err
 	}
 
-	contentType, body, err := b.do(trace, req, request)
+	contentType, body, err := b.do(req, request)
 	return contentType, body, err
 }
 
@@ -257,12 +249,10 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 	until := request.Until
 	targets := request.Targets
 
-	t0 := time.Now()
 	u := b.url("/render/")
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
-	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u, "render")
+	contentType, resp, err := b.call(ctx, u, "render")
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
@@ -271,10 +261,6 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 		return nil, err
 	}
 
-	t1 := time.Now()
-	defer func() {
-		request.Trace.AddUnmarshal(t1)
-	}()
 	var metrics []types.Metric
 
 	switch contentType {
@@ -318,12 +304,10 @@ func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []str
 func (b NetBackend) Info(ctx context.Context, request types.InfoRequest) ([]types.Info, error) {
 	metric := request.Target
 
-	t0 := time.Now()
 	u := b.url("/info/")
 	u = carbonapiV2InfoEncoder(u, metric)
-	request.Trace.AddMarshal(t0)
 
-	_, resp, err := b.call(ctx, request.Trace, u, "info")
+	_, resp, err := b.call(ctx, u, "info")
 
 	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 		return nil, types.ErrInfoNotFound
@@ -338,10 +322,6 @@ func (b NetBackend) Info(ctx context.Context, request types.InfoRequest) ([]type
 		return nil, errors.Wrap(err, "Protobuf unmarshal failed")
 	}
 
-	t1 := time.Now()
-	defer func() {
-		request.Trace.AddUnmarshal(t1)
-	}()
 	var infos []types.Info
 	if single {
 		infos, err = carbonapi_v2.SingleInfoDecoder(resp, b.address)
@@ -374,12 +354,10 @@ func carbonapiV2InfoEncoder(u *url.URL, metric string) *url.URL {
 func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.Matches, error) {
 	query := request.Query
 
-	t0 := time.Now()
 	u := b.url("/metrics/find/")
 	u = carbonapiV2FindEncoder(u, query)
-	request.Trace.AddMarshal(t0)
 
-	contentType, resp, err := b.call(ctx, request.Trace, u, "find")
+	contentType, resp, err := b.call(ctx, u, "find")
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -388,10 +366,6 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 		return types.Matches{}, err
 	}
 
-	t1 := time.Now()
-	defer func() {
-		request.Trace.AddUnmarshal(t1)
-	}()
 	var matches types.Matches
 
 	switch contentType {

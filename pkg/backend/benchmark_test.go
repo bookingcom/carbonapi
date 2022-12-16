@@ -62,7 +62,7 @@ func BenchmarkRenders(b *testing.B) {
 
 	backends := make([]Backend, 0)
 	for i := 0; i < 3; i++ {
-		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil))
+		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil, nil))
 	}
 
 	ctx := context.Background()
@@ -182,7 +182,7 @@ func BenchmarkRendersStorm(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil))
+		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil, nil))
 	}
 
 	ctx := context.Background()
@@ -286,7 +286,7 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil))
+		backends = append(backends, NewBackend(bk, 0, 0, nil, nil, nil, nil, nil))
 	}
 
 	ctx := context.Background()

@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bookingcom/carbonapi/pkg/types"
-
 	"github.com/dgryski/go-expirecache"
 )
 
@@ -103,7 +101,7 @@ func TestCall(t *testing.T) {
 		return
 	}
 
-	_, got, err := b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
+	_, got, err := b.call(context.Background(), b.url("/render"), "render")
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +126,7 @@ func TestCallServerError(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
+	_, _, err = b.call(context.Background(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -147,7 +145,7 @@ func TestCallTimeout(t *testing.T) {
 		return
 	}
 
-	_, _, err = b.call(context.Background(), types.NewTrace(), b.url("/render"), "render")
+	_, _, err = b.call(context.Background(), b.url("/render"), "render")
 	if err == nil {
 		t.Error("Expected error")
 	}
@@ -175,7 +173,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, got, err := b.do(types.NewTrace(), req, "")
+	_, got, err := b.do(req, "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -210,7 +208,7 @@ func TestDoHTTPTimeout(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(types.NewTrace(), req, "")
+	_, _, err = b.do(req, "")
 	if err == nil {
 		t.Errorf("Expected error")
 	}
@@ -236,7 +234,7 @@ func TestDoHTTPError(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, _, err = b.do(types.NewTrace(), req, "")
+	_, _, err = b.do(req, "")
 	if err == nil {
 		t.Errorf("Expected error")
 	}
