@@ -45,8 +45,8 @@ func TestExpandEncoder(t *testing.T) {
 		name        string
 		metricIn    typ.Matches
 		metricOut   string
-		leavesOnly  int
-		groupByExpr int
+		leavesOnly  bool
+		groupByExpr bool
 	}{
 		{
 			name: "test1",
@@ -58,8 +58,8 @@ func TestExpandEncoder(t *testing.T) {
 				},
 			},
 			metricOut:   "{\"results\":[\"foo.bar\",\"foo.bat\"]}\n",
-			leavesOnly:  0,
-			groupByExpr: 0,
+			leavesOnly:  false,
+			groupByExpr: false,
 		},
 		{
 			name: "test2",
@@ -71,8 +71,8 @@ func TestExpandEncoder(t *testing.T) {
 				},
 			},
 			metricOut:   "{\"results\":[\"foo.bat\"]}\n",
-			leavesOnly:  1,
-			groupByExpr: 0,
+			leavesOnly:  true,
+			groupByExpr: false,
 		},
 		{
 			name: "test3",
@@ -84,8 +84,8 @@ func TestExpandEncoder(t *testing.T) {
 				},
 			},
 			metricOut:   "{\"results\":{\"foo.ba*\":[\"foo.bar\",\"foo.bat\"]}}\n",
-			leavesOnly:  0,
-			groupByExpr: 1,
+			leavesOnly:  false,
+			groupByExpr: true,
 		},
 	}
 	for _, tst := range tests {

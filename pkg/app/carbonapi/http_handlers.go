@@ -959,14 +959,14 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	toLog.HttpCode = http.StatusOK
 }
 
-func expandEncoder(globs dataTypes.Matches, leavesOnly int, groupByExpr int) ([]byte, error) {
+func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) ([]byte, error) {
 	var b bytes.Buffer
 	groups := make(map[string][]string)
 	seen := make(map[string]struct{})
 	nodeCount := len(strings.Split(globs.Name, "."))
 	names := make([]string, 0, len(globs.Matches))
 	for _, g := range globs.Matches {
-		if leavesOnly == 1 && !g.IsLeaf {
+		if leavesOnly && !g.IsLeaf {
 			continue
 		}
 		name := g.Path
@@ -981,13 +981,13 @@ func expandEncoder(globs dataTypes.Matches, leavesOnly int, groupByExpr int) ([]
 		}
 		seen[name] = struct{}{}
 		names = append(names, name)
-		sort.Strings(names)
 	}
+	sort.Strings(names)
 	groups[globs.Name] = names
 	data := map[string]interface{}{
 		"results": groups,
 	}
-	if groupByExpr != 1 {
+	if !groupByExpr {
 		flatData := make([]string, 0)
 		for _, group := range groups {
 			flatData = append(flatData, group...)
@@ -1014,22 +1014,13 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	app.ms.Requests.Inc()
 
 	query := r.FormValue("query")
+	leavesOnly := !parser.TruthyBool(r.FormValue("leavesOnly"))
+	groupByExpr := !parser.TruthyBool(r.FormValue("groupByExpr"))
 	jsonp := r.FormValue("jsonp")
 	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "expand", &app.config)
 	toLog.Targets = []string{query}
-
-	groupByExpr, err := strconv.Atoi(r.FormValue("groupByExpr"))
-	if (err != nil) || (groupByExpr != 0 && groupByExpr != 1) {
-		writeError(uuid, r, w, http.StatusBadRequest, "parameter `groupByExpr` should be either 0 or 1", "", &toLog)
-		return
-	}
-	leavesOnly, err := strconv.Atoi(r.FormValue("leavesOnly"))
-	if (err != nil) || (leavesOnly != 0 && leavesOnly != 1) {
-		writeError(uuid, r, w, http.StatusBadRequest, "parameter `leavesOnly` should be either 0 or 1", "", &toLog)
-		return
-	}
 
 	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "expand"), zap.String("target", query))
 	Trace(lg, "received request")
