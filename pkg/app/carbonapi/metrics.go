@@ -16,6 +16,7 @@ type PrometheusMetrics struct {
 	DurationTotal      *prometheus.HistogramVec
 	UpstreamDuration   *prometheus.HistogramVec
 	UpstreamTimeInQSec *prometheus.HistogramVec
+	BackendDuration    *prometheus.HistogramVec
 
 	RenderDurationExp        prometheus.Histogram
 	RenderDurationLinSimple  prometheus.Histogram
@@ -43,6 +44,28 @@ type PrometheusMetrics struct {
 	CacheTimeouts *prometheus.CounterVec
 
 	Version *prometheus.GaugeVec
+}
+
+type ZipperPrometheusMetrics struct {
+	RenderMismatches          prometheus.Counter
+	RenderFixedMismatches     prometheus.Counter
+	RenderMismatchedResponses prometheus.Counter
+	Renders                   prometheus.Counter
+
+	BackendResponses *prometheus.CounterVec
+
+	RenderOutDurationExp *prometheus.HistogramVec
+	FindOutDuration      *prometheus.HistogramVec
+
+	BackendEnqueuedRequests    *prometheus.CounterVec
+	BackendRequestsInQueue     *prometheus.GaugeVec
+	BackendSemaphoreSaturation prometheus.Gauge
+	BackendTimeInQSec          *prometheus.HistogramVec
+
+	TLDCacheProbeReqTotal prometheus.Counter
+	TLDCacheProbeErrors   prometheus.Counter
+
+	PathCacheFilteredRequests prometheus.Counter
 }
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
@@ -260,6 +283,19 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				config.UpstreamTimeInQSecHistParams.BucketsNum,
 			),
 		}, []string{"queue"}),
+		BackendDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "backend_request_duration_seconds",
+				Help: "The durations of requests sent to backends.",
+				Buckets: prometheus.ExponentialBuckets(
+					// TODO (grzkv) Do we need a separate config?
+					// The buckets should be of comparable size.
+					config.Monitoring.RenderDurationExp.Start,
+					config.Monitoring.RenderDurationExp.BucketSize,
+					config.Monitoring.RenderDurationExp.BucketsNum),
+			},
+			[]string{"dc", "cluster", "request"},
+		),
 		CacheRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_requests",
@@ -321,6 +357,7 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.UpstreamEnqueuedRequests)
 	prometheus.MustRegister(ms.UpstreamSubRenderNum)
 	prometheus.MustRegister(ms.UpstreamTimeInQSec)
+	prometheus.MustRegister(ms.BackendDuration)
 
 	prometheus.MustRegister(ms.CacheRequests)
 	prometheus.MustRegister(ms.CacheRespRead)
@@ -342,28 +379,6 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(zms.TLDCacheProbeErrors)
 	prometheus.MustRegister(zms.TLDCacheProbeReqTotal)
 	prometheus.MustRegister(zms.PathCacheFilteredRequests)
-}
-
-type ZipperPrometheusMetrics struct {
-	RenderMismatches          prometheus.Counter
-	RenderFixedMismatches     prometheus.Counter
-	RenderMismatchedResponses prometheus.Counter
-	Renders                   prometheus.Counter
-
-	BackendResponses *prometheus.CounterVec
-
-	RenderOutDurationExp *prometheus.HistogramVec
-	FindOutDuration      *prometheus.HistogramVec
-
-	BackendEnqueuedRequests    *prometheus.CounterVec
-	BackendRequestsInQueue     *prometheus.GaugeVec
-	BackendSemaphoreSaturation prometheus.Gauge
-	BackendTimeInQSec          *prometheus.HistogramVec
-
-	TLDCacheProbeReqTotal prometheus.Counter
-	TLDCacheProbeErrors   prometheus.Counter
-
-	PathCacheFilteredRequests prometheus.Counter
 }
 
 func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {

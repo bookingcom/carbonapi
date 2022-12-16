@@ -47,10 +47,6 @@ const (
 	completerFormat = "completer"
 )
 
-// for testing
-// TODO (grzkv): Clean up
-var timeNow = time.Now
-
 func (app *App) validateRequest(h handlerlog.HandlerWithLogger, handler string, logger *zap.Logger) http.HandlerFunc {
 	t0 := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -639,8 +635,8 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 	// normalize from and until values
 	res.qtz = r.FormValue("tz")
 	var errFrom, errUntil error
-	res.from32, errFrom = date.DateParamToEpoch(res.from, res.qtz, timeNow().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
-	res.until32, errUntil = date.DateParamToEpoch(res.until, res.qtz, timeNow().Unix(), app.defaultTimeZone)
+	res.from32, errFrom = date.DateParamToEpoch(res.from, res.qtz, time.Now().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
+	res.until32, errUntil = date.DateParamToEpoch(res.until, res.qtz, time.Now().Unix(), app.defaultTimeZone)
 
 	accessLogDetails.UseCache = res.useCache
 	accessLogDetails.FromRaw = res.from
@@ -759,7 +755,6 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	accessLogDetails.ZipperRequests++
 
 	request := dataTypes.NewFindRequest(metric)
-	request.IncCall()
 
 	var err error
 	var matches dataTypes.Matches
@@ -1197,9 +1192,6 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 		toLog.Reason = "no target specified"
 		return
 	}
-
-	request := dataTypes.NewInfoRequest(query)
-	request.IncCall()
 
 	var infos []dataTypes.Info
 	var err error

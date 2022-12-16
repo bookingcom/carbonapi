@@ -32,6 +32,7 @@ type Backend struct {
 	saturation       prometheus.Gauge
 	timeInQSec       *prometheus.HistogramVec
 	enqueuedRequests *prometheus.CounterVec
+	backendDuration  prometheus.ObserverVec
 }
 
 // The specific backend implementation.
@@ -86,7 +87,8 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	requestsInQueue *prometheus.GaugeVec,
 	saturation prometheus.Gauge,
 	timeInQSec *prometheus.HistogramVec,
-	enqueuedRequests *prometheus.CounterVec) Backend {
+	enqueuedRequests *prometheus.CounterVec,
+	backendDuration prometheus.ObserverVec) Backend {
 	b := Backend{
 		BackendImpl: impl,
 
@@ -100,6 +102,7 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 		saturation:       saturation,
 		timeInQSec:       timeInQSec,
 		enqueuedRequests: enqueuedRequests,
+		backendDuration:  backendDuration,
 	}
 
 	b.Proc()
@@ -140,7 +143,10 @@ func (b *Backend) Proc() {
 			b.saturation.Inc()
 			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Since(r.StartTime)))
 			go func(req *renderReq) {
+				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
+				t.ObserveDuration()
+
 				if err != nil {
 					req.Errors <- err
 				} else {
@@ -158,7 +164,9 @@ func (b *Backend) Proc() {
 			b.saturation.Inc()
 			b.timeInQSec.WithLabelValues("find").Observe(float64(time.Since(r.StartTime)))
 			go func(req *findReq) {
+				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
+				t.ObserveDuration()
 				if err != nil {
 					req.Errors <- err
 				} else {
@@ -176,6 +184,7 @@ func (b *Backend) Proc() {
 			b.saturation.Inc()
 			b.timeInQSec.WithLabelValues("info").Observe(float64(time.Since(r.StartTime)))
 			go func(req *infoReq) {
+				// not adding duration histogram for info requests to reduce the number of exposed metrics
 				res, err := b.BackendImpl.Info(req.Ctx, req.InfoRequest)
 				if err != nil {
 					req.Errors <- err

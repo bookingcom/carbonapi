@@ -25,6 +25,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	"github.com/bookingcom/carbonapi/pkg/tldcache"
 	"github.com/dgryski/go-expirecache"
+	"github.com/pkg/errors"
 
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
@@ -68,12 +69,13 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	}
 
 	BuildVersion = buildVersion
+	ms := newPrometheusMetrics(config)
 	app := &App{
 		config:          config,
 		queryCache:      cache.NullCache{},
 		findCache:       cache.NullCache{},
 		defaultTimeZone: time.Local,
-		ms:              newPrometheusMetrics(config),
+		ms:              ms,
 		requestBlocker:  blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
 		fastQ:           make(chan *RenderReq, config.QueueSize),
 		slowQ:           make(chan *RenderReq, config.QueueSize),
@@ -82,7 +84,7 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 
 	setUpConfig(app, lg)
 
-	app.ZipperConfig, app.Backends, app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.ZipperMetrics = SetupZipper(config.ZipperConfig, BuildVersion, lg)
+	app.ZipperConfig, app.Backends, app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.ZipperMetrics = SetupZipper(config.ZipperConfig, BuildVersion, &ms, lg)
 	go tldcache.ProbeTopLevelDomains(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, app.ZipperConfig.InternalRoutingCache,
 		app.ZipperMetrics.TLDCacheProbeReqTotal, app.ZipperMetrics.TLDCacheProbeErrors)
 
@@ -282,7 +284,7 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 }
 
-func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Logger) ([]backend.Backend, error) {
+func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, error) {
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
@@ -311,8 +313,8 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 			Client:             client,
 			Timeout:            config.Timeouts.AfterStarted,
 			PathCacheExpirySec: uint32(config.ExpireDelaySec),
-			Responses:          ms.BackendResponses,
-			Logger:             logger,
+			Responses:          zms.BackendResponses,
+			Logger:             lg,
 		}
 		var be backend.BackendImpl
 		if host.Grpc != "" {
@@ -323,17 +325,22 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 		} else {
 			be, err = bnet.New(bConf)
 		}
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not create backend for host: %s", host)
+		}
+
+		beDuration, err := ms.BackendDuration.CurryWith(prometheus.Labels{"dc": dc, "cluster": cluster})
+		if err != nil {
+			return nil, errors.Wrap(err, "could not curry backend duration metric")
+		}
 		b = backend.NewBackend(be,
 			config.BackendQueueSize,
 			config.ConcurrencyLimitPerServer,
-			ms.BackendRequestsInQueue,
-			ms.BackendSemaphoreSaturation,
-			ms.BackendTimeInQSec,
-			ms.BackendEnqueuedRequests)
-
-		if err != nil {
-			return backends, fmt.Errorf("Couldn't create backend for '%s'", host)
-		}
+			zms.BackendRequestsInQueue,
+			zms.BackendSemaphoreSaturation,
+			zms.BackendTimeInQSec,
+			zms.BackendEnqueuedRequests,
+			beDuration)
 
 		backends = append(backends, b)
 	}
@@ -342,7 +349,7 @@ func InitBackends(config cfg.Zipper, ms *ZipperPrometheusMetrics, logger *zap.Lo
 }
 
 // Setup sets up the zipper for future lanuch.
-func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zipper, []backend.Backend, *expirecache.Cache,
+func SetupZipper(configFile string, BuildVersion string, ms *PrometheusMetrics, lg *zap.Logger) (cfg.Zipper, []backend.Backend, *expirecache.Cache,
 	[]tldcache.TopLevelDomainPrefix, *ZipperPrometheusMetrics) {
 	if configFile == "" {
 		log.Fatal("missing config file option")
@@ -372,11 +379,11 @@ func SetupZipper(configFile string, BuildVersion string, lg *zap.Logger) (cfg.Zi
 		zap.String("zipperConfig", fmt.Sprintf("%+v", config)),
 	)
 
-	ms := NewZipperPrometheusMetrics(config)
-	bs, err := InitBackends(config, ms, lg)
+	zms := NewZipperPrometheusMetrics(config)
+	bs, err := InitBackends(config, zms, ms, lg)
 	if err != nil {
 		lg.Fatal("failed to init backends", zap.Error(err))
 	}
 
-	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), ms
+	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), zms
 }
