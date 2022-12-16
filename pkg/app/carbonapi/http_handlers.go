@@ -1014,8 +1014,8 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	app.ms.Requests.Inc()
 
 	query := r.FormValue("query")
-	leavesOnly := !parser.TruthyBool(r.FormValue("leavesOnly"))
-	groupByExpr := !parser.TruthyBool(r.FormValue("groupByExpr"))
+	leavesOnly := parser.TruthyBool(r.FormValue("leavesOnly"))
+	groupByExpr := parser.TruthyBool(r.FormValue("groupByExpr"))
 	jsonp := r.FormValue("jsonp")
 	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
