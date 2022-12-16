@@ -40,6 +40,65 @@ func TestFindCompleter(t *testing.T) {
 
 }
 
+func TestExpandEncoder(t *testing.T) {
+	var tests = []struct {
+		name        string
+		metricIn    typ.Matches
+		metricOut   string
+		leavesOnly  string
+		groupByExpr string
+	}{
+		{
+			name: "test1",
+			metricIn: typ.Matches{
+				Name: "foo.ba*",
+				Matches: []typ.Match{
+					{Path: "foo.bar", IsLeaf: false},
+					{Path: "foo.bat", IsLeaf: true},
+				},
+			},
+			metricOut:   "{\"results\":[\"foo.bar\",\"foo.bat\"]}\n",
+			leavesOnly:  "0",
+			groupByExpr: "0",
+		},
+		{
+			name: "test2",
+			metricIn: typ.Matches{
+				Name: "foo.ba*",
+				Matches: []typ.Match{
+					{Path: "foo.bar", IsLeaf: false},
+					{Path: "foo.bat", IsLeaf: true},
+				},
+			},
+			metricOut:   "{\"results\":[\"foo.bat\"]}\n",
+			leavesOnly:  "1",
+			groupByExpr: "0",
+		},
+		{
+			name: "test3",
+			metricIn: typ.Matches{
+				Name: "foo.ba*",
+				Matches: []typ.Match{
+					{Path: "foo.bar", IsLeaf: false},
+					{Path: "foo.bat", IsLeaf: true},
+				},
+			},
+			metricOut:   "{\"results\":{\"foo.ba*\":[\"foo.bar\",\"foo.bat\"]}}\n",
+			leavesOnly:  "0",
+			groupByExpr: "1",
+		},
+	}
+	for _, tst := range tests {
+		tst := tst
+		t.Run(tst.name, func(t *testing.T) {
+			response, _ := expandEncoder(tst.metricIn, tst.leavesOnly, tst.groupByExpr)
+			if tst.metricOut != string(response) {
+				t.Errorf("%v should be same as %v", tst.metricOut, string(response))
+			}
+		})
+	}
+}
+
 func TestOptimistErrsFanIn(t *testing.T) {
 	var tests = []struct {
 		name       string
