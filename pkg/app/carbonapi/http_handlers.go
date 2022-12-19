@@ -880,6 +880,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	}
 	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
 	toLog.FromCache = fromCache
+	toLog.HttpCode = http.StatusOK
 	if err == nil {
 		toLog.TotalMetricCount = int64(len(metrics.Matches))
 	} else {
@@ -1016,11 +1017,14 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		logLevel = zapcore.ErrorLevel
 		return
 	}
+
 	if writeResponse(ctx, w, blob, jsonFormat, jsonp) != nil {
 		toLog.HttpCode = 499
 		logLevel = zapcore.ErrorLevel
 		return
 	}
+
+	toLog.HttpCode = http.StatusOK
 }
 
 func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) ([]byte, error) {
