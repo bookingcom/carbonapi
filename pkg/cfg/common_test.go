@@ -65,22 +65,6 @@ monitoring:
         start: 0.1
         bucketsNum: 20
         bucketSize: 1
-    expandDurationExpHistogram:
-        start: 0.06
-        bucketsNum: 60
-        bucketSize: 3
-    expandDurationLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationSimpleLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationComplexLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
 `
 
 	r := strings.NewReader(input)
@@ -162,26 +146,6 @@ monitoring:
 				BucketSize: 1,
 				BucketsNum: 20,
 			},
-			ExpandDurationExp: HistogramConfig{
-				Start:      0.06,
-				BucketsNum: 60,
-				BucketSize: 3,
-			},
-			ExpandDurationLin: HistogramConfig{
-				Start:      0.1,
-				BucketsNum: 20,
-				BucketSize: 1,
-			},
-			ExpandDurationLinSimple: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
-			ExpandDurationLinComplex: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
 		},
 	}
 
@@ -259,22 +223,6 @@ monitoring:
         bucketsNum: 20
         bucketSize: 1
     findDurationComplexLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationExpHistogram:
-        start: 0.06
-        bucketsNum: 60
-        bucketSize: 3
-    expandDurationLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationSimpleLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationComplexLinHistogram:
         start: 0.1
         bucketsNum: 20
         bucketSize: 1
@@ -372,26 +320,6 @@ monitoring:
 				BucketsNum: 20,
 			},
 			FindDurationLinComplex: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
-			ExpandDurationExp: HistogramConfig{
-				Start:      0.06,
-				BucketsNum: 60,
-				BucketSize: 3,
-			},
-			ExpandDurationLin: HistogramConfig{
-				Start:      0.1,
-				BucketsNum: 20,
-				BucketSize: 1,
-			},
-			ExpandDurationLinSimple: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
-			ExpandDurationLinComplex: HistogramConfig{
 				Start:      0.1,
 				BucketSize: 1,
 				BucketsNum: 20,
@@ -506,22 +434,6 @@ monitoring:
         bucketsNum: 20
         bucketSize: 1
     findDurationComplexLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationExpHistogram:
-        start: 0.06
-        bucketsNum: 60
-        bucketSize: 3
-    expandDurationLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationSimpleLinHistogram:
-        start: 0.1
-        bucketsNum: 20
-        bucketSize: 1
-    expandDurationComplexLinHistogram:
         start: 0.1
         bucketsNum: 20
         bucketSize: 1
@@ -653,26 +565,6 @@ monitoring:
 				BucketsNum: 20,
 			},
 			FindDurationLinComplex: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
-			ExpandDurationExp: HistogramConfig{
-				Start:      0.06,
-				BucketsNum: 60,
-				BucketSize: 3,
-			},
-			ExpandDurationLin: HistogramConfig{
-				Start:      0.1,
-				BucketsNum: 20,
-				BucketSize: 1,
-			},
-			ExpandDurationLinSimple: HistogramConfig{
-				Start:      0.1,
-				BucketSize: 1,
-				BucketsNum: 20,
-			},
-			ExpandDurationLinComplex: HistogramConfig{
 				Start:      0.1,
 				BucketSize: 1,
 				BucketsNum: 20,
