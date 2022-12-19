@@ -1031,7 +1031,7 @@ func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) (
 	var b bytes.Buffer
 	groups := make(map[string][]string)
 	seen := make(map[string]bool)
-	nodeCount := len(strings.Split(globs.Name, "."))
+	nodeCount := strings.Count(globs.Name, ".") + 1
 	names := make([]string, 0, len(globs.Matches))
 	for _, g := range globs.Matches {
 		if leavesOnly && !g.IsLeaf {
