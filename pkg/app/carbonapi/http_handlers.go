@@ -1037,8 +1037,8 @@ func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) (
 		if leavesOnly && !g.IsLeaf {
 			continue
 		}
-		name := g.Path
-		nodes := strings.SplitN(name, ".", nodeCount+1)
+		var name string
+		nodes := strings.SplitN(g.Path, ".", nodeCount+1)
 		if len(nodes) > nodeCount {
 			name = strings.Join(nodes[:nodeCount], ".")
 		} else {
