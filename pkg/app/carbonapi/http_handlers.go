@@ -917,7 +917,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	case treejsonFormat, jsonFormat:
 		blob, err = ourJson.FindEncoder(metrics)
 	case "", pickleFormat:
-		writeFormat = jsonFormat
+		writeFormat = pickleFormat
 		if app.config.GraphiteWeb09Compatibility {
 			blob, err = pickle.FindEncoderV0_9(metrics)
 		} else {
