@@ -200,7 +200,6 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 					config.Zipper.Common.Monitoring.FindDurationLinComplex.BucketsNum),
 			},
 		),
-
 		UpstreamRequestsInQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "upstream_requests_in_queue",
 			Help: "The number of upstream requests in the main processing queue.",

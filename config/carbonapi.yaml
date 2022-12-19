@@ -65,5 +65,4 @@ monitoring:
         start: 0.5
         bucketsNum: 20
         bucketSize: 0.5
-
 zipperConfig: "./config/carbonzipper.yaml"
