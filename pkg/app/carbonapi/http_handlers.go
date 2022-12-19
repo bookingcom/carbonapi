@@ -1030,7 +1030,7 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) ([]byte, error) {
 	var b bytes.Buffer
 	groups := make(map[string][]string)
-	seen := make(map[string]struct{})
+	seen := make(map[string]bool)
 	nodeCount := len(strings.Split(globs.Name, "."))
 	names := make([]string, 0, len(globs.Matches))
 	for _, g := range globs.Matches {
@@ -1047,7 +1047,7 @@ func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) (
 		if _, ok := seen[name]; ok {
 			continue
 		}
-		seen[name] = struct{}{}
+		seen[name] = true
 		names = append(names, name)
 	}
 	sort.Strings(names)
