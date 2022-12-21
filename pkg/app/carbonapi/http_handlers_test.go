@@ -43,18 +43,20 @@ func TestFindCompleter(t *testing.T) {
 func TestExpandEncoder(t *testing.T) {
 	var tests = []struct {
 		name        string
-		metricIn    typ.Matches
+		metricIn    []typ.Matches
 		metricOut   string
 		leavesOnly  bool
 		groupByExpr bool
 	}{
 		{
 			name: "test1",
-			metricIn: typ.Matches{
-				Name: "foo.ba*",
-				Matches: []typ.Match{
-					{Path: "foo.bar", IsLeaf: false},
-					{Path: "foo.bat", IsLeaf: true},
+			metricIn: []typ.Matches{
+				{
+					Name: "foo.ba*",
+					Matches: []typ.Match{
+						{Path: "foo.bar", IsLeaf: false},
+						{Path: "foo.bat", IsLeaf: true},
+					},
 				},
 			},
 			metricOut:   "{\"results\":[\"foo.bar\",\"foo.bat\"]}\n",
@@ -63,11 +65,13 @@ func TestExpandEncoder(t *testing.T) {
 		},
 		{
 			name: "test2",
-			metricIn: typ.Matches{
-				Name: "foo.ba*",
-				Matches: []typ.Match{
-					{Path: "foo.bar", IsLeaf: false},
-					{Path: "foo.bat", IsLeaf: true},
+			metricIn: []typ.Matches{
+				{
+					Name: "foo.ba*",
+					Matches: []typ.Match{
+						{Path: "foo.bar", IsLeaf: false},
+						{Path: "foo.bat", IsLeaf: true},
+					},
 				},
 			},
 			metricOut:   "{\"results\":[\"foo.bat\"]}\n",
@@ -76,14 +80,39 @@ func TestExpandEncoder(t *testing.T) {
 		},
 		{
 			name: "test3",
-			metricIn: typ.Matches{
-				Name: "foo.ba*",
-				Matches: []typ.Match{
-					{Path: "foo.bar", IsLeaf: false},
-					{Path: "foo.bat", IsLeaf: true},
+			metricIn: []typ.Matches{
+				{
+					Name: "foo.ba*",
+					Matches: []typ.Match{
+						{Path: "foo.bar", IsLeaf: false},
+						{Path: "foo.bat", IsLeaf: true},
+					},
 				},
 			},
 			metricOut:   "{\"results\":{\"foo.ba*\":[\"foo.bar\",\"foo.bat\"]}}\n",
+			leavesOnly:  false,
+			groupByExpr: true,
+		},
+		{
+			name: "test4",
+			metricIn: []typ.Matches{
+				{
+					Name: "foo.ba*",
+					Matches: []typ.Match{
+						{Path: "foo.bar", IsLeaf: false},
+						{Path: "foo.bat", IsLeaf: true},
+					},
+				},
+				{
+					Name: "foo.ba*.*",
+					Matches: []typ.Match{
+						{Path: "foo.bar", IsLeaf: false},
+						{Path: "foo.bat", IsLeaf: true},
+						{Path: "foo.bar.baz", IsLeaf: true},
+					},
+				},
+			},
+			metricOut:   "{\"results\":{\"foo.ba*\":[\"foo.bar\",\"foo.bat\"],\"foo.ba*.*\":[\"foo.bar.baz\"]}}\n",
 			leavesOnly:  false,
 			groupByExpr: true,
 		},

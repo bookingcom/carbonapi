@@ -961,57 +961,62 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	app.ms.Requests.Inc()
 
-	query := r.FormValue("query")
+	r.ParseForm()
+	queries := r.Form["query"]
 	leavesOnly := parser.TruthyBool(r.FormValue("leavesOnly"))
 	groupByExpr := parser.TruthyBool(r.FormValue("groupByExpr"))
 	jsonp := r.FormValue("jsonp")
 	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "expand", &app.config)
-	toLog.Targets = []string{query}
+	for _, query := range queries {
+		toLog.Targets = append(toLog.Targets, query)
+	}
 
-	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "expand"), zap.String("target", query))
+	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "expand"))
 	Trace(lg, "received request")
 
 	logLevel := zap.InfoLevel
 	defer func() {
 		app.deferredAccessLogging(lg, r, &toLog, t0, logLevel)
 	}()
-
-	if query == "" {
+	if len(queries) == 0 {
 		writeError(uuid, r, w, http.StatusBadRequest, "missing parameter `query`", "", &toLog)
 		return
 	}
-	metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
-	toLog.FromCache = fromCache
-	if err == nil {
-		toLog.TotalMetricCount = int64(len(metrics.Matches))
-	} else {
-		var notFound dataTypes.ErrNotFound
 
-		switch {
-		case errors.As(err, &notFound):
-			// we can generate 404 for expand, it's graphite-web-1.0 only
-			Trace(lg, "not found")
-			writeError(uuid, r, w, http.StatusNotFound, err.Error(), "", &toLog)
-			logLevel = zapcore.ErrorLevel
-			return
-		case errors.Is(err, context.DeadlineExceeded):
-			writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog)
-			logLevel = zapcore.ErrorLevel
-			return
-		default:
-			writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog)
-			logLevel = zapcore.ErrorLevel
-			return
+	var responses []dataTypes.Matches
+	for _, query := range queries {
+		metrics, fromCache, err := app.resolveGlobs(ctx, query, useCache, &toLog, lg)
+		toLog.FromCache = fromCache
+		if err == nil {
+			toLog.TotalMetricCount = int64(len(metrics.Matches))
+		} else {
+			var notFound dataTypes.ErrNotFound
+			switch {
+			case errors.As(err, &notFound):
+				// we can generate 404 for expand, it's graphite-web-1.0 only
+				Trace(lg, "not found")
+				writeError(uuid, r, w, http.StatusNotFound, err.Error(), "", &toLog)
+				logLevel = zapcore.ErrorLevel
+				return
+			case errors.Is(err, context.DeadlineExceeded):
+				writeError(uuid, r, w, http.StatusUnprocessableEntity, "context deadline exceeded", "", &toLog)
+				logLevel = zapcore.ErrorLevel
+				return
+			default:
+				writeError(uuid, r, w, http.StatusUnprocessableEntity, err.Error(), "", &toLog)
+				logLevel = zapcore.ErrorLevel
+				return
+			}
 		}
+		if ctx.Err() != nil {
+			app.ms.RequestCancel.WithLabelValues("expand", ctx.Err().Error()).Inc()
+		}
+		responses = append(responses, metrics)
 	}
 
-	if ctx.Err() != nil {
-		app.ms.RequestCancel.WithLabelValues("expand", ctx.Err().Error()).Inc()
-	}
-
-	blob, err := expandEncoder(metrics, leavesOnly, groupByExpr)
+	blob, err := expandEncoder(responses, leavesOnly, groupByExpr)
 	if err != nil {
 		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog)
 		logLevel = zapcore.ErrorLevel
@@ -1027,40 +1032,38 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	toLog.HttpCode = http.StatusOK
 }
 
-func expandEncoder(globs dataTypes.Matches, leavesOnly bool, groupByExpr bool) ([]byte, error) {
+func expandEncoder(globs []dataTypes.Matches, leavesOnly bool, groupByExpr bool) ([]byte, error) {
 	var b bytes.Buffer
 	groups := make(map[string][]string)
 	seen := make(map[string]bool)
-	nodeCount := strings.Count(globs.Name, ".") + 1
-	names := make([]string, 0, len(globs.Matches))
-	for _, g := range globs.Matches {
-		if leavesOnly && !g.IsLeaf {
-			continue
-		}
-		var name string
-		nodes := strings.SplitN(g.Path, ".", nodeCount+1)
-		if len(nodes) > nodeCount {
-			name = strings.Join(nodes[:nodeCount], ".")
-		} else {
-			name = strings.Join(nodes, ".")
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = true
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	groups[globs.Name] = names
+	// results can be []string (when groupByExpr is false) or
+	// map[string][]string
 	data := map[string]interface{}{
 		"results": groups,
 	}
-	if !groupByExpr {
-		flatData := make([]string, 0)
-		for _, group := range groups {
-			flatData = append(flatData, group...)
+	for _, glob := range globs {
+		paths := make([]string, 0, len(glob.Matches))
+		for _, g := range glob.Matches {
+			if leavesOnly && !g.IsLeaf {
+				continue
+			}
+			if _, ok := seen[g.Path]; ok {
+				continue
+			}
+			seen[g.Path] = true
+			paths = append(paths, g.Path)
 		}
-		data["results"] = flatData
+		sort.Strings(paths)
+		groups[glob.Name] = paths
+		data["results"] = groups
+		if !groupByExpr {
+			flatData := make([]string, 0)
+			for _, group := range groups {
+				flatData = append(flatData, group...)
+			}
+			sort.Strings(flatData)
+			data["results"] = flatData
+		}
 	}
 	err := json.NewEncoder(&b).Encode(data)
 	return b.Bytes(), err
