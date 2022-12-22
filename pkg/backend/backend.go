@@ -38,7 +38,6 @@ type Backend struct {
 // The specific backend implementation.
 //
 // At the moment of writing, it can be one of:
-// * mock, used for tests
 // * net, the standard protocol
 // * grpc, used for streaming gRPC
 type BackendImpl interface {
@@ -49,7 +48,6 @@ type BackendImpl interface {
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
 	GetServerAddress() string
-	GetCluster() string
 }
 
 type renderReq struct {
@@ -132,7 +130,8 @@ func (b *Backend) Proc() {
 				}
 			}
 
-			b.requestsInQueue.WithLabelValues("render").Dec()
+			requestLabel := "render"
+			b.requestsInQueue.WithLabelValues(requestLabel).Dec()
 			select {
 			case <-r.Ctx.Done():
 				r.Errors <- r.Ctx.Err()
@@ -141,7 +140,7 @@ func (b *Backend) Proc() {
 			}
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("render").Observe(float64(time.Since(r.StartTime)))
+			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime)))
 			go func(req *renderReq) {
 				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
@@ -159,12 +158,13 @@ func (b *Backend) Proc() {
 	}()
 	go func() {
 		for r := range b.findQ {
-			b.requestsInQueue.WithLabelValues("find").Dec()
+			requestLabel := "find"
+			b.requestsInQueue.WithLabelValues(requestLabel).Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("find").Observe(float64(time.Since(r.StartTime)))
+			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime)))
 			go func(req *findReq) {
-				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
+				t := prometheus.NewTimer(b.backendDuration.WithLabelValues(requestLabel))
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
 				t.ObserveDuration()
 				if err != nil {
@@ -182,7 +182,7 @@ func (b *Backend) Proc() {
 			b.requestsInQueue.WithLabelValues("info").Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues("info").Observe(float64(time.Since(r.StartTime)))
+			// not adding time in queue histogram for info requests to reduce the number of exposed metrics
 			go func(req *infoReq) {
 				// not adding duration histogram for info requests to reduce the number of exposed metrics
 				res, err := b.BackendImpl.Info(req.Ctx, req.InfoRequest)
