@@ -1036,11 +1036,7 @@ func expandEncoder(globs []dataTypes.Matches, leavesOnly bool, groupByExpr bool)
 	var b bytes.Buffer
 	groups := make(map[string][]string)
 	seen := make(map[string]bool)
-	// results can be []string (when groupByExpr is false) or
-	// map[string][]string
-	data := map[string]interface{}{
-		"results": groups,
-	}
+	var err error
 	for _, glob := range globs {
 		paths := make([]string, 0, len(glob.Matches))
 		for _, g := range glob.Matches {
@@ -1055,17 +1051,27 @@ func expandEncoder(globs []dataTypes.Matches, leavesOnly bool, groupByExpr bool)
 		}
 		sort.Strings(paths)
 		groups[glob.Name] = paths
-		data["results"] = groups
-		if !groupByExpr {
-			flatData := make([]string, 0)
-			for _, group := range groups {
-				flatData = append(flatData, group...)
-			}
-			sort.Strings(flatData)
-			data["results"] = flatData
-		}
 	}
-	err := json.NewEncoder(&b).Encode(data)
+	if groupByExpr {
+		// results are map[string][]string
+		data := map[string]map[string][]string{
+			"results": groups,
+		}
+		err = json.NewEncoder(&b).Encode(data)
+	} else {
+		// results are just []string otherwise
+		// so, flatting map
+		flatData := make([]string, 0)
+		for _, group := range groups {
+			flatData = append(flatData, group...)
+		}
+		// sorting flat list one more to mimic graphite-web
+		sort.Strings(flatData)
+		data := map[string][]string{
+			"results": flatData,
+		}
+		err = json.NewEncoder(&b).Encode(data)
+	}
 	return b.Bytes(), err
 }
 
