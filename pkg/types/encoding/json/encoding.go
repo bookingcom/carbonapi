@@ -56,6 +56,9 @@ func matchesToJSONMatches(matches types.Matches) []jsonMatch {
 			jm.Leaf = 1
 		} else {
 			jm.AllowChildren = 1
+		}
+
+		if !m.IsLeaf || strings.ContainsRune(jm.ID, '*') {
 			jm.Expandable = 1
 		}
 
