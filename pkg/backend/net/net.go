@@ -150,11 +150,6 @@ func (b NetBackend) GetServerAddress() string {
 	return b.address
 }
 
-// GetCluster returns the backend cluster.
-func (b NetBackend) GetCluster() string {
-	return b.cluster
-}
-
 // Logger returns logger for this backend. Needed to satisfy interface.
 func (b NetBackend) Logger() *zap.Logger {
 	return b.lg
