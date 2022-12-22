@@ -961,18 +961,18 @@ func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	app.ms.Requests.Inc()
 
-	err := r.ParseForm()
-	if err != nil {
-		writeError(uuid, r, w, http.StatusBadRequest, "error parsing form", "", &toLog)
-		return
-	}
-	queries := r.Form["query"]
 	leavesOnly := parser.TruthyBool(r.FormValue("leavesOnly"))
 	groupByExpr := parser.TruthyBool(r.FormValue("groupByExpr"))
 	jsonp := r.FormValue("jsonp")
 	useCache := !parser.TruthyBool(r.FormValue("noCache"))
 
 	toLog := carbonapipb.NewAccessLogDetails(r, "expand", &app.config)
+	err := r.ParseForm()
+	if err != nil {
+		writeError(uuid, r, w, http.StatusBadRequest, "error parsing form", "", &toLog)
+		return
+	}
+	queries := r.Form["query"]
 	toLog.Targets = append(toLog.Targets, queries...)
 
 	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "expand"))
