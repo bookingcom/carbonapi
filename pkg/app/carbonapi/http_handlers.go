@@ -910,15 +910,17 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 		app.ms.RequestCancel.WithLabelValues("find", ctx.Err().Error()).Inc()
 	}
 
+	var contentType string
 	var blob []byte
-	writeFormat := format
 	switch format {
 	case protobufFormat, protobuf3Format:
+		contentType = contentTypeProtobuf
 		blob, err = carbonapi_v2.FindEncoder(metrics)
 	case treejsonFormat, jsonFormat:
+		contentType = contentTypeJSON
 		blob, err = ourJson.FindEncoder(metrics)
 	case "", pickleFormat:
-		writeFormat = pickleFormat
+		contentType = contentTypePickle
 		if app.config.GraphiteWeb09Compatibility {
 			blob, err = pickle.FindEncoderV0_9(metrics)
 		} else {
@@ -926,26 +928,34 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 		}
 	case rawFormat:
 		blob = findList(metrics)
+		contentType = rawFormat
 	case completerFormat:
-		writeFormat = jsonFormat
 		blob, err = findCompleter(metrics)
+		contentType = jsonFormat
 	default:
 		err = fmt.Errorf("Unknown format %s", format)
 	}
-
 	if err != nil {
 		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), "", &toLog)
 		logLevel = zapcore.ErrorLevel
 		return
 	}
-
-	if writeResponse(ctx, w, blob, writeFormat, jsonp) != nil {
-		toLog.HttpCode = 499
-		logLevel = zapcore.WarnLevel
-		return
+	// TODO: extend writeResponse w/new formats and migrate to it
+	// when we have better tests, probably
+	if contentType == jsonFormat && jsonp != "" {
+		if writeResponse(ctx, w, blob, jsonFormat, jsonp) != nil {
+			toLog.HttpCode = 499
+			logLevel = zapcore.WarnLevel
+			return
+		}
+	} else {
+		w.Header().Set("Content-Type", contentType)
+		if _, writeErr := w.Write(blob); writeErr != nil {
+			toLog.HttpCode = 499
+			logLevel = zapcore.WarnLevel
+			return
+		}
 	}
-
-	toLog.HttpCode = http.StatusOK
 }
 
 func (app *App) expandHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logger) {
