@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # System test for the go-carbon -> zipper -> api stack.
 # Brings the systeem up, performs single write, and read.
