@@ -1,4 +1,4 @@
-# tesing expand
+# test expand
 GET http://localhost:8081/metrics/expand
 [QueryStringParams]
 query:some.*

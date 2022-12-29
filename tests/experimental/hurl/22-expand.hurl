@@ -1,4 +1,4 @@
-# testing expand with leavesOnly=1
+# test expand with leavesOnly=1
 GET http://localhost:8081/metrics/expand
 [QueryStringParams]
 query:some.test*.metric*

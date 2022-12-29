@@ -1,11 +1,11 @@
 # e2e test
 
-This directory contails carbonapi test files for e2e test for the go-carbon -> zipper -> api stack.
+This directory contains carbonapi test files for e2e test for the go-carbon -> zipper -> api stack.
 
 Brings the system up, brings data, doing some render, find and expand calls.
 Checks if data got in and out.
 
-Needs to be strated from Makefile in the root directory of the project.
+Needs to be started from Makefile in the root directory of the project.
 
 Requires Docker, docker compose and [hurl](https://hurl.dev/).
 
