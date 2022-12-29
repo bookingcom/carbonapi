@@ -8,7 +8,7 @@ until:now
 format:raw
 
 HTTP/* 200
-Content-Type: raw
+Content-Type: text/plain
 [Asserts]
 body contains "some.test."
 body contains "some.test2."

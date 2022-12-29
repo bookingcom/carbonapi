@@ -9,7 +9,7 @@ until:now
 format:completer
 
 HTTP/* 200
-Content-Type: json
+Content-Type: application/json
 [Asserts]
 jsonpath "$[*]" count == 2
 jsonpath "$.metrics[0].path" == "some.test."
