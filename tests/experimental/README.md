@@ -2,7 +2,7 @@
 
 This directory contails carbonapi test files for e2e test for the go-carbon -> zipper -> api stack.
 
-Brings the system up, brings data, doing some render, find abd expand calls.
+Brings the system up, brings data, doing some render, find and expand calls.
 Checks if data got in and out.
 
 Needs to be strated from Makefile in the root directory of the project.
