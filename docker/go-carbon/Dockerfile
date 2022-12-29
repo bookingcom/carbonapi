@@ -1,4 +1,4 @@
-FROM golang:1.18
+FROM golang:1.19
 
 RUN mkdir -p /data/graphite/whisper/
 COPY ./docker/go-carbon/*.conf /etc/

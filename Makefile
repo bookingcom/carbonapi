@@ -47,6 +47,10 @@ test:
 test-e2e:
 	./tests/system_test.sh
 
+.PHONY: test-hurl
+test-hurl:
+	./tests/experimental/hurl_test.sh
+
 .PHONY: clean
 clean:
 	rm -f carbonapi carbonzipper
