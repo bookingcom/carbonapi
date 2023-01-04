@@ -4,12 +4,14 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"time"
 
 	capi_v2_grpc "github.com/go-graphite/protocol/carbonapi_v2_grpc"
 	"github.com/go-graphite/protocol/carbonapi_v2_pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
@@ -37,7 +39,17 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.Dial(cfg.GrpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithNoProxy())
+	var opts []grpc.DialOption
+	opts = append(opts,
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// TODO: configurable
+			Time:                30 * time.Second,
+			Timeout:             20 * time.Second,
+			PermitWithoutStream: true,
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithNoProxy())
+	conn, err := grpc.Dial(cfg.GrpcAddress, opts...)
 	if err != nil {
 		return nil, err
 	}
