@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
@@ -85,7 +86,9 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	stream, err := gb.carbonV2Client.Render(ctx, multiFetchRequest,
+		grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize),
+		grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +134,9 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	globResponse, err := gb.carbonV2Client.Find(ctx, globRequest,
+		grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize),
+		grpc.UseCompressor(gzip.Name))
 	gb.countResponse(err, "find")
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
@@ -172,7 +177,9 @@ func (gb *GrpcBackend) Info(ctx context.Context, request types.InfoRequest) ([]t
 	ctx, cancel := gb.setTimeout(ctx)
 	defer cancel()
 
-	resp, err := gb.carbonV2Client.Info(ctx, infoRequest, grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize))
+	resp, err := gb.carbonV2Client.Info(ctx, infoRequest,
+		grpc.MaxCallRecvMsgSize(gb.maxRecvMsgSize),
+		grpc.UseCompressor(gzip.Name))
 	gb.countResponse(err, "info")
 	if err != nil {
 		if code := status.Code(err); code == codes.NotFound {
