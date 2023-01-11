@@ -49,7 +49,9 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 			PermitWithoutStream: true,
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithNoProxy())
+		grpc.WithNoProxy(),
+		grpc.WithInitialWindowSize(4*1024*1024),
+		grpc.WithInitialConnWindowSize(4*1024*1024))
 	conn, err := grpc.Dial(cfg.GrpcAddress, opts...)
 	if err != nil {
 		return nil, err
