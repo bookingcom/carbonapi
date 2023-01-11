@@ -319,8 +319,10 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 		var be backend.BackendImpl
 		if host.Grpc != "" {
 			be, err = bnet.NewGrpc(bnet.GrpcConfig{
-				Config:      bConf,
-				GrpcAddress: host.Grpc,
+				Config:                bConf,
+				GrpcAddress:           host.Grpc,
+				InitialWindowSize:     config.GrpcInitialWindowSize,
+				InitialConnWindowSize: config.GrpcInitialConnWindowSize,
 			})
 		} else {
 			be, err = bnet.New(bConf)
