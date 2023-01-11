@@ -54,6 +54,8 @@ func DefaultCommonConfig() Common {
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
+		GrpcInitialWindowSize:     4 * 1024 * 1024,
+		GrpcInitialConnWindowSize: 4 * 1024 * 1024,
 
 		// The default is intentionally large since we don't want to use this as a limit,
 		// at least for now.
@@ -183,6 +185,8 @@ type Common struct {
 	ConcurrencyLimitPerServer int           `yaml:"concurrencyLimit"`
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
+	GrpcInitialWindowSize     int           `yaml:"grpcInitialWindowSize"`
+	GrpcInitialConnWindowSize int           `yaml:"grpcInitialConnWindowSize"`
 
 	BackendQueueSize             int `yaml:"backendQueueSize"`
 	BackendMaxConcurrentRequests int `yaml:"backendMaxConcurrentRequests"`

@@ -30,7 +30,9 @@ type GrpcBackend struct {
 
 type GrpcConfig struct {
 	Config
-	GrpcAddress string
+	GrpcAddress           string
+	InitialWindowSize     int
+	InitialConnWindowSize int
 }
 
 // NewGrpc creates a new gRPC backend from the given configuration.
@@ -50,8 +52,8 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithNoProxy(),
-		grpc.WithInitialWindowSize(4*1024*1024),
-		grpc.WithInitialConnWindowSize(4*1024*1024))
+		grpc.WithInitialWindowSize(int32(cfg.InitialWindowSize)),
+		grpc.WithInitialConnWindowSize(int32(cfg.InitialConnWindowSize)))
 	conn, err := grpc.Dial(cfg.GrpcAddress, opts...)
 	if err != nil {
 		return nil, err
