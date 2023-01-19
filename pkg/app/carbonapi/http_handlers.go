@@ -180,9 +180,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	// hotfix, needs later cleanup
 	for _, t := range form.targets {
-		if len(t) > 0 && t[0] == '#' {
-			writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog)
-			return
+		for i := 0; i < len(t); i++ {
+			if t[i] == '#' {
+				if i+1 < len(t) && t[i+1] >= 'A' && t[i+1] <= 'Z' {
+					writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog)
+					return
+				}
+			}
 		}
 	}
 
