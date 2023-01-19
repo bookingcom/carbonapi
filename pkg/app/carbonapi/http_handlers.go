@@ -183,7 +183,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		for i := 0; i < len(t); i++ {
 			if t[i] == '#' {
 				if i+1 < len(t) && t[i+1] >= 'A' && t[i+1] <= 'Z' {
-					writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog)
+					writeError(uuid, r, w, http.StatusBadRequest, "got Grafana series tag", form.format, &toLog)
 					return
 				}
 			}
