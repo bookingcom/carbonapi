@@ -178,6 +178,14 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		return
 	}
 
+	// hotfix, needs later cleanup
+	for _, t := range form.targets {
+		if len(t) > 0 && t[0] == '#' {
+			writeError(uuid, r, w, http.StatusBadRequest, err.Error(), form.format, &toLog)
+			return
+		}
+	}
+
 	if form.from32 >= form.until32 {
 		var clientErrMsgFmt string
 		if form.from32 == form.until32 {
