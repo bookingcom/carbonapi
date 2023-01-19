@@ -86,6 +86,9 @@ func (f *moving) Do(ctx context.Context, e parser.Expr, from, until int32, value
 
 		r := *a
 		r.Name = fmt.Sprintf("%s(%s,%s)", e.Target(), a.Name, argstr)
+		if len(a.Values)-offset < 0 {
+			return nil, parser.ErrInvalidArgumentValue
+		}
 		r.Values = make([]float64, len(a.Values)-offset)
 		r.IsAbsent = make([]bool, len(a.Values)-offset)
 		r.StartTime = from
