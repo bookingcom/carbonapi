@@ -134,13 +134,20 @@ func getTargetTopLevelDomain(target string, prefixes []TopLevelDomainPrefix) str
 		if strings.HasPrefix(target, p.prefix) {
 			splitTarget := strings.SplitN(target, ".", p.segmentsCount+2)  // prefix + ns | rest
 			foundTLD := strings.Join(splitTarget[:p.segmentsCount+1], ".") // prefix + ns
-			return foundTLD
+			if !strings.ContainsAny(foundTLD, "*?[{") {
+				return foundTLD
+			}
 		}
 	}
 	return tld
 }
 
-func FilterBackendByTopLevelDomain(cache *expirecache.Cache, TLDPrefixes []TopLevelDomainPrefix, backends []backend.Backend, targets []string) []backend.Backend {
+const TLDCacheMissErr = "TLD cache doesn't have the targets TLDs"
+
+// FilterBackendByTopLevelDomain filters all backends regarding the TLD prefixes and probes, and returns a subset of the
+// backends with the second return value as false. If the TLDs of targets were not found in the cache, it returns all
+// backends with the second return value as true.
+func FilterBackendByTopLevelDomain(cache *expirecache.Cache, TLDPrefixes []TopLevelDomainPrefix, backends []backend.Backend, targets []string) ([]backend.Backend, bool) {
 	targetTlds := make([]string, 0, len(targets))
 	for _, target := range targets {
 		targetTlds = append(targetTlds, getTargetTopLevelDomain(target, TLDPrefixes))
@@ -148,9 +155,16 @@ func FilterBackendByTopLevelDomain(cache *expirecache.Cache, TLDPrefixes []TopLe
 
 	bs := filterByTopLevelDomain(cache, backends, targetTlds)
 	if len(bs) > 0 {
-		return bs
+		return bs, false
 	}
-	return backends
+	tldCacheMiss := true
+	for _, targetTLD := range targetTlds {
+		if strings.ContainsAny(targetTLD, "*?[{") {
+			tldCacheMiss = false
+			break
+		}
+	}
+	return backends, tldCacheMiss
 }
 
 func filterByTopLevelDomain(cache *expirecache.Cache, backends []backend.Backend, targetTLDs []string) []backend.Backend {

@@ -559,7 +559,7 @@ func sendRenderRequest(app *App, ctx context.Context, path string, from, until i
 
 	app.ms.UpstreamRequests.WithLabelValues("render").Inc()
 	t0 := time.Now()
-	metrics, err = Render(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends,
+	metrics, err = Render(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.NotFoundWhenTLDCacheMiss, app.Backends,
 		app.ZipperConfig.RenderReplicaMismatchConfig, ctx, path, int64(from), int64(until), app.ZipperMetrics, lg)
 	app.ms.UpstreamDuration.WithLabelValues("render").Observe(time.Since(t0).Seconds())
 
@@ -774,7 +774,7 @@ func (app *App) resolveGlobs(ctx context.Context, metric string, useCache bool, 
 	Trace(lg, "sending find request upstream")
 	app.ms.UpstreamRequests.WithLabelValues("find").Inc()
 	t0 := time.Now()
-	matches, err = Find(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, request.Query, app.ZipperMetrics, lg)
+	matches, err = Find(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.NotFoundWhenTLDCacheMiss, app.Backends, ctx, request.Query, app.ZipperMetrics, lg)
 	app.ms.UpstreamDuration.WithLabelValues("find").Observe(time.Since(t0).Seconds())
 
 	if err != nil {
@@ -1199,7 +1199,7 @@ func (app *App) infoHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	var infos []dataTypes.Info
 	var err error
 	app.ms.UpstreamRequests.WithLabelValues("info").Inc()
-	infos, err = Info(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, ctx, query, app.ZipperMetrics, lg)
+	infos, err = Info(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.NotFoundWhenTLDCacheMiss, app.Backends, ctx, query, app.ZipperMetrics, lg)
 	// not counting the duration for info requests to reduce the number of exposed metrics
 
 	if err != nil {
