@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/backend"
 	"github.com/bookingcom/carbonapi/pkg/cfg"
@@ -15,10 +16,14 @@ import (
 )
 
 // Find executes find request by checking cache and sending it to the backends.
-func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, ctx context.Context,
+func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, NotFoundWhenTLDCacheMiss bool, backends []backend.Backend, ctx context.Context,
 	originalQuery string, ms *ZipperPrometheusMetrics, lg *zap.Logger) (types.Matches, error) {
 	request := types.NewFindRequest(originalQuery)
-	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{originalQuery})
+	bs, tldCacheMiss := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{originalQuery})
+	if NotFoundWhenTLDCacheMiss && tldCacheMiss {
+		return types.Matches{}, types.ErrNotFound(fmt.Sprintf(
+			"%s: %s", tldcache.TLDCacheMissErr, originalQuery))
+	}
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, []string{originalQuery})
 	if filteredByPathCache {
@@ -48,11 +53,15 @@ func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix,
 }
 
 // Render executes the render request by checking cache and sending it to the backends.
-func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, mismatchConfig cfg.RenderReplicaMismatchConfig, ctx context.Context, target string, from int64, until int64,
-	ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
+func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, NotFoundWhenTLDCacheMiss bool, backends []backend.Backend, mismatchConfig cfg.RenderReplicaMismatchConfig, ctx context.Context,
+	target string, from int64, until int64, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Metric, error) {
 
 	request := types.NewRenderRequest([]string{target}, int32(from), int32(until))
-	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, request.Targets)
+	bs, tldCacheMiss := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, request.Targets)
+	if NotFoundWhenTLDCacheMiss && tldCacheMiss {
+		return nil, types.ErrNotFound(fmt.Sprintf(
+			"%s: %s", tldcache.TLDCacheMissErr, strings.Join(request.Targets, ",")))
+	}
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, request.Targets)
 	if filteredByPathCache {
@@ -75,10 +84,15 @@ func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefi
 }
 
 // Info executes the info request by checking cache and sending it to the backends.
-func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, backends []backend.Backend, ctx context.Context, target string, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
+func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix, NotFoundWhenTLDCacheMiss bool, backends []backend.Backend, ctx context.Context,
+	target string, ms *ZipperPrometheusMetrics, lg *zap.Logger) ([]types.Info, error) {
 	request := types.NewInfoRequest(target)
 
-	bs := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{target})
+	bs, tldCacheMiss := tldcache.FilterBackendByTopLevelDomain(cache, TLDPrefixes, backends, []string{target})
+	if NotFoundWhenTLDCacheMiss && tldCacheMiss {
+		return nil, types.ErrNotFound(fmt.Sprintf(
+			"%s: %s", tldcache.TLDCacheMissErr, target))
+	}
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, []string{target})
 	if filteredByPathCache {

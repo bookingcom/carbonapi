@@ -41,10 +41,11 @@ type App struct {
 	config       cfg.API
 	ZipperConfig cfg.Zipper
 
-	queryCache             cache.BytesCache
-	findCache              cache.BytesCache
-	TopLevelDomainCache    *expirecache.Cache
-	TopLevelDomainPrefixes []tldcache.TopLevelDomainPrefix
+	queryCache               cache.BytesCache
+	findCache                cache.BytesCache
+	TopLevelDomainCache      *expirecache.Cache
+	TopLevelDomainPrefixes   []tldcache.TopLevelDomainPrefix
+	NotFoundWhenTLDCacheMiss bool
 
 	requestBlocker *blocker.RequestBlocker
 
@@ -85,6 +86,7 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	setUpConfig(app, lg)
 
 	app.ZipperConfig, app.Backends, app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.ZipperMetrics = SetupZipper(config.ZipperConfig, BuildVersion, &ms, lg)
+	app.NotFoundWhenTLDCacheMiss = app.ZipperConfig.NotFoundWhenTLDCacheMiss
 	go tldcache.ProbeTopLevelDomains(app.TopLevelDomainCache, app.TopLevelDomainPrefixes, app.Backends, app.ZipperConfig.InternalRoutingCache,
 		app.ZipperMetrics.TLDCacheProbeReqTotal, app.ZipperMetrics.TLDCacheProbeErrors)
 
