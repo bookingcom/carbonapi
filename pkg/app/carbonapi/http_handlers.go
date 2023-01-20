@@ -178,18 +178,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		return
 	}
 
-	// hotfix, needs later cleanup
-	for _, t := range form.targets {
-		for i := 0; i < len(t); i++ {
-			if t[i] == '#' {
-				if i+1 < len(t) && t[i+1] >= 'A' && t[i+1] <= 'Z' {
-					writeError(uuid, r, w, http.StatusBadRequest, "got Grafana series tag", form.format, &toLog)
-					return
-				}
-			}
-		}
-	}
-
 	if form.from32 >= form.until32 {
 		var clientErrMsgFmt string
 		if form.from32 == form.until32 {
@@ -418,6 +406,17 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		if _, ok := metricMap[mfetch]; ok {
 			// already fetched this metric for this request
 			continue
+		}
+
+		// TODO: This is a hotfix. Most likely needs cleanup.
+		for i := 0; i < len(m.Metric)-1; i++ {
+			if m.Metric[i] == '#' {
+				if m.Metric[i+1] >= 'A' && m.Metric[i+1] <= 'Z' {
+					Trace(lgm, "returning not found for a #[A-Z] type metric")
+					metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
+					continue
+				}
+			}
 		}
 
 		// This _sometimes_ sends a *find* request
