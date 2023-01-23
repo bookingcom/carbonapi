@@ -66,7 +66,7 @@ var (
 	// ErrInvalidArgumentValue is an eval error returned when a function received an argument that has the right type but invalid value
 	ErrInvalidArgumentValue = ParseError("invalid function argument value")
 	// ErrMovingWindowSizeLessThanRetention is an eval error returned when a function received a moving window size bigger than the metrics retention
-	ErrMovingWindowSizeLessThanRetention = ParseError("moving window is bigger than the metrics retention")
+	ErrMovingWindowSizeLessThanRetention = ParseError("windowSize function param exceeds metric retention")
 )
 
 // ParseError is a type of errors returned from the parser
