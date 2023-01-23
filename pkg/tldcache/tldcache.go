@@ -172,7 +172,7 @@ func filterByTopLevelDomain(cache *expirecache.Cache, backends []backend.Backend
 	allTLDBackends := make([]*backend.Backend, 0)
 
 	topLevelDomainCache, _ := cache.Get("tlds")
-	tldCache := make(map[string][]*backend.Backend)
+	var tldCache map[string][]*backend.Backend
 	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
 		tldCache = x
 	}
