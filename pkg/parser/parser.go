@@ -171,7 +171,7 @@ func (e *expr) Metrics() []MetricRequest {
 				r[i].From -= 7 * 86400 // starts -7 days from where the original starts
 			}
 		case "movingAverage", "movingMedian", "movingMin", "movingMax", "movingSum":
-			if e.args[1].etype == EtString {
+			if len(e.args) >= 2 && e.args[1].etype == EtString {
 				offs, err := e.GetIntervalArg(1, 1)
 				if err != nil {
 					return nil
