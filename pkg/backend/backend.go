@@ -48,6 +48,7 @@ type BackendImpl interface {
 	Contains([]string) bool // Reports whether a backend contains any of the given targets.
 	Logger() *zap.Logger    // A logger used to communicate non-fatal warnings.
 	GetServerAddress() string
+	BackendInfo() (addr string, cluster string, dc string)
 }
 
 type renderReq struct {
@@ -149,6 +150,7 @@ func (b *Backend) Proc() {
 				if err != nil {
 					req.Errors <- err
 				} else {
+					b.addSourceMetaToMetrics(res)
 					req.Results <- res
 				}
 				<-semaphore
@@ -248,4 +250,11 @@ func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, 
 	}
 	backend.requestsInQueue.WithLabelValues("info").Inc()
 	backend.enqueuedRequests.WithLabelValues("info").Inc()
+}
+
+func (backend Backend) addSourceMetaToMetrics(metrics []types.Metric) {
+	_, cluster, _ := backend.BackendInfo()
+	for i := range metrics {
+		metrics[i].SourceClusters = []string{cluster}
+	}
 }

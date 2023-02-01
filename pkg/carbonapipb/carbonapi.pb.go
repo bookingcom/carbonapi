@@ -47,6 +47,7 @@ type AccessLogDetails struct {
 	ZipperRequests                int64             `json:"zipper_requests,omitempty"`
 	TotalMetricCount              int64             `json:"total_metric_count"`
 	CacheErrs                     string            `json:"cache_errs"`
+	Clusters                      []string          `json:"clusters"`
 }
 
 func splitAddr(addr string) (string, string) {

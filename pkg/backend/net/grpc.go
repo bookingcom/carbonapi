@@ -225,3 +225,7 @@ func (gb *GrpcBackend) countResponse(err error, request string) {
 		gb.responsesCount.WithLabelValues(strconv.Itoa(int(code)), request).Inc()
 	}
 }
+
+func (gb *GrpcBackend) BackendInfo() (addr string, cluster string, dc string) {
+	return gb.GrpcAddress, gb.cluster, gb.dc
+}
