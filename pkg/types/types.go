@@ -104,6 +104,8 @@ type Metric struct {
 	StepTime  int32
 	Values    []float64
 	IsAbsent  []bool
+
+	SourceClusters []string
 }
 
 // MetricRenderStats represents the stats of rendering and merging metrics.
@@ -298,8 +300,20 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 	sort.Sort(byStepTime(metrics))
 	healed := 0
 
+	clusterMap := make(map[string]bool)
+	for _, m := range metrics {
+		for _, cl := range m.SourceClusters {
+			clusterMap[cl] = true
+		}
+	}
+	clusters := make([]string, 0, len(clusterMap))
+	for cl := range clusterMap {
+		clusters = append(clusters, cl)
+	}
+	sort.Strings(clusters)
 	// metrics[0] has the highest resolution of metrics
 	metric = metrics[0]
+	metric.SourceClusters = clusters
 	valuesForPoint := make([]float64, 0, len(metrics))
 	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
 	for i := range metric.Values {

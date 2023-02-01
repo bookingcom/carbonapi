@@ -396,3 +396,7 @@ func carbonapiV2FindEncoder(u *url.URL, query string) *url.URL {
 
 	return u
 }
+
+func (b NetBackend) BackendInfo() (addr string, cluster string, dc string) {
+	return b.address, b.cluster, b.dc
+}

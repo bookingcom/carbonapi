@@ -303,6 +303,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 		Trace(lgt, "target succeeded")
 	}
+	toLog.Clusters = clustersFromMetricMap(metricMap)
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
 	if ctx.Err() != nil {
@@ -336,6 +337,23 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		Trace(lg, "request partially failed")
 		app.ms.RenderPartialFail.Inc()
 	}
+}
+
+func clustersFromMetricMap(metricMap map[parser.MetricRequest][]*types.MetricData) []string {
+	clustersMap := make(map[string]bool)
+	for _, dataForReq := range metricMap {
+		for _, metricData := range dataForReq {
+			for _, cl := range metricData.SourceClusters {
+				clustersMap[cl] = true
+			}
+		}
+	}
+	clusters := make([]string, 0, len(clustersMap))
+	for cl := range clustersMap {
+		clusters = append(clusters, cl)
+	}
+	sort.Strings(clusters)
+	return clusters
 }
 
 func writeError(uuid string,
