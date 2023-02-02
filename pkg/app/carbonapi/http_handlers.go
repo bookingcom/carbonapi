@@ -412,6 +412,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 
+	ResultChannelByMetricRequest := make(map[parser.MetricRequest]chan RenderResponse)
 	for _, m := range exp.Metrics() {
 		lgm := lg.With(zap.String("metric", m.Metric))
 		Trace(lgm, "getting metric data from upstream")
@@ -421,8 +422,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		mfetch.Until += until
 
 		targetMetricFetches = append(targetMetricFetches, mfetch)
-		if _, ok := metricMap[mfetch]; ok {
-			// already fetched this metric for this request
+		if _, ok := ResultChannelByMetricRequest[mfetch]; ok {
+			// already requested this metric for this request
 			continue
 		}
 
@@ -484,9 +485,14 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 				app.ms.UpstreamRequestsInQueue.WithLabelValues("fast").Inc()
 			}
 		}
+		ResultChannelByMetricRequest[mfetch] = rch
+	}
 
+	for mfetch, rch := range ResultChannelByMetricRequest {
+		lgm := lg.With(zap.String("metric", mfetch.Metric))
+		renderRequestsCount := cap(rch)
 		errs := make([]error, 0)
-		for i := 0; i < len(renderRequests); i++ {
+		for i := 0; i < renderRequestsCount; i++ {
 			resp := <-rch
 			if resp.error != nil {
 				errs = append(errs, resp.error)
@@ -501,7 +507,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		}
 		close(rch)
 
-		Trace(lgm, "sub-requests returned", zap.Int("errors", len(errs)), zap.Int("total requests", len(renderRequests)))
+		Trace(lgm, "sub-requests returned", zap.Int("errors", len(errs)), zap.Int("total requests", renderRequestsCount))
 		// We have to check it here because we don't want to return before closing rch
 		select {
 		case <-ctx.Done():
@@ -510,7 +516,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		default:
 		}
 
-		metricErr, metricErrStr := optimistFanIn(errs, len(renderRequests), "requests")
+		metricErr, metricErrStr := optimistFanIn(errs, renderRequestsCount, "requests")
 		*partFail = (*partFail) || (metricErrStr != "")
 		if metricErr != nil {
 			metricErrs = append(metricErrs, metricErr)
