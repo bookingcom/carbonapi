@@ -421,11 +421,15 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		mfetch.From += from
 		mfetch.Until += until
 
-		targetMetricFetches = append(targetMetricFetches, mfetch)
 		if _, ok := ResultChannelByMetricRequest[mfetch]; ok {
 			// already requested this metric for this request
 			continue
 		}
+		if _, ok := metricMap[mfetch]; ok {
+			// already fetched this metric for this request
+			continue
+		}
+		targetMetricFetches = append(targetMetricFetches, mfetch)
 
 		// TODO: This is a hotfix. Most likely needs cleanup.
 		for i := 0; i < len(m.Metric)-1; i++ {
