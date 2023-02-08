@@ -1543,13 +1543,13 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) (err error) {
 	params.yTopR = params.yStepR * math.Ceil(yMaxValueR/params.yStepR)
 
 	if params.logBase != 0 {
-		if yMinValueL > 0 && yMaxValueL > 0 {
+		if yMinValueL > 0 && yMinValueR > 0 {
 			params.yBottomL = math.Pow(params.logBase, math.Floor(math.Log(yMinValueL)/math.Log(params.logBase)))
 			params.yTopL = math.Pow(params.logBase, math.Ceil(math.Log(yMaxValueL/math.Log(params.logBase))))
 			params.yBottomR = math.Pow(params.logBase, math.Floor(math.Log(yMinValueR)/math.Log(params.logBase)))
 			params.yTopR = math.Pow(params.logBase, math.Ceil(math.Log(yMaxValueR/math.Log(params.logBase))))
 		} else {
-			return fmt.Errorf("logscale with minvalue '%g' or maxvalue '%g' <= 0", yMinValueL, yMaxValueL)
+			return fmt.Errorf("logscale with yMinValueL '%g' or yMinValueR '%g' <= 0", yMinValueL, yMinValueR)
 		}
 	}
 
