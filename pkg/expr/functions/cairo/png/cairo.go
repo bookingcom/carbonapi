@@ -1014,7 +1014,10 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 	setColor(cr, params.bgColor)
 	drawRectangle(cr, 0, 0, params.width, params.height, true)
 
-	drawGraph(cr, &params, results, emptyText)
+	err := drawGraph(cr, &params, results, emptyText)
+	if err != nil {
+		return nil, err
+	}
 
 	surface.Flush()
 
@@ -1044,7 +1047,7 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 }
 
 func drawGraph(cr *cairoSurfaceContext, params *Params,
-	results []*types.MetricData, emptyText string) {
+	results []*types.MetricData, emptyText string) (err error) {
 	var minNumberOfPoints, maxNumberOfPoints int32
 
 	params.secondYAxis = false
@@ -1090,7 +1093,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 
 		drawText(cr, emptyText, x, y, HAlignCenter, VAlignTop, 0)
 
-		return
+		return nil
 	}
 
 	for _, res := range results {
@@ -1193,7 +1196,7 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 		}
 		params.timeRange = params.endTime - params.startTime
 		if params.timeRange < 0 {
-			panic("startTime > endTime!!!")
+			return fmt.Errorf("startTime '%d', should be <= endTime '%d'", params.startTime, params.endTime)
 		}
 	}
 
@@ -1268,9 +1271,12 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	currentXMin := params.area.xmin
 	currentXMax := params.area.xmax
 	if params.secondYAxis {
-		setupTwoYAxes(cr, params)
+		err = setupTwoYAxes(cr, params)
 	} else {
-		setupYAxis(cr, params, consolidated)
+		err = setupYAxis(cr, params, consolidated)
+	}
+	if err != nil {
+		return err
 	}
 
 	for currentXMin != params.area.xmin || currentXMax != params.area.xmax {
@@ -1278,9 +1284,12 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 		currentXMin = params.area.xmin
 		currentXMax = params.area.xmax
 		if params.secondYAxis {
-			setupTwoYAxes(cr, params)
+			err = setupTwoYAxes(cr, params)
 		} else {
-			setupYAxis(cr, params, consolidated)
+			err = setupYAxis(cr, params, consolidated)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	setupXAxis(params)
@@ -1294,6 +1303,8 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	}
 
 	drawLines(cr, params, consolidated)
+
+	return nil
 }
 
 func consolidateDataPoints(params *Params, results []*types.MetricData) []*types.MetricData {
@@ -1322,7 +1333,7 @@ func consolidateDataPoints(params *Params, results []*types.MetricData) []*types
 	return ret
 }
 
-func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) {
+func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) (err error) {
 
 	var Ldata []*types.MetricData
 	var Rdata []*types.MetricData
@@ -1532,13 +1543,13 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) {
 	params.yTopR = params.yStepR * math.Ceil(yMaxValueR/params.yStepR)
 
 	if params.logBase != 0 {
-		if yMinValueL > 0 && yMinValueR > 0 {
+		if yMinValueL > 0 && yMaxValueL > 0 {
 			params.yBottomL = math.Pow(params.logBase, math.Floor(math.Log(yMinValueL)/math.Log(params.logBase)))
 			params.yTopL = math.Pow(params.logBase, math.Ceil(math.Log(yMaxValueL/math.Log(params.logBase))))
 			params.yBottomR = math.Pow(params.logBase, math.Floor(math.Log(yMinValueR)/math.Log(params.logBase)))
 			params.yTopR = math.Pow(params.logBase, math.Ceil(math.Log(yMaxValueR/math.Log(params.logBase))))
 		} else {
-			panic("logscale with minvalue <= 0")
+			return fmt.Errorf("logscale with minvalue '%g' or maxvalue '%g' <= 0", yMinValueL, yMaxValueL)
 		}
 	}
 
@@ -1609,6 +1620,7 @@ func setupTwoYAxes(cr *cairoSurfaceContext, params *Params) {
 	if params.area.xmax > xMax {
 		params.area.xmax = xMax
 	}
+	return nil
 }
 
 type yaxisDivisor struct {
@@ -1649,7 +1661,7 @@ func makeLabel(yValue, yStep, ySpan float64, yUnitSystem string) string {
 	}
 }
 
-func setupYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) {
+func setupYAxis(cr *cairoSurfaceContext, params *Params, results []*types.MetricData) (err error) {
 	var seriesWithMissingValues []*types.MetricData
 
 	var yMinValue, yMaxValue float64
@@ -1751,8 +1763,7 @@ func setupYAxis(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 			params.yBottom = math.Pow(params.logBase, math.Floor(math.Log(yMinValue)/math.Log(params.logBase)))
 			params.yTop = math.Pow(params.logBase, math.Ceil(math.Log(yMaxValue)/math.Log(params.logBase)))
 		} else {
-			panic("logscale with minvalue <= 0")
-			// raise GraphError('Logarithmic scale specified with a dataset with a minimum value less than or equal to zero')
+			return fmt.Errorf("logscale with minvalue '%g' <= 0", yMinValue)
 		}
 	}
 
@@ -1815,6 +1826,7 @@ func setupYAxis(cr *cairoSurfaceContext, params *Params, results []*types.Metric
 		params.yLabels = nil
 		params.yLabelWidth = 0.0
 	}
+	return nil
 }
 
 func getFontExtents(cr *cairoSurfaceContext) cairo.FontExtents {
