@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"runtime/debug"
 	"sort"
@@ -704,8 +705,17 @@ func (app *App) renderWriteBody(results []*types.MetricData, form renderForm, r 
 
 	switch form.format {
 	case jsonFormat:
-		if maxDataPoints, _ := strconv.Atoi(r.FormValue("maxDataPoints")); maxDataPoints != 0 {
-			results = types.ConsolidateJSON(maxDataPoints, results)
+		// let's limit maxDataPoints to math.MaxInt32, i.e. 2147483647
+		umaxDataPoints64, err2 := strconv.ParseInt(r.FormValue("maxDataPoints"), 10, 32)
+		if err2 != nil {
+			if umaxDataPoints64 >= 0 && umaxDataPoints64 <= math.MaxInt32 {
+				maxDataPoints := int(umaxDataPoints64)
+				results = types.ConsolidateJSON(maxDataPoints, results)
+			} else {
+				return nil, fmt.Errorf("maxDataPoints %d should be >=0 and <=%d", umaxDataPoints64, math.MaxInt32)
+			}
+		} else {
+			return nil, errors.New("Can't convert maxDataPoints to integer")
 		}
 
 		body = types.MarshalJSON(results)
