@@ -269,7 +269,7 @@ func MarshalRaw(results []*MetricData) []byte {
 // Consolidate returns a consolidated copy of this MetricData.
 func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
 	ret := *r
-	if valuesPerPoint == 1 || valuesPerPoint == 0 {
+	if valuesPerPoint == 1 || valuesPerPoint <= 0 {
 		ret.ValuesPerPoint = 1
 		ret.Values = make([]float64, len(r.Values))
 		ret.IsAbsent = make([]bool, len(r.IsAbsent))

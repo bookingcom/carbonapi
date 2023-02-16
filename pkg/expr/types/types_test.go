@@ -74,6 +74,20 @@ func TestConsolidate(t *testing.T) {
 			6,
 			nil,
 		},
+		{"zero vpp, no consolidation",
+			MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, 0),
+			0,
+			MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, 0),
+			6,
+			nil,
+		},
+		{"negative vpp, no consolidation",
+			MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, 0),
+			-9223372036854775808,
+			MakeMetricData("metric1", []float64{1, math.NaN(), math.NaN(), 3, 4, 12}, 1, 0),
+			6,
+			nil,
+		},
 		{"valuesPerPoint_2_none_values",
 			MakeMetricData("metric1", []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}, 1, 0),
 			2,
@@ -122,7 +136,7 @@ func TestConsolidate(t *testing.T) {
 		if diff := cmp.Diff(test.expected.IsAbsent, got.IsAbsent); diff != "" {
 			t.Errorf("Consolidation IsAbsent for %s (-want +got):\n%s", test.name, diff)
 		}
-		if test.valuesPerPoint != got.ValuesPerPoint {
+		if test.valuesPerPoint > 0 && test.valuesPerPoint != got.ValuesPerPoint {
 			t.Errorf("Consolidation ValuesPerPoint for %s. Want: %d. Got: %d", test.name, test.valuesPerPoint, got.ValuesPerPoint)
 		}
 		if test.expectedEnd != got.StopTime {
