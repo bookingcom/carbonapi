@@ -306,7 +306,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	toLog.Clusters = clustersFromMetricMap(metricMap)
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
 
-	toLog.TotalMetricCount = int64(len(results))
+	var totalMetricCount int
+	for _, metricDataSlice := range metricMap {
+		totalMetricCount += len(metricDataSlice)
+	}
+	toLog.TotalMetricCount = int64(totalMetricCount)
 
 	if ctx.Err() != nil {
 		app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
