@@ -37,7 +37,8 @@ check: test lint
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	golangci-lint --version
+	GOMEMLIMIT=1024MiB golangci-lint run -v
 
 .PHONY: test
 test:
