@@ -3,7 +3,12 @@
 
 package png
 
-import "github.com/evmar/gocairo/cairo"
+import (
+	"fmt"
+	"math"
+
+	"github.com/evmar/gocairo/cairo"
+)
 
 // interface with all used cairo.Context methods
 type cairoContext interface {
@@ -60,11 +65,20 @@ func svgSurfaceCreate(filename string, widthInPoints, heightInPoints float64, pi
 	return cairo.SVGSurfaceCreate(filename, pixelRatio*widthInPoints, pixelRatio*heightInPoints)
 }
 
-func imageSurfaceCreate(format cairo.Format, width, height float64, pixelRatio float64) *cairo.ImageSurface {
-	if isDefaultRatio(pixelRatio) {
-		return cairo.ImageSurfaceCreate(format, int(width), int(height))
+func imageSurfaceCreate(format cairo.Format, width, height float64, pixelRatio float64) (*cairo.ImageSurface, error) {
+	w := int(width)
+	h := int(height)
+	if !isDefaultRatio(pixelRatio) {
+		w = int(pixelRatio * width)
+		h = int(pixelRatio * height)
 	}
-	return cairo.ImageSurfaceCreate(format, int(pixelRatio*float64(width)), int(pixelRatio*float64(height)))
+	if w > math.MaxInt16 || h > math.MaxInt16 {
+		return nil, fmt.Errorf("requested image width (%d) or height (%d) exceeds cairo img size limit of %d", w, h, math.MaxInt16)
+	}
+	if w < 0 || h < 0 {
+		return nil, fmt.Errorf("requested image width (%d) or height (%d) is less than zero", w, h)
+	}
+	return cairo.ImageSurfaceCreate(format, w, h), nil
 }
 
 func createContext(surface *cairo.Surface, pixelRatio float64) *cairoSurfaceContext {

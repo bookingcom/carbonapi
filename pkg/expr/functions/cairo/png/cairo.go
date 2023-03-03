@@ -20,6 +20,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 	dataTypes "github.com/bookingcom/carbonapi/pkg/types"
+	"github.com/pkg/errors"
 
 	"github.com/evmar/gocairo/cairo"
 	"github.com/tebeka/strftime"
@@ -1000,7 +1001,10 @@ func marshalCairo(p PictureParams, results []*types.MetricData, backend cairoBac
 		s := svgSurfaceCreate(tmpfile.Name(), params.width, params.height, params.pixelRatio)
 		surface = s.Surface
 	case cairoPNG:
-		s := imageSurfaceCreate(cairo.FormatARGB32, params.width, params.height, params.pixelRatio)
+		s, err := imageSurfaceCreate(cairo.FormatARGB32, params.width, params.height, params.pixelRatio)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not create image surface via cairo")
+		}
 		surface = s.Surface
 	}
 	cr := createContext(surface, params.pixelRatio)
