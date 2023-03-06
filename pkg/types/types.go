@@ -142,6 +142,25 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 		}
 	}
 
+	var metricsWithRedundantReplicas []string
+	for name, ms := range metricByNames {
+		if len(ms) > 3 {
+			metricsWithRedundantReplicas = append(metricsWithRedundantReplicas, name)
+		}
+	}
+	if len(metricsWithRedundantReplicas) > 0 {
+		var metricsWithRedundantReplicasToLog []string
+		if len(metricsWithRedundantReplicas) > 100 {
+			metricsWithRedundantReplicasToLog = metricsWithRedundantReplicas[:100]
+		} else {
+			metricsWithRedundantReplicasToLog = metricsWithRedundantReplicas
+		}
+		logger.Info("metric with redundant replicas observed",
+			zap.Strings("metrics_with_redundant_replicas", metricsWithRedundantReplicasToLog),
+			zap.Int("metrics_with_redundant_replicas_count", len(metricsWithRedundantReplicas)),
+		)
+	}
+
 	merged := make([]Metric, 0)
 	var metricsStat MetricRenderStats
 	type metricReport struct {
