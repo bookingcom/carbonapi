@@ -72,6 +72,8 @@ func imageSurfaceCreate(format cairo.Format, width, height float64, pixelRatio f
 		w = int(pixelRatio * width)
 		h = int(pixelRatio * height)
 	}
+	// See https://github.com/Automattic/node-canvas/issues/1374#issuecomment-467918480
+	// and https://github.com/freedesktop/cairo/blob/929262dd54ffae81721ffe9b2c59faa7b045c663/src/cairo-image-surface.c#L59-L62
 	if w > math.MaxInt16 || h > math.MaxInt16 {
 		return nil, fmt.Errorf("requested image width (%d) or height (%d) exceeds cairo img size limit of %d", w, h, math.MaxInt16)
 	}
