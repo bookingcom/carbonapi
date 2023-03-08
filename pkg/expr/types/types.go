@@ -291,7 +291,7 @@ func (r *MetricData) Consolidate(valuesPerPoint int) *MetricData {
 	v := r.Values
 	absent := r.IsAbsent
 
-	for len(v) >= valuesPerPoint {
+	for len(v) >= valuesPerPoint && valuesPerPoint > 0 {
 		val, abs := ret.AggregateFunction(v[:valuesPerPoint], absent[:valuesPerPoint])
 		if math.IsNaN(val) {
 			val = 0
