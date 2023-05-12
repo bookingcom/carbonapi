@@ -13,18 +13,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
       - name: install cairo
         run: sudo apt-get install libcairo2-dev -y
       - name: setup linter
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sudo sh -s -- -b /usr/local/bin v1.51.2
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sudo sh -s -- -b /usr/local/bin v1.52.2
       - name: checkout code
         uses: actions/checkout@v3
       - name: test
         run: make test
-      - name: lint
-        run: make lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.52.2
       - name: integration test
         run: tests/system_test.sh
