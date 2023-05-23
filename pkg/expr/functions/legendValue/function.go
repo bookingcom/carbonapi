@@ -37,7 +37,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 	}
 
 	var system string
-	methods := make([]string, len(e.Args())-1)
+	var methods []string
 	for i := 1; i < len(e.Args()); i++ {
 		method, err := e.GetStringArg(i)
 		if err != nil {
@@ -47,7 +47,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 		if method == "si" || method == "binary" {
 			system = method
 		} else {
-			methods[i-1] = method
+			methods = append(methods, method)
 		}
 	}
 
