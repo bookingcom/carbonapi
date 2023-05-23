@@ -3,6 +3,7 @@ package legendValue
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/expr/helper"
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
@@ -54,7 +55,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 	var results []*types.MetricData
 
 	for _, a := range arg {
-		r := *a
+		var values []string
 		for _, method := range methods {
 			summaryVal, _, err := helper.SummarizeValues(method, a.Values)
 			if err != nil {
@@ -72,9 +73,11 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 			} else {
 				return nil, fmt.Errorf("%s is not supported for system", system)
 			}
-			r.Name = fmt.Sprintf("%s (%s: %s)", r.Name, method, summary)
+			values = append(values, fmt.Sprintf("%s: %s", method, summary)
 		}
-
+		
+		r := *a
+		r.Name = fmt.Sprintf("%s (%s)", r.Name, strings.Join(values, ", "))
 		results = append(results, &r)
 	}
 	return results, nil
