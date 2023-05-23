@@ -66,7 +66,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 				sv, sf := humanize.ComputeSI(summaryVal)
 				summary = fmt.Sprintf("%.1f %s", sv, sf)
 			} else if system == "binary" {
-				summary = humanize.IBytes(summaryVal)
+				summary = humanize.IBytes(uint64(summaryVal))
 			} else if system == "" {
 				summary = fmt.Sprintf("%f", summaryVal)
 			} else {
