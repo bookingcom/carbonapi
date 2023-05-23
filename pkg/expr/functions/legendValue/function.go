@@ -73,7 +73,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 			} else {
 				return nil, fmt.Errorf("%s is not supported for system", system)
 			}
-			values = append(values, fmt.Sprintf("%s: %s", method, summary)
+			values = append(values, fmt.Sprintf("%s: %s", method, summary))
 		}
 		
 		r := *a
