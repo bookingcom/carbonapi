@@ -166,7 +166,7 @@ func MarshalJSON(results []*MetricData) []byte {
 
 			b = append(b, '[')
 
-			if absent[i] || math.IsInf(v, 0) || math.IsNaN(v) {
+			if (i < len(absent) && absent[i]) || math.IsInf(v, 0) || math.IsNaN(v) {
 				b = append(b, "null"...)
 			} else {
 				b = strconv.AppendFloat(b, v, 'f', -1, 64)
