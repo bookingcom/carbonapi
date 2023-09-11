@@ -75,7 +75,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 			}
 			values = append(values, fmt.Sprintf("%s: %s", method, summary))
 		}
-		
+
 		r := *a
 		r.Name = fmt.Sprintf("%s (%s)", r.Name, strings.Join(values, ", "))
 		results = append(results, &r)
