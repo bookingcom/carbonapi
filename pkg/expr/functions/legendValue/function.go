@@ -3,11 +3,13 @@ package legendValue
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/expr/helper"
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/dustin/go-humanize"
 )
 
 type legendValue struct {
@@ -35,28 +37,47 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 		return nil, err
 	}
 
-	methods := make([]string, len(e.Args())-1)
+	var system string
+	var methods []string
 	for i := 1; i < len(e.Args()); i++ {
 		method, err := e.GetStringArg(i)
 		if err != nil {
 			return nil, err
 		}
 
-		methods[i-1] = method
+		if method == "si" || method == "binary" {
+			system = method
+		} else {
+			methods = append(methods, method)
+		}
 	}
 
 	var results []*types.MetricData
 
 	for _, a := range arg {
-		r := *a
+		var values []string
 		for _, method := range methods {
-			summary, _, err := helper.SummarizeValues(method, a.Values)
+			summaryVal, _, err := helper.SummarizeValues(method, a.Values)
 			if err != nil {
 				return []*types.MetricData{}, err
 			}
-			r.Name = fmt.Sprintf("%s (%s: %f)", r.Name, method, summary)
+
+			summary := ""
+			if system == "si" {
+				sv, sf := humanize.ComputeSI(summaryVal)
+				summary = fmt.Sprintf("%.1f %s", sv, sf)
+			} else if system == "binary" {
+				summary = humanize.IBytes(uint64(summaryVal))
+			} else if system == "" {
+				summary = fmt.Sprintf("%f", summaryVal)
+			} else {
+				return nil, fmt.Errorf("%s is not supported for system", system)
+			}
+			values = append(values, fmt.Sprintf("%s: %s", method, summary))
 		}
 
+		r := *a
+		r.Name = fmt.Sprintf("%s (%s)", r.Name, strings.Join(values, ", "))
 		results = append(results, &r)
 	}
 	return results, nil
