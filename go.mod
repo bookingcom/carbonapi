@@ -26,7 +26,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
 	go.uber.org/zap v1.24.0
 	gonum.org/v1/gonum v0.13.0
-	google.golang.org/grpc v1.55.0
+	google.golang.org/grpc v1.56.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 
