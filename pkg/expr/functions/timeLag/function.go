@@ -41,31 +41,25 @@ func MakeTimeLag(consumerMetric, producerMetric *types.MetricData, name string) 
 	r.Values = make([]float64, len(consumerMetric.Values))
 	r.IsAbsent = make([]bool, len(consumerMetric.Values))
 
-	var pIndex int32 = 0
+	// Set initial producer index to -1
+	var pIndex int32 = -1
 	for i, v := range consumerMetric.Values {
 		// reset producer offset and scan it again if consumer offset decreased
 		if i > 0 && consumerMetric.Values[i-1] > v {
-			pIndex = 0
+			pIndex = -1
 		}
+
 		if consumerMetric.IsAbsent[i] || len(producerMetric.Values) == 0 {
 			r.IsAbsent[i] = true
 			continue
 		}
 
-		npIndex := pIndex
-		// npIndex: find first index in producer metric that is higher than v
-		for (producerMetric.IsAbsent[npIndex] || producerMetric.Values[npIndex] <= v) && (npIndex+1) < pLen {
-			npIndex++
-			for producerMetric.IsAbsent[npIndex] && (npIndex+1) < pLen {
-				npIndex++
-			}
-			// maintain: pIndex is highest index for which producer metric <= v
-			if !producerMetric.IsAbsent[npIndex] && producerMetric.Values[npIndex] <= v {
-				pIndex = npIndex
-			}
+		// Move Producer index to the right as much as possible
+		for pIndex < (int32)(i) && (pIndex+1) < pLen && producerMetric.Values[pIndex+1] <= v {
+			pIndex += 1
 		}
-		// we can't compute timeLag for the value that is lower than the smallest data point in producer metric
-		if producerMetric.IsAbsent[pIndex] || producerMetric.Values[pIndex] > v {
+
+		if pIndex == -1 || producerMetric.IsAbsent[pIndex] {
 			r.IsAbsent[i] = true
 			continue
 		}
