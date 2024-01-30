@@ -141,7 +141,7 @@ func (b *Backend) Proc() {
 			}
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime)))
+			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime).Seconds()))
 			go func(req *renderReq) {
 				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
@@ -164,7 +164,7 @@ func (b *Backend) Proc() {
 			b.requestsInQueue.WithLabelValues(requestLabel).Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime)))
+			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime).Seconds()))
 			go func(req *findReq) {
 				t := prometheus.NewTimer(b.backendDuration.WithLabelValues(requestLabel))
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
