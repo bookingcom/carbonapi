@@ -146,6 +146,47 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 	return []*types.MetricData{ret}, nil
 }
 
+// AggregateSeries aggregates series with wildcarcs
+func AggregateSeriesWithWildcards(name string, args []*types.MetricData, fields []int, function AggregateFunc) ([]*types.MetricData, error) {
+	var results []*types.MetricData
+
+	nodeList := []string{}
+	groups := make(map[string][]*types.MetricData)
+
+	for _, a := range args {
+		metric := ExtractMetric(a.Name)
+		nodes := strings.Split(metric, ".")
+		var s []string
+		// Yes, this is O(n^2), but len(nodes) < 10 and len(fields) < 3
+		// Iterating an int slice is faster than a map for n ~ 30
+		// http://www.antoine.im/posts/someone_is_wrong_on_the_internet
+		for i, n := range nodes {
+			if !Contains(fields, i) {
+				s = append(s, n)
+			}
+		}
+
+		node := strings.Join(s, ".")
+
+		if len(groups[node]) == 0 {
+			nodeList = append(nodeList, node)
+		}
+
+		groups[node] = append(groups[node], a)
+	}
+
+	for _, series := range nodeList {
+		groupArgs := groups[series]
+		groupName := fmt.Sprintf("%s(%s)", name, series)
+		res, err := AggregateSeries(groupName, groupArgs, false, false, function)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, res[0])
+	}
+	return results, nil
+}
+
 // SummarizeValues summarizes values
 func SummarizeValues(f string, values []float64) (float64, bool, error) {
 	rv := 0.0
