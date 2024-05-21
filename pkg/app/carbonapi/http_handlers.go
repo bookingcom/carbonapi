@@ -389,7 +389,7 @@ func evalExprRender(ctx context.Context, exp parser.Expr, res *([]*types.MetricD
 	form *renderForm, printErrorStackTrace bool, getTargetData interfaces.GetTargetData) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
-			retErr = fmt.Errorf("panic during expr eval: %s", r)
+			retErr = fmt.Errorf("panic during expr eval: %s\n%s", r, string(debug.Stack()))
 			if printErrorStackTrace {
 				debug.PrintStack()
 			}

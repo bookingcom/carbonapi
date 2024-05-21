@@ -2,8 +2,6 @@ package multiplySeriesWithWildcards
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/bookingcom/carbonapi/pkg/expr/helper"
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
@@ -43,68 +41,14 @@ func (f *multiplySeriesWithWildcards) Do(ctx context.Context, e parser.Expr, fro
 		return nil, err
 	}
 
-	var results []*types.MetricData
-
-	nodeList := []string{}
-	groups := make(map[string][]*types.MetricData)
-
-	for _, a := range args {
-		metric := helper.ExtractMetric(a.Name)
-		nodes := strings.Split(metric, ".")
-		var s []string
-		// Yes, this is O(n^2), but len(nodes) < 10 and len(fields) < 3
-		// Iterating an int slice is faster than a map for n ~ 30
-		// http://www.antoine.im/posts/someone_is_wrong_on_the_internet
-		for i, n := range nodes {
-			if !helper.Contains(fields, i) {
-				s = append(s, n)
-			}
+	return helper.AggregateSeriesWithWildcards("multiplySeriesWithWildcards", args, fields, func(values []float64) (float64, bool) {
+		ret := values[0]
+		for _, value := range values[1:] {
+			ret *= value
 		}
 
-		node := strings.Join(s, ".")
-
-		if len(groups[node]) == 0 {
-			nodeList = append(nodeList, node)
-		}
-
-		groups[node] = append(groups[node], a)
-	}
-
-	for _, series := range nodeList {
-		args := groups[series]
-		r := *args[0]
-		r.Name = fmt.Sprintf("multiplySeriesWithWildcards(%s)", series)
-		r.Values = make([]float64, len(args[0].Values))
-		r.IsAbsent = make([]bool, len(args[0].Values))
-
-		atLeastOne := make([]bool, len(args[0].Values))
-		hasVal := make([]bool, len(args[0].Values))
-
-		for _, arg := range args {
-			for i, v := range arg.Values {
-				if arg.IsAbsent[i] {
-					continue
-				}
-
-				atLeastOne[i] = true
-				if !hasVal[i] {
-					r.Values[i] = v
-					hasVal[i] = true
-				} else {
-					r.Values[i] *= v
-				}
-			}
-		}
-
-		for i, v := range atLeastOne {
-			if !v {
-				r.IsAbsent[i] = true
-			}
-		}
-
-		results = append(results, &r)
-	}
-	return results, nil
+		return ret, false
+	})
 }
 
 // Description is auto-generated description, based on output of https://github.com/graphite-project/graphite-web
