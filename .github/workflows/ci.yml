@@ -32,10 +32,10 @@ jobs:
       - name: test
         run: make test
       - name: golangci-lint
-        if: matrix.go-version == 'tip'
+        if: matrix.go-version == '1.23.x'
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.60.1
       - name: integration test
-        if: matrix.go-version == 'tip'
+        if: matrix.go-version == '1.23.x'
         run: tests/system_test.sh
