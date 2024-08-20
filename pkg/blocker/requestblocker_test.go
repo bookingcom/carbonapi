@@ -277,7 +277,7 @@ func TestReloadRulesSuccess_ReturnsRules(t *testing.T) {
 
 	requestBlocker.ReloadRules()
 	reloadedConf := requestBlocker.rules.Load().(RuleConfig)
-	if reloadedConf.Rules != nil && len(reloadedConf.Rules) == 2 {
+	if len(reloadedConf.Rules) == 2 {
 		t.Error("Header rules were not loaded")
 	}
 }
