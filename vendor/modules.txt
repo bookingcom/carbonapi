@@ -92,8 +92,6 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/kr/text v0.2.0
-## explicit
 # github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 ## explicit
 github.com/lomik/og-rek
@@ -153,13 +151,10 @@ go.opentelemetry.io/otel/api/propagation
 go.opentelemetry.io/otel/api/standard
 go.opentelemetry.io/otel/api/trace
 go.opentelemetry.io/otel/api/unit
-# go.uber.org/atomic v1.11.0
-## explicit; go 1.18
-go.uber.org/atomic
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
-# go.uber.org/zap v1.24.0
+# go.uber.org/zap v1.27.0
 ## explicit; go 1.19
 go.uber.org/zap
 go.uber.org/zap/buffer
@@ -167,6 +162,8 @@ go.uber.org/zap/internal
 go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
+go.uber.org/zap/internal/pool
+go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
 # golang.org/x/net v0.26.0
 ## explicit; go 1.18
