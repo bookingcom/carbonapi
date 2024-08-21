@@ -15,7 +15,7 @@ require (
 	github.com/go-graphite/protocol v1.0.1-0.20220718132526-4b842ba389ee
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/handlers v1.5.2
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
 	github.com/pkg/errors v0.9.1
