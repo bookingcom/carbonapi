@@ -26,7 +26,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
 	go.uber.org/zap v1.27.0
 	gonum.org/v1/gonum v0.13.0
-	google.golang.org/grpc v1.56.3
+	google.golang.org/grpc v1.66.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -43,7 +43,6 @@ require (
 	github.com/facebookgo/stats v0.0.0-20151006221625-1b76add642e4 // indirect
 	github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
