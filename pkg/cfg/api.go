@@ -89,6 +89,8 @@ func DefaultAPIConfig() API {
 			BucketsNum: 10,
 			BucketSize: 2,
 		},
+
+		SimpleRequestThreshold: 1000,
 	}
 
 	cfg.Listen = ":8081"
@@ -164,6 +166,8 @@ type API struct {
 	EmbedZipper bool `yaml:"embedZipper"`
 	// ZipperConfig represents the config for the embedded zipper.
 	ZipperConfig string `yaml:"zipperConfig"`
+
+	SimpleRequestThreshold int `yaml:"simpleRequestThreshold"`
 }
 
 // CacheConfig configs the cache
