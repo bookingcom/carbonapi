@@ -160,7 +160,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	defer func() {
 		//2xx response code is treated as success
 		if toLog.HttpCode/100 == 2 {
-			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
+			if toLog.TotalMetricCount < int64(app.config.SimpleRequestThreshold) {
 				app.ms.RenderDurationExpSimple.Observe(time.Since(t0).Seconds())
 				app.ms.RenderDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
@@ -901,7 +901,7 @@ func (app *App) findHandler(w http.ResponseWriter, r *http.Request, lg *zap.Logg
 	logLevel := zap.InfoLevel
 	defer func() {
 		if toLog.HttpCode/100 == 2 {
-			if toLog.TotalMetricCount < int64(app.config.ResolveGlobs) {
+			if toLog.TotalMetricCount < int64(app.config.SimpleRequestThreshold) {
 				app.ms.FindDurationLinSimple.Observe(time.Since(t0).Seconds())
 			} else {
 				app.ms.FindDurationLinComplex.Observe(time.Since(t0).Seconds())
