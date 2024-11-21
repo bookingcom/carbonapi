@@ -114,8 +114,8 @@ func (f *groupByNode) Do(ctx context.Context, e parser.Expr, from, until int32, 
 			}
 		}
 
-		r, err := f.Evaluator.EvalExpr(ctx, nexpr, from, until, nvalues, getTargetData)
-		if err != nil && r != nil && len(r) > 0 {
+		r, _ := f.Evaluator.EvalExpr(ctx, nexpr, from, until, nvalues, getTargetData)
+		if r != nil && len(r) > 0 {
 			r[0].Name = k
 			results = append(results, r...)
 		}
