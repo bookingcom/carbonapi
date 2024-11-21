@@ -72,6 +72,9 @@ func (f *reduce) Do(ctx context.Context, e parser.Expr, from, until int32, value
 	for _, series := range seriesList {
 		metric := helper.ExtractMetric(series.Name)
 		nodes := strings.Split(metric, ".")
+		if len(nodes) < reduceNode {
+			continue
+		}
 		reduceNodeKey := nodes[reduceNode]
 		nodes[reduceNode] = "reduce." + reduceFunction
 		aliasName := strings.Join(nodes, ".")
