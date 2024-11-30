@@ -201,12 +201,16 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 			rv += av
 		}
 	case "avg", "average":
+		total := 0
 		for i, av := range values {
 			if !absent[i] {
 				rv += av
+				total++
 			}
 		}
-		rv /= float64(len(values))
+		if total > 0 {
+			rv /= float64(total)
+		}
 	case "max":
 		rv = math.Inf(-1)
 		for _, av := range values {
