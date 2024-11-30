@@ -117,12 +117,14 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 		t := arg.StartTime // unadjusted
 		bucketEnd := start + bucketSize
 		values := make([]float64, 0, bucketSize/arg.StepTime)
+		absent := make([]bool, 0, bucketSize/arg.StepTime)
 		ridx := 0
 		bucketItems := 0
 		for i, v := range arg.Values {
 			bucketItems++
 			if !arg.IsAbsent[i] {
 				values = append(values, v)
+				absent = append(absent, false)
 			}
 
 			t += arg.StepTime
@@ -132,7 +134,7 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 			}
 
 			if t >= bucketEnd {
-				r.Values[ridx], r.IsAbsent[ridx], err = helper.SummarizeValues(summarizeFunction, values)
+				r.Values[ridx], r.IsAbsent[ridx], err = helper.SummarizeValues(summarizeFunction, values, absent)
 				if err != nil {
 					return []*types.MetricData{}, err
 				}
@@ -140,12 +142,13 @@ func (f *summarize) Do(ctx context.Context, e parser.Expr, from, until int32, va
 				bucketEnd += bucketSize
 				bucketItems = 0
 				values = values[:0]
+				absent = absent[:0]
 			}
 		}
 
 		// last partial bucket
 		if bucketItems > 0 {
-			r.Values[ridx], r.IsAbsent[ridx], err = helper.SummarizeValues(summarizeFunction, values)
+			r.Values[ridx], r.IsAbsent[ridx], err = helper.SummarizeValues(summarizeFunction, values, absent)
 			if err != nil {
 				return []*types.MetricData{}, err
 			}
