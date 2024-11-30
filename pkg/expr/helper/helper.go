@@ -238,7 +238,7 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 		}
 	case "count":
 		total := 0
-		for i, _ := range values {
+		for i := range values {
 			if !absent[i] {
 				total++
 			}
