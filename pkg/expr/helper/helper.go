@@ -210,6 +210,8 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 		}
 		if total > 0 {
 			rv /= float64(total)
+		} else {
+			rv = 0.0
 		}
 	case "max":
 		rv = math.Inf(-1)
