@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          check-latest: true
       - name: Set up Go tip
         if: matrix.go == 'tip'
         run: |
@@ -36,6 +37,13 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.60.1
+      - name: govulncheck
+        if: matrix.go-version != 'tip'
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: ${{ matrix.go-version }}
+          check-latest: true
+          go-package: ./...
       - name: integration test
         if: matrix.go-version == '1.23.x'
         run: tests/system_test.sh
