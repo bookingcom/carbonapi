@@ -2,11 +2,6 @@ run:
   timeout: 2m
   tests: true
   build-tags: [ cairo ]
-  skip-files:
-    - ".*\\.pb\\.go$"
-    - "function_test.go"
-    - "expr_test.go"
-    - "cairo_test.go"
 
 linters:
   enable:
