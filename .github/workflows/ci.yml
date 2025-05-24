@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ 1.22.x, 1.23.x, 1.24.x, tip ]
+        go-version: [ 1.23.x, 1.24.x, tip ]
     steps:
       - name: Set up Go stable
         if: matrix.go-version != 'tip'
