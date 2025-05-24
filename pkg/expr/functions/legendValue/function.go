@@ -63,14 +63,15 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 			}
 
 			summary := ""
-			if system == "si" {
+			switch system {
+			case "si":
 				sv, sf := humanize.ComputeSI(summaryVal)
 				summary = fmt.Sprintf("%.1f %s", sv, sf)
-			} else if system == "binary" {
+			case "binary":
 				summary = humanize.IBytes(uint64(summaryVal))
-			} else if system == "" {
+			case "":
 				summary = fmt.Sprintf("%f", summaryVal)
-			} else {
+			default:
 				return nil, fmt.Errorf("%s is not supported for system", system)
 			}
 			values = append(values, fmt.Sprintf("%s: %s", method, summary))
