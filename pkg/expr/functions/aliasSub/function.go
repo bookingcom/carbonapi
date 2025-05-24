@@ -55,10 +55,8 @@ func (f *aliasSub) Do(ctx context.Context, e parser.Expr, from, until int32, val
 	var results []*types.MetricData
 
 	for _, a := range args {
-		metric := helper.ExtractMetric(a.Name)
-
 		r := *a
-		r.Name = re.ReplaceAllString(metric, replace)
+		r.Name = re.ReplaceAllString(r.Name, replace)
 		results = append(results, &r)
 	}
 
