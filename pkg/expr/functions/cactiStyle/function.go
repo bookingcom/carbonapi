@@ -76,7 +76,8 @@ func (f *cactiStyle) Do(ctx context.Context, e parser.Expr, from, until int32, v
 		min := ""
 		max := ""
 		current := ""
-		if system == "si" {
+		switch system {
+		case "si":
 			mv, mf := humanize.ComputeSI(minVal)
 			xv, xf := humanize.ComputeSI(maxVal)
 			cv, cf := humanize.ComputeSI(currentVal)
@@ -85,12 +86,12 @@ func (f *cactiStyle) Do(ctx context.Context, e parser.Expr, from, until int32, v
 			max = fmt.Sprintf("%.0f%s", xv, xf)
 			current = fmt.Sprintf("%.0f%s", cv, cf)
 
-		} else if system == "" {
+		case "":
 			min = fmt.Sprintf("%.0f", minVal)
 			max = fmt.Sprintf("%.0f", maxVal)
 			current = fmt.Sprintf("%.0f", currentVal)
 
-		} else {
+		default:
 			return nil, fmt.Errorf("%s is not supported for system", system)
 		}
 

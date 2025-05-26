@@ -1200,15 +1200,16 @@ func drawGraph(cr *cairoSurfaceContext, params *Params,
 	}
 
 	// check if we need to stack all the things
-	if params.areaMode == AreaModeStacked {
+	switch params.areaMode {
+	case AreaModeStacked:
 		params.hasStack = true
 		for _, r := range results {
 			r.Stacked = true
 			r.StackName = "stack"
 		}
-	} else if params.areaMode == AreaModeFirst {
+	case AreaModeFirst:
 		results[0].Stacked = true
-	} else if params.areaMode == AreaModeAll {
+	case AreaModeAll:
 		for _, r := range results {
 			r.Stacked = true
 		}

@@ -4,9 +4,10 @@
 package cairo
 
 import (
-	"go.uber.org/zap"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
