@@ -57,7 +57,7 @@ func (f *legendValue) Do(ctx context.Context, e parser.Expr, from, until int32, 
 	for _, a := range arg {
 		var values []string
 		for _, method := range methods {
-			summaryVal, _, err := helper.SummarizeValues(method, a.Values)
+			summaryVal, _, err := helper.SummarizeValues(method, a.Values, a.IsAbsent)
 			if err != nil {
 				return []*types.MetricData{}, err
 			}
