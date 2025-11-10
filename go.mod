@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/JaderDias/movingmedian v0.0.0-20220813210630-d8c6b6de8835
+	github.com/alecthomas/assert/v2 v2.11.0
 	github.com/bradfitz/gomemcache v0.0.0-20230124162541-5f7a7d875746
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-expirecache v0.0.0-20170314133854-743ef98b2adb
@@ -32,6 +33,7 @@ require (
 
 require (
 	github.com/aclements/go-moremath v0.0.0-20210112150236-f10218a38794 // indirect
+	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/facebookgo/atomicfile v0.0.0-20151019160806-2de1f203e7d5 // indirect
@@ -44,6 +46,7 @@ require (
 	github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
