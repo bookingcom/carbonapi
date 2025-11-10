@@ -4,6 +4,12 @@ github.com/JaderDias/movingmedian
 # github.com/aclements/go-moremath v0.0.0-20210112150236-f10218a38794
 ## explicit; go 1.12
 github.com/aclements/go-moremath/mathx
+# github.com/alecthomas/assert/v2 v2.11.0
+## explicit; go 1.18
+github.com/alecthomas/assert/v2
+# github.com/alecthomas/repr v0.4.0
+## explicit; go 1.18
+github.com/alecthomas/repr
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -83,6 +89,11 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
+# github.com/hexops/gotextdiff v1.0.3
+## explicit; go 1.16
+github.com/hexops/gotextdiff
+github.com/hexops/gotextdiff/myers
+github.com/hexops/gotextdiff/span
 # github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80
 ## explicit
 github.com/lomik/og-rek

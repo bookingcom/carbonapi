@@ -1,5 +1,4 @@
 //go:build cairo
-// +build cairo
 
 package cairo
 

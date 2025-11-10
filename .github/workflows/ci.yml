@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ 1.23.x, 1.24.x, tip ]
+        go-version: [1.24.x, 1.25.x, tip]
     steps:
       - name: Set up Go stable
         if: matrix.go-version != 'tip'
@@ -32,17 +32,17 @@ jobs:
       - name: test
         run: make test
       - name: govulncheck
-        if: matrix.go-version != 'tip'
+        if: matrix.go-version == '1.25.x'
         uses: golang/govulncheck-action@v1
         with:
           go-version-input: ${{ matrix.go-version }}
           check-latest: true
           go-package: ./...
       - name: golangci-lint
-        if: matrix.go-version == '1.24.x'
-        uses: golangci/golangci-lint-action@v8
+        if: matrix.go-version == '1.25.x'
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.6
+          version: v2.6.1
       - name: integration test
-        if: matrix.go-version == '1.24.x'
+        if: matrix.go-version == '1.25.x'
         run: tests/system_test.sh

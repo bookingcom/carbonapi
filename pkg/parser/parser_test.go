@@ -4,8 +4,41 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/alecthomas/assert/v2"
 	"github.com/davecgh/go-spew/spew"
 )
+
+func TestSkipWhitespace(t *testing.T) {
+	testCases := []struct{ in, expected string }{
+		{
+			in:       " ",
+			expected: "",
+		},
+		{
+			in:       " foo",
+			expected: "foo",
+		},
+		{
+			in:       " foo ",
+			expected: "foo ",
+		},
+		{
+			in:       "\nfoo",
+			expected: "foo",
+		},
+		{
+			in:       "\tfoo",
+			expected: "foo",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.in, func(t *testing.T) {
+			out := skipWhitespace(tc.in)
+			assert.Equal(t, tc.expected, out)
+		})
+	}
+}
 
 func TestParseExpr(t *testing.T) {
 
@@ -425,6 +458,92 @@ func TestParseExpr(t *testing.T) {
 				},
 				// The reason that func is without any whitespaces is that we behave argString of funcs exceptionally.
 				argString: "func(\ng\r),   \ns\t",
+			},
+		},
+		{
+			s: "foo.bar\n.baz\t",
+			e: &expr{
+				target: "foo.bar",
+				etype:  EtName,
+			},
+		},
+		{
+			s: "absolute( baz )\n",
+			e: &expr{
+				target: "absolute",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "baz"},
+				},
+				argString: " baz ",
+			},
+		},
+		{
+			s: "func1(\"example blah\")",
+			e: &expr{
+				target: "func1",
+				etype:  EtFunc,
+				args: []*expr{
+					{
+						etype:  EtString,
+						valStr: "example blah",
+					},
+				},
+				argString: "\"example blah\"",
+			},
+		},
+		{
+			s: "foobar(\n)",
+			e: &expr{
+				target: "foobar",
+				etype:  EtFunc,
+			},
+		},
+		{
+			s: "foobar(asdf,\n\tzxcv,\n\tqwer\n)",
+			e: &expr{
+				target: "foobar",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "asdf"},
+					{target: "zxcv"},
+					{target: "qwer"},
+				},
+				argString: "asdf,\n\tzxcv,\n\tqwer\n",
+			},
+		},
+		{
+			s: "func1(foo.bar)\n| func2(foo.baz)|\n func3(\n\tfunc4(asdf.zxcv.qwer)\n)",
+			e: &expr{
+				target: "func3",
+				etype:  EtFunc,
+				args: []*expr{
+					{
+						target: "func2",
+						etype:  EtFunc,
+						args: []*expr{
+							{
+								target: "func1",
+								etype:  EtFunc,
+								args: []*expr{
+									{target: "foo.bar"},
+								},
+								argString: "foo.bar",
+							},
+							{target: "foo.baz"},
+						},
+						argString: "func1(foo.bar),foo.baz",
+					},
+					{
+						target: "func4",
+						etype:  EtFunc,
+						args: []*expr{
+							{target: "asdf.zxcv.qwer"},
+						},
+						argString: "asdf.zxcv.qwer",
+					},
+				},
+				argString: "func2(func1(foo.bar),foo.baz),func4(asdf.zxcv.qwer)",
 			},
 		},
 	}
