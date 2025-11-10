@@ -344,10 +344,7 @@ func skipWhitespace(e string) string {
 }
 
 func parseExprWithoutPipe(e string) (Expr, string, error) {
-	// skip whitespace
-	for len(e) > 1 && unicode.IsSpace(rune(e[0])) {
-		e = e[1:]
-	}
+	e = skipWhitespace(e)
 
 	if len(e) == 0 {
 		return nil, "", ErrMissingExpr
@@ -405,9 +402,6 @@ func ParseExpr(e string) (Expr, string, error) {
 
 func pipe(exp *expr, e string) (*expr, string, error) {
 	e = skipWhitespace(e)
-	for len(e) > 1 && unicode.IsSpace(rune(e[0])) {
-		e = e[1:]
-	}
 
 	if e == "" || e[0] != '|' {
 		return exp, e, nil
