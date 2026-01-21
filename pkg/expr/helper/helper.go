@@ -188,7 +188,7 @@ func AggregateSeriesWithWildcards(name string, args []*types.MetricData, fields 
 }
 
 // SummarizeValues summarizes values
-func SummarizeValues(f string, values []float64) (float64, bool, error) {
+func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, error) {
 	rv := 0.0
 
 	if len(values) == 0 {
@@ -201,10 +201,16 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 			rv += av
 		}
 	case "avg", "average":
-		for _, av := range values {
-			rv += av
+		total := 0
+		for i, av := range values {
+			if !absent[i] {
+				rv += av
+				total++
+			}
 		}
-		rv /= float64(len(values))
+		if total > 0 {
+			rv /= float64(total)
+		}
 	case "max":
 		rv = math.Inf(-1)
 		for _, av := range values {
@@ -214,20 +220,31 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 		}
 	case "min":
 		rv = math.Inf(1)
-		for _, av := range values {
-			if av < rv {
-				rv = av
+		for i, av := range values {
+			if !absent[i] {
+				if av < rv {
+					rv = av
+				}
 			}
 		}
 	case "last":
-		if len(values) > 0 {
-			rv = values[len(values)-1]
+		for i := len(values) - 1; i >= 0; i-- {
+			if !absent[i] {
+				rv = values[i]
+				break
+			}
 		}
 	case "count":
-		rv = float64(len(values))
+		total := 0
+		for i := range values {
+			if !absent[i] {
+				total++
+			}
+		}
+		rv = float64(total)
 	case "median":
-		val, absent := Percentile(values, 50, true)
-		return val, absent, nil
+		val, abs := Percentile(values, 50, true)
+		return val, abs, nil
 	default:
 		looks_like_percentile, err := regexp.MatchString(`^p\d\d?$`, f)
 		if err != nil {
@@ -239,8 +256,8 @@ func SummarizeValues(f string, values []float64) (float64, bool, error) {
 			if err != nil {
 				return 0, true, parser.ParseError(err.Error())
 			}
-			val, absent := Percentile(values, percent, true)
-			return val, absent, nil
+			val, abs := Percentile(values, percent, true)
+			return val, abs, nil
 		} else {
 			return 0, true, parser.ParseError(fmt.Sprintf("unsupported aggregation function: %s", f))
 		}
