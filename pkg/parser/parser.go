@@ -373,6 +373,11 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	if strings.ToLower(name) == "false" || strings.ToLower(name) == "true" {
 		return &expr{valStr: name, etype: EtString, target: name}, e, nil
 	}
+	//check for none arg explicitly
+	if strings.EqualFold(name, "none") {
+		return &expr{valStr: "", etype: EtNil, target: "none"}, e, nil
+	}
+
 	if name == "" {
 		return nil, e, ErrMissingArgument
 	}
