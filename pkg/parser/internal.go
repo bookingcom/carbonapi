@@ -22,6 +22,9 @@ func (e *expr) getNamedArg(name string) *expr {
 }
 
 func (e *expr) doGetFloatArg() (float64, error) {
+	if e.etype == EtNil {
+		return 0, ErrBadType
+	}
 	if e.etype != EtConst {
 		return 0, ErrBadType
 	}
@@ -30,6 +33,9 @@ func (e *expr) doGetFloatArg() (float64, error) {
 }
 
 func (e *expr) doGetStringArg() (string, error) {
+	if e.etype == EtNil {
+		return "", nil
+	}
 	if e.etype != EtString {
 		return "", ErrBadType
 	}
