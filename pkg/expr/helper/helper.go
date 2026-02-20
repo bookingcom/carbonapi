@@ -245,6 +245,9 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 	case "median":
 		val, abs := Percentile(values, 50, true)
 		return val, abs, nil
+	case "stddev":
+		rv = math.Sqrt(VarianceValue(values, absent))
+		return rv, false, nil
 	default:
 		looks_like_percentile, err := regexp.MatchString(`^p\d\d?$`, f)
 		if err != nil {
