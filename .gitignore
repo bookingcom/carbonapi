@@ -15,3 +15,6 @@ coverage.txt
 *.swp
 # Docker runs data
 data
+
+golangci-lint.zip
+golangci-lint-extracted/

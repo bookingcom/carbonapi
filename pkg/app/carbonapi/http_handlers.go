@@ -32,7 +32,10 @@ import (
 	ourJson "github.com/bookingcom/carbonapi/pkg/types/encoding/json"
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/pickle"
 	"github.com/bookingcom/carbonapi/pkg/util"
+
 )
+
+
 
 const (
 	jsonFormat      = "json"
@@ -380,8 +383,22 @@ func writeError(uuid string,
 			accessLogDetails.Reason += " 499"
 		}
 	} else {
-		http.Error(w, http.StatusText(code)+" ("+strconv.Itoa(code)+") Details: "+s, code)
-	}
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("X-Carbonapi-UUID", uuid)
+				w.WriteHeader(code)
+				resp := struct {
+					Error     string `json:"error"`
+					Status    int    `json:"status"`
+					RequestID string `json:"request_id,omitempty"`
+				}{
+				Error:     s,
+				Status:    code,
+				RequestID: r.Header.Get("X-Request-ID"),
+				}
+				enc := json.NewEncoder(w)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(resp)
+			}
 }
 
 func evalExprRender(ctx context.Context, exp parser.Expr, res *([]*types.MetricData),
@@ -1351,7 +1368,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, lg *zap
 
 	err := r.ParseForm()
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest)+": "+err.Error(), http.StatusBadRequest)
+		writeError(uuid, r, w, http.StatusBadRequest, err.Error(), jsonFormat, &toLog)
 		toLog.HttpCode = http.StatusBadRequest
 		toLog.Reason = err.Error()
 		return
@@ -1434,7 +1451,7 @@ func (app *App) functionsHandler(w http.ResponseWriter, r *http.Request, lg *zap
 	}
 
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), jsonFormat, &toLog)
 		toLog.HttpCode = http.StatusInternalServerError
 		toLog.Reason = err.Error()
 		logLevel = zapcore.ErrorLevel
