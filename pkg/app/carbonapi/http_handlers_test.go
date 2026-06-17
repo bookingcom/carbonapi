@@ -244,6 +244,90 @@ func TestMetricRefsPrefix(t *testing.T) {
 	}
 }
 
+func TestCollectMatchedPrefixes(t *testing.T) {
+	tests := []struct {
+		name     string
+		targets  []string
+		prefixes []string
+		want     []string // sorted expected matches; nil means no matches (empty or nil map)
+	}{
+		{
+			name:     "no configured prefixes",
+			targets:  []string{"a.b.c.*"},
+			prefixes: nil,
+			want:     nil,
+		},
+		{
+			name:     "single target matches single prefix",
+			targets:  []string{"a.b.c.*"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+		{
+			name:     "single target does not match prefix",
+			targets:  []string{"x.y.z"},
+			prefixes: []string{"a.b"},
+			want:     nil,
+		},
+		{
+			name:     "multiple targets, one matches",
+			targets:  []string{"x.y.z", "a.b.c"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+		{
+			name:     "multiple targets match different prefixes",
+			targets:  []string{"a.b.c", "x.y.z"},
+			prefixes: []string{"a.b", "x.y"},
+			want:     []string{"a.b", "x.y"},
+		},
+		{
+			name:     "target with function expression",
+			targets:  []string{"sum(a.b.c.*)"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+		{
+			name:     "unparseable target is skipped, valid target still counted",
+			targets:  []string{"(((bad target", "a.b.c"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+		{
+			name:     "prefix only matched at dot boundary",
+			targets:  []string{"a.bc.d"},
+			prefixes: []string{"a.b"},
+			want:     nil,
+		},
+		{
+			name:     "exact match counts",
+			targets:  []string{"a.b"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+		{
+			name:     "each prefix counted at most once across all targets",
+			targets:  []string{"a.b.c", "a.b.d"},
+			prefixes: []string{"a.b"},
+			want:     []string{"a.b"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collectMatchedPrefixes(tt.targets, tt.prefixes)
+			if len(got) != len(tt.want) {
+				t.Fatalf("collectMatchedPrefixes(%v, %v) = %v, want %v", tt.targets, tt.prefixes, got, tt.want)
+			}
+			for _, p := range tt.want {
+				if _, ok := got[p]; !ok {
+					t.Errorf("collectMatchedPrefixes(%v, %v): missing prefix %q in result %v", tt.targets, tt.prefixes, p, got)
+				}
+			}
+		})
+	}
+}
+
 func TestInitRequestPrefixes(t *testing.T) {
 	lg := zap.NewNop()
 

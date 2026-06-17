@@ -221,10 +221,7 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
-	var matchedPrefixes map[string]struct{}
-	if len(app.RequestPrefixes) > 0 {
-		matchedPrefixes = make(map[string]struct{})
-	}
+	matchedPrefixes := collectMatchedPrefixes(form.targets, app.RequestPrefixes)
 
 	var results []*types.MetricData
 
@@ -241,19 +238,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog)
 			return
-		}
-
-		if matchedPrefixes != nil {
-			for _, m := range exp.Metrics() {
-				for _, p := range app.RequestPrefixes {
-					if _, already := matchedPrefixes[p]; already {
-						continue
-					}
-					if metricRefsPrefix(m.Metric, p) {
-						matchedPrefixes[p] = struct{}{}
-					}
-				}
-			}
 		}
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
@@ -1635,4 +1619,32 @@ func metricRefsPrefix(metric, prefix string) bool {
 		return true
 	}
 	return metric[len(prefix)] == '.'
+}
+
+// collectMatchedPrefixes parses each target string and returns the set of
+// configuredPrefixes that are directly referenced by at least one metric in
+// any of the parsed expressions (see metricRefsPrefix). Targets that fail to
+// parse are silently skipped. Returns nil when configuredPrefixes is empty.
+func collectMatchedPrefixes(targets []string, configuredPrefixes []string) map[string]struct{} {
+	if len(configuredPrefixes) == 0 {
+		return nil
+	}
+	matched := make(map[string]struct{})
+	for _, target := range targets {
+		exp, e, parseErr := parser.ParseExpr(target)
+		if parseErr != nil || e != "" {
+			continue
+		}
+		for _, m := range exp.Metrics() {
+			for _, p := range configuredPrefixes {
+				if _, already := matched[p]; already {
+					continue
+				}
+				if metricRefsPrefix(m.Metric, p) {
+					matched[p] = struct{}{}
+				}
+			}
+		}
+	}
+	return matched
 }
