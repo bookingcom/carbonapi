@@ -12,6 +12,8 @@ type PrometheusMetrics struct {
 	RenderPartialFail prometheus.Counter
 	RequestCancel     *prometheus.CounterVec
 
+	RequestsPerPrefix *prometheus.CounterVec
+
 	DurationTotal      *prometheus.HistogramVec
 	UpstreamDuration   *prometheus.HistogramVec
 	UpstreamTimeInQSec *prometheus.HistogramVec
@@ -95,6 +97,14 @@ func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 				Help: "Context cancellations or incoming requests due to manual cancels or timeouts",
 			},
 			[]string{"handler", "cause"},
+		),
+
+		RequestsPerPrefix: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "requests_per_prefix_total",
+				Help: "Count of /render requests where at least one metric pattern directly references the configured prefix (i.e. equals the prefix or starts with `<prefix>.`).",
+			},
+			[]string{"prefix"},
 		),
 
 		DurationTotal: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -280,6 +290,7 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.FindNotFound)
 	prometheus.MustRegister(ms.RenderPartialFail)
 	prometheus.MustRegister(ms.RequestCancel)
+	prometheus.MustRegister(ms.RequestsPerPrefix)
 
 	prometheus.MustRegister(ms.DurationTotal)
 	prometheus.MustRegister(ms.UpstreamDuration)

@@ -51,6 +51,11 @@ type App struct {
 
 	defaultTimeZone *time.Location
 
+	// RequestPrefixes is the validated list of metric-name prefixes used to
+	// emit the requests_per_prefix_total counter. Populated from
+	// config.RequestsPerPrefixList at construction time.
+	RequestPrefixes []string
+
 	// During processing we use two independent queues that share a semaphore to prevent stampeding.
 	// fastQ includes regular requests
 	fastQ chan *RenderReq
@@ -82,6 +87,8 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 		slowQ:           make(chan *RenderReq, config.QueueSize),
 	}
 	app.requestBlocker.ReloadRules()
+
+	app.RequestPrefixes = initRequestPrefixes(config.RequestsPerPrefixList, lg)
 
 	setUpConfig(app, lg)
 
@@ -256,6 +263,34 @@ func setUpConfig(app *App, logger *zap.Logger) {
 		)
 	}
 
+}
+
+// initRequestPrefixes validates the configured prefix list for the
+// requests_per_prefix_total counter: drops empty entries, drops entries
+// that contain glob characters (those cannot be matched literally), and
+// dedupes the result while preserving input order.
+func initRequestPrefixes(cfgPrefixes []string, lg *zap.Logger) []string {
+	if len(cfgPrefixes) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(cfgPrefixes))
+	out := make([]string, 0, len(cfgPrefixes))
+	for _, p := range cfgPrefixes {
+		if p == "" {
+			lg.Warn("requestsPerPrefixList: ignoring empty prefix")
+			continue
+		}
+		if strings.ContainsAny(p, "*?[{") {
+			lg.Warn("requestsPerPrefixList: ignoring prefix with glob characters", zap.String("prefix", p))
+			continue
+		}
+		if _, dup := seen[p]; dup {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	return out
 }
 
 func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, t time.Time, level zapcore.Level) {
