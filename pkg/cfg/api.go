@@ -168,6 +168,14 @@ type API struct {
 	ZipperConfig string `yaml:"zipperConfig"`
 
 	SimpleRequestThreshold int `yaml:"simpleRequestThreshold"`
+
+	// RequestsPerPrefixList configures the prefixes used to emit the
+	// requests_per_prefix_total counter. Each entry is a dot-separated
+	// metric-name prefix (e.g. "a.b"). A request is counted toward a
+	// prefix when at least one of its metric patterns equals the prefix
+	// or begins with `<prefix>.`. Empty entries and entries containing
+	// glob characters are ignored.
+	RequestsPerPrefixList []string `yaml:"requestsPerPrefixList"`
 }
 
 // CacheConfig configs the cache

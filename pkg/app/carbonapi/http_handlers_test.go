@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	typ "github.com/bookingcom/carbonapi/pkg/types"
+	"go.uber.org/zap"
 )
 
 func TestGetCompleterQuery(t *testing.T) {
@@ -210,6 +211,64 @@ func TestOptimistErrsFanIn(t *testing.T) {
 
 				if _, ok := err.(typ.ErrNotFound); ok != tst.isNotFound {
 					t.Fatalf("got err *%v* when not found err expected", err)
+				}
+			}
+		})
+	}
+}
+
+func TestMetricRefsPrefix(t *testing.T) {
+	tests := []struct {
+		metric string
+		prefix string
+		want   bool
+	}{
+		{"a.b.c.*", "a.b", true},
+		{"a.*", "a.b", false},
+		{"a.b", "a.b", true},
+		{"a.bc", "a.b", false},
+		{"a.b.c", "a", true},
+		{"apple.x", "a", false},
+		{"{a,x}.b.c", "a", false},
+		{"a.b.c.d", "a.b", true},
+		{"", "a", false},
+		{"a", "a", true},
+		{"a", "a.b.c", false},
+	}
+
+	for _, tt := range tests {
+		got := metricRefsPrefix(tt.metric, tt.prefix)
+		if got != tt.want {
+			t.Errorf("metricRefsPrefix(%q, %q) = %v, want %v", tt.metric, tt.prefix, got, tt.want)
+		}
+	}
+}
+
+func TestInitRequestPrefixes(t *testing.T) {
+	lg := zap.NewNop()
+
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"nil input", nil, nil},
+		{"empty input", []string{}, nil},
+		{"drops empty entries", []string{"a.b", "", "x"}, []string{"a.b", "x"}},
+		{"drops glob entries", []string{"a.b", "a.*", "a.b{c,d}", "a?b", "x[1-2]"}, []string{"a.b"}},
+		{"dedupes", []string{"a.b", "x", "a.b", "x"}, []string{"a.b", "x"}},
+		{"preserves order", []string{"z", "a", "m"}, []string{"z", "a", "m"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := initRequestPrefixes(tt.in, lg)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got %v, want %v", got, tt.want)
 				}
 			}
 		})

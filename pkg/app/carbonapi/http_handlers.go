@@ -221,6 +221,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
+	var matchedPrefixes map[string]struct{}
+	if len(app.RequestPrefixes) > 0 {
+		matchedPrefixes = make(map[string]struct{})
+	}
+
 	var results []*types.MetricData
 
 	size := 0
@@ -236,6 +241,19 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 			msg := buildParseErrorString(target, e, parseErr)
 			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog)
 			return
+		}
+
+		if matchedPrefixes != nil {
+			for _, m := range exp.Metrics() {
+				for _, p := range app.RequestPrefixes {
+					if _, already := matchedPrefixes[p]; already {
+						continue
+					}
+					if metricRefsPrefix(m.Metric, p) {
+						matchedPrefixes[p] = struct{}{}
+					}
+				}
+			}
 		}
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
@@ -302,6 +320,9 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		size += metricSize
 
 		Trace(lgt, "target succeeded")
+	}
+	for p := range matchedPrefixes {
+		app.ms.RequestsPerPrefix.WithLabelValues(p).Inc()
 	}
 	toLog.Clusters = clustersFromMetricMap(metricMap)
 	toLog.CarbonzipperResponseSizeBytes = int64(size * 8)
@@ -1600,4 +1621,18 @@ func addCacheErrorToLogDetails(d *carbonapipb.AccessLogDetails, isRead bool, err
 		prefix = "get: "
 	}
 	d.CacheErrs += prefix + err.Error() + ","
+}
+
+// metricRefsPrefix reports whether `metric` directly references `prefix`:
+// metric == prefix, or metric begins with `prefix + "."`. Glob characters
+// in metric past the prefix boundary are irrelevant, but `prefix` itself
+// is matched literally and is expected to be glob-free.
+func metricRefsPrefix(metric, prefix string) bool {
+	if !strings.HasPrefix(metric, prefix) {
+		return false
+	}
+	if len(metric) == len(prefix) {
+		return true
+	}
+	return metric[len(prefix)] == '.'
 }
