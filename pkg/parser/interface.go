@@ -24,6 +24,8 @@ const (
 	EtConst
 	// EtString is a const for 'String' type expression
 	EtString
+	// EtNil is a const for 'None' type expression
+	EtNil
 )
 
 var (
