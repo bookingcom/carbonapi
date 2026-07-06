@@ -1,6 +1,6 @@
 module github.com/bookingcom/carbonapi
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/JaderDias/movingmedian v0.0.0-20220813210630-d8c6b6de8835
@@ -26,7 +26,7 @@ require (
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 	go.opentelemetry.io/contrib/instrumentation/gorilla/mux v0.7.0
 	go.uber.org/zap v1.27.0
-	gonum.org/v1/gonum v0.16.0
+	gonum.org/v1/gonum v0.17.0
 	google.golang.org/grpc v1.56.3
 	gopkg.in/yaml.v2 v2.4.0
 )
