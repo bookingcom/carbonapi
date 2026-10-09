@@ -3,13 +3,16 @@
 package net
 
 import (
+	"bufio"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
@@ -18,7 +21,6 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/types/encoding/carbonapi_v2"
 	"github.com/bookingcom/carbonapi/pkg/util"
 
-	"github.com/dgryski/go-expirecache"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -47,8 +49,12 @@ type NetBackend struct {
 	cluster        string
 	client         *http.Client
 	timeout        time.Duration
-	cache          *expirecache.Cache
+	cache          *pathCache
 	cacheExpirySec int32
+
+	// requestGzip mirrors http.Transport's transparent compression: the
+	// request asks for gzip and the body is inflated here with a pooled reader.
+	requestGzip bool
 
 	responsesCount *prometheus.CounterVec
 
@@ -81,15 +87,14 @@ var fmtProto = []string{"protobuf"}
 
 // New creates a new backend from the given configuration.
 func New(cfg Config) (*NetBackend, error) {
-	b := &NetBackend{
-		cache: expirecache.New(0),
-	}
+	b := &NetBackend{}
 
 	if cfg.PathCacheExpirySec > 0 {
 		b.cacheExpirySec = int32(cfg.PathCacheExpirySec)
 	} else {
 		b.cacheExpirySec = int32(10 * time.Minute / time.Second)
 	}
+	b.cache = newPathCache(time.Duration(b.cacheExpirySec) * time.Second)
 
 	address, scheme, err := parseAddress(cfg.Address)
 	if err != nil {
@@ -112,6 +117,7 @@ func New(cfg Config) (*NetBackend, error) {
 	} else {
 		b.client = http.DefaultClient
 	}
+	b.requestGzip = transportCompresses(b.client)
 
 	b.responsesCount = cfg.Responses
 
@@ -163,20 +169,99 @@ func (b NetBackend) setTimeout(ctx context.Context) (context.Context, context.Ca
 	return context.WithCancel(ctx)
 }
 
+// transportCompresses reports whether the client's transport would add
+// "Accept-Encoding: gzip" to requests on its own.
+func transportCompresses(c *http.Client) bool {
+	switch t := c.Transport.(type) {
+	case nil:
+		return true // http.DefaultTransport
+	case *http.Transport:
+		return !t.DisableCompression
+	default:
+		return false
+	}
+}
+
 func (b NetBackend) request(ctx context.Context, u *url.URL) (*http.Request, error) {
-	req, err := http.NewRequest("GET", "", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.URL = u
+	if b.requestGzip {
+		// Setting the header ourselves stops the transport from inflating the
+		// body with a freshly allocated gzip.Reader per response.
+		req.Header.Set("Accept-Encoding", "gzip")
+	}
 
-	req = req.WithContext(ctx)
 	req = util.MarshalCtx(ctx, req)
 
 	return req, nil
 }
 
-func (b NetBackend) do(req *http.Request, request string) (string, []byte, error) {
+// Response bodies are read into pooled buffers. Decoders copy everything they
+// keep, so a buffer can be reused as soon as its response has been decoded.
+var bodyPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
+// Buffers that grew past this are dropped instead of pooled, so a rare huge
+// response does not pin its memory.
+const maxPooledBody = 16 << 20
+
+func getBody() *bytes.Buffer {
+	return bodyPool.Get().(*bytes.Buffer)
+}
+
+func putBody(buf *bytes.Buffer) {
+	if buf == nil || buf.Cap() > maxPooledBody {
+		return
+	}
+	buf.Reset()
+	bodyPool.Put(buf)
+}
+
+// gunzipper pairs a gzip reader with the buffered reader it reads through.
+// Without the bufio.Reader, gzip.Reader.Reset would allocate one per call.
+type gunzipper struct {
+	br *bufio.Reader
+	zr *gzip.Reader
+}
+
+var gunzipPool sync.Pool // *gunzipper
+
+// readBody reads the whole response body into buf, inflating it if the
+// response is gzip-encoded.
+func readBody(buf *bytes.Buffer, resp *http.Response) error {
+	if !strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+		if resp.ContentLength > 0 {
+			buf.Grow(int(resp.ContentLength) + bytes.MinRead)
+		}
+		_, err := buf.ReadFrom(resp.Body)
+		return err
+	}
+
+	g, _ := gunzipPool.Get().(*gunzipper)
+	var err error
+	if g == nil {
+		g = &gunzipper{br: bufio.NewReader(resp.Body)}
+		g.zr, err = gzip.NewReader(g.br)
+	} else {
+		g.br.Reset(resp.Body)
+		err = g.zr.Reset(g.br)
+	}
+	if err != nil {
+		return err
+	}
+	_, err = buf.ReadFrom(g.zr)
+	g.br.Reset(nil) // drop the reference to the body
+	if err == nil {
+		gunzipPool.Put(g)
+	}
+	return err
+}
+
+// do sends the request and returns the response body in a pooled buffer.
+// The caller must hand the buffer back with putBody once done with it.
+func (b NetBackend) do(req *http.Request, request string) (string, *bytes.Buffer, error) {
 	resp, err := b.client.Do(req)
 
 	if err != nil {
@@ -186,12 +271,12 @@ func (b NetBackend) do(req *http.Request, request string) (string, []byte, error
 		return "", nil, err
 	}
 
-	var body []byte
-	var bodyErr error
+	var body *bytes.Buffer
 	if resp.Body != nil {
 		defer resp.Body.Close()
-		body, bodyErr = io.ReadAll(resp.Body)
-		if bodyErr != nil {
+		body = getBody()
+		if bodyErr := readBody(body, resp); bodyErr != nil {
+			putBody(body)
 			if b.responsesCount != nil {
 				b.responsesCount.WithLabelValues("http_body_error", request).Inc()
 			}
@@ -214,7 +299,8 @@ func (b NetBackend) do(req *http.Request, request string) (string, []byte, error
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (string, []byte, error) {
+// The returned body is pooled; release it with putBody.
+func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (string, *bytes.Buffer, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
@@ -229,13 +315,7 @@ func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (strin
 
 // Contains reports whether the backend contains any of the given targets.
 func (b NetBackend) Contains(targets []string) bool {
-	for _, target := range targets {
-		if _, ok := b.cache.Get(target); ok {
-			return true
-		}
-	}
-
-	return false
+	return b.cache.containsAny(targets)
 }
 
 // Render fetches raw metrics from a backend.
@@ -247,7 +327,8 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 	u := b.url("/render/")
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
 
-	contentType, resp, err := b.call(ctx, u, "render")
+	contentType, body, err := b.call(ctx, u, "render")
+	defer putBody(body)
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
@@ -255,6 +336,7 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 
 		return nil, err
 	}
+	resp := bodyBytes(body)
 
 	var metrics []types.Metric
 
@@ -276,21 +358,38 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 		return nil, types.ErrMetricsNotFound
 	}
 
-	for _, metric := range metrics {
-		b.cache.Set(metric.Name, struct{}{}, 0, b.cacheExpirySec)
-	}
+	b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
 
 	return metrics, nil
 }
 
-func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) *url.URL {
-	vals := url.Values{
-		"target": targets,
-		"format": fmtProto,
-		"from":   []string{strconv.Itoa(int(from))},
-		"until":  []string{strconv.Itoa(int(until))},
+func bodyBytes(body *bytes.Buffer) []byte {
+	if body == nil {
+		return nil
 	}
-	u.RawQuery = vals.Encode()
+	return body.Bytes()
+}
+
+// carbonapiV2RenderEncoder sets the query to exactly what url.Values.Encode
+// produces for these parameters (keys sorted, values escaped), without
+// building the intermediate map.
+func carbonapiV2RenderEncoder(u *url.URL, from int32, until int32, targets []string) *url.URL {
+	n := len("format=protobuf&from=&until=") + 2*11
+	for _, t := range targets {
+		n += len("&target=") + len(t)
+	}
+	q := make([]byte, 0, n)
+	q = append(q, "format="...)
+	q = append(q, fmtProto[0]...)
+	q = append(q, "&from="...)
+	q = strconv.AppendInt(q, int64(from), 10)
+	for _, t := range targets {
+		q = append(q, "&target="...)
+		q = append(q, url.QueryEscape(t)...)
+	}
+	q = append(q, "&until="...)
+	q = strconv.AppendInt(q, int64(until), 10)
+	u.RawQuery = string(q)
 
 	return u
 }
@@ -302,7 +401,9 @@ func (b NetBackend) Info(ctx context.Context, request types.InfoRequest) ([]type
 	u := b.url("/info/")
 	u = carbonapiV2InfoEncoder(u, metric)
 
-	_, resp, err := b.call(ctx, u, "info")
+	_, body, err := b.call(ctx, u, "info")
+	defer putBody(body)
+	resp := bodyBytes(body)
 
 	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 		return nil, types.ErrInfoNotFound
@@ -352,7 +453,8 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 	u := b.url("/metrics/find/")
 	u = carbonapiV2FindEncoder(u, query)
 
-	contentType, resp, err := b.call(ctx, u, "find")
+	contentType, body, err := b.call(ctx, u, "find")
+	defer putBody(body)
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -360,6 +462,7 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 
 		return types.Matches{}, err
 	}
+	resp := bodyBytes(body)
 
 	var matches types.Matches
 
@@ -378,11 +481,7 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 		return matches, types.ErrMatchesNotFound
 	}
 
-	for _, match := range matches.Matches {
-		if match.IsLeaf {
-			b.cache.Set(match.Path, struct{}{}, 0, b.cacheExpirySec)
-		}
-	}
+	b.cache.setLeaves(matches.Matches)
 
 	return matches, nil
 }

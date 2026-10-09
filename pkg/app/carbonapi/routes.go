@@ -28,6 +28,8 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// Named profiles: heap, allocs, goroutine, block, mutex, threadcreate.
+	r.PathPrefix("/debug/pprof/").HandlerFunc(pprof.Index)
 
 	return removeTrailingSlash(r)
 }

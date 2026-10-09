@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/dgryski/go-expirecache"
 )
 
 func TestAddress(t *testing.T) {
@@ -57,7 +55,7 @@ func TestContains(t *testing.T) {
 		return
 	}
 
-	b.cache.Set("foo", struct{}{}, 0, 30)
+	b.cache.setAll(1, func(int) string { return "foo" })
 
 	if ok := b.Contains([]string{"foo"}); !ok {
 		t.Error("Expected true")
@@ -79,7 +77,7 @@ func TestContains(t *testing.T) {
 		t.Error("Expected false")
 	}
 
-	b.cache = expirecache.New(0)
+	b.cache = newPathCache(time.Minute)
 	if ok := b.Contains([]string{"foo"}); ok {
 		t.Error("Expected false")
 	}
@@ -106,7 +104,7 @@ func TestCall(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !bytes.Equal(got, exp) {
+	if !bytes.Equal(bodyBytes(got), exp) {
 		t.Errorf("Bad response body\nExp %v\nGot %v", exp, got)
 	}
 }
@@ -178,7 +176,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !bytes.Equal(got, exp) {
+	if !bytes.Equal(bodyBytes(got), exp) {
 		t.Errorf("Bad response body\nExp %v\nGot %v", exp, got)
 	}
 }
