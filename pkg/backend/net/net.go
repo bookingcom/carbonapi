@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -219,68 +221,177 @@ func putBody(buf *bytes.Buffer) {
 	bodyPool.Put(buf)
 }
 
-// gunzipper pairs a gzip reader with the buffered reader it reads through.
-// Without the bufio.Reader, gzip.Reader.Reset would allocate one per call.
-type gunzipper struct {
-	br *bufio.Reader
-	zr *gzip.Reader
+var (
+	gzipPool  sync.Pool // *gzip.Reader
+	bufioPool sync.Pool // *bufio.Reader, for streamed gzip bodies
+)
+
+// Compressed bodies up to twoPhaseGzipMax are read whole before inflating;
+// larger ones are inflated as they stream in. stagingStep is how much is read
+// before committing to a full-size staging buffer.
+const (
+	twoPhaseGzipMax = 64 << 10
+	stagingStep     = 8 << 10
+)
+
+// stagingPool holds buffers for the start of compressed bodies, kept apart
+// from the output buffers so each pool keeps buffers of the sizes it needs.
+var stagingPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
+func getStaging() *bytes.Buffer {
+	z := stagingPool.Get().(*bytes.Buffer)
+	z.Reset()
+	return z
 }
 
-var gunzipPool sync.Pool // *gunzipper
+// Largest uncompressed size taken from a gzip trailer as a capacity hint.
+// Deflate cannot expand data more than ~1032x, so a trailer claiming more than
+// that relative to the compressed size is not trusted either.
+const (
+	maxGzipSizeHint  = 256 << 20
+	maxDeflateFactor = 1032
+)
 
-// readBody reads the whole response body into buf, inflating it if the
-// response is gzip-encoded.
-func readBody(buf *bytes.Buffer, resp *http.Response) error {
+// gzipSizeHint returns the uncompressed size recorded in the trailer (ISIZE)
+// of a single-member gzip stream, or 0 if it does not look trustworthy. It is
+// only used to size the output buffer, never to bound what is read.
+func gzipSizeHint(z []byte) int {
+	if len(z) < 18 { // 10-byte header + 8-byte trailer
+		return 0
+	}
+	n := int(binary.LittleEndian.Uint32(z[len(z)-4:]))
+	if n > maxGzipSizeHint || n > maxDeflateFactor*len(z) {
+		return 0
+	}
+	return n
+}
+
+// respBody is a response body. When data lives in a pooled buffer, release
+// hands the buffer back; call it once the body has been decoded.
+type respBody struct {
+	data []byte
+	buf  *bytes.Buffer
+}
+
+func (r respBody) release() { putBody(r.buf) }
+
+func pooledBody(buf *bytes.Buffer) respBody { return respBody{data: buf.Bytes(), buf: buf} }
+
+// readBody reads the whole response body, inflating it if it is gzip-encoded.
+//
+// Bodies of known or small size go into pooled, exactly pre-sized buffers.
+// Large bodies of unknown size are read with io.ReadAll, which collects
+// growing chunks and copies them once into an exactly sized slice: that
+// allocates less than growing a single buffer, and such buffers would be too
+// big to pool anyway.
+func readBody(resp *http.Response) (respBody, error) {
 	if !strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
-		if resp.ContentLength > 0 {
-			buf.Grow(int(resp.ContentLength) + bytes.MinRead)
+		if resp.ContentLength < 0 {
+			data, err := io.ReadAll(resp.Body)
+			return respBody{data: data}, err
 		}
-		_, err := buf.ReadFrom(resp.Body)
-		return err
+		buf := getBody()
+		buf.Grow(int(resp.ContentLength) + bytes.MinRead)
+		if _, err := buf.ReadFrom(resp.Body); err != nil {
+			putBody(buf)
+			return respBody{}, err
+		}
+		return pooledBody(buf), nil
 	}
 
-	g, _ := gunzipPool.Get().(*gunzipper)
+	// Small bodies are read whole first, so the gzip trailer can size the
+	// output buffer exactly. Large bodies are inflated while they arrive:
+	// waiting for the whole transfer before inflating would add the inflate
+	// time to the request latency.
+	z := getStaging()
+	defer stagingPool.Put(z)
+	// Most compressed bodies end within the first step; grow to the full
+	// staging size in one go only for those that do not.
+	if _, err := z.ReadFrom(io.LimitReader(resp.Body, stagingStep)); err != nil {
+		return respBody{}, err
+	}
+	if z.Len() == stagingStep {
+		z.Grow(twoPhaseGzipMax + 1 - stagingStep + bytes.MinRead)
+		if _, err := z.ReadFrom(io.LimitReader(resp.Body, twoPhaseGzipMax+1-stagingStep)); err != nil {
+			return respBody{}, err
+		}
+	}
+
+	if z.Len() <= twoPhaseGzipMax {
+		out := getBody()
+		if n := gzipSizeHint(z.Bytes()); n > 0 {
+			// ReadFrom wants MinRead of free space before every read,
+			// including the one that sees EOF.
+			out.Grow(n + bytes.MinRead)
+		}
+		err := inflate(bytes.NewReader(z.Bytes()), func(zr io.Reader) error {
+			_, err := out.ReadFrom(zr)
+			return err
+		})
+		if err != nil {
+			putBody(out)
+			return respBody{}, err
+		}
+		return pooledBody(out), nil
+	}
+
+	br, _ := bufioPool.Get().(*bufio.Reader)
+	if br == nil {
+		br = bufio.NewReader(nil)
+	}
+	br.Reset(io.MultiReader(bytes.NewReader(z.Bytes()), resp.Body))
+	defer func() {
+		br.Reset(nil)
+		bufioPool.Put(br)
+	}()
+	var body respBody
+	err := inflate(br, func(zr io.Reader) error {
+		var err error
+		body.data, err = io.ReadAll(zr)
+		return err
+	})
+	return body, err
+}
+
+// inflate runs read over a pooled gzip reader positioned at src.
+func inflate(src io.Reader, read func(io.Reader) error) error {
+	zr, _ := gzipPool.Get().(*gzip.Reader)
 	var err error
-	if g == nil {
-		g = &gunzipper{br: bufio.NewReader(resp.Body)}
-		g.zr, err = gzip.NewReader(g.br)
+	if zr == nil {
+		zr, err = gzip.NewReader(src)
 	} else {
-		g.br.Reset(resp.Body)
-		err = g.zr.Reset(g.br)
+		err = zr.Reset(src)
 	}
 	if err != nil {
 		return err
 	}
-	_, err = buf.ReadFrom(g.zr)
-	g.br.Reset(nil) // drop the reference to the body
-	if err == nil {
-		gunzipPool.Put(g)
+	if err = read(zr); err == nil {
+		gzipPool.Put(zr)
 	}
 	return err
 }
 
-// do sends the request and returns the response body in a pooled buffer.
-// The caller must hand the buffer back with putBody once done with it.
-func (b NetBackend) do(req *http.Request, request string) (string, *bytes.Buffer, error) {
+// do sends the request and returns the response body. The caller must
+// release the body once done with it.
+func (b NetBackend) do(req *http.Request, request string) (string, respBody, error) {
 	resp, err := b.client.Do(req)
 
 	if err != nil {
 		if b.responsesCount != nil {
 			b.responsesCount.WithLabelValues("http_client_error", request).Inc()
 		}
-		return "", nil, err
+		return "", respBody{}, err
 	}
 
-	var body *bytes.Buffer
+	var body respBody
 	if resp.Body != nil {
 		defer resp.Body.Close()
-		body = getBody()
-		if bodyErr := readBody(body, resp); bodyErr != nil {
-			putBody(body)
+		var bodyErr error
+		if body, bodyErr = readBody(resp); bodyErr != nil {
 			if b.responsesCount != nil {
 				b.responsesCount.WithLabelValues("http_body_error", request).Inc()
 			}
-			return "", nil, bodyErr
+			return "", respBody{}, bodyErr
 		}
 	}
 
@@ -299,14 +410,14 @@ func (b NetBackend) do(req *http.Request, request string) (string, *bytes.Buffer
 // If the backend timeout is positive, Call will override the context timeout
 // with the backend timeout.
 // Call ensures that the outgoing request has a UUID set.
-// The returned body is pooled; release it with putBody.
-func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (string, *bytes.Buffer, error) {
+// The returned body must be released once decoded.
+func (b NetBackend) call(ctx context.Context, u *url.URL, request string) (string, respBody, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 
 	req, err := b.request(ctx, u)
 	if err != nil {
-		return "", nil, err
+		return "", respBody{}, err
 	}
 
 	contentType, body, err := b.do(req, request)
@@ -328,7 +439,7 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
 
 	contentType, body, err := b.call(ctx, u, "render")
-	defer putBody(body)
+	defer body.release()
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return nil, types.ErrMetricsNotFound
@@ -336,7 +447,7 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 
 		return nil, err
 	}
-	resp := bodyBytes(body)
+	resp := body.data
 
 	var metrics []types.Metric
 
@@ -361,13 +472,6 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 	b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
 
 	return metrics, nil
-}
-
-func bodyBytes(body *bytes.Buffer) []byte {
-	if body == nil {
-		return nil
-	}
-	return body.Bytes()
 }
 
 // carbonapiV2RenderEncoder sets the query to exactly what url.Values.Encode
@@ -402,8 +506,8 @@ func (b NetBackend) Info(ctx context.Context, request types.InfoRequest) ([]type
 	u = carbonapiV2InfoEncoder(u, metric)
 
 	_, body, err := b.call(ctx, u, "info")
-	defer putBody(body)
-	resp := bodyBytes(body)
+	defer body.release()
+	resp := body.data
 
 	if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 		return nil, types.ErrInfoNotFound
@@ -454,7 +558,7 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 	u = carbonapiV2FindEncoder(u, query)
 
 	contentType, body, err := b.call(ctx, u, "find")
-	defer putBody(body)
+	defer body.release()
 	if err != nil {
 		if code, ok := err.(ErrHTTPCode); ok && code == http.StatusNotFound {
 			return types.Matches{}, types.ErrMatchesNotFound
@@ -462,7 +566,7 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 
 		return types.Matches{}, err
 	}
-	resp := bodyBytes(body)
+	resp := body.data
 
 	var matches types.Matches
 

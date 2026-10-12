@@ -104,7 +104,7 @@ func TestCall(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !bytes.Equal(bodyBytes(got), exp) {
+	if !bytes.Equal(got.data, exp) {
 		t.Errorf("Bad response body\nExp %v\nGot %v", exp, got)
 	}
 }
@@ -176,7 +176,7 @@ func TestDo(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !bytes.Equal(bodyBytes(got), exp) {
+	if !bytes.Equal(got.data, exp) {
 		t.Errorf("Bad response body\nExp %v\nGot %v", exp, got)
 	}
 }

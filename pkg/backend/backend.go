@@ -11,9 +11,15 @@ import (
 )
 
 // The backend to send requests to.
+//
+// Backend values are copied a lot (filtered backend lists are built for every
+// request), so everything except the implementation lives behind one pointer.
 type Backend struct {
 	BackendImpl
+	*backendState
+}
 
+type backendState struct {
 	// Request queues.
 	// There's a separate one for each type, because the stampeding requests of one type should not
 	// impact the other types of requests.
@@ -49,7 +55,7 @@ type requestMetrics struct {
 	duration prometheus.Observer
 }
 
-func newRequestMetrics(b *Backend, label string) requestMetrics {
+func newRequestMetrics(b *backendState, label string) requestMetrics {
 	var m requestMetrics
 	if b.requestsInQueue != nil {
 		m.inQueue = b.requestsInQueue.WithLabelValues(label)
@@ -119,9 +125,7 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	timeInQSec *prometheus.HistogramVec,
 	enqueuedRequests *prometheus.CounterVec,
 	backendDuration prometheus.ObserverVec) Backend {
-	b := Backend{
-		BackendImpl: impl,
-
+	s := &backendState{
 		fastRenderQ: make(chan *renderReq, qSize),
 		slowRenderQ: make(chan *renderReq, qSize),
 		findQ:       make(chan *findReq, qSize),
@@ -134,12 +138,13 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 		enqueuedRequests: enqueuedRequests,
 		backendDuration:  backendDuration,
 	}
-	b.render = newRequestMetrics(&b, "render")
-	b.find = newRequestMetrics(&b, "find")
-	b.info = newRequestMetrics(&b, "info")
+	s.render = newRequestMetrics(s, "render")
+	s.find = newRequestMetrics(s, "find")
+	s.info = newRequestMetrics(s, "info")
 	_, cluster, _ := impl.BackendInfo()
-	b.sourceClusters = []string{cluster}
+	s.sourceClusters = []string{cluster}
 
+	b := Backend{BackendImpl: impl, backendState: s}
 	b.Proc()
 
 	return b

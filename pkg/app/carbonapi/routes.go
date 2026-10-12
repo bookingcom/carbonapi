@@ -37,7 +37,7 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 func initHandlers(app *App, lg *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
-	r.Use(handlers.CompressHandler)
+	r.Use(util.CompressHandler)
 	r.Use(handlers.CORS())
 	r.Use(handlers.ProxyHeaders)
 	r.Use(util.UUIDHandler)

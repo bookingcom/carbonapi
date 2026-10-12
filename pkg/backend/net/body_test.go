@@ -113,10 +113,10 @@ func TestBodyGzipAndPlain(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if !bytes.Equal(bodyBytes(got), want) {
-						t.Fatalf("round %d: body mismatch: got %d bytes want %d", round, len(bodyBytes(got)), len(want))
+					if !bytes.Equal(got.data, want) {
+						t.Fatalf("round %d: body mismatch: got %d bytes want %d", round, len(got.data), len(want))
 					}
-					putBody(got)
+					got.release()
 				}
 			}
 		})
@@ -157,7 +157,95 @@ func TestNoGzipWhenTransportDisablesCompression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(bodyBytes(got)) != "ok" {
-		t.Fatalf("got %q", bodyBytes(got))
+	if string(got.data) != "ok" {
+		t.Fatalf("got %q", got.data)
+	}
+}
+
+func TestGzipSizeHint(t *testing.T) {
+	body := bytes.Repeat([]byte("abc"), 100000)
+	z := gzipped(t, body)
+	if got := gzipSizeHint(z); got != len(body) {
+		t.Fatalf("hint %d, want %d", got, len(body))
+	}
+	if got := gzipSizeHint(z[:10]); got != 0 {
+		t.Fatalf("short input: hint %d, want 0", got)
+	}
+	bogus := append([]byte(nil), z...)
+	copy(bogus[len(bogus)-4:], []byte{0xff, 0xff, 0xff, 0x7f}) // ~2 GiB claimed
+	if got := gzipSizeHint(bogus); got != 0 {
+		t.Fatalf("implausible trailer: hint %d, want 0", got)
+	}
+}
+
+// A multi-member stream only records the last member's size in its trailer;
+// the hint is then too small and the buffer must still grow to fit.
+func TestBodyMultiMemberGzip(t *testing.T) {
+	first := bytes.Repeat([]byte("first member "), 20000)
+	second := []byte("second")
+	z := append(gzipped(t, first), gzipped(t, second)...)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Write(z)
+	}))
+	defer server.Close()
+
+	b, err := New(Config{Address: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, got, err := b.call(context.Background(), b.url("/render"), "render")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := append(append([]byte(nil), first...), second...); !bytes.Equal(got.data, want) {
+		t.Fatalf("got %d bytes, want %d", len(got.data), len(want))
+	}
+}
+
+// Bodies whose compressed size crosses the two-phase limit are inflated while
+// streaming; both paths must return identical bytes, also with pooled readers
+// alternating between them.
+func TestBodyGzipAcrossTwoPhaseLimit(t *testing.T) {
+	rnd := rand.New(rand.NewSource(11))
+	random := func(n int) []byte {
+		b := make([]byte, n)
+		rnd.Read(b) // incompressible, so the compressed size is ~n
+		return b
+	}
+	bodies := [][]byte{
+		random(twoPhaseGzipMax - 1000),
+		random(twoPhaseGzipMax + 1),
+		append(random(300000), bytes.Repeat([]byte("tail"), 50000)...),
+		[]byte("small again"),
+	}
+	multi := append(gzipped(t, bodies[1]), gzipped(t, bodies[0])...)
+
+	var i int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		if i == len(bodies) {
+			w.Write(multi)
+		} else {
+			w.Write(gzipped(t, bodies[i]))
+		}
+		i++
+	}))
+	defer server.Close()
+
+	b, err := New(Config{Address: server.URL, Client: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := append(append([][]byte{}, bodies...), append(append([]byte(nil), bodies[1]...), bodies[0]...))
+	for k, want := range wants {
+		_, got, err := b.call(context.Background(), b.url("/render"), "render")
+		if err != nil {
+			t.Fatalf("body %d: %v", k, err)
+		}
+		if !bytes.Equal(got.data, want) {
+			t.Fatalf("body %d: got %d bytes, want %d", k, len(got.data), len(want))
+		}
+		got.release()
 	}
 }

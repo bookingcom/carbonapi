@@ -103,7 +103,7 @@ func Filter(backends []Backend, targets []string) ([]Backend, bool) {
 }
 
 func filter(backends []Backend, targets []string) []Backend {
-	bs := make([]Backend, 0)
+	var bs []Backend
 	for _, b := range backends {
 		if b.Contains(targets) {
 			bs = append(bs, b)
