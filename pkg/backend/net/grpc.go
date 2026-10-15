@@ -28,6 +28,10 @@ type GrpcBackend struct {
 	maxRecvMsgSize int
 }
 
+// SupportsTargetCoalescing keeps stream EOF and per-request NotFound behavior
+// on the individual path until a per-target streaming error contract is defined.
+func (*GrpcBackend) SupportsTargetCoalescing() bool { return false }
+
 type GrpcConfig struct {
 	Config
 	GrpcAddress           string

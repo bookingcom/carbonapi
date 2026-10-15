@@ -60,7 +60,8 @@ func DefaultAPIConfig() API {
 	cfg := API{
 		Zipper: fromCommon(DefaultCommonConfig()),
 
-		ResolveGlobs: 100,
+		ResolveGlobs:    100,
+		RenderBatchSize: 32,
 		Cache: CacheConfig{
 			Type:                  "mem",
 			DefaultTimeoutSec:     60,
@@ -122,6 +123,9 @@ type API struct {
 	// For some backends you might want to set it to 0
 	// If you noticing carbonzipper OOM then this is a parameter to tune.
 	ResolveGlobs int `yaml:"resolveGlobs"`
+	// Maximum expanded literal metrics coalesced for one backend. Existing
+	// metric concurrency limits still apply. Set to 1 to disable coalescing.
+	RenderBatchSize int `yaml:"renderBatchSize"`
 	// Indicates if carbonapi should use cache when sending preflight find requests to resolve the globs.
 	// Note that useCache parameter should be sent in the request for this config to be taken into account.
 	EnableCacheForRenderResolveGlobs bool        `yaml:"enableCacheForRenderResolveGlobs"`

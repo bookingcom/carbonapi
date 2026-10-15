@@ -8,6 +8,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/sync/semaphore"
 )
 
 // The backend to send requests to.
@@ -154,54 +155,67 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 // Should not be called when async processing is disabled.
 // Expects the metrics to be non-nil.
 func (b *Backend) Proc() {
-	semaphore := make(chan bool, b.semaSize)
+	limiter := semaphore.NewWeighted(int64(b.semaSize))
 
 	// The duplication below is the simplest solution at the moment without adding dynamic typing.
 	// After https://github.com/golang/go/issues/48522 is closed, we can use generics to avoid duplication.
 	// Without that issue resolved, the use of generics would produce too much boilerplate and would look much worse than
 	// the solution below — I've tried.
 	go func() {
+		var pending *renderReq
 		for {
 			var r *renderReq
-			select {
-			case r = <-b.fastRenderQ:
-			default:
+			if pending != nil {
+				// A carried slow request must not hide newly arrived fast work.
+				if util.GetPriority(pending.Ctx) >= 10000 {
+					select {
+					case r = <-b.fastRenderQ:
+					default:
+						r, pending = pending, nil
+					}
+				} else {
+					r, pending = pending, nil
+				}
+			} else {
 				select {
 				case r = <-b.fastRenderQ:
-				case r = <-b.slowRenderQ:
+				default:
+					select {
+					case r = <-b.fastRenderQ:
+					case r = <-b.slowRenderQ:
+					}
 				}
 			}
-
-			b.render.inQueue.Dec()
-			select {
-			case <-r.Ctx.Done():
-				r.Errors <- r.Ctx.Err()
-				continue
-			default:
+			batch := []*renderReq{r}
+			if pending == nil && r.Ctx.Err() == nil {
+				batch, pending = b.collectRenderBatch(r)
 			}
-			semaphore <- true
-			b.saturation.Inc()
-			b.render.timeInQ.Observe(float64(time.Since(r.StartTime).Seconds()))
-			go func(req *renderReq) {
-				t := prometheus.NewTimer(b.render.duration)
-				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
-				t.ObserveDuration()
-
-				if err != nil {
+			weight := int64(len(batch))
+			b.render.inQueue.Sub(float64(weight))
+			if err := limiter.Acquire(r.Ctx, weight); err != nil {
+				for _, req := range batch {
 					req.Errors <- err
-				} else {
-					b.addSourceMetaToMetrics(res)
-					req.Results <- res
 				}
-				<-semaphore
-				b.saturation.Dec()
-			}(r)
+				continue
+			}
+			b.saturation.Add(float64(weight))
+			for _, req := range batch {
+				b.render.timeInQ.Observe(time.Since(req.StartTime).Seconds())
+			}
+			go func(batch []*renderReq, weight int64) {
+				defer limiter.Release(weight)
+				defer b.saturation.Sub(float64(weight))
+				b.renderBatch(batch)
+			}(batch, weight)
 		}
 	}()
 	go func() {
 		for r := range b.findQ {
 			b.find.inQueue.Dec()
-			semaphore <- true
+			if err := limiter.Acquire(r.Ctx, 1); err != nil {
+				r.Errors <- err
+				continue
+			}
 			b.saturation.Inc()
 			b.find.timeInQ.Observe(float64(time.Since(r.StartTime).Seconds()))
 			go func(req *findReq) {
@@ -213,7 +227,7 @@ func (b *Backend) Proc() {
 				} else {
 					req.Results <- res
 				}
-				<-semaphore
+				limiter.Release(1)
 				b.saturation.Dec()
 			}(r)
 		}
@@ -221,7 +235,10 @@ func (b *Backend) Proc() {
 	go func() {
 		for r := range b.infoQ {
 			b.info.inQueue.Dec()
-			semaphore <- true
+			if err := limiter.Acquire(r.Ctx, 1); err != nil {
+				r.Errors <- err
+				continue
+			}
 			b.saturation.Inc()
 			// not adding time in queue histogram for info requests to reduce the number of exposed metrics
 			go func(req *infoReq) {
@@ -232,7 +249,7 @@ func (b *Backend) Proc() {
 				} else {
 					req.Results <- res
 				}
-				<-semaphore
+				limiter.Release(1)
 				b.saturation.Dec()
 			}(r)
 		}
@@ -245,25 +262,18 @@ func (b *Backend) Proc() {
 // the solution below — I've tried.
 
 func (backend Backend) SendRender(ctx context.Context, request types.RenderRequest, msgCh chan []types.Metric, errCh chan error) {
-	if util.GetPriority(ctx) < 10000 {
-		backend.fastRenderQ <- &renderReq{
-			RenderRequest: request,
-			Ctx:           ctx,
-			StartTime:     time.Now(),
-			Results:       msgCh,
-			Errors:        errCh,
-		}
-	} else {
-		backend.slowRenderQ <- &renderReq{
-			RenderRequest: request,
-			Ctx:           ctx,
-			StartTime:     time.Now(),
-			Results:       msgCh,
-			Errors:        errCh,
-		}
+	queue := backend.fastRenderQ
+	if util.GetPriority(ctx) >= 10000 {
+		queue = backend.slowRenderQ
 	}
-	backend.render.inQueue.Inc()
-	backend.render.enqueued.Inc()
+	r := &renderReq{RenderRequest: request, Ctx: ctx, StartTime: time.Now(), Results: msgCh, Errors: errCh}
+	select {
+	case queue <- r:
+		backend.render.inQueue.Inc()
+		backend.render.enqueued.Inc()
+	case <-ctx.Done():
+		errCh <- ctx.Err()
+	}
 }
 
 func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,

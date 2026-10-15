@@ -63,6 +63,10 @@ type NetBackend struct {
 	lg *zap.Logger
 }
 
+// SupportsTargetCoalescing declares the HTTP multi-fetch response contract:
+// literal targets are named in the reply and omitted targets are not-found.
+func (NetBackend) SupportsTargetCoalescing() bool { return true }
+
 // Config configures an HTTP backend.
 //
 // The only required field is Address, which must be of the form
