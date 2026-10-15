@@ -26,7 +26,7 @@ require (
 	github.com/tebeka/strftime v0.1.5
 	github.com/wangjohn/quickselect v0.0.0-20161129230411-ed8402a42d5f
 	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.69.0
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.28.0
 	gonum.org/v1/gonum v0.17.0
 	google.golang.org/grpc v1.83.1
 	gopkg.in/yaml.v2 v2.4.0
