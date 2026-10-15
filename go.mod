@@ -9,7 +9,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-expirecache v0.0.0-20170314133854-743ef98b2adb
 	github.com/dgryski/go-onlinestats v0.0.0-20170612111826-1c7d19468768
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.1.0
 	github.com/evmar/gocairo v0.0.0-20160222165215-ddd30f837497
 	github.com/facebookgo/grace v0.0.0-20180706040059-75cf19382434
 	github.com/facebookgo/pidfile v0.0.0-20150612191647-f242e2999868
