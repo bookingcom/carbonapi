@@ -54,6 +54,7 @@ func NewGrpc(cfg GrpcConfig) (*GrpcBackend, error) {
 		grpc.WithNoProxy(),
 		grpc.WithInitialWindowSize(int32(cfg.InitialWindowSize)),
 		grpc.WithInitialConnWindowSize(int32(cfg.InitialConnWindowSize)))
+	//nolint:staticcheck // Preserve Dial's passthrough resolver and eager connection for existing backend addresses.
 	conn, err := grpc.Dial(cfg.GrpcAddress, opts...)
 	if err != nil {
 		return nil, err

@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	muxtrace "go.opentelemetry.io/contrib/instrumentation/gorilla/mux"
+	muxtrace "go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {

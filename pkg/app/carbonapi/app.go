@@ -329,7 +329,6 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeouts.Connect,
 			KeepAlive: config.KeepAliveInterval,
-			DualStack: true,
 		}).DialContext,
 	}
 

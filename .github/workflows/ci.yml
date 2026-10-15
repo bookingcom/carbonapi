@@ -43,7 +43,7 @@ jobs:
         if: matrix.go-version == 'stable'
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.6.1
+          version: v2.14.0
       - name: integration test
         if: matrix.go-version == 'stable'
         run: tests/system_test.sh
