@@ -120,6 +120,34 @@ func TestAsPercent(t *testing.T) {
 				types.MakeMetricData("asPercent(test-db5,sumSeries(test-db*))", []float64{25.0, 20.0, math.NaN(), math.NaN(), math.NaN(), 20.0, 33.33333333333, 25.0, 25.0, 20.0, 25.0, 25.0, 25.0, 25.0, 33.33333333333, 25.0, 33.33333333333, 25.0, math.NaN(), math.NaN()}, 1, now32),
 			}},
 		{
+			"asPercent(metric*,None)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric*", 0, 1}: {
+					types.MakeMetricData("metric1", []float64{1, 3, math.NaN()}, 1, now32),
+					types.MakeMetricData("metric2", []float64{3, 1, 2}, 1, now32),
+				},
+			},
+			[]*types.MetricData{
+				types.MakeMetricData("asPercent(metric1,sumSeries(metric*))", []float64{25, 75, math.NaN()}, 1, now32),
+				types.MakeMetricData("asPercent(metric2,sumSeries(metric*))", []float64{75, 25, 100}, 1, now32),
+			},
+		},
+		{
+			"asPercent(Server*.cpu.*,None,0)",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"Server*.cpu.*", 0, 1}: {
+					types.MakeMetricData("Server1.cpu.user", []float64{1, 2, 3}, 1, now32),
+					types.MakeMetricData("Server1.cpu.sys", []float64{3, 2, 1}, 1, now32),
+					types.MakeMetricData("Server2.cpu.user", []float64{5, 5, 5}, 1, now32),
+				},
+			},
+			[]*types.MetricData{
+				types.MakeMetricData("asPercent(Server1.cpu.user,sumSeries(Server*.cpu.*))", []float64{25, 50, 75}, 1, now32),
+				types.MakeMetricData("asPercent(Server1.cpu.sys,sumSeries(Server*.cpu.*))", []float64{75, 50, 25}, 1, now32),
+				types.MakeMetricData("asPercent(Server2.cpu.user,Server2.cpu.user)", []float64{100, 100, 100}, 1, now32),
+			},
+		},
+		{
 			"asPercent(test-db*, 10)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"test-db*", 0, 1}: {

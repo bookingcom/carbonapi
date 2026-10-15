@@ -494,7 +494,7 @@ func parseArgList(e string) (string, []*expr, map[string]*expr, string, error) {
 				return "", nil, nil, "", ErrMissingComma
 			}
 
-			if !argCont.IsConst() && !argCont.IsName() && !argCont.IsString() {
+			if !argCont.IsConst() && !argCont.IsName() && !argCont.IsString() && argCont.Type() != EtNil {
 				return "", nil, nil, eCont, ErrBadType
 			}
 

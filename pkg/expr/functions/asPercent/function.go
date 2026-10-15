@@ -41,10 +41,6 @@ func asPercentWithNodes(ctx context.Context, e parser.Expr, from, until int32, v
 	if len(seriesList) == 0 {
 		return seriesList, nil
 	}
-	total, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
-	if err != nil {
-		return nil, err
-	}
 	nodes, err := e.GetIntArgs(2)
 	if err != nil {
 		return nil, err
@@ -54,9 +50,20 @@ func asPercentWithNodes(ctx context.Context, e parser.Expr, from, until int32, v
 	if err != nil {
 		return nil, err
 	}
-	tmpTotalSeries, err := groupByNodes(nodes, keys, total)
-	if err != nil {
-		return nil, err
+
+	var tmpTotalSeries map[string][]*types.MetricData
+	if e.Args()[1].Type() == parser.EtNil {
+		// total=None: each series is a percentage of the sum of its own group
+		tmpTotalSeries = metaSeries
+	} else {
+		total, err := helper.GetSeriesArg(ctx, e.Args()[1], from, until, values, getTargetData)
+		if err != nil {
+			return nil, err
+		}
+		tmpTotalSeries, err = groupByNodes(nodes, keys, total)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	totalSeries := make(map[string]*types.MetricData)
@@ -64,8 +71,12 @@ func asPercentWithNodes(ctx context.Context, e parser.Expr, from, until int32, v
 		if len(tmpTotalSeries[key]) == 1 {
 			totalSeries[key] = tmpTotalSeries[key][0]
 		} else {
-			name := fmt.Sprintf("sumSeries(%s)", e.Args()[1].Target())
-			aggregated, err := helper.AggregateSeries(name, seriesList, false, false, sum.SumAggregation)
+			totalTarget := e.Args()[1].Target()
+			if e.Args()[1].Type() == parser.EtNil {
+				totalTarget = e.Args()[0].Target()
+			}
+			name := fmt.Sprintf("sumSeries(%s)", totalTarget)
+			aggregated, err := helper.AggregateSeries(name, tmpTotalSeries[key], false, false, sum.SumAggregation)
 			if err != nil {
 				return nil, err
 			}
@@ -151,7 +162,7 @@ func asPercentWithoutNodes(ctx context.Context, e parser.Expr, from, until int32
 	var total *types.MetricData
 	var totalText string
 	switch {
-	case len(e.Args()) == 1:
+	case len(e.Args()) == 1 || e.Args()[1].Type() == parser.EtNil:
 		name := fmt.Sprintf("sumSeries(%s)", e.Args()[0].Target())
 		aggregated, err := helper.AggregateSeries(name, seriesList, false, false, sum.SumAggregation)
 		if err != nil {
