@@ -48,7 +48,6 @@ func BenchmarkRenders(b *testing.B) {
 		DialContext: (&net.Dialer{
 			Timeout:   100 * time.Millisecond,
 			KeepAlive: time.Second,
-			DualStack: true,
 		}).DialContext,
 	}
 
@@ -158,7 +157,6 @@ func BenchmarkRendersStorm(b *testing.B) {
 		DialContext: (&net.Dialer{
 			Timeout:   100 * time.Millisecond,
 			KeepAlive: time.Second,
-			DualStack: true,
 		}).DialContext,
 	}
 
@@ -262,7 +260,6 @@ func BenchmarkRendersMismatchStorm(b *testing.B) {
 		DialContext: (&net.Dialer{
 			Timeout:   100 * time.Millisecond,
 			KeepAlive: time.Second,
-			DualStack: true,
 		}).DialContext,
 	}
 
