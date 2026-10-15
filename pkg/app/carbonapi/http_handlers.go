@@ -476,6 +476,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		subrequestCount := len(renderRequests)
 		if subrequestCount > 1 {
 			renderRequestContext = util.WithPriority(ctx, subrequestCount)
+			renderRequestContext = util.WithRenderBatch(renderRequestContext, app.config.RenderBatchSize)
 		}
 		app.ms.UpstreamSubRenderNum.Observe(float64(subrequestCount))
 		rch := make(chan RenderResponse, len(renderRequests))
