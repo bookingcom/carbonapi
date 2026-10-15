@@ -124,8 +124,11 @@ func AggregateSeries(name string, args []*types.MetricData, absent_if_first_seri
 	length := int((end - start) / step)
 	result := make([]float64, length)
 	isAbsent := make([]bool, length)
+	// Reused for every point: the aggregate functions only read (or reorder)
+	// the values and never keep the slice.
+	values := make([]float64, 0, len(seriesList))
 	for i := 0; i < length; i++ {
-		var values []float64
+		values = values[:0]
 		absent := false
 		for _, s := range seriesList {
 			if i < len(s.IsAbsent) && !s.IsAbsent[i] {

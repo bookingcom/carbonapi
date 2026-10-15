@@ -137,7 +137,15 @@ func ConsolidateJSON(maxDataPoints int, results []*MetricData) (consolidated []*
 
 // MarshalJSON marshals metric data to JSON
 func MarshalJSON(results []*MetricData) []byte {
-	var b []byte
+	// Pre-size from a typical encoded point, e.g. "[12.5,1791572310]," and a
+	// little per-series overhead, so the buffer is not regrown point by point.
+	size := 2
+	for _, r := range results {
+		if r != nil {
+			size += len(r.Name) + 32 + 24*len(r.Values)
+		}
+	}
+	b := make([]byte, 0, size)
 	b = append(b, '[')
 
 	var topComma bool

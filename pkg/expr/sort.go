@@ -102,11 +102,20 @@ func sortByBraces(metrics []*types.MetricData, part int, pattern string) {
 	alternatives := strings.Split(pattern[bStart+1:bEnd], ",")
 	for _, alternative := range alternatives {
 		glob := pattern[:bStart] + alternative + pattern[bEnd+1:]
+		// Without any of filepath.Match's special characters the glob only
+		// matches itself, so plain comparison gives the same answer.
+		literal := !strings.ContainsAny(glob, `*?[\`)
 		for i := 0; i < len(src); i++ {
 			if used[i] {
 				continue
 			}
-			if match, _ := filepath.Match(glob, parts[i]); match {
+			var match bool
+			if literal {
+				match = glob == parts[i]
+			} else {
+				match, _ = filepath.Match(glob, parts[i])
+			}
+			if match {
 				metrics[j] = src[i]
 				j = j + 1
 				used[i] = true

@@ -11,9 +11,15 @@ import (
 )
 
 // The backend to send requests to.
+//
+// Backend values are copied a lot (filtered backend lists are built for every
+// request), so everything except the implementation lives behind one pointer.
 type Backend struct {
 	BackendImpl
+	*backendState
+}
 
+type backendState struct {
 	// Request queues.
 	// There's a separate one for each type, because the stampeding requests of one type should not
 	// impact the other types of requests.
@@ -33,6 +39,37 @@ type Backend struct {
 	timeInQSec       *prometheus.HistogramVec
 	enqueuedRequests *prometheus.CounterVec
 	backendDuration  prometheus.ObserverVec
+
+	// Children of the vectors above for each request type, resolved once
+	// instead of hashing the label values on every request.
+	render, find, info requestMetrics
+
+	// Shared by every metric this backend returns; it is never modified.
+	sourceClusters []string
+}
+
+type requestMetrics struct {
+	inQueue  prometheus.Gauge
+	timeInQ  prometheus.Observer
+	enqueued prometheus.Counter
+	duration prometheus.Observer
+}
+
+func newRequestMetrics(b *backendState, label string) requestMetrics {
+	var m requestMetrics
+	if b.requestsInQueue != nil {
+		m.inQueue = b.requestsInQueue.WithLabelValues(label)
+	}
+	if b.timeInQSec != nil {
+		m.timeInQ = b.timeInQSec.WithLabelValues(label)
+	}
+	if b.enqueuedRequests != nil {
+		m.enqueued = b.enqueuedRequests.WithLabelValues(label)
+	}
+	if b.backendDuration != nil {
+		m.duration = b.backendDuration.WithLabelValues(label)
+	}
+	return m
 }
 
 // The specific backend implementation.
@@ -88,9 +125,7 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	timeInQSec *prometheus.HistogramVec,
 	enqueuedRequests *prometheus.CounterVec,
 	backendDuration prometheus.ObserverVec) Backend {
-	b := Backend{
-		BackendImpl: impl,
-
+	s := &backendState{
 		fastRenderQ: make(chan *renderReq, qSize),
 		slowRenderQ: make(chan *renderReq, qSize),
 		findQ:       make(chan *findReq, qSize),
@@ -103,7 +138,13 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 		enqueuedRequests: enqueuedRequests,
 		backendDuration:  backendDuration,
 	}
+	s.render = newRequestMetrics(s, "render")
+	s.find = newRequestMetrics(s, "find")
+	s.info = newRequestMetrics(s, "info")
+	_, cluster, _ := impl.BackendInfo()
+	s.sourceClusters = []string{cluster}
 
+	b := Backend{BackendImpl: impl, backendState: s}
 	b.Proc()
 
 	return b
@@ -131,8 +172,7 @@ func (b *Backend) Proc() {
 				}
 			}
 
-			requestLabel := "render"
-			b.requestsInQueue.WithLabelValues(requestLabel).Dec()
+			b.render.inQueue.Dec()
 			select {
 			case <-r.Ctx.Done():
 				r.Errors <- r.Ctx.Err()
@@ -141,9 +181,9 @@ func (b *Backend) Proc() {
 			}
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime).Seconds()))
+			b.render.timeInQ.Observe(float64(time.Since(r.StartTime).Seconds()))
 			go func(req *renderReq) {
-				t := prometheus.NewTimer(b.backendDuration.WithLabelValues("render"))
+				t := prometheus.NewTimer(b.render.duration)
 				res, err := b.BackendImpl.Render(req.Ctx, req.RenderRequest)
 				t.ObserveDuration()
 
@@ -160,13 +200,12 @@ func (b *Backend) Proc() {
 	}()
 	go func() {
 		for r := range b.findQ {
-			requestLabel := "find"
-			b.requestsInQueue.WithLabelValues(requestLabel).Dec()
+			b.find.inQueue.Dec()
 			semaphore <- true
 			b.saturation.Inc()
-			b.timeInQSec.WithLabelValues(requestLabel).Observe(float64(time.Since(r.StartTime).Seconds()))
+			b.find.timeInQ.Observe(float64(time.Since(r.StartTime).Seconds()))
 			go func(req *findReq) {
-				t := prometheus.NewTimer(b.backendDuration.WithLabelValues(requestLabel))
+				t := prometheus.NewTimer(b.find.duration)
 				res, err := b.BackendImpl.Find(req.Ctx, req.FindRequest)
 				t.ObserveDuration()
 				if err != nil {
@@ -181,7 +220,7 @@ func (b *Backend) Proc() {
 	}()
 	go func() {
 		for r := range b.infoQ {
-			b.requestsInQueue.WithLabelValues("info").Dec()
+			b.info.inQueue.Dec()
 			semaphore <- true
 			b.saturation.Inc()
 			// not adding time in queue histogram for info requests to reduce the number of exposed metrics
@@ -223,8 +262,8 @@ func (backend Backend) SendRender(ctx context.Context, request types.RenderReque
 			Errors:        errCh,
 		}
 	}
-	backend.requestsInQueue.WithLabelValues("render").Inc()
-	backend.enqueuedRequests.WithLabelValues("render").Inc()
+	backend.render.inQueue.Inc()
+	backend.render.enqueued.Inc()
 }
 
 func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,
@@ -236,8 +275,8 @@ func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,
 		Results:     msgCh,
 		Errors:      errCh,
 	}
-	backend.requestsInQueue.WithLabelValues("find").Inc()
-	backend.enqueuedRequests.WithLabelValues("find").Inc()
+	backend.find.inQueue.Inc()
+	backend.find.enqueued.Inc()
 }
 
 func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, msgCh chan []types.Info, errCh chan error) {
@@ -248,13 +287,12 @@ func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, 
 		Results:     msgCh,
 		Errors:      errCh,
 	}
-	backend.requestsInQueue.WithLabelValues("info").Inc()
-	backend.enqueuedRequests.WithLabelValues("info").Inc()
+	backend.info.inQueue.Inc()
+	backend.info.enqueued.Inc()
 }
 
 func (backend Backend) addSourceMetaToMetrics(metrics []types.Metric) {
-	_, cluster, _ := backend.BackendInfo()
 	for i := range metrics {
-		metrics[i].SourceClusters = []string{cluster}
+		metrics[i].SourceClusters = backend.sourceClusters
 	}
 }

@@ -168,9 +168,6 @@ func FilterBackendByTopLevelDomain(cache *expirecache.Cache, TLDPrefixes []TopLe
 }
 
 func filterByTopLevelDomain(cache *expirecache.Cache, backends []backend.Backend, targetTLDs []string) []backend.Backend {
-	bs := make([]backend.Backend, 0)
-	allTLDBackends := make([]*backend.Backend, 0)
-
 	topLevelDomainCache, _ := cache.Get("tlds")
 	var tldCache map[string][]*backend.Backend
 	if x, ok := topLevelDomainCache.(map[string][]*backend.Backend); ok {
@@ -180,20 +177,52 @@ func filterByTopLevelDomain(cache *expirecache.Cache, backends []backend.Backend
 	if tldCache == nil {
 		return backends
 	}
-	alreadyAddedBackends := make(map[string]bool)
+
+	n := 0
 	for _, target := range targetTLDs {
-		tldBackends := tldCache[target]
-		for _, backend := range tldBackends {
-			a := *backend
-			if !alreadyAddedBackends[a.GetServerAddress()] {
-				alreadyAddedBackends[a.GetServerAddress()] = true
-				allTLDBackends = append(allTLDBackends, backend)
-			}
-		}
+		n += len(tldCache[target])
 	}
-	for _, tldBackend := range allTLDBackends {
-		bs = append(bs, *tldBackend)
+	if n == 0 {
+		return nil
+	}
+
+	// Backends are deduplicated by address, keeping first-seen order. Small
+	// sets are checked linearly to avoid allocating a map per request.
+	const linearDedupMax = 16
+	var seen map[string]struct{}
+	var addrBuf [linearDedupMax]string
+	addrs := addrBuf[:0]
+	if n > linearDedupMax {
+		seen = make(map[string]struct{}, n)
+	}
+
+	bs := make([]backend.Backend, 0, n)
+	for _, target := range targetTLDs {
+		for _, b := range tldCache[target] {
+			addr := b.GetServerAddress()
+			if seen != nil {
+				if _, ok := seen[addr]; ok {
+					continue
+				}
+				seen[addr] = struct{}{}
+			} else {
+				if containsString(addrs, addr) {
+					continue
+				}
+				addrs = append(addrs, addr)
+			}
+			bs = append(bs, *b)
+		}
 	}
 
 	return bs
+}
+
+func containsString(ss []string, s string) bool {
+	for _, x := range ss {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }

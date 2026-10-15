@@ -28,6 +28,8 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// Named profiles: heap, allocs, goroutine, block, mutex, threadcreate.
+	r.PathPrefix("/debug/pprof/").HandlerFunc(pprof.Index)
 
 	return removeTrailingSlash(r)
 }
@@ -35,7 +37,7 @@ func initHandlersInternal(app *App, logger *zap.Logger) http.Handler {
 func initHandlers(app *App, lg *zap.Logger) http.Handler {
 	r := mux.NewRouter()
 
-	r.Use(handlers.CompressHandler)
+	r.Use(util.CompressHandler)
 	r.Use(handlers.CORS())
 	r.Use(handlers.ProxyHeaders)
 	r.Use(util.UUIDHandler)
