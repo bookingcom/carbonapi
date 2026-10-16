@@ -16,8 +16,10 @@ tz: ""
 resolveGlobs: 100
 
 # Coalesce expanded literal reads at each backend, retaining per-metric routing.
-# Concurrency still counts metrics; 1 restores individual wire requests.
-renderBatchSize: 32
+# Concurrency still counts metrics. Disabled by default: changing batch membership
+# or order can defeat a backend's whole-request render and expanded-glob caches.
+# Values above 1 opt in; validate backend cache reuse and simple-request latency.
+renderBatchSize: 1
 enableCacheForRenderResolveGlobs: false
 
 # functionsConfigs:
