@@ -199,6 +199,37 @@ func TestParseExpr(t *testing.T) {
 			},
 		},
 		{
+			s: "None",
+			e: &expr{target: "none", etype: EtNil},
+		},
+		{
+			s: "asPercent(metric, None, 1)",
+			e: &expr{
+				target: "asPercent",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "metric"},
+					{target: "none", etype: EtNil},
+					{val: 1, etype: EtConst},
+				},
+				argString: "metric, None, 1",
+			},
+		},
+		{
+			s: "func(metric, key=None)",
+			e: &expr{
+				target: "func",
+				etype:  EtFunc,
+				args: []*expr{
+					{target: "metric"},
+				},
+				namedArgs: map[string]*expr{
+					"key": {target: "none", etype: EtNil},
+				},
+				argString: "metric, key=None",
+			},
+		},
+		{
 			s: "func(metric, key=1)",
 			e: &expr{
 				target: "func",

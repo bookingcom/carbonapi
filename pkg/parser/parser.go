@@ -373,6 +373,11 @@ func parseExprWithoutPipe(e string) (Expr, string, error) {
 	if strings.ToLower(name) == "false" || strings.ToLower(name) == "true" {
 		return &expr{valStr: name, etype: EtString, target: name}, e, nil
 	}
+	//check for none arg explicitly
+	if strings.EqualFold(name, "none") {
+		return &expr{valStr: "", etype: EtNil, target: "none"}, e, nil
+	}
+
 	if name == "" {
 		return nil, e, ErrMissingArgument
 	}
@@ -489,7 +494,7 @@ func parseArgList(e string) (string, []*expr, map[string]*expr, string, error) {
 				return "", nil, nil, "", ErrMissingComma
 			}
 
-			if !argCont.IsConst() && !argCont.IsName() && !argCont.IsString() {
+			if !argCont.IsConst() && !argCont.IsName() && !argCont.IsString() && argCont.Type() != EtNil {
 				return "", nil, nil, eCont, ErrBadType
 			}
 
