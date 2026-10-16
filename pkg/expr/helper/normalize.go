@@ -5,6 +5,12 @@ import (
 )
 
 func Normalize(args []*types.MetricData) ([]*types.MetricData, int32, int32, int32, error) {
+	return normalize(args, true)
+}
+
+// normalize can borrow unchanged point slices when the caller only reads them.
+// Normalize retains its detached-copy contract for callers that may mutate them.
+func normalize(args []*types.MetricData, copyUnchanged bool) ([]*types.MetricData, int32, int32, int32, error) {
 	if len(args) == 0 {
 		return []*types.MetricData{}, 0, 0, 0, nil
 	}
@@ -19,7 +25,13 @@ func Normalize(args []*types.MetricData) ([]*types.MetricData, int32, int32, int
 	}
 	result := make([]*types.MetricData, len(args))
 	for i, s := range args {
-		result[i] = s.Consolidate(int(step / s.StepTime))
+		if !copyUnchanged && step == s.StepTime {
+			series := *s
+			series.ValuesPerPoint = 1
+			result[i] = &series
+		} else {
+			result[i] = s.Consolidate(int(step / s.StepTime))
+		}
 		if start > s.StartTime {
 			start = s.StartTime
 		}
