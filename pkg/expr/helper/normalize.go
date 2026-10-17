@@ -25,12 +25,10 @@ func normalize(args []*types.MetricData, copyUnchanged bool) ([]*types.MetricDat
 	}
 	result := make([]*types.MetricData, len(args))
 	for i, s := range args {
-		if !copyUnchanged && step == s.StepTime {
-			series := *s
-			series.ValuesPerPoint = 1
-			result[i] = &series
-		} else {
+		if copyUnchanged {
 			result[i] = s.Consolidate(int(step / s.StepTime))
+		} else {
+			result[i] = consolidateForRead(s, int(step/s.StepTime))
 		}
 		if start > s.StartTime {
 			start = s.StartTime
@@ -41,4 +39,15 @@ func normalize(args []*types.MetricData, copyUnchanged bool) ([]*types.MetricDat
 	}
 	end -= (end - start) % step
 	return result, start, end, step, nil
+}
+
+// consolidateForRead borrows point slices only when no resampling is needed.
+// The caller must read them without mutation and write any output separately.
+func consolidateForRead(s *types.MetricData, valuesPerPoint int) *types.MetricData {
+	if valuesPerPoint != 1 {
+		return s.Consolidate(valuesPerPoint)
+	}
+	series := *s
+	series.ValuesPerPoint = 1
+	return &series
 }
