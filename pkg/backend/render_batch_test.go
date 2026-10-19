@@ -48,7 +48,7 @@ func (b coalesceTestBackend) BackendInfo() (string, string, string) {
 
 // Leave processing stopped so each test deterministically fills the real queues.
 func coalesceBackend(render func(context.Context, types.RenderRequest) ([]types.Metric, error), capacity int) Backend {
-	s := &backendState{fastRenderQ: make(chan *renderReq, 256), slowRenderQ: make(chan *renderReq, 256), findQ: make(chan *findReq, 256), infoQ: make(chan *infoReq, 256), semaSize: capacity, sourceClusters: []string{"fixture"}, saturation: prometheus.NewGauge(prometheus.GaugeOpts{Name: "test_saturation"})}
+	s := &backendState{fastRenderQ: newRequestQueue[*renderReq](256), slowRenderQ: newRequestQueue[*renderReq](256), findQ: newRequestQueue[*findReq](256), infoQ: newRequestQueue[*infoReq](256), semaSize: capacity, sourceClusters: []string{"fixture"}, saturation: prometheus.NewGauge(prometheus.GaugeOpts{Name: "test_saturation"})}
 	metrics := func() requestMetrics {
 		return requestMetrics{
 			inQueue:  prometheus.NewGauge(prometheus.GaugeOpts{Name: "test_queue"}),
@@ -77,8 +77,8 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 	ctx := util.WithRenderBatch(context.Background(), 4)
 	bUnsupported := coalesceBackend(nil, 4)
 	bUnsupported.BackendImpl = struct{ BackendImpl }{bUnsupported.BackendImpl}
-	bUnsupported.fastRenderQ <- coalesceRequest(ctx, "b")
-	if batch, pending := bUnsupported.collectRenderBatch(coalesceRequest(ctx, "a")); len(batch) != 1 || pending != nil || len(bUnsupported.fastRenderQ) != 1 {
+	bUnsupported.fastRenderQ.send(context.Background(), coalesceRequest(ctx, "b"))
+	if batch, pending := bUnsupported.collectRenderBatch(coalesceRequest(ctx, "a")); len(batch) != 1 || pending != nil || bUnsupported.fastRenderQ.length() != 1 {
 		t.Fatal("transport without the per-target contract was coalesced")
 	}
 	for _, tc := range []struct {
@@ -96,7 +96,7 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := coalesceBackend(nil, 4)
-			b.fastRenderQ <- tc.next
+			b.fastRenderQ.send(context.Background(), tc.next)
 			batch, pending := b.collectRenderBatch(coalesceRequest(ctx, "a"))
 			if (len(batch) == 2) != tc.join || (!tc.join && pending != tc.next) {
 				t.Fatalf("batch=%d carry=%p", len(batch), pending)
@@ -105,16 +105,16 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 	}
 	b := coalesceBackend(nil, 2)
 	for _, p := range []string{"b", "c", "d"} {
-		b.fastRenderQ <- coalesceRequest(ctx, p)
+		b.fastRenderQ.send(context.Background(), coalesceRequest(ctx, p))
 	}
 	batch, pending := b.collectRenderBatch(coalesceRequest(ctx, "a"))
-	if len(batch) != 2 || pending != nil || len(b.fastRenderQ) != 2 {
+	if len(batch) != 2 || pending != nil || b.fastRenderQ.length() != 2 {
 		t.Fatal("batch exceeded backend metric capacity")
 	}
 	first, next := coalesceRequest(ctx, "a"), coalesceRequest(ctx, "b")
 	next.Until++
 	b = coalesceBackend(nil, 4)
-	b.fastRenderQ <- next
+	b.fastRenderQ.send(context.Background(), next)
 	if batch, pending = b.collectRenderBatch(first); len(batch) != 1 || pending != next {
 		t.Fatal("time windows combined")
 	}
@@ -122,7 +122,7 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 	b = coalesceBackend(nil, 32)
 	first = coalesceRequest(ctx, strings.Repeat("%", 900)+"a")
 	for _, suffix := range []string{"b", "c", "d"} {
-		b.fastRenderQ <- coalesceRequest(ctx, strings.Repeat("%", 900)+suffix)
+		b.fastRenderQ.send(context.Background(), coalesceRequest(ctx, strings.Repeat("%", 900)+suffix))
 	}
 	batch, _ = b.collectRenderBatch(first)
 	q := url.Values{}
@@ -140,7 +140,7 @@ func waitCoalesceQueues(t *testing.T, bs []Backend, n int) {
 	for time.Now().Before(deadline) {
 		ready := true
 		for _, b := range bs {
-			ready = ready && len(b.fastRenderQ) == n
+			ready = ready && b.fastRenderQ.length() == n
 		}
 		if ready {
 			return
@@ -258,7 +258,7 @@ func TestCoalescedRenameFallbackIsConcurrentAndBounded(t *testing.T) {
 	for _, p := range []string{"a", "b", "c", "d"} {
 		r := coalesceRequest(ctx, p)
 		requests = append(requests, r)
-		b.fastRenderQ <- r
+		b.fastRenderQ.send(context.Background(), r)
 	}
 	b.Proc()
 	for _, r := range requests {
@@ -299,7 +299,7 @@ func TestCoalescedAdmissionCancelsAndRespectsMetricLimit(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		r := coalesceRequest(ctx, fmt.Sprint(i))
 		requests = append(requests, r)
-		b.fastRenderQ <- r
+		b.fastRenderQ.send(context.Background(), r)
 	}
 	b.Proc()
 	for _, r := range requests {
@@ -323,8 +323,8 @@ func TestCoalescedValuesDoNotAliasAcrossTargets(t *testing.T) {
 	}, 4)
 	ctx := util.WithRenderBatch(context.Background(), 4)
 	a, c := coalesceRequest(ctx, "a"), coalesceRequest(ctx, "c")
-	b.fastRenderQ <- a
-	b.fastRenderQ <- c
+	b.fastRenderQ.send(context.Background(), a)
+	b.fastRenderQ.send(context.Background(), c)
 	b.Proc()
 	first, second := <-a.Results, <-c.Results
 	want := append([]float64(nil), second[0].Values...)
@@ -412,7 +412,7 @@ func TestCarriedSlowRequestsDoNotStarveFastQueue(t *testing.T) {
 	}, 2)
 	for i := 0; i < 100; i++ {
 		ctx := util.WithRenderBatch(util.WithPriority(parent, 10000), 4)
-		b.slowRenderQ <- coalesceRequest(ctx, fmt.Sprint(i))
+		b.slowRenderQ.send(context.Background(), coalesceRequest(ctx, fmt.Sprint(i)))
 	}
 	b.Proc()
 	for i := 0; i < 2; i++ {
@@ -477,7 +477,7 @@ func TestCoalescedHTTPRoundTrip(t *testing.T) {
 	for _, path := range paths {
 		r := coalesceRequest(ctx, path)
 		requests = append(requests, r)
-		b.fastRenderQ <- r
+		b.fastRenderQ.send(context.Background(), r)
 	}
 	b.Proc()
 	for i, r := range requests {

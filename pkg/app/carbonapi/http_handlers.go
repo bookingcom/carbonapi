@@ -474,18 +474,32 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 		renderRequestContext := ctx
 		subrequestCount := len(renderRequests)
+		stableBatch := app.stableRenderBatch && app.config.RenderBatchSize > 1
+		batchLimit := 1
+		if stableBatch {
+			sort.Strings(renderRequests)
+			batchLimit = max(1, min(app.config.RenderBatchSize, app.config.MaxConcurrentUpstreamRequests))
+		}
 		if subrequestCount > 1 {
 			renderRequestContext = util.WithPriority(ctx, subrequestCount)
-			renderRequestContext = util.WithRenderBatch(renderRequestContext, app.config.RenderBatchSize)
+			if !stableBatch {
+				renderRequestContext = util.WithRenderBatch(renderRequestContext, app.config.RenderBatchSize)
+			}
 		}
 		app.ms.UpstreamSubRenderNum.Observe(float64(subrequestCount))
 		rch := make(chan RenderResponse, len(renderRequests))
-		for _, m := range renderRequests {
+		for index := 0; index < len(renderRequests); {
+			end := index + 1
+			if stableBatch && literalRenderPath(renderRequests[index]) {
+				for end < min(index+batchLimit, len(renderRequests)) && literalRenderPath(renderRequests[end]) && renderRequests[end] != renderRequests[end-1] {
+					end++
+				}
+			}
 			// This blocks when the queue fills up, which is fine as the below result read would block anyway.
 			//
 			// TODO: Maybe handle record drops when the queue is full.
 			req := &RenderReq{
-				Path:  m,
+				Path:  renderRequests[index],
 				From:  mfetch.From,
 				Until: mfetch.Until,
 
@@ -495,16 +509,20 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 
 				Results: rch,
 			}
+			if end-index > 1 {
+				req.Paths = renderRequests[index:end]
+			}
 
 			if subrequestCount > app.config.LargeReqSize {
 				app.slowQ <- req
-				app.ms.UpstreamEnqueuedRequests.WithLabelValues("slow").Inc()
-				app.ms.UpstreamRequestsInQueue.WithLabelValues("slow").Inc()
+				app.ms.UpstreamEnqueuedRequests.WithLabelValues("slow").Add(float64(end - index))
+				app.ms.UpstreamRequestsInQueue.WithLabelValues("slow").Add(float64(end - index))
 			} else {
 				app.fastQ <- req
-				app.ms.UpstreamEnqueuedRequests.WithLabelValues("fast").Inc()
-				app.ms.UpstreamRequestsInQueue.WithLabelValues("fast").Inc()
+				app.ms.UpstreamEnqueuedRequests.WithLabelValues("fast").Add(float64(end - index))
+				app.ms.UpstreamRequestsInQueue.WithLabelValues("fast").Add(float64(end - index))
 			}
+			index = end
 		}
 		ResultChannelByMetricRequest[mfetch] = rch
 	}

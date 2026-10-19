@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"net/url"
 	"strings"
 	"sync"
@@ -40,28 +41,27 @@ func (b *Backend) collectRenderBatch(first *renderReq) ([]*renderReq, *renderReq
 		queue = b.slowRenderQ
 	}
 	for len(batch) < limit {
-		if slow && len(b.fastRenderQ) != 0 {
+		if slow && !util.StableRenderBatch(first.Ctx) && b.fastRenderQ.length() != 0 {
 			break
 		}
-		select {
-		case next := <-queue:
-			nextID, _ := util.RenderBatch(next.Ctx)
-			if nextID != id || next.From != first.From || next.Until != first.Until || !literalRender(next) {
-				return batch, next
-			}
-			for _, r := range batch {
-				if r.Targets[0] == next.Targets[0] {
-					return batch, next
-				}
-			}
-			n := encodedRenderTargetBytes(next.Targets[0])
-			if bytes+n > maxRenderBatchURLBytes-128 {
-				return batch, next
-			}
-			batch, bytes = append(batch, next), bytes+n
-		default:
+		next, ok := queue.tryRecv()
+		if !ok {
 			return batch, nil
 		}
+		nextID, _ := util.RenderBatch(next.Ctx)
+		if nextID != id || next.From != first.From || next.Until != first.Until || !literalRender(next) {
+			return batch, next
+		}
+		for _, r := range batch {
+			if r.Targets[0] == next.Targets[0] {
+				return batch, next
+			}
+		}
+		n := encodedRenderTargetBytes(next.Targets[0])
+		if bytes+n > maxRenderBatchURLBytes-128 {
+			return batch, next
+		}
+		batch, bytes = append(batch, next), bytes+n
 	}
 	return batch, nil
 }
@@ -72,9 +72,18 @@ func literalRender(r *renderReq) bool {
 
 func encodedRenderTargetBytes(path string) int { return len("&target=") + len(url.QueryEscape(path)) }
 
+func (b *Backend) renderMetrics(ctx context.Context, request types.RenderRequest) ([]types.Metric, error) {
+	if transport, ok := b.BackendImpl.(interface {
+		RenderPacked(context.Context, types.RenderRequest) ([]types.Metric, error)
+	}); ok {
+		return transport.RenderPacked(ctx, request)
+	}
+	return b.BackendImpl.Render(ctx, request)
+}
+
 func (b *Backend) renderOne(r *renderReq) {
 	t := prometheus.NewTimer(b.render.duration)
-	res, err := b.BackendImpl.Render(r.Ctx, r.RenderRequest)
+	res, err := b.renderMetrics(r.Ctx, r.RenderRequest)
 	t.ObserveDuration()
 	if err != nil {
 		r.Errors <- err
@@ -94,9 +103,15 @@ func (b *Backend) renderBatch(batch []*renderReq) {
 		targets[i] = r.Targets[0]
 	}
 	t := prometheus.NewTimer(b.render.duration)
-	res, err := b.BackendImpl.Render(batch[0].Ctx, types.NewRenderRequest(targets, batch[0].From, batch[0].Until))
+	res, err := b.renderMetrics(batch[0].Ctx, types.NewRenderRequest(targets, batch[0].From, batch[0].Until))
 	t.ObserveDuration()
 	if err != nil {
+		if util.StableRenderBatch(batch[0].Ctx) && batch[0].Ctx.Err() == nil {
+			// Preserve each literal's result when one bad target makes a
+			// multi-fetch fail. Retries use this group's reserved target slots.
+			b.renderIndividually(batch)
+			return
+		}
 		// Each original render keeps its own replica fan-in. In particular, a
 		// slow or failed replica must not trigger another whole-query retry.
 		for _, r := range batch {
@@ -114,12 +129,7 @@ func (b *Backend) renderBatch(batch []*renderReq) {
 		if !expected || len(previous) != 0 {
 			// Preserve backends that return renamed or duplicate series. Each
 			// retry owns one of this batch's already reserved metric slots.
-			var wg sync.WaitGroup
-			for _, r := range batch {
-				wg.Add(1)
-				go func(r *renderReq) { defer wg.Done(); b.renderOne(r) }(r)
-			}
-			wg.Wait()
+			b.renderIndividually(batch)
 			return
 		}
 		byName[m.Name] = []types.Metric{m}
@@ -133,4 +143,13 @@ func (b *Backend) renderBatch(batch []*renderReq) {
 			r.Errors <- types.ErrMetricsNotFound
 		}
 	}
+}
+
+func (b *Backend) renderIndividually(batch []*renderReq) {
+	var wg sync.WaitGroup
+	for _, r := range batch {
+		wg.Add(1)
+		go func(r *renderReq) { defer wg.Done(); b.renderOne(r) }(r)
+	}
+	wg.Wait()
 }

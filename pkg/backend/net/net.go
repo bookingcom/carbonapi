@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,7 +57,10 @@ type NetBackend struct {
 
 	// requestGzip mirrors http.Transport's transparent compression: the
 	// request asks for gzip and the body is inflated here with a pooled reader.
-	requestGzip bool
+	requestGzip  bool
+	streamRender bool
+	nativeGzip   bool
+	packRender   bool
 
 	responsesCount *prometheus.CounterVec
 
@@ -124,6 +128,9 @@ func New(cfg Config) (*NetBackend, error) {
 		b.client = http.DefaultClient
 	}
 	b.requestGzip = transportCompresses(b.client)
+	b.streamRender = os.Getenv("CARBONAPI_STREAM_RENDER") == "1"
+	b.nativeGzip = os.Getenv("CARBONAPI_NATIVE_GZIP") == "1"
+	b.packRender = os.Getenv("CARBONAPI_PACK_BACKEND_POINTS") == "1"
 
 	b.responsesCount = cfg.Responses
 
@@ -183,6 +190,8 @@ func transportCompresses(c *http.Client) bool {
 		return true // http.DefaultTransport
 	case *http.Transport:
 		return !t.DisableCompression
+	case *SyncTransport:
+		return !t.fallback.DisableCompression
 	default:
 		return false
 	}
@@ -441,6 +450,9 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 
 	u := b.url("/render/")
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
+	if b.streamRender {
+		return b.renderStream(ctx, u)
+	}
 
 	contentType, body, err := b.call(ctx, u, "render")
 	defer body.release()

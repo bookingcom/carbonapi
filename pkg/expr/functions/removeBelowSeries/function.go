@@ -32,7 +32,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // removeBelowValue(seriesLists, n), removeAboveValue(seriesLists, n), removeBelowPercentile(seriesLists, percent), removeAbovePercentile(seriesLists, percent)
 func (f *removeBelowSeries) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
-	args, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
+	args, reuse, err := helper.GetSeriesArgForTransform(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +69,10 @@ func (f *removeBelowSeries) Do(ctx context.Context, e parser.Expr, from, until i
 
 		r := *a
 		r.Name = fmt.Sprintf("%s(%s, %g)", e.Target(), a.Name, number)
-		r.IsAbsent = make([]bool, len(a.Values))
-		r.Values = make([]float64, len(a.Values))
+		if !reuse {
+			r.IsAbsent = make([]bool, len(a.Values))
+			r.Values = make([]float64, len(a.Values))
+		}
 
 		for i, v := range a.Values {
 			if a.IsAbsent[i] || condition(v, threshold) {
@@ -169,3 +171,6 @@ func (f *removeBelowSeries) Description() map[string]types.FunctionDescription {
 		},
 	}
 }
+
+// OwnsPointStorage allows a direct parent to consume this evaluation's arrays.
+func (f *removeBelowSeries) OwnsPointStorage() bool { return true }

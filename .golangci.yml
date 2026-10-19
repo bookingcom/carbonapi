@@ -2,6 +2,7 @@ version: "2"
 run:
   build-tags:
     - cairo
+    - nativegzip
   tests: true
   timeout: 5m
 linters:

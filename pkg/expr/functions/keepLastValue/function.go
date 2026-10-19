@@ -31,7 +31,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // keepLastValue(seriesList, limit=inf)
 func (f *keepLastValue) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
+	arg, reuse, err := helper.GetSeriesArgForTransform(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +57,10 @@ func (f *keepLastValue) Do(ctx context.Context, e parser.Expr, from, until int32
 
 		r := *a
 		r.Name = name
-		r.Values = make([]float64, len(a.Values))
-		r.IsAbsent = make([]bool, len(a.Values))
+		if !reuse {
+			r.Values = make([]float64, len(a.Values))
+			r.IsAbsent = make([]bool, len(a.Values))
+		}
 
 		prev := math.NaN()
 		missing := 0
@@ -68,8 +70,10 @@ func (f *keepLastValue) Do(ctx context.Context, e parser.Expr, from, until int32
 
 				if (keep < 0 || missing < keep) && !math.IsNaN(prev) {
 					r.Values[i] = prev
+					r.IsAbsent[i] = false
 					missing++
 				} else {
+					r.Values[i] = 0
 					r.IsAbsent[i] = true
 				}
 
@@ -108,3 +112,6 @@ func (f *keepLastValue) Description() map[string]types.FunctionDescription {
 		},
 	}
 }
+
+// OwnsPointStorage allows a direct parent to consume this evaluation's arrays.
+func (f *keepLastValue) OwnsPointStorage() bool { return true }

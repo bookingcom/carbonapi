@@ -11,8 +11,9 @@ func CombineSeries(originalA, originalB *types.MetricData, name string, operator
 
 	step := LCM(originalA.StepTime, originalB.StepTime)
 
-	a := originalA.Consolidate(int(step / originalA.StepTime))
-	b := originalB.Consolidate(int(step / originalB.StepTime))
+	// Both operands are read-only; the result below has its own point slices.
+	a := consolidateForRead(originalA, int(step/originalA.StepTime))
+	b := consolidateForRead(originalB, int(step/originalB.StepTime))
 
 	start := a.StartTime
 	if start > b.StartTime {

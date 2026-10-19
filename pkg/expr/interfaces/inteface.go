@@ -49,3 +49,10 @@ type Function interface {
 	Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData GetTargetData) ([]*types.MetricData, error)
 	Description() map[string]types.FunctionDescription
 }
+
+// PointStorageOwner marks functions whose result series have separate point
+// arrays, owned exclusively by this evaluation. A direct parent transform can
+// consume those arrays. Raw inputs, aliases and arbitrary plugins remain shared.
+type PointStorageOwner interface {
+	OwnsPointStorage() bool
+}
