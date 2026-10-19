@@ -61,8 +61,8 @@ github.com/facebookgo/pidfile
 github.com/facebookgo/stats
 # github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4
 ## explicit
-# github.com/felixge/httpsnoop v1.0.4
-## explicit; go 1.13
+# github.com/felixge/httpsnoop v1.1.0
+## explicit; go 1.25
 github.com/felixge/httpsnoop
 # github.com/go-graphite/protocol v1.0.1-0.20220718132526-4b842ba389ee
 ## explicit; go 1.16
