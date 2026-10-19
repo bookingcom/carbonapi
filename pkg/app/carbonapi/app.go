@@ -64,8 +64,9 @@ type App struct {
 
 	Backends []backend.Backend
 
-	ms            PrometheusMetrics
-	ZipperMetrics *ZipperPrometheusMetrics
+	ms                PrometheusMetrics
+	ZipperMetrics     *ZipperPrometheusMetrics
+	stableRenderBatch bool
 }
 
 // New creates a new app
@@ -77,14 +78,15 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	BuildVersion = buildVersion
 	ms := newPrometheusMetrics(config)
 	app := &App{
-		config:          config,
-		queryCache:      cache.NullCache{},
-		findCache:       cache.NullCache{},
-		defaultTimeZone: time.Local,
-		ms:              ms,
-		requestBlocker:  blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
-		fastQ:           make(chan *RenderReq, config.QueueSize),
-		slowQ:           make(chan *RenderReq, config.QueueSize),
+		config:            config,
+		stableRenderBatch: os.Getenv("CARBONAPI_STABLE_RENDER_BATCH") == "1",
+		queryCache:        cache.NullCache{},
+		findCache:         cache.NullCache{},
+		defaultTimeZone:   time.Local,
+		ms:                ms,
+		requestBlocker:    blocker.NewRequestBlocker(config.BlockHeaderFile, config.BlockHeaderUpdatePeriod, lg),
+		fastQ:             make(chan *RenderReq, config.QueueSize),
+		slowQ:             make(chan *RenderReq, config.QueueSize),
 	}
 	app.requestBlocker.ReloadRules()
 
@@ -330,6 +332,9 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 			Timeout:   config.Timeouts.Connect,
 			KeepAlive: config.KeepAliveInterval,
 		}).DialContext,
+	}
+	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") == "1" {
+		client.Transport = bnet.NewSyncTransport(client.Transport.(*http.Transport))
 	}
 
 	configBackendList := config.GetBackends()

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
+	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
 
@@ -42,6 +43,21 @@ func GetSeriesArg(ctx context.Context, arg parser.Expr, from, until int32, value
 	}
 
 	return a, nil
+}
+
+// GetSeriesArgForTransform also reports whether the direct child gives this
+// evaluation exclusive point storage. Only an explicit ownership contract
+// permits reuse; names and functions that share input storage keep copying.
+func GetSeriesArgForTransform(ctx context.Context, arg parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, bool, error) {
+	args, err := GetSeriesArg(ctx, arg, from, until, values, getTargetData)
+	if err != nil || !arg.IsFunc() {
+		return args, false, err
+	}
+	metadata.FunctionMD.RLock()
+	f := metadata.FunctionMD.Functions[arg.Target()]
+	metadata.FunctionMD.RUnlock()
+	owner, ok := f.(interfaces.PointStorageOwner)
+	return args, ok && owner.OwnsPointStorage(), nil
 }
 
 // RemoveEmptySeriesFromName removes empty series from list of names.
@@ -114,7 +130,9 @@ type AggregateFunc func([]float64) (float64, bool)
 
 // AggregateSeries aggregates series
 func AggregateSeries(name string, args []*types.MetricData, absent_if_first_series_absent bool, absent_if_any_absent bool, function AggregateFunc) ([]*types.MetricData, error) {
-	seriesList, start, end, step, err := Normalize(args)
+	// Aggregation reads its inputs and writes a separate result. Borrow point
+	// slices that already have the common step instead of copying them.
+	seriesList, start, end, step, err := normalize(args, false)
 	if err != nil {
 		return nil, err
 	}

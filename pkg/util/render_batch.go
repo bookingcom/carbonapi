@@ -5,6 +5,17 @@ import "context"
 type renderBatchContext struct {
 	context.Context
 	maxTargets int
+	stable     bool
+}
+
+// WithStableRenderBatch marks an atomically queued, complete literal group.
+func WithStableRenderBatch(ctx context.Context, targets int) context.Context {
+	return &renderBatchContext{Context: ctx, maxTargets: targets, stable: true}
+}
+
+func StableRenderBatch(ctx context.Context) bool {
+	c, ok := ctx.(*renderBatchContext)
+	return ok && c.stable
 }
 
 // WithRenderBatch marks one glob expansion for opportunistic backend batching.

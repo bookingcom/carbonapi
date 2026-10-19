@@ -14,7 +14,7 @@ debug: GCFLAGS += -gcflags=all='-l -N'
 
 LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
 
-TAGS := -tags cairo
+TAGS := -tags cairo,nativegzip
 nocairo: TAGS =
 
 ### Targets ###
@@ -42,7 +42,7 @@ lint:
 
 .PHONY: test
 test:
-	$(PKGCONF) go test -timeout 10s -race ./... 
+	$(PKGCONF) go test $(TAGS) -timeout 10s -race ./...
 
 .PHONY: test-e2e
 test-e2e:

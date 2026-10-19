@@ -106,6 +106,8 @@ type Metric struct {
 	IsAbsent  []bool
 
 	SourceClusters []string
+
+	packed *packedPoints
 }
 
 // MetricRenderStats represents the stats of rendering and merging metrics.
@@ -126,8 +128,9 @@ func MergeMetrics(metrics [][]Metric, replicaMismatchConfig cfg.RenderReplicaMis
 	if len(metrics) == 1 {
 		pointCount := 0
 		ms := metrics[0]
-		for _, m := range ms {
-			pointCount += len(m.Values)
+		for i := range ms {
+			ms[i].materializePoints()
+			pointCount += len(ms[i].Values)
 		}
 		return ms, MetricRenderStats{
 			DataPointCount: pointCount,
@@ -285,6 +288,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 
 	if len(metrics) == 1 {
 		m := metrics[0]
+		m.materializePoints()
 		return m, MetricRenderStats{}
 	}
 
@@ -313,10 +317,34 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 	sort.Strings(clusters)
 	// metrics[0] has the highest resolution of metrics
 	metric = metrics[0]
+	metric.materializePoints()
+	var cursors []packedPointCursor
+	for _, replica := range metrics[1:] {
+		if replica.packed != nil {
+			cursors = make([]packedPointCursor, len(metrics))
+			for i := range cursors {
+				cursors[i].block = -1
+			}
+			break
+		}
+	}
 	metric.SourceClusters = clusters
+	// Schema compatibility is constant across all points. Preserve the old
+	// first-incompatible-replica boundary without rechecking it per point.
+	replicaLimit := 1
+	for replicaLimit < len(metrics) && metrics[replicaLimit].StepTime == metric.StepTime && metrics[replicaLimit].pointCount() == len(metric.Values) {
+		replicaLimit++
+	}
 	valuesForPoint := make([]float64, 0, len(metrics))
 	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
 	for i := range metric.Values {
+		if cursors != nil && i&63 == 0 {
+			for j := 1; j < replicaLimit; j++ {
+				if p := metrics[j].packed; p != nil {
+					cursors[j].advanceToBlock(p, i>>6)
+				}
+			}
+		}
 		pointExists := !metric.IsAbsent[i]
 		shouldLookForMismatch := isMismatchFindConfig
 		mismatchObserved := false
@@ -324,32 +352,38 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		if pointExists {
 			valuesForPoint = append(valuesForPoint, metric.Values[i])
 		}
-		for j := 1; j < len(metrics); j++ {
+		for j := 1; j < replicaLimit; j++ {
 			if pointExists && !shouldLookForMismatch {
 				break
 			}
 			m := metrics[j]
 
-			if m.StepTime != metric.StepTime || len(m.Values) != len(metric.Values) {
-				break
+			var value float64
+			if m.packed != nil {
+				var absent bool
+				value, absent = cursors[j].pointAt(m.packed, i)
+				if absent {
+					continue
+				}
+			} else {
+				if m.IsAbsent[i] {
+					continue
+				}
+				value = m.Values[i]
 			}
 
-			if m.IsAbsent[i] {
-				continue
-			}
-
-			valuesForPoint = append(valuesForPoint, m.Values[i])
+			valuesForPoint = append(valuesForPoint, value)
 
 			if !pointExists {
-				metric.IsAbsent[i] = m.IsAbsent[i]
-				metric.Values[i] = m.Values[i]
+				metric.IsAbsent[i] = false
+				metric.Values[i] = value
 				healed++
 				pointExists = true
 			}
 
 			if !mismatchObserved {
-				mismatchObserved = (equalityFunc == nil && metric.Values[i] != m.Values[i]) ||
-					(equalityFunc != nil && !equalityFunc(metric.Values[i], m.Values[i]))
+				mismatchObserved = (equalityFunc == nil && metric.Values[i] != value) ||
+					(equalityFunc != nil && !equalityFunc(metric.Values[i], value))
 				if mismatchObserved && replicaMatchMode == cfg.ReplicaMatchModeCheck {
 					// mismatch exists, enough for check mode
 					shouldLookForMismatch = false

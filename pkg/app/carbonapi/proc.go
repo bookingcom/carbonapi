@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"go.uber.org/zap"
 )
@@ -11,7 +13,7 @@ import (
 // ProcessRequests processes the queued requests.
 func ProcessRequests(app *App, lg *zap.Logger) {
 	// semaphore does what semaphores do: It limits the number of concurrent requests.
-	semaphore := make(chan bool, app.config.MaxConcurrentUpstreamRequests)
+	limiter := semaphore.NewWeighted(int64(app.config.MaxConcurrentUpstreamRequests))
 	for i := 0; i < app.config.ProcWorkers; i++ {
 		go func() {
 			for {
@@ -35,24 +37,39 @@ func ProcessRequests(app *App, lg *zap.Logger) {
 					}
 				}
 
-				app.ms.UpstreamRequestsInQueue.WithLabelValues(label).Dec()
+				weight := max(1, len(req.Paths))
+				app.ms.UpstreamRequestsInQueue.WithLabelValues(label).Sub(float64(weight))
 
 				select {
 				case <-req.Ctx.Done():
-					req.Results <- RenderResponse{nil, req.Ctx.Err()}
+					for range weight {
+						req.Results <- RenderResponse{nil, req.Ctx.Err()}
+					}
 					continue
 				default:
 				}
 
-				semaphore <- true
-				app.ms.UpstreamSemaphoreSaturation.Inc()
-				app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(float64(time.Since(req.StartTime).Seconds()))
+				if err := limiter.Acquire(req.Ctx, int64(weight)); err != nil {
+					for range weight {
+						req.Results <- RenderResponse{nil, err}
+					}
+					continue
+				}
+				app.ms.UpstreamSemaphoreSaturation.Add(float64(weight))
+				for range weight {
+					app.ms.UpstreamTimeInQSec.WithLabelValues(label).Observe(time.Since(req.StartTime).Seconds())
+				}
 
 				go func(r *RenderReq) {
-					r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog, lg)
-
-					<-semaphore
-					app.ms.UpstreamSemaphoreSaturation.Dec()
+					if len(r.Paths) > 1 {
+						for _, response := range sendGroupedRenderRequests(app, r.Ctx, r.Paths, r.From, r.Until, r.ToLog, lg) {
+							r.Results <- response
+						}
+					} else {
+						r.Results <- sendRenderRequest(app, r.Ctx, r.Path, r.From, r.Until, r.ToLog, lg)
+					}
+					limiter.Release(int64(weight))
+					app.ms.UpstreamSemaphoreSaturation.Sub(float64(weight))
 				}(req)
 			}
 		}()
@@ -62,6 +79,7 @@ func ProcessRequests(app *App, lg *zap.Logger) {
 // RenderReq represents a render requests in the processing queue.
 type RenderReq struct {
 	Path  string
+	Paths []string
 	From  int32
 	Until int32
 

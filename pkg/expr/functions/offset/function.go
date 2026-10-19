@@ -30,7 +30,7 @@ func New(configFile string) []interfaces.FunctionMetadata {
 
 // offset(seriesList,factor)
 func (f *offset) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
-	arg, err := helper.GetSeriesArg(ctx, e.Args()[0], from, until, values, getTargetData)
+	arg, reuse, err := helper.GetSeriesArgForTransform(ctx, e.Args()[0], from, until, values, getTargetData)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +43,10 @@ func (f *offset) Do(ctx context.Context, e parser.Expr, from, until int32, value
 	for _, a := range arg {
 		r := *a
 		r.Name = fmt.Sprintf("offset(%s,%g)", a.Name, factor)
-		r.Values = make([]float64, len(a.Values))
-		r.IsAbsent = make([]bool, len(a.Values))
+		if !reuse {
+			r.Values = make([]float64, len(a.Values))
+			r.IsAbsent = make([]bool, len(a.Values))
+		}
 
 		for i, v := range a.Values {
 			if a.IsAbsent[i] {
@@ -83,3 +85,6 @@ func (f *offset) Description() map[string]types.FunctionDescription {
 		},
 	}
 }
+
+// OwnsPointStorage allows a direct parent to consume this evaluation's arrays.
+func (f *offset) OwnsPointStorage() bool { return true }

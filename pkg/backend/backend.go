@@ -26,10 +26,10 @@ type backendState struct {
 	// impact the other types of requests.
 	// This, for example, removes the dependency between the find and render requests performance.
 	// A big wave of render requests will not have direct impact on the find requests besides through the semphore.
-	fastRenderQ chan *renderReq
-	slowRenderQ chan *renderReq
-	findQ       chan *findReq
-	infoQ       chan *infoReq // the info requests are expected to be relatively rare
+	fastRenderQ *requestQueue[*renderReq]
+	slowRenderQ *requestQueue[*renderReq]
+	findQ       *requestQueue[*findReq]
+	infoQ       *requestQueue[*infoReq] // the info requests are expected to be relatively rare
 
 	// The size of the requests semaphore:
 	// The maximum number of simultaneous requests.
@@ -127,10 +127,10 @@ func NewBackend(impl BackendImpl, qSize int, semaSize int,
 	enqueuedRequests *prometheus.CounterVec,
 	backendDuration prometheus.ObserverVec) Backend {
 	s := &backendState{
-		fastRenderQ: make(chan *renderReq, qSize),
-		slowRenderQ: make(chan *renderReq, qSize),
-		findQ:       make(chan *findReq, qSize),
-		infoQ:       make(chan *infoReq, qSize),
+		fastRenderQ: newRequestQueue[*renderReq](qSize),
+		slowRenderQ: newRequestQueue[*renderReq](qSize),
+		findQ:       newRequestQueue[*findReq](qSize),
+		infoQ:       newRequestQueue[*infoReq](qSize),
 		semaSize:    semaSize,
 
 		requestsInQueue:  requestsInQueue,
@@ -168,23 +168,15 @@ func (b *Backend) Proc() {
 			if pending != nil {
 				// A carried slow request must not hide newly arrived fast work.
 				if util.GetPriority(pending.Ctx) >= 10000 {
-					select {
-					case r = <-b.fastRenderQ:
-					default:
+					var ok bool
+					if r, ok = b.fastRenderQ.tryRecv(); !ok {
 						r, pending = pending, nil
 					}
 				} else {
 					r, pending = pending, nil
 				}
 			} else {
-				select {
-				case r = <-b.fastRenderQ:
-				default:
-					select {
-					case r = <-b.fastRenderQ:
-					case r = <-b.slowRenderQ:
-					}
-				}
+				r = b.nextRender()
 			}
 			batch := []*renderReq{r}
 			if pending == nil && r.Ctx.Err() == nil {
@@ -210,7 +202,8 @@ func (b *Backend) Proc() {
 		}
 	}()
 	go func() {
-		for r := range b.findQ {
+		for {
+			r := b.findQ.recv()
 			b.find.inQueue.Dec()
 			if err := limiter.Acquire(r.Ctx, 1); err != nil {
 				r.Errors <- err
@@ -233,7 +226,8 @@ func (b *Backend) Proc() {
 		}
 	}()
 	go func() {
-		for r := range b.infoQ {
+		for {
+			r := b.infoQ.recv()
 			b.info.inQueue.Dec()
 			if err := limiter.Acquire(r.Ctx, 1); err != nil {
 				r.Errors <- err
@@ -261,42 +255,73 @@ func (b *Backend) Proc() {
 // Without that issue resolved, the use of generics would produce too much boilerplate and would look much worse than
 // the solution below — I've tried.
 
+// nextRender preserves the fast queue's priority without waiting to form a batch.
+func (b Backend) nextRender() *renderReq {
+	if b.fastRenderQ.direct != nil {
+		select {
+		case r := <-b.fastRenderQ.direct:
+			return r
+		default:
+			select {
+			case r := <-b.fastRenderQ.direct:
+				return r
+			case r := <-b.slowRenderQ.direct:
+				return r
+			}
+		}
+	}
+	for {
+		if r, ok := b.fastRenderQ.tryRecv(); ok {
+			return r
+		}
+		select {
+		case <-b.fastRenderQ.ready:
+			if r, ok := b.fastRenderQ.tryRecv(); ok {
+				return r
+			}
+		case <-b.slowRenderQ.ready:
+			if r, ok := b.slowRenderQ.tryRecv(); ok {
+				return r
+			}
+		}
+	}
+}
+
 func (backend Backend) SendRender(ctx context.Context, request types.RenderRequest, msgCh chan []types.Metric, errCh chan error) {
 	queue := backend.fastRenderQ
 	if util.GetPriority(ctx) >= 10000 {
 		queue = backend.slowRenderQ
 	}
 	r := &renderReq{RenderRequest: request, Ctx: ctx, StartTime: time.Now(), Results: msgCh, Errors: errCh}
-	select {
-	case queue <- r:
+	if queue.send(ctx, r) {
 		backend.render.inQueue.Inc()
 		backend.render.enqueued.Inc()
-	case <-ctx.Done():
+	} else {
 		errCh <- ctx.Err()
 	}
 }
 
 func (backend Backend) SendFind(ctx context.Context, request types.FindRequest,
 	msgCh chan types.Matches, errCh chan error, durationHist *prometheus.HistogramVec) {
-	backend.findQ <- &findReq{
+	backend.findQ.send(context.Background(), &findReq{
 		FindRequest: request,
 		Ctx:         ctx,
 		StartTime:   time.Now(),
 		Results:     msgCh,
 		Errors:      errCh,
-	}
+	})
 	backend.find.inQueue.Inc()
 	backend.find.enqueued.Inc()
 }
 
 func (backend Backend) SendInfo(ctx context.Context, request types.InfoRequest, msgCh chan []types.Info, errCh chan error) {
-	backend.infoQ <- &infoReq{
+	backend.infoQ.send(context.Background(), &infoReq{
 		InfoRequest: request,
 		Ctx:         ctx,
 		StartTime:   time.Now(),
 		Results:     msgCh,
 		Errors:      errCh,
-	}
+	})
 	backend.info.inQueue.Inc()
 	backend.info.enqueued.Inc()
 }
