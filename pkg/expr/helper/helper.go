@@ -234,10 +234,17 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 		}
 	case "max":
 		rv = math.Inf(-1)
-		for _, av := range values {
-			if av > rv {
-				rv = av
+		present := false
+		for i, av := range values {
+			if !absent[i] {
+				present = true
+				if av > rv {
+					rv = av
+				}
 			}
+		}
+		if !present {
+			return 0, true, nil
 		}
 	case "min":
 		rv = math.Inf(1)
@@ -264,7 +271,7 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 		}
 		rv = float64(total)
 	case "median":
-		val, abs := Percentile(values, 50, true)
+		val, abs := Percentile(presentValues(values, absent), 50, true)
 		return val, abs, nil
 	case "stddev":
 		rv = math.Sqrt(VarianceValue(values, absent))
@@ -280,13 +287,25 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 			if err != nil {
 				return 0, true, parser.ParseError(err.Error())
 			}
-			val, abs := Percentile(values, percent, true)
+			val, abs := Percentile(presentValues(values, absent), percent, true)
 			return val, abs, nil
 		} else {
 			return 0, true, parser.ParseError(fmt.Sprintf("unsupported aggregation function: %s", f))
 		}
 	}
 	return rv, false, nil
+}
+
+// presentValues returns a new slice with the values that are not absent.
+// Percentile reorders its input, so callers must not pass series data directly.
+func presentValues(values []float64, absent []bool) []float64 {
+	res := make([]float64, 0, len(values))
+	for i, v := range values {
+		if !absent[i] {
+			res = append(res, v)
+		}
+	}
+	return res
 }
 
 // ExtractMetric extracts metric out of function list
