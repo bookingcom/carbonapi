@@ -506,6 +506,30 @@ func TestEvalExpression(t *testing.T) {
 				[]float64{-3, math.NaN(), -1, -2}, 1, now32)},
 		},
 		{
+			"legendValue(metric1,\"max\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), math.NaN()}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("metric1 (max: 0.000000)",
+				[]float64{math.NaN(), math.NaN()}, 1, now32)},
+		},
+		{
+			"legendValue(metric1,\"max\",\"si\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), math.NaN()}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("metric1 (max: 0.0 )",
+				[]float64{math.NaN(), math.NaN()}, 1, now32)},
+		},
+		{
+			"legendValue(metric1,\"max\",\"binary\")",
+			map[parser.MetricRequest][]*types.MetricData{
+				{"metric1", 0, 1}: {types.MakeMetricData("metric1", []float64{math.NaN(), math.NaN()}, 1, now32)},
+			},
+			[]*types.MetricData{types.MakeMetricData("metric1 (max: 0 B)",
+				[]float64{math.NaN(), math.NaN()}, 1, now32)},
+		},
+		{
 			"mapSeries(servers.*.cpu.*, 1)",
 			map[parser.MetricRequest][]*types.MetricData{
 				{"servers.*.cpu.*", 0, 1}: {

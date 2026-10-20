@@ -245,6 +245,29 @@ func TestSummarizeValues(t *testing.T) {
 	}
 }
 
+func TestSummarizeMaxMissingPoints(t *testing.T) {
+	tests := []struct {
+		name       string
+		values     []float64
+		absent     []bool
+		want       float64
+		wantAbsent bool
+	}{
+		{"all missing zeros", []float64{0, 0}, []bool{true, true}, 0, true},
+		{"all missing nonzero values", []float64{10, 20}, []bool{true, true}, 0, true},
+		{"present zero", []float64{0, -10}, []bool{false, true}, 0, false},
+		{"present negative infinity", []float64{math.Inf(-1)}, []bool{false}, math.Inf(-1), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, absent, err := SummarizeValues("max", tt.values, tt.absent)
+			if err != nil || got != tt.want || absent != tt.wantAbsent {
+				t.Fatalf("SummarizeValues(max) = (%v, %v, %v), want (%v, %v, nil)", got, absent, err, tt.want, tt.wantAbsent)
+			}
+		})
+	}
+}
+
 // almostEqual checks if two float64 values are approximately equal
 func almostEqual(a, b float64) bool {
 	const epsilon = 1e-9

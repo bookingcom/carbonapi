@@ -234,12 +234,17 @@ func SummarizeValues(f string, values []float64, absent []bool) (float64, bool, 
 		}
 	case "max":
 		rv = math.Inf(-1)
+		present := false
 		for i, av := range values {
 			if !absent[i] {
+				present = true
 				if av > rv {
 					rv = av
 				}
 			}
+		}
+		if !present {
+			return 0, true, nil
 		}
 	case "min":
 		rv = math.Inf(1)
