@@ -1,7 +1,7 @@
 FROM golang:1.26
 
 RUN apt-get update
-RUN apt-get install -y libcairo2-dev
+RUN apt-get install -y libcairo2-dev curl
 
 WORKDIR /go/src/github.com/bookingcom/carbonapi
 COPY . .

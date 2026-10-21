@@ -3,19 +3,32 @@
 package net
 
 /*
-#cgo LDFLAGS: -lz
+#cgo !zlibng LDFLAGS: -lz
+#cgo zlibng CFLAGS: -DCARBONAPI_ZLIBNG -I${SRCDIR}/../../../.build/zlib-ng/include
+#cgo zlibng LDFLAGS: ${SRCDIR}/../../../.build/zlib-ng/lib/libz-ng.a
 #include <stdlib.h>
+#ifdef CARBONAPI_ZLIBNG
+// The native API has separate symbols: Cairo/libpng continue using system zlib.
+#include <zlib-ng.h>
+typedef zng_stream carbonapi_z_stream;
+#define inflateInit2 zng_inflateInit2
+#define inflateReset2 zng_inflateReset2
+#define inflateEnd zng_inflateEnd
+#define inflate zng_inflate
+#else
 #include <zlib.h>
+typedef z_stream carbonapi_z_stream;
+#endif
 
 typedef struct { unsigned int used, produced; int code; } carbonapi_inflate_result;
-static z_stream *carbonapi_inflate_new(void) {
-    z_stream *s = (z_stream *)calloc(1, sizeof(z_stream));
+static carbonapi_z_stream *carbonapi_inflate_new(void) {
+    carbonapi_z_stream *s = (carbonapi_z_stream *)calloc(1, sizeof(carbonapi_z_stream));
     if (s && inflateInit2(s, 15 + 16) != Z_OK) { free(s); return NULL; }
     return s;
 }
-static int carbonapi_inflate_reset(z_stream *s) { return inflateReset2(s, 15 + 16); }
-static void carbonapi_inflate_free(z_stream *s) { if (s) { inflateEnd(s); free(s); } }
-static carbonapi_inflate_result carbonapi_inflate_step(z_stream *s, unsigned char *in,
+static int carbonapi_inflate_reset(carbonapi_z_stream *s) { return inflateReset2(s, 15 + 16); }
+static void carbonapi_inflate_free(carbonapi_z_stream *s) { if (s) { inflateEnd(s); free(s); } }
+static carbonapi_inflate_result carbonapi_inflate_step(carbonapi_z_stream *s, unsigned char *in,
         unsigned int input_size, unsigned char *out, unsigned int output_size) {
     s->next_in = in; s->avail_in = input_size;
     s->next_out = out; s->avail_out = output_size;
@@ -38,7 +51,7 @@ import (
 )
 
 type nativeGzipReader struct {
-	state                 *C.z_stream
+	state                 *C.carbonapi_z_stream
 	src                   io.Reader
 	input                 []byte
 	pos, end              int

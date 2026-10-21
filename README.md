@@ -23,6 +23,18 @@ To build both the `carbonapi` and `carbonzipper` binaries, run:
 make
 ```
 
+The default build links a pinned zlib-ng 2.3.3 static library for backend gzip
+decoding. The first build needs a C compiler, Make, curl, tar and internet access;
+the source archive is verified by SHA-256 and its tests run before installation
+under `.build/zlib-ng`. No system libraries are installed or replaced. The native
+`zng_*` API leaves response compression and Cairo/libpng on their existing paths.
+Remove `.build/zlib-ng` (or run `make clean`) to rebuild the dependency.
+
+`make build TAGS='-tags cairo,nativegzip'` retains system-zlib decoding.
+`make nocairo` retains the portable Go decoder without either native dependency.
+The existing `CARBONAPI_NATIVE_GZIP` and `CARBONAPI_STREAM_RENDER` startup flags
+still control use of native backend decoding.
+
 To build the binaries with debug symbols, run:
 
 ```
