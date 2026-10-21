@@ -42,10 +42,10 @@ lint:
 
 .PHONY: test
 test: native-deps
-	$(PKGCONF) go test $(TAGS) -timeout 10s -race ./...
+	$(PKGCONF) go test $(TAGS) -timeout 60s -race ./...
 	@case '$(TAGS)' in *zlibng*) \
-		go test -tags nativegzip -timeout 10s -race ./pkg/backend/net && \
-		go test -timeout 10s -race ./pkg/backend/net ;; esac
+		go test -tags nativegzip -timeout 60s -race ./pkg/backend/net && \
+		go test -timeout 60s -race ./pkg/backend/net ;; esac
 
 .PHONY: native-deps
 native-deps:

@@ -229,6 +229,23 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		Trace(lg, "request not found in cache")
 	}
 
+	expressions := make([]parser.Expr, len(form.targets))
+	parseErrors := make([]string, len(form.targets))
+	for i, target := range form.targets {
+		exp, remaining, parseErr := parser.ParseExpr(target)
+		if parseErr != nil || remaining != "" {
+			parseErrors[i] = buildParseErrorString(target, remaining, parseErr)
+			continue
+		}
+		expressions[i] = exp
+	}
+	ctx, pending := app.prefetchRenderTargets(ctx, expressions, form.from32, form.until32, &toLog, lg)
+	defer func() {
+		// Cancel unused fetches before access logging reads their counters.
+		cancel()
+		pending.drain()
+	}()
+
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
 	var results []*types.MetricData
@@ -240,13 +257,11 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		lgt := lg.With(zap.String("target", target))
 		Trace(lgt, "querying target")
 
-		exp, e, parseErr := parser.ParseExpr(target)
-		if parseErr != nil || e != "" {
-			Trace(lgt, "parsing target expression failed", zap.Error(parseErr))
-			msg := buildParseErrorString(target, e, parseErr)
-			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog)
+		if parseErrors[targetIdx] != "" {
+			writeError(uuid, r, w, http.StatusBadRequest, parseErrors[targetIdx], form.format, &toLog)
 			return
 		}
+		exp := expressions[targetIdx]
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
 			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, lgt, &partiallyFailed)
@@ -428,7 +443,7 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var targetMetricFetches []parser.MetricRequest
 	var metricErrs []error
 
-	ResultChannelByMetricRequest := make(map[parser.MetricRequest]chan RenderResponse)
+	ResultChannelByMetricRequest := make(map[parser.MetricRequest]*renderMetricFetch)
 	for _, m := range exp.Metrics() {
 		lgm := lg.With(zap.String("metric", m.Metric))
 		Trace(lgm, "getting metric data from upstream")
@@ -458,6 +473,13 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			}
 		}
 
+		if pending, ok := ctx.Value(renderPrefetchKey{}).(renderPrefetch); ok {
+			if fetch, exists := pending[mfetch]; exists {
+				ResultChannelByMetricRequest[mfetch] = fetch
+				continue
+			}
+		}
+
 		// This _sometimes_ sends a *find* request
 		useCacheForRenderResolveGlobs := useCache && app.config.EnableCacheForRenderResolveGlobs
 		renderRequests, err := app.getRenderRequests(ctx, m, useCacheForRenderResolveGlobs, toLog, lgm)
@@ -470,69 +492,15 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 			metricErrs = append(metricErrs, dataTypes.ErrMetricsNotFound)
 			continue
 		}
-		Trace(lgm, "got sub-requests. sending them upstream", zap.Int("sub-requests", len(renderRequests)))
-
-		renderRequestContext := ctx
-		subrequestCount := len(renderRequests)
-		stableBatch := app.stableRenderBatch && app.config.RenderBatchSize > 1
-		batchLimit := 1
-		if stableBatch {
-			sort.Strings(renderRequests)
-			batchLimit = max(1, min(app.config.RenderBatchSize, app.config.MaxConcurrentUpstreamRequests))
-		}
-		if subrequestCount > 1 {
-			renderRequestContext = util.WithPriority(ctx, subrequestCount)
-			if !stableBatch {
-				renderRequestContext = util.WithRenderBatch(renderRequestContext, app.config.RenderBatchSize)
-			}
-		}
-		app.ms.UpstreamSubRenderNum.Observe(float64(subrequestCount))
-		rch := make(chan RenderResponse, len(renderRequests))
-		for index := 0; index < len(renderRequests); {
-			end := index + 1
-			if stableBatch && literalRenderPath(renderRequests[index]) {
-				for end < min(index+batchLimit, len(renderRequests)) && literalRenderPath(renderRequests[end]) && renderRequests[end] != renderRequests[end-1] {
-					end++
-				}
-			}
-			// This blocks when the queue fills up, which is fine as the below result read would block anyway.
-			//
-			// TODO: Maybe handle record drops when the queue is full.
-			req := &RenderReq{
-				Path:  renderRequests[index],
-				From:  mfetch.From,
-				Until: mfetch.Until,
-
-				Ctx:       renderRequestContext,
-				ToLog:     toLog,
-				StartTime: time.Now(),
-
-				Results: rch,
-			}
-			if end-index > 1 {
-				req.Paths = renderRequests[index:end]
-			}
-
-			if subrequestCount > app.config.LargeReqSize {
-				app.slowQ <- req
-				app.ms.UpstreamEnqueuedRequests.WithLabelValues("slow").Add(float64(end - index))
-				app.ms.UpstreamRequestsInQueue.WithLabelValues("slow").Add(float64(end - index))
-			} else {
-				app.fastQ <- req
-				app.ms.UpstreamEnqueuedRequests.WithLabelValues("fast").Add(float64(end - index))
-				app.ms.UpstreamRequestsInQueue.WithLabelValues("fast").Add(float64(end - index))
-			}
-			index = end
-		}
-		ResultChannelByMetricRequest[mfetch] = rch
+		ResultChannelByMetricRequest[mfetch] = app.enqueueRenderRequests(ctx, mfetch, renderRequests, toLog, lgm)
 	}
 
-	for mfetch, rch := range ResultChannelByMetricRequest {
+	for mfetch, fetch := range ResultChannelByMetricRequest {
 		lgm := lg.With(zap.String("metric", mfetch.Metric))
-		renderRequestsCount := cap(rch)
+		responses := fetch.collect()
+		renderRequestsCount := len(responses)
 		errs := make([]error, 0)
-		for i := 0; i < renderRequestsCount; i++ {
-			resp := <-rch
+		for _, resp := range responses {
 			if resp.error != nil {
 				errs = append(errs, resp.error)
 				continue
@@ -544,7 +512,6 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 				metricMap[mfetch] = append(metricMap[mfetch], r)
 			}
 		}
-		close(rch)
 
 		Trace(lgm, "sub-requests returned", zap.Int("errors", len(errs)), zap.Int("total requests", renderRequestsCount))
 		// We have to check it here because we don't want to return before closing rch
