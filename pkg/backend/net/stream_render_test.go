@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -39,6 +40,46 @@ func gzipData(t testing.TB, body []byte) []byte {
 		t.Fatal(err)
 	}
 	return b.Bytes()
+}
+
+func TestNativeInflaterCompressionVariants(t *testing.T) {
+	noise := make([]byte, 65537)
+	_, _ = rand.New(rand.NewSource(42)).Read(noise)
+	for _, level := range []int{gzip.NoCompression, gzip.BestSpeed, gzip.BestCompression, gzip.HuffmanOnly} {
+		for _, body := range [][]byte{noise, bytes.Repeat([]byte("repeated backend points\x00\xff"), 4096)} {
+			var encoded bytes.Buffer
+			w, err := gzip.NewWriterLevel(&encoded, level)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.Name, w.Comment, w.Extra = "backend", "optional gzip header", []byte{0, 1, 255}
+			if _, err := w.Write(body); err != nil {
+				t.Fatal(err)
+			}
+			if err := w.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for _, chunk := range []int{1, 37, 32768} {
+				base, err := gzip.NewReader(bytes.NewReader(encoded.Bytes()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want, err := io.ReadAll(base)
+				if err != nil {
+					t.Fatal(err)
+				}
+				r, err := newNativeInflater(&gzipFragments{data: encoded.Bytes(), chunk: chunk})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := io.ReadAll(r)
+				_ = r.Close()
+				if err != nil || !bytes.Equal(got, want) {
+					t.Fatalf("level=%d chunk=%d: %v; bytes=%d/%d", level, chunk, err, len(got), len(want))
+				}
+			}
+		}
+	}
 }
 
 func TestNativeInflaterDifferential(t *testing.T) {

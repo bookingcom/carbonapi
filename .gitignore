@@ -1,6 +1,7 @@
 # Program binaries
 /carbonapi
 /carbonzipper
+/.build/
 
 # Booking.com internals
 .deploy

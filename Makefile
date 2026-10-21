@@ -14,7 +14,7 @@ debug: GCFLAGS += -gcflags=all='-l -N'
 
 LDFLAGS = -ldflags '-X main.BuildVersion=$(VERSION)'
 
-TAGS := -tags cairo,nativegzip
+TAGS := -tags cairo,nativegzip,zlibng
 nocairo: TAGS =
 
 ### Targets ###
@@ -29,7 +29,7 @@ nocairo: build
 debug: build
 
 .PHONY: build
-build:
+build: native-deps
 	$(PKGCONF) go build $(TAGS) $(LDFLAGS) $(GCFLAGS) $(PKG_CARBONAPI)
 
 .PHONY: check
@@ -41,8 +41,15 @@ lint:
 	GOMEMLIMIT=1024MiB golangci-lint run -v
 
 .PHONY: test
-test:
+test: native-deps
 	$(PKGCONF) go test $(TAGS) -timeout 10s -race ./...
+	@case '$(TAGS)' in *zlibng*) \
+		go test -tags nativegzip -timeout 10s -race ./pkg/backend/net && \
+		go test -timeout 10s -race ./pkg/backend/net ;; esac
+
+.PHONY: native-deps
+native-deps:
+	@case '$(TAGS)' in *zlibng*) ./scripts/build-zlib-ng.sh ;; esac
 
 .PHONY: test-e2e
 test-e2e:
@@ -55,6 +62,7 @@ test-hurl:
 .PHONY: clean
 clean:
 	rm -f carbonapi carbonzipper
+	rm -rf .build/zlib-ng
 
 .PHONY: authors
 authors:
