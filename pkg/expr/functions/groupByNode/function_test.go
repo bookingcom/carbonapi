@@ -1,6 +1,9 @@
 package groupByNode
 
 import (
+	"context"
+	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/expr/functions/stddevSeries"
 	"github.com/bookingcom/carbonapi/pkg/expr/functions/sum"
 	"github.com/bookingcom/carbonapi/pkg/expr/helper"
+	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
 	"github.com/bookingcom/carbonapi/pkg/expr/metadata"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
@@ -46,6 +50,96 @@ func init() {
 	evaluator := th.EvaluatorFromFuncWithMetadata(metadata.FunctionMD.Functions)
 	metadata.SetEvaluator(evaluator)
 	helper.SetEvaluator(evaluator)
+}
+
+type callbackEvaluator func(parser.Expr) ([]*types.MetricData, error)
+
+func (f callbackEvaluator) EvalExpr(_ context.Context, e parser.Expr, _, _ int32, _ map[parser.MetricRequest][]*types.MetricData, _ interfaces.GetTargetData) ([]*types.MetricData, error) {
+	return f(e)
+}
+
+func TestGroupByNodeEmptyCallbackResult(t *testing.T) {
+	for _, target := range []string{
+		`groupByNode(metric.*,1,"sum")`,
+		`groupByNodes(metric.*,"sum",1)`,
+	} {
+		t.Run(target, func(t *testing.T) {
+			for _, tc := range []struct {
+				name   string
+				result []*types.MetricData
+				err    error
+			}{
+				{name: "nil"},
+				{name: "empty", result: []*types.MetricData{}},
+				{name: "cancelled", result: []*types.MetricData{}, err: context.Canceled},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					for _, mixed := range []bool{false, true} {
+						e, _, err := parser.ParseExpr(target)
+						if err != nil {
+							t.Fatal(err)
+						}
+						args := []*types.MetricData{types.MakeMetricData("metric.empty", []float64{1}, 1, 0)}
+						var want []*types.MetricData
+						if mixed {
+							args = append(args, types.MakeMetricData("metric.present", []float64{2}, 1, 0))
+							want = []*types.MetricData{types.MakeMetricData("present", []float64{2}, 1, 0)}
+						}
+						f := &groupByNode{}
+						f.SetEvaluator(callbackEvaluator(func(e parser.Expr) ([]*types.MetricData, error) {
+							if e.Args()[0].Target() == "empty" {
+								return tc.result, tc.err
+							}
+							return []*types.MetricData{types.MakeMetricData("sumSeries(present)", []float64{2}, 1, 0)}, nil
+						}))
+						values := map[parser.MetricRequest][]*types.MetricData{{"metric.*", 0, 1}: args}
+						got, err := f.Do(context.Background(), e, 0, 1, values, th.NoopGetTargetData)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !reflect.DeepEqual(got, want) {
+							t.Fatalf("mixed=%v: got %#v, want %#v", mixed, got, want)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestGroupByNodeEmptyInput(t *testing.T) {
+	for _, target := range []string{`groupByNode(metric.*,1,"sum")`, `groupByNodes(metric.*,"sum",1)`} {
+		for _, input := range [][]*types.MetricData{nil, {}} {
+			t.Run(target, func(t *testing.T) {
+				e, _, err := parser.ParseExpr(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				values := map[parser.MetricRequest][]*types.MetricData{{"metric.*", 0, 1}: input}
+				got, err := metadata.GetEvaluator().EvalExpr(context.Background(), e, 0, 1, values, th.NoopGetTargetData)
+				if err != nil || len(got) != 0 {
+					t.Fatalf("got %#v, %v; want no series and no error", got, err)
+				}
+			})
+		}
+	}
+}
+
+func TestGroupByNodeAllNull(t *testing.T) {
+	for _, target := range []string{`groupByNode(metric.*,1,"sum")`, `groupByNodes(metric.*,"sum",1)`} {
+		t.Run(target, func(t *testing.T) {
+			th.TestMultiReturnEvalExpr(t, &th.MultiReturnEvalTestItem{
+				Target: target,
+				M: map[parser.MetricRequest][]*types.MetricData{
+					{"metric.*", 0, 1}: {types.MakeMetricData("metric.empty", []float64{math.NaN()}, 1, 0)},
+				},
+				Name: "all-null group remains present",
+				Results: map[string][]*types.MetricData{
+					"empty": {types.MakeMetricData("empty", []float64{math.NaN()}, 1, 0)},
+				},
+			})
+		})
+	}
 }
 
 func TestGroupByNode(t *testing.T) {
