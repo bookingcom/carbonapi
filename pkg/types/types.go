@@ -11,6 +11,7 @@ package types
 import (
 	"errors"
 	"math"
+	"math/bits"
 	"sort"
 
 	"github.com/bookingcom/carbonapi/pkg/cfg"
@@ -319,7 +320,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 	metric = metrics[0]
 	metric.materializePoints()
 	var cursors []packedPointCursor
-	for _, replica := range metrics[1:] {
+	for _, replica := range metrics {
 		if replica.packed != nil {
 			cursors = make([]packedPointCursor, len(metrics))
 			for i := range cursors {
@@ -337,11 +338,24 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 	}
 	valuesForPoint := make([]float64, 0, len(metrics))
 	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
-	for i := range metric.Values {
+	for i := 0; i < len(metric.Values); i++ {
 		if cursors != nil && i&63 == 0 {
-			for j := 1; j < replicaLimit; j++ {
+			for j := 0; j < replicaLimit; j++ {
 				if p := metrics[j].packed; p != nil {
 					cursors[j].advanceToBlock(p, i>>6)
+				}
+			}
+			if metrics[0].packed != nil {
+				if absent, ok := packedZeroBlockAbsent(metrics[:replicaLimit], cursors, i>>6); ok {
+					// Every value in this block is +0. Only absence healing can
+					// change the result; no mismatch comparison is necessary.
+					healedBits := metrics[0].packed.absent[i>>6] &^ absent
+					for healedBits != 0 {
+						metric.IsAbsent[i+bits.TrailingZeros64(healedBits)] = false
+						healedBits &= healedBits - 1
+					}
+					i += min(64, len(metric.Values)-i) - 1
+					continue
 				}
 			}
 		}
@@ -409,6 +423,20 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		MismatchCount:      mismatches,
 		FixedMismatchCount: fixedMismatches,
 	}
+}
+
+// packedZeroBlockAbsent combines absence flags only when every compatible
+// replica stores exclusively positive-zero values in this block. Nonzero bits,
+// including negative zero and NaNs, stay on the point-wise merge path.
+func packedZeroBlockAbsent(metrics []Metric, cursors []packedPointCursor, block int) (uint64, bool) {
+	absent := ^uint64(0)
+	for i, m := range metrics {
+		if m.packed == nil || m.packed.values[cursors[i].offset] != 0 {
+			return 0, false
+		}
+		absent &= m.packed.absent[block]
+	}
+	return absent, true
 }
 
 // Info contains metadata about a metric in Graphite.

@@ -55,6 +55,45 @@ func TestPackedStreamDensityAndSplitFields(t *testing.T) {
 	}
 }
 
+func TestPackedStreamMixedMetricOwnership(t *testing.T) {
+	rng := rand.New(rand.NewSource(20261022))
+	msg := &pb.MultiFetchResponse{}
+	// Alternate packed and dense storage, and exercise both buffer growth
+	// and shorter successors. Retained dense arrays must remain independent.
+	for i := 0; i < 60; i++ {
+		n := []int{6000, 6000, 256, 128, 127, 0}[i%6]
+		m := &pb.FetchResponse{Name: string(rune('a' + i)), Values: make([]float64, n), IsAbsent: make([]bool, n)}
+		for j := range m.Values {
+			m.IsAbsent[j] = (i+j)%3 == 0
+			if i%6 == 1 || j%997 == 0 {
+				m.Values[j] = math.Float64frombits(rng.Uint64())
+			}
+		}
+		msg.Metrics = append(msg.Metrics, m)
+	}
+	body, err := msg.MarshalVT()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := RenderDecoder(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, chunk := range []int{1, 31, 32768} {
+		got, err := RenderStreamDecoderPacked(&fragmentedReader{data: body, chunk: chunk})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Empty repeated fields retain the reference decoder's nil slices.
+		for i := range want {
+			if want[i].IsAbsent == nil && got[i].IsAbsent != nil {
+				t.Fatalf("metric %d: empty absence field became non-nil", i)
+			}
+		}
+		equalStreamMetrics(t, unpackStream(got), want)
+	}
+}
+
 func BenchmarkSparseStream(b *testing.B) {
 	msg := &pb.MultiFetchResponse{}
 	for i := 0; i < 100; i++ {

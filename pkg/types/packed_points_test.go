@@ -11,6 +11,49 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestPackedZeroBlockMergeOracle(t *testing.T) {
+	rng := rand.New(rand.NewSource(20261022))
+	for seed := 0; seed < 80; seed++ {
+		input := make([][]Metric, 2+seed%3)
+		for replica := range input {
+			n := []int{128, 129, 255, 256, 10080}[seed%5]
+			m := Metric{Name: "zero-blocks", StepTime: 60, Values: make([]float64, n), IsAbsent: make([]bool, n)}
+			if seed%7 == 0 && replica == 1 {
+				m.StepTime = 120
+			}
+			for i := range m.Values {
+				m.IsAbsent[i] = rng.Intn(3) == 0
+				if seed%4 != 0 && i%997 == 0 {
+					m.Values[i] = float64(replica + 1)
+				}
+			}
+			if seed%4 == 2 {
+				m.Values[63] = math.Float64frombits(1 << 63)
+				m.Values[64] = math.Float64frombits(0x7ff8000000000123)
+				m.Values[127] = math.Inf(replica%2*2 - 1)
+			}
+			input[replica] = []Metric{m}
+		}
+		for _, mode := range []cfg.ReplicaMatchMode{cfg.ReplicaMatchModeNormal, cfg.ReplicaMatchModeCheck, cfg.ReplicaMatchModeMajority} {
+			for _, approx := range []bool{false, true} {
+				c := cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: mode, RenderReplicaMismatchApproximateCheck: approx}
+				want, ws := MergeMetrics(copyPackedOracleInput(input, false), c, zap.NewNop())
+				for _, mixed := range []bool{false, true} {
+					pending := copyPackedOracleInput(input, true)
+					if mixed {
+						pending[1][0].materializePoints()
+					}
+					got, gs := MergeMetrics(pending, c, zap.NewNop())
+					if gs != ws {
+						t.Fatalf("seed %d: stats differ: %+v / %+v", seed, gs, ws)
+					}
+					assertPackedBits(t, got, want)
+				}
+			}
+		}
+	}
+}
+
 func copyPackedOracleInput(input [][]Metric, packed bool) [][]Metric {
 	out := make([][]Metric, len(input))
 	for i, ms := range input {

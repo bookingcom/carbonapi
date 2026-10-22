@@ -36,6 +36,7 @@ func renderStreamDecoder(src io.Reader, packed bool) ([]types.Metric, error) {
 	defer func() { r.Reset(nil); streamReaders.Put(r) }()
 	s := protoStream{r: r, left: math.MaxInt64}
 	metrics := make([]types.Metric, 0)
+	var absentScratch []bool
 	for {
 		tag, err := s.varint()
 		if err == io.EOF {
@@ -60,7 +61,7 @@ func renderStreamDecoder(src io.Reader, packed bool) ([]types.Metric, error) {
 		if err != nil {
 			return nil, err
 		}
-		child := protoStream{r: r, left: n}
+		child := protoStream{r: r, left: n, absentScratch: absentScratch}
 		m, err := child.metric(packed)
 		if err != nil {
 			return nil, err
@@ -68,14 +69,21 @@ func renderStreamDecoder(src io.Reader, packed bool) ([]types.Metric, error) {
 		s.left -= n
 		if packed {
 			m.PackPoints()
+			// Packed metrics own a bitmap, so their temporary bool storage can
+			// serve the next metric. Dense metrics retain it and must detach.
+			absentScratch = child.absentScratch
+			if m.IsAbsent != nil || cap(absentScratch) > maxStreamPointChunk {
+				absentScratch = nil
+			}
 		}
 		metrics = append(metrics, m)
 	}
 }
 
 type protoStream struct {
-	r    *bufio.Reader
-	left int64
+	r             *bufio.Reader
+	left          int64
+	absentScratch []bool
 }
 
 func validTag(tag uint64) error {
@@ -281,7 +289,12 @@ func (s *protoStream) bools(dst []bool, n int64) ([]bool, error) {
 		return dst, nil
 	}
 	start := len(dst)
-	dst = append(dst, make([]bool, int(n))...)
+	if int(n) <= cap(dst)-start {
+		// read overwrites every byte before any bool is inspected.
+		dst = dst[:start+int(n)]
+	} else {
+		dst = append(dst, make([]bool, int(n))...)
+	}
 	if n == 0 {
 		return dst, nil
 	}
@@ -307,6 +320,9 @@ func (s *protoStream) bools(dst []bool, n int64) ([]bool, error) {
 }
 func (s *protoStream) metric(packed bool) (types.Metric, error) {
 	var m types.Metric
+	if packed {
+		m.IsAbsent = s.absentScratch[:0]
+	}
 	var points types.PointPacker
 	packing := packed
 	for s.left > 0 {
@@ -406,6 +422,10 @@ func (s *protoStream) metric(packed bool) (types.Metric, error) {
 			}
 		}
 	}
+	if len(m.IsAbsent) == 0 {
+		m.IsAbsent = nil
+	}
+	s.absentScratch = m.IsAbsent
 	if packing {
 		points.Finish(&m)
 	}
