@@ -32,8 +32,8 @@ Remove `.build/zlib-ng` (or run `make clean`) to rebuild the dependency.
 
 `make build TAGS='-tags cairo,nativegzip'` retains system-zlib decoding.
 `make nocairo` retains the portable Go decoder without either native dependency.
-The existing `CARBONAPI_NATIVE_GZIP` and `CARBONAPI_STREAM_RENDER` startup flags
-still control use of native backend decoding.
+Backend streaming and native gzip decoding are enabled by default. Builds without
+native gzip support use the portable Go decoder automatically.
 
 To build the binaries with debug symbols, run:
 
@@ -60,6 +60,26 @@ We do not provide packages for install at this time. Contact us if you're
 interested in those.
 
 ## Run
+
+The following performance paths are enabled by default. No environment overrides
+are needed to enable them. Set an individual variable to `0` before starting the
+process to use its previous path; unset, empty and `1` all leave it enabled.
+
+| Environment variable | Default path | Path with `0` |
+| --- | --- | --- |
+| `CARBONAPI_SYNC_BACKEND_HTTP` | Synchronous backend HTTP transport | Go HTTP transport |
+| `CARBONAPI_STREAM_RENDER` | Stream backend render responses | Buffer responses before decoding |
+| `CARBONAPI_NATIVE_GZIP` | Native backend gzip decoder, when built in | Go gzip decoder |
+| `CARBONAPI_PACK_BACKEND_POINTS` | Packed backend points for replica merging | Separate values and absence arrays |
+| `CARBONAPI_STABLE_RENDER_BATCH` | Stable groups when render batching is configured | Previous render batching |
+
+These switches retain their existing scope: native gzip requires a native-enabled
+build, packed points require streaming, and stable batching follows the configured
+globbing mode and batch size. Changing a switch requires a process restart.
+
+When removing existing `=1` overrides from a service manager, first deploy a binary
+with these defaults. Restore the overrides before rolling back to an older binary
+if the optimized paths should remain enabled.
 
 Run the full stack `carbonapi` -> `zipper` -> `go-carbon` with:
 

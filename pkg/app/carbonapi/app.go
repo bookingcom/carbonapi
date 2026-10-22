@@ -79,7 +79,7 @@ func New(config cfg.API, lg *zap.Logger, buildVersion string) (*App, error) {
 	ms := newPrometheusMetrics(config)
 	app := &App{
 		config:            config,
-		stableRenderBatch: os.Getenv("CARBONAPI_STABLE_RENDER_BATCH") == "1",
+		stableRenderBatch: os.Getenv("CARBONAPI_STABLE_RENDER_BATCH") != "0",
 		queryCache:        cache.NullCache{},
 		findCache:         cache.NullCache{},
 		defaultTimeZone:   time.Local,
@@ -333,7 +333,7 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 			KeepAlive: config.KeepAliveInterval,
 		}).DialContext,
 	}
-	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") == "1" {
+	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") != "0" {
 		client.Transport = bnet.NewSyncTransport(client.Transport.(*http.Transport))
 	}
 

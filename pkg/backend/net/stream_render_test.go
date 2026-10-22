@@ -169,11 +169,21 @@ func TestStreamingRenderMatchesBuffered(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		base.streamRender = false // Keep the buffered decoder as the reference.
 		request := types.NewRenderRequest([]string{"fixture.*"}, 0, 1)
 		want, err := base.Render(context.Background(), request)
 		if err != nil {
 			t.Fatal(err)
 		}
+		defaults, err := New(Config{Address: srv.URL})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := defaults.Render(context.Background(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		equalStreamResults(t, got, want)
 		for _, native := range []bool{false, true} {
 			be, err := New(Config{Address: srv.URL})
 			if err != nil {
