@@ -7,10 +7,41 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestPerformanceDefaultsAndIndependentOptOuts(t *testing.T) {
+	flags := []string{"CARBONAPI_STREAM_RENDER", "CARBONAPI_NATIVE_GZIP", "CARBONAPI_PACK_BACKEND_POINTS"}
+	for _, flag := range flags {
+		t.Setenv(flag, "")
+		if err := os.Unsetenv(flag); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, disabled := range append([]string{""}, flags...) {
+		t.Run("disabled="+disabled, func(t *testing.T) {
+			if disabled != "" {
+				t.Setenv(disabled, "0")
+			}
+			b, err := New(Config{Address: "localhost:8080"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for flag, enabled := range map[string]bool{
+				flags[0]: b.streamRender,
+				flags[1]: b.nativeGzip,
+				flags[2]: b.packRender,
+			} {
+				if enabled != (flag != disabled) {
+					t.Errorf("%s enabled=%v with %s disabled", flag, enabled, disabled)
+				}
+			}
+		})
+	}
+}
 
 func TestAddress(t *testing.T) {
 	b, err := New(Config{

@@ -128,9 +128,9 @@ func New(cfg Config) (*NetBackend, error) {
 		b.client = http.DefaultClient
 	}
 	b.requestGzip = transportCompresses(b.client)
-	b.streamRender = os.Getenv("CARBONAPI_STREAM_RENDER") == "1"
-	b.nativeGzip = os.Getenv("CARBONAPI_NATIVE_GZIP") == "1"
-	b.packRender = os.Getenv("CARBONAPI_PACK_BACKEND_POINTS") == "1"
+	b.streamRender = os.Getenv("CARBONAPI_STREAM_RENDER") != "0"
+	b.nativeGzip = os.Getenv("CARBONAPI_NATIVE_GZIP") != "0"
+	b.packRender = os.Getenv("CARBONAPI_PACK_BACKEND_POINTS") != "0"
 
 	b.responsesCount = cfg.Responses
 
