@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // MetricRequest contains all necessary data to request a metric.
@@ -122,6 +123,8 @@ type Expr interface {
 
 	// Metrics returns list of metric requests
 	Metrics() []MetricRequest
+	// MetricsForRange returns absolute metric requests in the supplied timezone.
+	MetricsForRange(from, until int32, location *time.Location) []MetricRequest
 
 	// GetIntervalArg returns interval typed argument.
 	GetIntervalArg(n int, defaultSign int) (int32, error)
