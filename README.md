@@ -15,6 +15,30 @@ CarbonAPI supports a significant subset of graphite functions; see
 [COMPATIBILITY](COMPATIBILITY.md). In our testing it has shown to be 5x-10x
 faster than requesting data from graphite-web.
 
+## DST-aligned comparisons
+
+`timeShift(metric, '7d', true, true)` enables the optional `alignDST` argument.
+It uses the render request's IANA `tz` parameter, falling back to the configured
+`tz` (and then the local timezone). For example:
+
+```text
+/render?target=timeShift(metric,'7d',true,true)&format=json&tz=Europe/Amsterdam
+```
+
+For a winter request compared with the preceding summer week, this fetches
+169 hours earlier; the spring equivalent fetches 167 hours earlier. Each weekly
+lag is calculated separately, so a three-week baseline can use:
+
+```text
+averageSeries(timeShift(metric,'7d',true,true),timeShift(metric,'14d',true,true),timeShift(metric,'21d',true,true))
+```
+
+Omitting `alignDST`, or setting it to false, keeps fixed-duration shifts. UTC and
+fixed-offset timezones have no DST correction. Like graphite-web, a single
+correction is not applied when either range spans a clock change; this option
+does not perform point-by-point calendar resampling of missing or repeated hours.
+The existing `resetEnd` limitation is unchanged.
+
 ## Build
 
 To build both the `carbonapi` and `carbonzipper` binaries, run:

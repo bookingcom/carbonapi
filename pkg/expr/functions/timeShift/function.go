@@ -8,6 +8,7 @@ import (
 	"github.com/bookingcom/carbonapi/pkg/expr/interfaces"
 	"github.com/bookingcom/carbonapi/pkg/expr/types"
 	"github.com/bookingcom/carbonapi/pkg/parser"
+	"github.com/bookingcom/carbonapi/pkg/util"
 )
 
 type timeShift struct {
@@ -28,11 +29,10 @@ func New(configFile string) []interfaces.FunctionMetadata {
 	return res
 }
 
-// timeShift(seriesList, timeShift, resetEnd=True)
+// timeShift(seriesList, timeShift, resetEnd=True, alignDST=False)
 func (f *timeShift) Do(ctx context.Context, e parser.Expr, from, until int32, values map[parser.MetricRequest][]*types.MetricData, getTargetData interfaces.GetTargetData) ([]*types.MetricData, error) {
 	// FIXME(dgryski): support resetEnd=true
-	// FIXME(civil): support alignDst
-	offs, err := e.GetIntervalArg(1, -1)
+	offs, err := parser.TimeShiftOffset(e, from, until, util.GetTimeZone(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,11 @@ func (f *timeShift) Description() map[string]types.FunctionDescription {
 					Name:    "resetEnd",
 					Type:    types.Boolean,
 				},
-				/*
-					{
-						Default: types.NewSuggestion(false),
-						Name:    "alignDst",
-						Type:    types.Boolean,
-					},
-				*/
+				{
+					Default: types.NewSuggestion(false),
+					Name:    "alignDST",
+					Type:    types.Boolean,
+				},
 			},
 		},
 	}

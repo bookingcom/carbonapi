@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -116,75 +117,66 @@ func (e *expr) NamedArgs() map[string]Expr {
 	return ret
 }
 
+// Metrics returns relative requests without timezone alignment. Call MetricsForRange
+// when the absolute request bounds and timezone are available.
 func (e *expr) Metrics() []MetricRequest {
+	return e.MetricsForRange(0, 0, time.UTC)
+}
+
+// MetricsForRange returns absolute fetch bounds, applying outer time transforms
+// before visiting their arguments so nested DST shifts use the correct dates.
+func (e *expr) MetricsForRange(from, until int32, location *time.Location) []MetricRequest {
 	switch e.etype {
 	case EtName:
-		return []MetricRequest{{Metric: e.target}}
+		return []MetricRequest{{Metric: e.target, From: from, Until: until}}
 	case EtConst, EtString:
 		return nil
-	case EtFunc:
-		var r []MetricRequest
-		for _, a := range e.args {
-			r = append(r, a.Metrics()...)
-		}
-
-		switch e.target {
-		case "timeShift":
-			offs, err := e.GetIntervalArg(1, -1)
-			if err != nil {
-				return nil
-			}
-			for i := range r {
-				r[i].From += offs
-				r[i].Until += offs
-			}
-		case "timeStack":
-			offs, err := e.GetIntervalArg(1, -1)
-			if err != nil {
-				return nil
-			}
-
-			start, err := e.GetIntArg(2)
-			if err != nil {
-				return nil
-			}
-
-			end, err := e.GetIntArg(3)
-			if err != nil {
-				return nil
-			}
-
-			var r2 []MetricRequest
-			for _, v := range r {
-				for i := int32(start); i < int32(end); i++ {
-					r2 = append(r2, MetricRequest{
-						Metric: v.Metric,
-						From:   v.From + (i * offs),
-						Until:  v.Until + (i * offs),
-					})
-				}
-			}
-
-			return r2
-		case "holtWintersForecast", "holtWintersConfidenceBands", "holtWintersAberration":
-			for i := range r {
-				r[i].From -= 7 * 86400 // starts -7 days from where the original starts
-			}
-		case "movingAverage", "movingMedian", "movingMin", "movingMax", "movingSum":
-			if len(e.args) >= 2 && e.args[1].etype == EtString {
-				offs, err := e.GetIntervalArg(1, 1)
-				if err != nil {
-					return nil
-				}
-				for i := range r {
-					r[i].From -= offs
-				}
-			}
-		}
-		return r
 	}
 
-	return nil
+	var results []MetricRequest
+	collect := func(start, end int32) {
+		for _, arg := range e.args {
+			results = append(results, arg.MetricsForRange(start, end, location)...)
+		}
+	}
+	switch e.target {
+	case "timeShift":
+		offs, err := TimeShiftOffset(e, from, until, location)
+		if err != nil {
+			return nil
+		}
+		from += offs
+		until += offs
+	case "timeStack":
+		offs, err := e.GetIntervalArg(1, -1)
+		if err != nil {
+			return nil
+		}
+		start, err := e.GetIntArg(2)
+		if err != nil {
+			return nil
+		}
+		end, err := e.GetIntArg(3)
+		if err != nil {
+			return nil
+		}
+		for i := int32(start); i < int32(end); i++ {
+			collect(from+i*offs, until+i*offs)
+		}
+		return results
+	case "holtWintersForecast", "holtWintersConfidenceBands", "holtWintersAberration":
+		from -= 7 * 86400
+	case "movingAverage", "movingMedian", "movingMin", "movingMax", "movingSum":
+		if len(e.args) >= 2 && e.args[1].etype == EtString {
+			offs, err := e.GetIntervalArg(1, 1)
+			if err != nil {
+				return nil
+			}
+			from -= offs
+		}
+	}
+	collect(from, until)
+	return results
 }
 
 func (e *expr) GetIntervalArg(n int, defaultSign int) (int32, error) {

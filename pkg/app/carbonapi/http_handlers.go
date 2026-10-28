@@ -178,6 +178,8 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		return
 	}
 
+	ctx = util.WithTimeZone(ctx, form.timeZone)
+
 	if form.from32 >= form.until32 {
 		var clientErrMsgFmt string
 		if form.from32 == form.until32 {
@@ -429,13 +431,12 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	var metricErrs []error
 
 	ResultChannelByMetricRequest := make(map[parser.MetricRequest]chan RenderResponse)
-	for _, m := range exp.Metrics() {
+	requests := exp.MetricsForRange(from, until, util.GetTimeZone(ctx))
+	for _, m := range requests {
 		lgm := lg.With(zap.String("metric", m.Metric))
 		Trace(lgm, "getting metric data from upstream")
 
 		mfetch := m
-		mfetch.From += from
-		mfetch.Until += until
 
 		if _, ok := ResultChannelByMetricRequest[mfetch]; ok {
 			// already requested this metric for this request
@@ -564,9 +565,9 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 		expr.SortMetrics(metricMap[mfetch], mfetch)
 	} // range exp.Metrics
 
-	Trace(lg, "got metrics for target", zap.Int("metrics", len(exp.Metrics())), zap.Int("errors", len(metricErrs)))
+	Trace(lg, "got metrics for target", zap.Int("metrics", len(requests)), zap.Int("errors", len(metricErrs)))
 
-	targetErr, targetErrStr := optimistFanIn(metricErrs, len(exp.Metrics()), "metrics")
+	targetErr, targetErrStr := optimistFanIn(metricErrs, len(requests), "metrics")
 	*partFail = *partFail || (targetErrStr != "")
 
 	logStepTimeMismatch(targetMetricFetches, metricMap, lg, target)
@@ -649,6 +650,7 @@ type renderForm struct {
 	cacheKey     string
 	cacheTimeout int32
 	qtz          string
+	timeZone     *time.Location
 }
 
 func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carbonapipb.AccessLogDetails, logger *zap.Logger) (renderForm, error) {
@@ -708,6 +710,15 @@ func (app *App) renderHandlerProcessForm(r *http.Request, accessLogDetails *carb
 
 	// normalize from and until values
 	res.qtz = r.FormValue("tz")
+	res.timeZone = app.defaultTimeZone
+	if res.timeZone == nil {
+		res.timeZone = time.Local
+	}
+	if res.qtz != "" {
+		if location, loadErr := time.LoadLocation(res.qtz); loadErr == nil {
+			res.timeZone = location
+		}
+	}
 	var errFrom, errUntil error
 	res.from32, errFrom = date.DateParamToEpoch(res.from, res.qtz, time.Now().Add(-24*time.Hour).Unix(), app.defaultTimeZone)
 	res.until32, errUntil = date.DateParamToEpoch(res.until, res.qtz, time.Now().Unix(), app.defaultTimeZone)
