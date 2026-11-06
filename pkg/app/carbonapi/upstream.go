@@ -26,6 +26,7 @@ func Find(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix,
 	}
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, []string{originalQuery})
+	request.PathCacheFiltered = filteredByPathCache
 	if filteredByPathCache {
 		ms.PathCacheFilteredRequests.Inc()
 	}
@@ -64,6 +65,7 @@ func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefi
 	}
 	var filteredByPathCache bool
 	bs, filteredByPathCache = backend.Filter(bs, request.Targets)
+	request.PathCacheFiltered = filteredByPathCache
 	if filteredByPathCache {
 		ms.PathCacheFilteredRequests.Inc()
 	}

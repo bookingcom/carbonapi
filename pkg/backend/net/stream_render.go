@@ -69,14 +69,10 @@ func (b NetBackend) RenderPacked(ctx context.Context, request types.RenderReques
 		return b.Render(ctx, request)
 	}
 	u := carbonapiV2RenderEncoder(b.url("/render/"), request.From, request.Until, request.Targets)
-	return b.renderStreamPoints(ctx, u, true)
+	return b.renderStreamPoints(ctx, u, true, request.PathCacheFiltered)
 }
 
-func (b NetBackend) renderStream(ctx context.Context, u *url.URL) ([]types.Metric, error) {
-	return b.renderStreamPoints(ctx, u, false)
-}
-
-func (b NetBackend) renderStreamPoints(ctx context.Context, u *url.URL, packed bool) ([]types.Metric, error) {
+func (b NetBackend) renderStreamPoints(ctx context.Context, u *url.URL, packed, pathCacheFiltered bool) ([]types.Metric, error) {
 	ctx, cancel := b.setTimeout(ctx)
 	defer cancel()
 	req, err := b.request(ctx, u)
@@ -151,6 +147,8 @@ func (b NetBackend) renderStreamPoints(ctx context.Context, u *url.URL, packed b
 	if len(metrics) == 0 {
 		return nil, types.ErrMetricsNotFound
 	}
-	b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
+	if !pathCacheFiltered {
+		b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
+	}
 	return metrics, nil
 }

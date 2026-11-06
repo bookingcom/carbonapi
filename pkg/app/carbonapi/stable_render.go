@@ -33,6 +33,7 @@ func sendGroupedRenderRequests(app *App, ctx context.Context, paths []string, fr
 			continue
 		}
 		filtered, pathCache := backend.Filter(bs, requests[i].Targets)
+		requests[i].PathCacheFiltered = pathCache
 		if pathCache {
 			app.ZipperMetrics.PathCacheFilteredRequests.Inc()
 		}

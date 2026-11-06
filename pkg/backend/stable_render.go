@@ -90,7 +90,7 @@ func (b Backend) sendRenderGroup(ctx context.Context, calls []renderDispatch) {
 				break
 			}
 			n := encodedRenderTargetBytes(r.Targets[0])
-			if end > start && (r.From != calls[start].request.From || r.Until != calls[start].request.Until || r.Targets[0] == calls[end-1].request.Targets[0] || bytes+n > maxRenderBatchURLBytes-128) {
+			if end > start && (r.From != calls[start].request.From || r.Until != calls[start].request.Until || r.PathCacheFiltered != calls[start].request.PathCacheFiltered || r.Targets[0] == calls[end-1].request.Targets[0] || bytes+n > maxRenderBatchURLBytes-128) {
 				break
 			}
 			if n > maxRenderBatchURLBytes-128 {

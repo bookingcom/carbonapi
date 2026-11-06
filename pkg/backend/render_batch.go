@@ -49,7 +49,7 @@ func (b *Backend) collectRenderBatch(first *renderReq) ([]*renderReq, *renderReq
 			return batch, nil
 		}
 		nextID, _ := util.RenderBatch(next.Ctx)
-		if nextID != id || next.From != first.From || next.Until != first.Until || !literalRender(next) {
+		if nextID != id || next.From != first.From || next.Until != first.Until || next.PathCacheFiltered != first.PathCacheFiltered || !literalRender(next) {
 			return batch, next
 		}
 		for _, r := range batch {
@@ -103,7 +103,9 @@ func (b *Backend) renderBatch(batch []*renderReq) {
 		targets[i] = r.Targets[0]
 	}
 	t := prometheus.NewTimer(b.render.duration)
-	res, err := b.renderMetrics(batch[0].Ctx, types.NewRenderRequest(targets, batch[0].From, batch[0].Until))
+	request := batch[0].RenderRequest
+	request.Targets = targets
+	res, err := b.renderMetrics(batch[0].Ctx, request)
 	t.ObserveDuration()
 	if err != nil {
 		if util.StableRenderBatch(batch[0].Ctx) && batch[0].Ctx.Err() == nil {

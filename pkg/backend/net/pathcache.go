@@ -10,7 +10,9 @@ import (
 // pathCache remembers which metric paths a backend has recently returned, so
 // requests can be routed only to the backends that hold the metric.
 //
-// An entry is valid for expiry after its last set, checked exactly on lookup.
+// Only discovery responses may set entries; path-cache-filtered requests must
+// not renew them, or hot paths can hide new backends forever. An entry expires
+// expiry after its last discovery, checked exactly on lookup.
 // Entries live in two generations that rotate every expiry: anything still in
 // the previous generation at rotation time was set at least expiry ago, so the
 // whole generation can be dropped at once. This bounds memory to roughly two
@@ -48,10 +50,10 @@ func (c *pathCache) containsAny(paths []string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, p := range paths {
-		if until, ok := c.cur[p]; ok && until >= now {
+		if until, ok := c.cur[p]; ok && until > now {
 			return true
 		}
-		if until, ok := c.prev[p]; ok && until >= now {
+		if until, ok := c.prev[p]; ok && until > now {
 			return true
 		}
 	}

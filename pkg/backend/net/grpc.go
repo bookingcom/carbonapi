@@ -126,7 +126,9 @@ func (gb *GrpcBackend) Render(ctx context.Context, request types.RenderRequest) 
 	}
 	gb.countResponse(nil, "render")
 
-	gb.cache.setAll(len(fetchedMetrics), func(i int) string { return fetchedMetrics[i].Name })
+	if !request.PathCacheFiltered {
+		gb.cache.setAll(len(fetchedMetrics), func(i int) string { return fetchedMetrics[i].Name })
+	}
 
 	return fetchedMetrics, nil
 }
@@ -166,7 +168,9 @@ func (gb *GrpcBackend) Find(ctx context.Context, request types.FindRequest) (typ
 		return matches, types.ErrMatchesNotFound
 	}
 
-	gb.cache.setLeaves(matches.Matches)
+	if !request.PathCacheFiltered {
+		gb.cache.setLeaves(matches.Matches)
+	}
 
 	return matches, nil
 }
