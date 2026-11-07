@@ -451,7 +451,7 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 	u := b.url("/render/")
 	u = carbonapiV2RenderEncoder(u, from, until, targets)
 	if b.streamRender {
-		return b.renderStream(ctx, u)
+		return b.renderStreamPoints(ctx, u, false, request.PathCacheFiltered)
 	}
 
 	contentType, body, err := b.call(ctx, u, "render")
@@ -485,7 +485,9 @@ func (b NetBackend) Render(ctx context.Context, request types.RenderRequest) ([]
 		return nil, types.ErrMetricsNotFound
 	}
 
-	b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
+	if !request.PathCacheFiltered {
+		b.cache.setAll(len(metrics), func(i int) string { return metrics[i].Name })
+	}
 
 	return metrics, nil
 }
@@ -601,7 +603,9 @@ func (b NetBackend) Find(ctx context.Context, request types.FindRequest) (types.
 		return matches, types.ErrMatchesNotFound
 	}
 
-	b.cache.setLeaves(matches.Matches)
+	if !request.PathCacheFiltered {
+		b.cache.setLeaves(matches.Matches)
+	}
 
 	return matches, nil
 }

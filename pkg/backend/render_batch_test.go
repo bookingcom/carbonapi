@@ -81,6 +81,8 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 	if batch, pending := bUnsupported.collectRenderBatch(coalesceRequest(ctx, "a")); len(batch) != 1 || pending != nil || bUnsupported.fastRenderQ.length() != 1 {
 		t.Fatal("transport without the per-target contract was coalesced")
 	}
+	filtered := coalesceRequest(ctx, "b")
+	filtered.PathCacheFiltered = true
 	for _, tc := range []struct {
 		name string
 		next *renderReq
@@ -89,6 +91,7 @@ func TestCollectRenderBatchBoundsAndIdentity(t *testing.T) {
 		{"same", coalesceRequest(ctx, "b"), true},
 		{"other_context", coalesceRequest(util.WithRenderBatch(context.Background(), 4), "b"), false},
 		{"unmarked", coalesceRequest(context.Background(), "b"), false},
+		{"different_routing_cache_policy", filtered, false},
 		{"duplicate", coalesceRequest(ctx, "a"), false},
 		{"glob", coalesceRequest(ctx, "b.*"), false},
 		{"escaped", coalesceRequest(ctx, "b\\x"), false},

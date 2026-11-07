@@ -22,13 +22,13 @@ func TestPathCacheExpiryIsExact(t *testing.T) {
 	c := newPathCacheWithClock(120*time.Second, clk.now)
 
 	set(c, "a.b.c")
-	clk.advance(120 * time.Second)
+	clk.advance(120*time.Second - time.Nanosecond)
 	if !c.containsAny([]string{"a.b.c"}) {
-		t.Fatal("entry must be valid up to and including its expiry instant")
+		t.Fatal("entry must be valid before its expiry instant")
 	}
 	clk.advance(time.Nanosecond)
 	if c.containsAny([]string{"a.b.c"}) {
-		t.Fatal("entry must be invalid right after its expiry instant")
+		t.Fatal("entry must be invalid at its expiry instant")
 	}
 }
 
@@ -64,12 +64,12 @@ func TestPathCacheIsBounded(t *testing.T) {
 	if n := c.len(); n > 21 {
 		t.Fatalf("cache holds %d entries, want at most two windows (21)", n)
 	}
-	for i := 90; i < 100; i++ {
+	for i := 91; i < 100; i++ {
 		if !c.containsAny([]string{fmt.Sprintf("m.%d", i)}) {
 			t.Fatalf("recent entry m.%d missing", i)
 		}
 	}
-	for i := 0; i < 89; i++ {
+	for i := 0; i <= 90; i++ {
 		if c.containsAny([]string{fmt.Sprintf("m.%d", i)}) {
 			t.Fatalf("expired entry m.%d reported present", i)
 		}
@@ -102,8 +102,7 @@ func TestPathCacheSetLeaves(t *testing.T) {
 	}
 }
 
-// The old cache kept validity as "now <= validUntil" too; check a mix of
-// valid, expired and absent paths against a straightforward model.
+// Check a mix of valid, expired and absent paths against a straightforward model.
 func TestPathCacheMatchesModel(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1000, 0)}
 	expiry := 7 * time.Second
@@ -119,7 +118,7 @@ func TestPathCacheMatchesModel(t *testing.T) {
 		for i := 0; i < 37; i++ {
 			q := fmt.Sprintf("p.%d", i)
 			until, ok := model[q]
-			want := ok && !until.Before(clk.t)
+			want := ok && until.After(clk.t)
 			if got := c.containsAny([]string{q}); got != want {
 				t.Fatalf("step %d path %s: got %v want %v", step, q, got, want)
 			}

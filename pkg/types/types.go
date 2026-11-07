@@ -36,6 +36,10 @@ func (err ErrNotFound) Error() string {
 
 type FindRequest struct {
 	Query string
+
+	// PathCacheFiltered prevents a response from renewing routing entries when
+	// other possible holders of the path were excluded from discovery.
+	PathCacheFiltered bool
 }
 
 func NewFindRequest(query string) FindRequest {
@@ -58,6 +62,10 @@ type RenderRequest struct {
 	Targets []string
 	From    int32
 	Until   int32
+
+	// PathCacheFiltered has the same meaning as on FindRequest. It is local
+	// routing metadata and is never sent to the backend.
+	PathCacheFiltered bool
 }
 
 func NewRenderRequest(targets []string, from int32, until int32) RenderRequest {
