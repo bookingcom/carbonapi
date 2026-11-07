@@ -205,6 +205,46 @@ func TestPathCacheHotRoutingRediscovery(t *testing.T) {
 	}
 }
 
+// Both replicas hold the series. While one is unreachable for longer than the
+// expiry (a store restart or read block), hot reads renew only the other. The
+// returning replica must rejoin within one more expiry; otherwise the other
+// replica stays the only route and its next miss drops the series.
+func TestPathCacheReplicaRejoinsAfterOutage(t *testing.T) {
+	for _, mode := range []string{"buffered", "stream", "packed", "grpc"} {
+		t.Run(mode, func(t *testing.T) {
+			clk := &fakeClock{t: time.Unix(1000, 0)}
+			const expiry = 120 * time.Second
+			const interval = 5 * time.Second
+			m := types.Metric{Name: routingPath, StartTime: 1, StopTime: 4, StepTime: 1, Values: []float64{1, 2, 3}, IsAbsent: []bool{false, false, false}}
+			a, b := &routingStore{metric: m}, &routingStore{metric: m}
+			a.ready.Store(true)
+			b.ready.Store(true)
+			bs := []backend.Backend{routingBackend(t, mode, clk, expiry, a), routingBackend(t, mode, clk, expiry, b)}
+			packed := mode == "packed"
+			hot := func(d time.Duration) {
+				for elapsed := interval; elapsed <= d; elapsed += interval {
+					clk.advance(interval)
+					if ms := routingRender(t, bs, packed); len(ms) != 1 {
+						t.Fatalf("series missing while a replica was serving: %+v", ms)
+					}
+				}
+			}
+			routingRender(t, bs, packed) // discovery caches both replicas
+			a.ready.Store(false)
+			hot(expiry + interval)
+			a.ready.Store(true)
+			hot(expiry + interval)
+			if !bs[0].Contains([]string{routingPath}) {
+				t.Fatal("replica not rediscovered within one expiry after its outage ended")
+			}
+			b.ready.Store(false)
+			if ms := routingRender(t, bs, packed); len(ms) != 1 {
+				t.Fatalf("series dropped when the other replica missed one read: %+v", ms)
+			}
+		})
+	}
+}
+
 func TestPathCacheSteadyStateFanout(t *testing.T) {
 	for _, expiry := range []time.Duration{120 * time.Second, 300 * time.Second} {
 		for _, replicas := range []int{1, 3} {
