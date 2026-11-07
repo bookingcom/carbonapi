@@ -33,6 +33,12 @@ keepAliveInterval: "30s"
 # connections on the backend servers which may bump into limits; tune with care.
 maxIdleConnsPerHost: 100
 
+# Close a pooled backend connection after it has been idle this long. Keep it
+# longer than the gap between query bursts (alerts evaluate every minute), or
+# each burst opens its connections again; keep it below the backends' own idle
+# timeout. 0 keeps connections until the backend closes them. Default: 90s
+idleConnTimeout: "90s"
+
 # If not zero, enabled cache for find requests
 # This parameter controls when it will expire (in seconds)
 # Default: 600 (10 minutes)

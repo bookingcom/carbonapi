@@ -327,7 +327,7 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 	client := &http.Client{}
 	client.Transport = &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
-		IdleConnTimeout:     3 * time.Second,
+		IdleConnTimeout:     config.IdleConnTimeout,
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeouts.Connect,
 			KeepAlive: config.KeepAliveInterval,

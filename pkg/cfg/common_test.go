@@ -16,6 +16,7 @@ listen: ":8000"
 maxProcs: 32
 concurrencyLimit: 2048
 maxIdleConnsPerHost: 1024
+idleConnTimeout: "2m"
 timeouts:
     global: "20s"
     afterStarted: "15s"
@@ -89,6 +90,7 @@ monitoring:
 		ConcurrencyLimitPerServer: 2048,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       1024,
+		IdleConnTimeout:           2 * time.Minute,
 
 		ExpireDelaySec:             600,
 		GraphiteWeb09Compatibility: true,
@@ -267,6 +269,7 @@ monitoring:
 		ConcurrencyLimitPerServer: 2048,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       1024,
+		IdleConnTimeout:           90 * time.Second,
 
 		ExpireDelaySec:             600,
 		GraphiteWeb09Compatibility: true,
@@ -512,6 +515,7 @@ monitoring:
 		ConcurrencyLimitPerServer: 2048,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       1024,
+		IdleConnTimeout:           90 * time.Second,
 
 		ExpireDelaySec:             600,
 		GraphiteWeb09Compatibility: true,
@@ -616,6 +620,7 @@ type comparableCommon struct {
 	ConcurrencyLimitPerServer  int
 	KeepAliveInterval          time.Duration
 	MaxIdleConnsPerHost        int
+	IdleConnTimeout            time.Duration
 	ExpireDelaySec             int32
 	GraphiteWeb09Compatibility bool
 	Buckets                    int
@@ -630,6 +635,7 @@ func toComparableCommon(a Common) comparableCommon {
 		ConcurrencyLimitPerServer:  a.ConcurrencyLimitPerServer,
 		KeepAliveInterval:          a.KeepAliveInterval,
 		MaxIdleConnsPerHost:        a.MaxIdleConnsPerHost,
+		IdleConnTimeout:            a.IdleConnTimeout,
 		ExpireDelaySec:             a.ExpireDelaySec,
 		GraphiteWeb09Compatibility: a.GraphiteWeb09Compatibility,
 		Buckets:                    a.Buckets,
