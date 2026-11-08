@@ -73,6 +73,7 @@ loggerConfig:
 				ConcurrencyLimitPerServer: 1024,
 				KeepAliveInterval:         30 * time.Second,
 				MaxIdleConnsPerHost:       512,
+				IdleConnTimeout:           90 * time.Second,
 
 				ExpireDelaySec:             0,
 				GraphiteWeb09Compatibility: false,
@@ -173,6 +174,7 @@ loggerConfig:
 				ConcurrencyLimitPerServer: 1024,
 				KeepAliveInterval:         30 * time.Second,
 				MaxIdleConnsPerHost:       1024,
+				IdleConnTimeout:           90 * time.Second,
 
 				ExpireDelaySec:             0,
 				GraphiteWeb09Compatibility: false,

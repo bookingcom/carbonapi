@@ -54,6 +54,7 @@ func DefaultCommonConfig() Common {
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
+		IdleConnTimeout:           90 * time.Second,
 		GrpcInitialWindowSize:     4 * 1024 * 1024,
 		GrpcInitialConnWindowSize: 4 * 1024 * 1024,
 
@@ -185,6 +186,9 @@ type Common struct {
 	ConcurrencyLimitPerServer int           `yaml:"concurrencyLimit"`
 	KeepAliveInterval         time.Duration `yaml:"keepAliveInterval"`
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
+	// IdleConnTimeout closes a pooled backend connection after it has been
+	// idle this long; zero keeps it until the backend closes it.
+	IdleConnTimeout           time.Duration `yaml:"idleConnTimeout"`
 	GrpcInitialWindowSize     int           `yaml:"grpcInitialWindowSize"`
 	GrpcInitialConnWindowSize int           `yaml:"grpcInitialConnWindowSize"`
 
