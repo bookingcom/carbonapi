@@ -42,6 +42,7 @@ type App struct {
 	ZipperConfig cfg.Zipper
 
 	queryCache               cache.BytesCache
+	renderFlights            renderFlights
 	findCache                cache.BytesCache
 	TopLevelDomainCache      *expirecache.Cache
 	TopLevelDomainPrefixes   []tldcache.TopLevelDomainPrefix
