@@ -323,9 +323,8 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 }
 
-func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, error) {
-	client := &http.Client{}
-	client.Transport = &http.Transport{
+func newBackendHTTPTransport(config cfg.Zipper) http.RoundTripper {
+	transport := &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
 		IdleConnTimeout:     config.IdleConnTimeout,
 		DialContext: (&net.Dialer{
@@ -333,9 +332,14 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 			KeepAlive: config.KeepAliveInterval,
 		}).DialContext,
 	}
-	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") != "0" {
-		client.Transport = bnet.NewSyncTransport(client.Transport.(*http.Transport))
+	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") == "1" {
+		return bnet.NewSyncTransport(transport)
 	}
+	return transport
+}
+
+func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, error) {
+	client := &http.Client{Transport: newBackendHTTPTransport(config)}
 
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))

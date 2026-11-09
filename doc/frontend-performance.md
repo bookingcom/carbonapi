@@ -10,14 +10,17 @@ Backend queues allocate pointer storage for their current occupancy rather than
 the configured maximum. Expression evaluation borrows read-only aligned inputs
 and transfers owned output storage only when the caller supports that contract.
 
-These backend fast paths are opt-in at process startup:
+Backend HTTP uses the standard Go transport by default. The synchronous HTTP
+path is opt-in at process startup:
 
 ```sh
 export CARBONAPI_SYNC_BACKEND_HTTP=1
-export CARBONAPI_STREAM_RENDER=1
-export CARBONAPI_NATIVE_GZIP=1
-export CARBONAPI_PACK_BACKEND_POINTS=1
 ```
+
+Streaming render decoding, native gzip when built in, and packed backend points
+are enabled by default. Set `CARBONAPI_STREAM_RENDER`, `CARBONAPI_NATIVE_GZIP`
+or `CARBONAPI_PACK_BACKEND_POINTS` to `0` to disable that path. See the
+[runtime switches](../README.md#run) for current defaults and rollback behavior.
 
 The synchronous HTTP path handles plain GET requests directly; HTTPS, proxies
 and other methods retain the standard transport. Streaming render decoding uses

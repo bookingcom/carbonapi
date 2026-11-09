@@ -85,13 +85,20 @@ interested in those.
 
 ## Run
 
+Backend HTTP requests use the standard Go `http.Transport` by default, with
+the configured connection pool, idle timeout, connect timeout and keepalive.
+Set `CARBONAPI_SYNC_BACKEND_HTTP=1` to opt into the synchronous backend HTTP
+transport. Only the exact value `1` enables it; unset, empty, `0` and other
+values use the standard transport. Changing the variable requires a restart.
+Keep `CARBONAPI_SYNC_BACKEND_HTTP=0` when rolling back to an older binary if
+the standard transport should remain selected.
+
 The following performance paths are enabled by default. No environment overrides
 are needed to enable them. Set an individual variable to `0` before starting the
 process to use its previous path; unset, empty and `1` all leave it enabled.
 
 | Environment variable | Default path | Path with `0` |
 | --- | --- | --- |
-| `CARBONAPI_SYNC_BACKEND_HTTP` | Synchronous backend HTTP transport | Go HTTP transport |
 | `CARBONAPI_STREAM_RENDER` | Stream backend render responses | Buffer responses before decoding |
 | `CARBONAPI_NATIVE_GZIP` | Native backend gzip decoder, when built in | Go gzip decoder |
 | `CARBONAPI_PACK_BACKEND_POINTS` | Packed backend points for replica merging | Separate values and absence arrays |
