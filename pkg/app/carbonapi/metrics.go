@@ -10,6 +10,9 @@ type PrometheusMetrics struct {
 	Responses         *prometheus.CounterVec
 	FindNotFound      prometheus.Counter
 	RenderPartialFail prometheus.Counter
+	RenderLeaders     prometheus.Counter
+	RenderCoalesced   prometheus.Counter
+	RenderInputPoints prometheus.Histogram
 	RequestCancel     *prometheus.CounterVec
 
 	RequestsPerPrefix *prometheus.CounterVec
@@ -66,6 +69,19 @@ type ZipperPrometheusMetrics struct {
 
 func newPrometheusMetrics(config cfg.API) PrometheusMetrics {
 	return PrometheusMetrics{
+		RenderLeaders: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "render_leaders_total",
+			Help: "Render executions after response-cache lookup, including cache bypasses.",
+		}),
+		RenderCoalesced: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "render_coalesced_total",
+			Help: "Render cache misses that joined an in-flight render with the same response-cache key.",
+		}),
+		RenderInputPoints: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "render_input_points",
+			Help:    "Input points materialized per render execution after replica merging, before evaluation.",
+			Buckets: prometheus.ExponentialBuckets(1024, 8, 8),
+		}),
 		Requests: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Name: "http_requests_total",
@@ -289,6 +305,9 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(ms.Responses)
 	prometheus.MustRegister(ms.FindNotFound)
 	prometheus.MustRegister(ms.RenderPartialFail)
+	prometheus.MustRegister(ms.RenderLeaders)
+	prometheus.MustRegister(ms.RenderCoalesced)
+	prometheus.MustRegister(ms.RenderInputPoints)
 	prometheus.MustRegister(ms.RequestCancel)
 	prometheus.MustRegister(ms.RequestsPerPrefix)
 

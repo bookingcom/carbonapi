@@ -153,7 +153,6 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	lg = lg.With(zap.String("request_id", uuid), zap.String("request_type", "render"))
 	Trace(lg, "received request")
 
-	partiallyFailed := false
 	toLog := carbonapipb.NewAccessLogDetails(r, "render", &app.config)
 
 	logLevel := zap.InfoLevel
@@ -231,6 +230,62 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		Trace(lg, "request not found in cache")
 	}
 
+	var result renderResult
+	leader := true
+	if form.useCache {
+		// The work owns its request snapshot and context: even the first caller
+		// may leave while other callers still need the result.
+		workRequest := r.Clone(context.WithoutCancel(ctx))
+		flight := app.renderFlights.join(form.cacheKey, ctx, app.config.Timeouts.Global, func(workCtx context.Context) renderResult {
+			// A prior flight may have populated the cache after our initial miss.
+			if body, err := app.queryCache.Get(form.cacheKey); err == nil {
+				return renderResult{body: body, status: http.StatusOK, fromCache: true}
+			}
+			app.ms.RenderLeaders.Inc()
+			return app.executeRender(workCtx, workRequest, form, lg)
+		})
+		if !flight.leader {
+			app.ms.RenderCoalesced.Inc()
+		}
+		leader = flight.leader
+		result = app.renderFlights.wait(ctx, form.cacheKey, flight.call)
+	} else {
+		app.ms.RenderLeaders.Inc()
+		result = app.executeRender(ctx, r, form, lg)
+	}
+
+	result.applyLog(&toLog, leader)
+	logLevel = result.logLevel
+	if ctx.Err() != nil {
+		app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
+	}
+	if result.status != http.StatusOK {
+		writeError(uuid, r, w, result.status, result.message, form.format, &toLog)
+		return
+	}
+	if writeErr := writeResponse(ctx, w, result.body, form.format, form.jsonp); writeErr != nil {
+		toLog.HttpCode = 499
+		logLevel = zapcore.WarnLevel
+	} else {
+		toLog.HttpCode = http.StatusOK
+	}
+	if result.partial {
+		app.ms.RenderPartialFail.Inc()
+	}
+}
+
+// executeRender owns all mutable evaluation data and produces immutable bytes.
+func (app *App) executeRender(ctx context.Context, r *http.Request, form renderForm, lg *zap.Logger) (result renderResult) {
+	toLog := &result.details
+	toLog.SendGlobs = true
+	partiallyFailed := false
+	inputPoints := 0
+	defer func() { app.ms.RenderInputPoints.Observe(float64(inputPoints)) }()
+	fail := func(status int, message string, level zapcore.Level) renderResult {
+		result.status, result.message, result.logLevel = status, message, level
+		return result
+	}
+
 	metricMap := make(map[parser.MetricRequest][]*types.MetricData)
 
 	var results []*types.MetricData
@@ -246,16 +301,16 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 		if parseErr != nil || e != "" {
 			Trace(lgt, "parsing target expression failed", zap.Error(parseErr))
 			msg := buildParseErrorString(target, e, parseErr)
-			writeError(uuid, r, w, http.StatusBadRequest, msg, form.format, &toLog)
-			return
+			return fail(http.StatusBadRequest, msg, zap.InfoLevel)
 		}
 
 		getTargetData := func(ctx context.Context, exp parser.Expr, from, until int32, metricMap map[parser.MetricRequest][]*types.MetricData) (error, int) {
-			return app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, &toLog, lgt, &partiallyFailed)
+			err, points := app.getTargetData(ctx, target, exp, metricMap, form.useCache, from, until, toLog, lgt, &partiallyFailed)
+			inputPoints += points
+			return err, points
 		}
 
-		targetErr, metricSize := app.getTargetData(ctx, target, exp, metricMap,
-			form.useCache, form.from32, form.until32, &toLog, lgt, &partiallyFailed)
+		targetErr, metricSize := getTargetData(ctx, exp, form.from32, form.until32, metricMap)
 
 		// Continue query execution even though no metric is found in
 		// prefetch as there are Graphite query functions that are able
@@ -296,19 +351,13 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 				// * https://github.com/grafana/grafana/blob/v7.5.10/pkg/tsdb/graphite/graphite.go\#L162-L167
 			case errors.As(targetErr, &parseError):
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusBadRequest, targetErr.Error(), form.format, &toLog)
-				return
+				return fail(http.StatusBadRequest, targetErr.Error(), zap.InfoLevel)
 			case errors.Is(targetErr, context.DeadlineExceeded):
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusUnprocessableEntity, "request too complex", form.format, &toLog)
-				logLevel = zapcore.ErrorLevel
-				app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
-				return
+				return fail(http.StatusUnprocessableEntity, "request too complex", zap.ErrorLevel)
 			default:
 				// no tracing is needed as deferred log will have the error details
-				writeError(uuid, r, w, http.StatusInternalServerError, targetErr.Error(), form.format, &toLog)
-				logLevel = zapcore.ErrorLevel
-				return
+				return fail(http.StatusInternalServerError, targetErr.Error(), zap.ErrorLevel)
 			}
 		}
 		size += metricSize
@@ -324,37 +373,22 @@ func (app *App) renderHandler(w http.ResponseWriter, r *http.Request, lg *zap.Lo
 	}
 	toLog.TotalMetricCount = int64(totalMetricCount)
 
-	if ctx.Err() != nil {
-		app.ms.RequestCancel.WithLabelValues("render", ctx.Err().Error()).Inc()
-	}
-
 	body, err := app.renderWriteBody(results, form, r, lg)
 	if err != nil {
-		writeError(uuid, r, w, http.StatusInternalServerError, err.Error(), form.format, &toLog)
-		logLevel = zapcore.ErrorLevel
-		return
+		return fail(http.StatusInternalServerError, err.Error(), zap.ErrorLevel)
 	}
 
-	writeErr := writeResponse(ctx, w, body, form.format, form.jsonp)
-	if writeErr != nil {
-		toLog.HttpCode = 499
-		logLevel = zapcore.WarnLevel
-	} else {
-		toLog.HttpCode = http.StatusOK
-	}
+	result.body = body
+	result.status = http.StatusOK
+	result.partial = partiallyFailed
+	// Publish successful cacheable bodies before releasing the flight. Otherwise
+	// another miss can start duplicate work while the cache write is in flight.
 	if len(results) != 0 {
-		go func() {
-			err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout)
-			if err != nil {
-				Trace(lg, "writing request to cache failed", zap.Error(err))
-			}
-		}()
+		if err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout); err != nil {
+			Trace(lg, "writing request to cache failed", zap.Error(err))
+		}
 	}
-
-	if partiallyFailed {
-		Trace(lg, "request partially failed")
-		app.ms.RenderPartialFail.Inc()
-	}
+	return result
 }
 
 func clustersFromMetricMap(metricMap map[parser.MetricRequest][]*types.MetricData) []string {
