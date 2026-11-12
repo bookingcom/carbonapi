@@ -33,18 +33,18 @@ func RendersGrouped(ctx context.Context, choices [][]Backend, requests []types.R
 		calls   []renderDispatch
 	}
 	groups := make(map[*requestQueue[*renderReq]]*group)
-	results := make([]chan []types.Metric, len(requests))
-	errors := make([]chan error, len(requests))
+	replicaGroups := make([][]renderGroup, len(requests))
 	for i, request := range requests {
-		results[i] = make(chan []types.Metric, len(choices[i]))
-		errors[i] = make(chan error, len(choices[i]))
-		for _, b := range choices[i] {
+		var membership []int
+		replicaGroups[i], membership = newRenderGroups(choices[i])
+		for j, b := range choices[i] {
 			g := groups[b.fastRenderQ]
 			if g == nil {
 				g = &group{backend: b}
 				groups[b.fastRenderQ] = g
 			}
-			g.calls = append(g.calls, renderDispatch{request, results[i], errors[i]})
+			replicas := replicaGroups[i][membership[j]]
+			g.calls = append(g.calls, renderDispatch{request, replicas.results, replicas.errors})
 		}
 	}
 	for _, g := range groups {
@@ -55,15 +55,8 @@ func RendersGrouped(ctx context.Context, choices [][]Backend, requests []types.R
 		if len(choices[i]) == 0 {
 			continue
 		}
-		messages := make([][]types.Metric, 0, len(choices[i]))
-		for range choices[i] {
-			select {
-			case metrics := <-results[i]:
-				messages = append(messages, metrics)
-			case err := <-errors[i]:
-				replies[i].Errors = append(replies[i].Errors, err)
-			}
-		}
+		var messages [][]types.Metric
+		messages, replies[i].Errors = collectRenderGroups(replicaGroups[i])
 		replies[i].Metrics, replies[i].Stats = types.MergeMetrics(messages, mismatch, lg)
 	}
 	return replies

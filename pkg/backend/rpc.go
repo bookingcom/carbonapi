@@ -21,23 +21,13 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		return nil, types.MetricRenderStats{}, nil
 	}
 
-	msgCh := make(chan []types.Metric, len(backends))
-	errCh := make(chan error, len(backends))
-	for _, backend := range backends {
-		backend.SendRender(ctx, request, msgCh, errCh)
+	groups, membership := newRenderGroups(backends)
+	for i, backend := range backends {
+		g := groups[membership[i]]
+		backend.SendRender(ctx, request, g.results, g.errors)
 	}
 
-	msgs := make([][]types.Metric, 0, len(backends))
-	errs := make([]error, 0, len(backends))
-	for i := 0; i < len(backends); i++ {
-		select {
-		case msg := <-msgCh:
-			msgs = append(msgs, msg)
-		case err := <-errCh:
-			errs = append(errs, err)
-		}
-	}
-
+	msgs, errs := collectRenderGroups(groups)
 	metrics, stats := types.MergeMetrics(msgs, replicaMismatchConfig, lg)
 	return metrics, stats, errs
 }

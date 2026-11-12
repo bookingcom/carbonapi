@@ -29,6 +29,9 @@ type partialRenderBackend struct {
 	path  string
 	err   error
 	empty bool
+	// Leave cluster empty for the strict, ungrouped-backend regression tests.
+	cluster string
+	dc      string
 }
 
 func (b *partialRenderBackend) Contains(paths []string) bool {
@@ -39,9 +42,11 @@ func (b *partialRenderBackend) Contains(paths []string) bool {
 	}
 	return false
 }
-func (b *partialRenderBackend) Logger() *zap.Logger                   { return zap.NewNop() }
-func (b *partialRenderBackend) GetServerAddress() string              { return b.path }
-func (b *partialRenderBackend) BackendInfo() (string, string, string) { return b.path, "test", "test" }
+func (b *partialRenderBackend) Logger() *zap.Logger      { return zap.NewNop() }
+func (b *partialRenderBackend) GetServerAddress() string { return b.path }
+func (b *partialRenderBackend) BackendInfo() (string, string, string) {
+	return b.path, b.cluster, b.dc
+}
 func (b *partialRenderBackend) Render(_ context.Context, r types.RenderRequest) ([]types.Metric, error) {
 	if b.err != nil || b.empty {
 		return nil, b.err

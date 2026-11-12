@@ -107,8 +107,8 @@ func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix,
 	return infos, err
 }
 
-// An empty successful replica reply cannot recover a failed series fetch.
-// A replica that supplies data still wins over errors from other replicas.
+// Backend fan-in has already recovered errors within answered replica groups.
+// Remaining errors need data to recover; an unrelated empty reply is insufficient.
 func renderErrorsFanIn(metrics []types.Metric, errs []error, nBackends int) error {
 	if len(metrics) == 0 {
 		nBackends = len(errs)
