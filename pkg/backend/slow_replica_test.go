@@ -21,13 +21,14 @@ func slowGrace(t *testing.T, grace time.Duration) prometheus.Counter {
 	return cuts
 }
 
-// stallingStore accepts the render, as a warming-up store does, and answers
-// with data after stall (or when the test ends).
-func stallingStore(t *testing.T, dc, cluster string, stall time.Duration) Backend {
+// stallingStore is a store of replica group dc2 that accepts the render, as a
+// warming-up store does, and answers with data after stall (or when the test
+// ends).
+func stallingStore(t *testing.T, cluster string, stall time.Duration) Backend {
 	t.Helper()
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	b, _ := retryStoreFunc(dc, cluster, 0, nil, func(_ context.Context, r types.RenderRequest) ([]types.Metric, error) {
+	b, _ := retryStoreFunc("dc2", cluster, 0, nil, func(_ context.Context, r types.RenderRequest) ([]types.Metric, error) {
 		select {
 		case <-release:
 		case <-time.After(stall):
@@ -72,7 +73,7 @@ func TestSlowReplicaCutAfterGrace(t *testing.T) {
 			cuts := slowGrace(t, grace)
 			ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 			lhr, _ := retryStoreIn("dc3", "cy", 0, nil, nil)
-			fra := stallingStore(t, "dc2", "cy", 10*time.Second)
+			fra := stallingStore(t, "cy", 10*time.Second)
 			backends := []Backend{fra, ams, lhr}
 			renderTimed(t, backends, cfg.RenderReplicaMismatchConfig{RenderReplicaMatchMode: mode},
 				func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
@@ -105,7 +106,7 @@ func TestSlowReplicaCutInAnsweredGroup(t *testing.T) {
 	ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 	lhr, _ := retryStoreIn("dc3", "cy", 0, nil, nil)
 	fraPeer, _ := retryStoreIn("dc2", "cy", 0, nil, types.ErrMetricsNotFound)
-	fra := stallingStore(t, "dc2", "cy", 10*time.Second)
+	fra := stallingStore(t, "cy", 10*time.Second)
 	renderTimed(t, []Backend{fraPeer, fra, ams, lhr}, cfg.RenderReplicaMismatchConfig{},
 		func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 			if elapsed > 600*time.Millisecond {
@@ -134,7 +135,7 @@ func TestSlowReplicaCutWithNotFoundGroup(t *testing.T) {
 	cuts := slowGrace(t, grace)
 	ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 	lhr, _ := retryStoreIn("dc3", "cy", 0, nil, types.ErrMetricsNotFound)
-	fra := stallingStore(t, "dc2", "cy", 10*time.Second)
+	fra := stallingStore(t, "cy", 10*time.Second)
 	renderTimed(t, []Backend{fra, ams, lhr}, cfg.RenderReplicaMismatchConfig{},
 		func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 			if elapsed < grace-20*time.Millisecond || elapsed > grace+500*time.Millisecond {
@@ -192,7 +193,7 @@ func TestSlowReplicaAwaitedWithoutFullCoverage(t *testing.T) {
 			if tc.name == "ungrouped" {
 				cluster = ""
 			}
-			fra := stallingStore(t, "dc2", cluster, stall)
+			fra := stallingStore(t, cluster, stall)
 			renderTimed(t, append([]Backend{fra}, tc.others()...), cfg.RenderReplicaMismatchConfig{},
 				func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 					if elapsed < stall-20*time.Millisecond {
@@ -269,7 +270,7 @@ func TestSlowReplicaGraceZeroWaits(t *testing.T) {
 			}
 			ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 			lhr, _ := retryStoreIn("dc3", "cy", 0, nil, nil)
-			fra := stallingStore(t, "dc2", "cy", stall)
+			fra := stallingStore(t, "cy", stall)
 			renderTimed(t, []Backend{fra, ams, lhr}, cfg.RenderReplicaMismatchConfig{},
 				func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 					if elapsed < stall-20*time.Millisecond {
@@ -318,7 +319,7 @@ func TestSlowReplicaWithRefusedStore(t *testing.T) {
 		ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 		lhr, _ := retryStoreIn("dc3", "cy", 0, nil, nil)
 		refused, _ := retryStoreIn("dc2", "cy", 1<<30, refusedDial, nil)
-		stalled := stallingStore(t, "dc2", "cy", 10*time.Second)
+		stalled := stallingStore(t, "cy", 10*time.Second)
 		renderTimed(t, []Backend{refused, stalled, ams, lhr}, cfg.RenderReplicaMismatchConfig{},
 			func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 				if elapsed < grace-20*time.Millisecond || elapsed > grace+500*time.Millisecond {
@@ -356,7 +357,7 @@ func TestSlowReplicaWithRefusedStore(t *testing.T) {
 		cuts := slowGrace(t, 20*time.Millisecond)
 		ams, _ := retryStoreIn("dc1", "cy", 0, nil, nil)
 		lhr, _ := retryStoreIn("dc3", "cy", 1<<30, refusedDial, nil)
-		fra := stallingStore(t, "dc2", "cy", stall)
+		fra := stallingStore(t, "cy", stall)
 		renderTimed(t, []Backend{fra, ams, lhr}, cfg.RenderReplicaMismatchConfig{},
 			func(name string, elapsed time.Duration, replies []GroupedRenderReply) {
 				if elapsed < stall-20*time.Millisecond || elapsed > stall+500*time.Millisecond {
