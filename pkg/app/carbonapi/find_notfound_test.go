@@ -49,10 +49,12 @@ func refusedAt(addr string) error {
 		Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}}
 }
 
-// TestFindInfoRefusedStoreNotFound covers the fe-112 canary's find 422: a find
-// that matches nothing while one store refuses connections returned 422 "all
+// TestFindInfoRefusedStoreNotFound covers finds and infos that match nothing
+// while stores refuse connections. A production canary returned find 422 "all
 // backends failed with mixed errors: ... connection refused:1 No matches
-// found:7" after the required-fetch rule required every error to be a not-found.
+// found:7" after the required-fetch rule required every error to be a
+// not-found. Stopping the retired stores of a resized cluster, one in every
+// replica group, then returned 422 again because no group answered in full.
 func TestFindInfoRefusedStoreNotFound(t *testing.T) {
 	store := func(cluster, dc string, err error) *lookupStore {
 		return &lookupStore{addr: cluster + "-" + dc, cluster: cluster, dc: dc, err: err}
@@ -71,7 +73,7 @@ func TestFindInfoRefusedStoreNotFound(t *testing.T) {
 		{"refused_store_cluster_answered", []*lookupStore{
 			refused("cy", "dc1a"), nf("cy", "dc1a"), nf("cy", "dc1a"),
 			nf("cy", "dc2b"), nf("cy", "dc2b"), nf("cy", "dc2b"),
-			nf("cy", "dc3b"), nf("cy", "dc3b"), nf("magg", "dc1a"),
+			nf("cy", "dc3b"), nf("cy", "dc3b"), nf("cz", "dc1a"),
 		}, true},
 		{"two_refused_in_one_group", []*lookupStore{
 			refused("cy", "dc1a"), refused("cy", "dc1a"), nf("cy", "dc1a"),
@@ -81,12 +83,24 @@ func TestFindInfoRefusedStoreNotFound(t *testing.T) {
 			refused("cy", "dc1a"), refused("cy", "dc3b"), nf("cy", "dc2b"), nf("cy", "dc2b"),
 		}, true},
 		{"dial_timeout", []*lookupStore{store("cy", "dc1a", dialTimeout), nf("cy", "dc2b")}, true},
-		{"no_complete_copy", []*lookupStore{
-			refused("cy", "dc1a"), refused("cy", "dc2b"), nf("cy", "dc2b"),
-			nf("cy", "dc3b"), refused("cy", "dc3b"),
+		{"refused_in_every_group", []*lookupStore{
+			refused("cy", "dc1a"), nf("cy", "dc1a"), nf("cy", "dc1a"),
+			refused("cy", "dc2b"), nf("cy", "dc2b"),
+			refused("cy", "dc3b"), nf("cy", "dc3b"), nf("cy", "dc3b"), nf("cz", "dc1a"),
+		}, true},
+		{"refused_in_every_group_dial_timeout", []*lookupStore{
+			refused("cy", "dc1a"), nf("cy", "dc1a"), store("cy", "dc2b", dialTimeout), nf("cy", "dc2b"),
+		}, true},
+		{"one_group_cluster_member_refused", []*lookupStore{refused("cw", "dc1b"), nf("cw", "dc1b"), nf("cy", "dc2b")}, true},
+		{"refused_in_every_group_server_error", []*lookupStore{
+			refused("cy", "dc1a"), nf("cy", "dc1a"), refused("cy", "dc2b"), store("cy", "dc2b", serverError),
 		}, false},
-		{"only_group_of_cluster", []*lookupStore{refused("carbon", "dc1b"), nf("cy", "dc2b"), nf("cy", "dc1a")}, false},
-		{"cluster_unreachable", []*lookupStore{refused("cy", "dc1a"), refused("cy", "dc2b"), nf("magg", "dc1a")}, false},
+		{"refused_in_every_group_after_accept", []*lookupStore{
+			refused("cy", "dc1a"), nf("cy", "dc1a"), refused("cy", "dc2b"), store("cy", "dc2b", afterAccept),
+		}, false},
+		{"other_cluster_server_error", []*lookupStore{refused("cy", "dc1a"), nf("cy", "dc2b"), store("cz", "dc1a", serverError)}, false},
+		{"only_member_of_cluster", []*lookupStore{refused("cw", "dc1b"), nf("cy", "dc2b"), nf("cy", "dc1a")}, false},
+		{"cluster_unreachable", []*lookupStore{refused("cy", "dc1a"), refused("cy", "dc2b"), nf("cz", "dc1a")}, false},
 		{"server_error", []*lookupStore{store("cy", "dc1a", serverError), nf("cy", "dc2b")}, false},
 		{"timeout_after_accept", []*lookupStore{store("cy", "dc1a", afterAccept), nf("cy", "dc2b")}, false},
 		{"ungrouped", []*lookupStore{refused("", ""), nf("", "")}, false},
