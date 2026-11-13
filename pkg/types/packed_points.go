@@ -89,6 +89,52 @@ func (m Metric) pointCount() int {
 	return len(m.Values)
 }
 
+// lastPresentTime returns the timestamp of the newest present point, or
+// math.MinInt64 when every point is absent.
+func (m Metric) lastPresentTime() int64 {
+	last := -1
+	if p := m.packed; p != nil {
+		for block := len(p.absent) - 1; block >= 0 && last < 0; block-- {
+			present := ^p.absent[block]
+			if valid := p.n - block*64; valid < 64 {
+				present &= uint64(1)<<uint(valid) - 1
+			}
+			if present != 0 {
+				last = block*64 + 63 - bits.LeadingZeros64(present)
+			}
+		}
+	} else {
+		for i := len(m.IsAbsent) - 1; i >= 0; i-- {
+			if !m.IsAbsent[i] {
+				last = i
+				break
+			}
+		}
+	}
+	if last < 0 {
+		return math.MinInt64
+	}
+	return int64(m.StartTime) + int64(last)*int64(m.StepTime)
+}
+
+// presentCount returns the number of present points.
+func (m Metric) presentCount() int {
+	if p := m.packed; p != nil {
+		absent := 0
+		for _, block := range p.absent {
+			absent += bits.OnesCount64(block)
+		}
+		return p.n - absent
+	}
+	present := 0
+	for _, absent := range m.IsAbsent {
+		if !absent {
+			present++
+		}
+	}
+	return present
+}
+
 func (c *packedPointCursor) advanceToBlock(p *packedPoints, block int) {
 	for c.block < block {
 		c.offset = c.next

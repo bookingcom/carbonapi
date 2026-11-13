@@ -289,6 +289,63 @@ func getPointMajorityValue(values []float64, equalityFunc floatEqualityFunc) (ma
 	return m, majorityCount > valuesCount/2, nil
 }
 
+// mergeBase returns the index of the reply that mergeMetrics starts from.
+// metrics must be sorted by step, finest first.
+//
+// When all finest-step replies have the same point count, the base is the
+// first reply, as it always was: replies of one shape heal each other's
+// absent points in reply order whichever of them is the base.
+//
+// When their point counts differ, the freshest finest-step reply decides the
+// shape: the one with the latest present point, then the most present points,
+// then the earliest in reply order. The base is the first reply with that
+// shape. A reply that lacks its newest points, for example from a store still
+// replaying after a restart, therefore cannot cut the merged series short.
+func mergeBase(metrics []Metric) int {
+	step, count := metrics[0].StepTime, metrics[0].pointCount()
+	sameShape := true
+	for _, m := range metrics[1:] {
+		if m.StepTime != step {
+			break
+		}
+		if m.pointCount() != count {
+			sameShape = false
+			break
+		}
+	}
+	if sameShape {
+		return 0
+	}
+
+	freshest := 0
+	freshestLast, freshestPresent := metrics[0].lastPresentTime(), -1
+	for j := 1; j < len(metrics) && metrics[j].StepTime == step; j++ {
+		last := metrics[j].lastPresentTime()
+		if last < freshestLast {
+			continue
+		}
+		present := -1
+		if last == freshestLast {
+			if freshestPresent < 0 {
+				freshestPresent = metrics[freshest].presentCount()
+			}
+			present = metrics[j].presentCount()
+			if present <= freshestPresent {
+				continue
+			}
+		}
+		freshest, freshestLast, freshestPresent = j, last, present
+	}
+
+	count = metrics[freshest].pointCount()
+	for j := 0; j < freshest; j++ {
+		if metrics[j].pointCount() == count {
+			return j
+		}
+	}
+	return freshest
+}
+
 func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMismatchConfig) (metric Metric, stats MetricRenderStats) {
 	if len(metrics) == 0 {
 		return Metric{}, MetricRenderStats{}
@@ -323,31 +380,36 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		clusters = append(clusters, cl)
 	}
 	sort.Strings(clusters)
-	// metrics[0] has the highest resolution of metrics
-	metric = metrics[0]
+	base := mergeBase(metrics)
+	metric = metrics[base]
 	metric.materializePoints()
+	// Every reply with the base's step and point count heals the base, in reply
+	// order; the base is the first reply of its shape, so they all follow it.
+	// A reply of another shape is skipped on its own: it no longer hides the
+	// replies after it. Schema compatibility is constant across all points, so
+	// it is checked once here and not per point.
+	var peerBuf [8]int
+	peers := peerBuf[:0]
+	packedPeer := false
+	for j := base + 1; j < len(metrics); j++ {
+		if metrics[j].StepTime == metric.StepTime && metrics[j].pointCount() == len(metric.Values) {
+			peers = append(peers, j)
+			packedPeer = packedPeer || metrics[j].packed != nil
+		}
+	}
 	var cursors []packedPointCursor
-	for _, replica := range metrics[1:] {
-		if replica.packed != nil {
-			cursors = make([]packedPointCursor, len(metrics))
-			for i := range cursors {
-				cursors[i].block = -1
-			}
-			break
+	if packedPeer {
+		cursors = make([]packedPointCursor, len(metrics))
+		for i := range cursors {
+			cursors[i].block = -1
 		}
 	}
 	metric.SourceClusters = clusters
-	// Schema compatibility is constant across all points. Preserve the old
-	// first-incompatible-replica boundary without rechecking it per point.
-	replicaLimit := 1
-	for replicaLimit < len(metrics) && metrics[replicaLimit].StepTime == metric.StepTime && metrics[replicaLimit].pointCount() == len(metric.Values) {
-		replicaLimit++
-	}
 	valuesForPoint := make([]float64, 0, len(metrics))
 	isMismatchFindConfig := replicaMatchMode != cfg.ReplicaMatchModeNormal
 	for i := range metric.Values {
 		if cursors != nil && i&63 == 0 {
-			for j := 1; j < replicaLimit; j++ {
+			for _, j := range peers {
 				if p := metrics[j].packed; p != nil {
 					cursors[j].advanceToBlock(p, i>>6)
 				}
@@ -360,7 +422,7 @@ func mergeMetrics(metrics []Metric, replicaMismatchConfig cfg.RenderReplicaMisma
 		if pointExists {
 			valuesForPoint = append(valuesForPoint, metric.Values[i])
 		}
-		for j := 1; j < replicaLimit; j++ {
+		for _, j := range peers {
 			if pointExists && !shouldLookForMismatch {
 				break
 			}
