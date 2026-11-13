@@ -10,7 +10,7 @@ import (
 type lookupGroup struct {
 	cluster  string
 	n        int // selected members
-	notFound int // members that answered with their own not-found
+	answered int // members that returned matches or info
 	errs     []error
 }
 
@@ -39,40 +39,25 @@ func fanOut[T any](backends []Backend, notFound types.ErrNotFound,
 			select {
 			case answer := <-results[gi]:
 				answers = append(answers, answer)
+				g.answered++
 			case err := <-errChs[gi]:
 				g.errs = append(g.errs, err)
-				var nf types.ErrNotFound
-				if errors.As(err, &nf) {
-					g.notFound++
-				}
 			}
 		}
 	}
 	return answers, lookupGroupErrors(groups, notFound)
 }
 
-// lookupGroupErrors returns every error of the groups. A connect failure
-// (refused, reset or dial timeout, before any response) becomes notFound when
-// another replica group of the same cluster is a complete not-found: every
-// selected member of it answered with its own not-found. Replica groups of one
-// cluster hold the same names, so that group already says what the unreachable
-// store would answer. The fe-112 canary needed this: a /metrics/find matching
-// nothing got not-found from 7 stores and a refusal from one cy store, and
-// the required-fetch rule (not-found only when every error is a not-found) turned it into
-// HTTP 422 instead of the empty 200 it returned before the required-fetch rule.
-//
-// Every member of the vouching group must answer, not just one as in
-// clusterNotFound for renders: the members of a group hold different names, so
-// a partly answered group says nothing about the names of its failed member.
-// The error stays when no other group of the cluster answered in full (for
-// example a one-group cluster, or a store failing in every group), so a
-// cluster that cannot be read still fails the lookup. Server errors and
-// failures after the backend accepted the request are never converted, and
-// ungrouped backends never recover each other.
+// lookupGroupErrors returns every error of the groups. The connect failures
+// (refused, reset or dial timeout, before any response) of a cluster become
+// notFound when the cluster's reachable stores all answered not-found
+// (clusterReachableNotFound). A stopped store then reads as the not-found that
+// its cluster's other stores gave, instead of turning a find that matches
+// nothing into HTTP 422 and an info into HTTP 500.
 func lookupGroupErrors(groups []lookupGroup, notFound types.ErrNotFound) []error {
 	var errs []error
 	for gi := range groups {
-		covered := clusterAnsweredNotFound(groups, gi)
+		covered := clusterReachableNotFound(groups, groups[gi].cluster)
 		for _, err := range groups[gi].errs {
 			if covered && connectFailure(err) {
 				err = notFound
@@ -83,18 +68,39 @@ func lookupGroupErrors(groups []lookupGroup, notFound types.ErrNotFound) []error
 	return errs
 }
 
-// clusterAnsweredNotFound reports whether another replica group of gi's
-// cluster is a complete not-found.
-func clusterAnsweredNotFound(groups []lookupGroup, gi int) bool {
-	cluster := groups[gi].cluster
+// clusterReachableNotFound reports whether every reachable store of cluster
+// answered with its own not-found: at least one member answered not-found, no
+// member returned matches or info, and every other member failed to connect.
+// A store can be stopped in every replica group at once, for example the
+// retired stores of a cluster being resized, so requiring one replica group to
+// answer in full would fail every lookup that matches nothing.
+//
+// The errors stay when no store of the cluster answered (an unreachable
+// cluster still fails the lookup), when any member failed in another way (a
+// server error, or a timeout after the store accepted the request), and for
+// ungrouped backends, which never recover each other.
+func clusterReachableNotFound(groups []lookupGroup, cluster string) bool {
 	if cluster == "" {
 		return false
 	}
-	for oi := range groups {
-		o := &groups[oi]
-		if oi != gi && o.cluster == cluster && o.notFound == o.n {
-			return true
+	notFound := 0
+	for gi := range groups {
+		g := &groups[gi]
+		if g.cluster != cluster {
+			continue
+		}
+		if g.answered != 0 {
+			return false
+		}
+		for _, err := range g.errs {
+			var nf types.ErrNotFound
+			switch {
+			case errors.As(err, &nf):
+				notFound++
+			case !connectFailure(err):
+				return false
+			}
 		}
 	}
-	return false
+	return notFound != 0
 }
