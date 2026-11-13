@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -254,10 +255,10 @@ func TestConnectRetryNotCancelledWithoutReplicaAnswer(t *testing.T) {
 // cluster's replica groups, the other groups of that cluster answer not-found,
 // and the series lives in another cluster. Replicas of one cluster hold the
 // same names, so their not-found already tells what the refused store would
-// say: the fetch is given up at once instead of after the whole retry window.
-// The refusal stays a plain connect error, so the required-fetch and replica-group rules decide the render as
-// without retries: another cluster's data completes it, and with no data
-// anywhere the fetch fails as a required fetch did before.
+// say: the fetch is given up at once instead of after the whole retry window,
+// and the refusal counts as the cluster's not-found (renderGroupErrors). With a
+// second group of the cluster unreachable too, not every other group answered,
+// so both refusals stay plain connect errors.
 func TestConnectRetryCancelledByOtherGroupsNotFound(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -300,12 +301,12 @@ func TestConnectRetryCancelledByOtherGroupsNotFound(t *testing.T) {
 						notFound++
 					}
 				}
-				wantRefusals := 1
+				wantRefusals := 0
 				if tc.lhrRefused {
 					wantRefusals = 2
 				}
 				if refusals != wantRefusals || notFound != 3-wantRefusals {
-					t.Fatalf("%s: errs %v, want %d refusals as plain errors and the not-founds", name, errs, wantRefusals)
+					t.Fatalf("%s: errs %v, want %d refusals as plain errors and the rest not-found", name, errs, wantRefusals)
 				}
 			})
 			if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
@@ -460,6 +461,97 @@ func TestConnectFailureClassification(t *testing.T) {
 			if err == nil || connectFailure(err) != tc.want {
 				t.Errorf("%T %s: %v classified %v, want %v", transport, tc.addr, err, err != nil && connectFailure(err), tc.want)
 			}
+		}
+	}
+}
+
+// The fe-112 canary fetch of the literal target "*": 94 stores, 93 answer
+// not-found and the one store of the dc1 carbon group is refused or times out
+// at dial. The carbon cluster's other groups answered not-found, so the failed
+// store counts as not-found too and the fetch is the cluster's not-found, with
+// or without connect retries. Only when no other group of its cluster gave a
+// definitive not-found does the connect error stay and fail the fetch (the required-fetch rule).
+func TestRenderUnreachableGroupClusterNotFound(t *testing.T) {
+	dialTimeout := &url.Error{Op: "Get", URL: "http://store/render/", Err: &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}}
+	serverError := bnet.ErrHTTPCode(http.StatusServiceUnavailable)
+	for _, tc := range []struct {
+		name      string
+		failure   error
+		carbon    map[string]error // answer of the other carbon groups; nil: not-found
+		data      bool             // a carbon group returns data
+		wantFails int              // connect failures still returned as errors
+	}{
+		{name: "refused", failure: refusedDial},
+		{name: "dial_timeout", failure: dialTimeout},
+		{name: "every_copy_unreachable", failure: refusedDial, carbon: map[string]error{"dc3": refusedDial, "dc2": refusedDial}, wantFails: 7},
+		{name: "another_group_unreachable", failure: refusedDial, carbon: map[string]error{"dc3": refusedDial}, wantFails: 4},
+		{name: "another_group_server_error", failure: refusedDial, carbon: map[string]error{"dc3": serverError}, wantFails: 1},
+		{name: "another_group_has_data", failure: refusedDial, data: true, wantFails: 1},
+	} {
+		for _, window := range []time.Duration{0, 400 * time.Millisecond} {
+			t.Run(fmt.Sprintf("%s/retry_%v", tc.name, window), func(t *testing.T) {
+				fastConnectRetryCancels(t, window)
+				if window == 0 {
+					connectRetry.Store(nil)
+				}
+				// carbon: the one-store dc1 group plus three stores each in dc3 and dc2.
+				failed, _ := retryStoreIn("dc1", "carbon", 1<<30, tc.failure, nil)
+				backends := []Backend{failed}
+				for _, dc := range []string{"dc3", "dc2"} {
+					for i := range 3 {
+						var answer error = types.ErrMetricsNotFound
+						if tc.data && dc == "dc2" && i == 0 {
+							answer = nil
+						}
+						refusals, failure := int32(0), error(nil)
+						if err := tc.carbon[dc]; errors.Is(err, syscall.ECONNREFUSED) {
+							refusals, failure = 1<<30, err
+						} else if err != nil {
+							answer = err
+						}
+						b, _ := retryStoreIn(dc, "carbon", refusals, failure, answer)
+						backends = append(backends, b)
+					}
+				}
+				// 87 more stores in 29 other clusters, one per DC, all not-found.
+				for c := range 29 {
+					for _, dc := range []string{"dc1", "dc3", "dc2"} {
+						b, _ := retryStoreIn(dc, fmt.Sprintf("other-%d", c), 0, nil, types.ErrMetricsNotFound)
+						backends = append(backends, b)
+					}
+				}
+				if len(backends) != 94 {
+					t.Fatalf("%d backends", len(backends))
+				}
+				start := time.Now()
+				fetchBoth(t, context.Background(), backends, "*", func(name string, metrics []types.Metric, errs []error) {
+					if (len(metrics) != 0) != tc.data || len(errs) != 94-len(metrics) {
+						t.Fatalf("%s: %d metrics, %d errors", name, len(metrics), len(errs))
+					}
+					fails, others := 0, 0
+					for _, err := range errs {
+						var u unreachableError
+						var notFound types.ErrNotFound
+						switch {
+						case errors.As(err, &u):
+							t.Fatalf("%s: internal retry marker leaked: %v", name, err)
+						case connectFailure(err):
+							fails++
+						case !errors.As(err, &notFound):
+							others++
+						}
+					}
+					if fails != tc.wantFails {
+						t.Fatalf("%s: %d connect failures returned, want %d: %v", name, fails, tc.wantFails, errs)
+					}
+					if (others != 0) != (tc.carbon["dc3"] == serverError) {
+						t.Fatalf("%s: %d other errors: %v", name, others, errs)
+					}
+				})
+				if tc.wantFails == 0 && time.Since(start) > 200*time.Millisecond {
+					t.Fatalf("waited %v although every other carbon group answered not-found", time.Since(start))
+				}
+			})
 		}
 	}
 }

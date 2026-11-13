@@ -37,6 +37,9 @@ func TestRenderReplicaGroupFailure(t *testing.T) {
 		{name: "all_group_members_refused", failure: refused, cluster: "cy", peerCluster: "cy", peerDC: "dc1", peerError: refused, wantError: true},
 		{name: "data_replica_wins", failure: refused, cluster: "cy", peerCluster: "cy", peerDC: "dc1", wantData: true},
 		{name: "other_group_cannot_recover", failure: refused, cluster: "cy", peerCluster: "infra", peerDC: "dc1", peerError: types.ErrMetricsNotFound, wantError: true},
+		// A bare dial error is not an http.Client connect failure (no *url.Error),
+		// so the cluster not-found rule does not apply; real refusals are in
+		// TestRenderStarWithUnreachableSingleStoreGroup.
 		{name: "other_dc_cannot_recover", failure: refused, cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound, wantError: true},
 		{name: "ungrouped_unchanged", failure: refused, peerError: types.ErrMetricsNotFound, wantError: true},
 	} {

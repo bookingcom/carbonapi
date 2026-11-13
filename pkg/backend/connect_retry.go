@@ -244,11 +244,11 @@ func awaitRetries(fetches []renderFetch, flights []retryFlight) {
 
 // cancelCovered gives up the unreachable fetches of every replica group whose
 // target another group of the same cluster has answered for, with data or
-// not-found. Their errors become final plain connect errors, so the required-fetch and replica-group rules
-// decide the render exactly as without retries: another group's data still
-// does not recover them, and a required fetch that no group has data for
-// still fails. Ungrouped backends are never covered: they never recover each
-// other's errors.
+// not-found. Their errors become final plain connect errors and the fan-in
+// decides the render exactly as without retries (renderGroupErrors): they
+// count as the cluster's not-found when every other group of the cluster
+// answered not-found, and otherwise stay errors for the required-fetch and replica-group rules. Ungrouped
+// backends are never covered: they never recover each other's errors.
 func cancelCovered(fetches []renderFetch, policy *ConnectRetry, lg *zap.Logger) {
 	for fi := range fetches {
 		f := &fetches[fi]

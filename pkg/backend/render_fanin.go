@@ -98,17 +98,62 @@ func collectRenderGroups(f *renderFetch) {
 	}
 }
 
+// renderGroupErrors returns the errors that still decide the fetch: an
+// answered group's errors become not-found, and so do the connect failures of
+// a group whose cluster's other replica groups all answered not-found
+// (clusterNotFound). Every other error is returned as the backend reported it.
 func renderGroupErrors(groups []renderGroup) []error {
 	var errs []error
-	for _, g := range groups {
+	for gi := range groups {
+		g := &groups[gi]
+		notFound := !g.unrecovered()
+		unreachableNotFound := !notFound && clusterNotFound(groups, gi)
 		for _, err := range g.errs {
-			if !g.unrecovered() {
+			switch {
+			case notFound, unreachableNotFound && connectFailure(err):
 				err = types.ErrMetricsNotFound
-			} else if u, ok := err.(unreachableError); ok {
-				err = u.error
+			default:
+				if u, ok := err.(unreachableError); ok {
+					err = u.error
+				}
 			}
 			errs = append(errs, err)
 		}
 	}
 	return errs
+}
+
+// clusterNotFound reports whether the cluster of group gi has at least one
+// other replica group and every one of them gave a definitive not-found: some
+// member answered, and none returned data. Replica groups of one cluster hold
+// the same names, so that is what gi's refused or timed-out stores would have
+// answered too; their connect failures then count as the cluster's not-found
+// instead of failing the fetch. The fe-112 canary needed this: the literal
+// target "*" (as in sumSeries(x, *)) got not-found from 93 stores and a refusal
+// from the one store of the dc1 carbon group, and the required-fetch rule (not-found only
+// when every error is a not-found) turned the whole render into HTTP 500.
+//
+// The connect failure stays an error, so the required-fetch rule still fails a fetch no store has
+// data for, when gi is its cluster's only group, when any other group is
+// unreachable too or failed (for example HTTP 5xx), or when another group
+// returned data (the render then has that data anyway). Server errors and
+// failures after the backend accepted the request are never converted, and
+// ungrouped backends never recover each other.
+func clusterNotFound(groups []renderGroup, gi int) bool {
+	cluster := groups[gi].cluster
+	if cluster == "" {
+		return false
+	}
+	others := 0
+	for oi := range groups {
+		o := &groups[oi]
+		if oi == gi || o.cluster != cluster {
+			continue
+		}
+		if !o.answered || o.data {
+			return false
+		}
+		others++
+	}
+	return others != 0
 }
