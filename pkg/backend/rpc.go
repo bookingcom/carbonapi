@@ -34,55 +34,29 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 	return metrics, stats, renderGroupErrors(groups)
 }
 
-// Infos makes Info calls to multiple backends.
+// Infos makes Info calls to multiple backends. A store's connect failure
+// counts as not-found when its cluster answered not-found (lookupGroupErrors).
 func Infos(ctx context.Context, backends []Backend, request types.InfoRequest) ([]types.Info, []error) {
 	if len(backends) == 0 {
 		return nil, nil
 	}
 
-	msgCh := make(chan []types.Info, len(backends))
-	errCh := make(chan error, len(backends))
-	for _, backend := range backends {
-		backend.SendInfo(ctx, request, msgCh, errCh)
-	}
-
-	msgs := make([][]types.Info, 0, len(backends))
-	errs := make([]error, 0, len(backends))
-	for i := 0; i < len(backends); i++ {
-		select {
-		case msg := <-msgCh:
-			msgs = append(msgs, msg)
-		case err := <-errCh:
-			errs = append(errs, err)
-		}
-	}
-
+	msgs, errs := fanOut(backends, types.ErrInfoNotFound, func(b Backend, results chan []types.Info, errs chan error) {
+		b.SendInfo(ctx, request, results, errs)
+	})
 	return types.MergeInfos(msgs), errs
 }
 
-// Finds makes Find calls to multiple backends.
+// Finds makes Find calls to multiple backends. A store's connect failure
+// counts as not-found when its cluster answered not-found (lookupGroupErrors).
 func Finds(ctx context.Context, backends []Backend, request types.FindRequest, durationHist *prometheus.HistogramVec) (types.Matches, []error) {
 	if len(backends) == 0 {
 		return types.Matches{}, nil
 	}
 
-	msgCh := make(chan types.Matches, len(backends))
-	errCh := make(chan error, len(backends))
-	for _, backend := range backends {
-		backend.SendFind(ctx, request, msgCh, errCh, durationHist)
-	}
-
-	msgs := make([]types.Matches, 0, len(backends))
-	errs := make([]error, 0, len(backends))
-	for i := 0; i < len(backends); i++ {
-		select {
-		case msg := <-msgCh:
-			msgs = append(msgs, msg)
-		case err := <-errCh:
-			errs = append(errs, err)
-		}
-	}
-
+	msgs, errs := fanOut(backends, types.ErrMatchesNotFound, func(b Backend, results chan types.Matches, errs chan error) {
+		b.SendFind(ctx, request, results, errs, durationHist)
+	})
 	return types.MergeMatches(msgs), errs
 }
 

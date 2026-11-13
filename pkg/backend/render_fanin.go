@@ -19,8 +19,20 @@ type renderGroup struct {
 }
 
 func newRenderGroups(backends []Backend) ([]renderGroup, []int) {
-	groups := make([]renderGroup, 0)
-	membership := make([]int, len(backends))
+	clusters, sizes, membership := replicaGroups(backends)
+	groups := make([]renderGroup, len(clusters))
+	for i := range groups {
+		groups[i] = renderGroup{n: sizes[i], cluster: clusters[i],
+			results: make(chan []types.Metric, sizes[i]), errors: make(chan error, sizes[i])}
+	}
+	return groups, membership
+}
+
+// replicaGroups numbers the replica groups, keyed by (dc, cluster), of the
+// selected backends. It returns each group's cluster and size and each
+// backend's group.
+func replicaGroups(backends []Backend) (clusters []string, sizes, membership []int) {
+	membership = make([]int, len(backends))
 	byGroup := make(map[[2]string]int)
 	for i, b := range backends {
 		_, cluster, dc := b.BackendInfo()
@@ -31,18 +43,15 @@ func newRenderGroups(backends []Backend) ([]renderGroup, []int) {
 		key := [2]string{dc, cluster}
 		g, ok := byGroup[key]
 		if !ok {
-			g = len(groups)
+			g = len(clusters)
 			byGroup[key] = g
-			groups = append(groups, renderGroup{cluster: cluster})
+			clusters = append(clusters, cluster)
+			sizes = append(sizes, 0)
 		}
-		groups[g].n++
+		sizes[g]++
 		membership[i] = g
 	}
-	for i := range groups {
-		groups[i].results = make(chan []types.Metric, groups[i].n)
-		groups[i].errors = make(chan error, groups[i].n)
-	}
-	return groups, membership
+	return clusters, sizes, membership
 }
 
 // next waits for one member's reply.
