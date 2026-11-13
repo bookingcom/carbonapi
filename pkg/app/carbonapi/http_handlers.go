@@ -383,7 +383,7 @@ func (app *App) executeRender(ctx context.Context, r *http.Request, form renderF
 	result.partial = partiallyFailed
 	// Publish successful cacheable bodies before releasing the flight. Otherwise
 	// another miss can start duplicate work while the cache write is in flight.
-	if len(results) != 0 {
+	if len(results) != 0 && !partiallyFailed {
 		if err := app.queryCache.Set(form.cacheKey, body, form.cacheTimeout); err != nil {
 			Trace(lg, "writing request to cache failed", zap.Error(err))
 		}
@@ -609,7 +609,8 @@ func (app *App) getTargetData(ctx context.Context, target string, exp parser.Exp
 	return targetErr, size
 }
 
-// returns non-nil error when errors result in an error
+// Returns a non-nil error for any non-NotFound failure. Missing series may
+// still be handled by expression functions when other fetches succeed.
 // returns non-empty string when there are *some* errors, even when total err is nil
 // returned string can be used to indicate partial failure
 func optimistFanIn(errs []error, n int, subj string) (error, string) {
@@ -618,8 +619,7 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 		return nil, ""
 	}
 
-	// everything failed.
-	// If all the failures are not-founds, it's a not-found
+	// Only genuine NotFound errors can be tolerated as missing input.
 	allErrorsNotFound := true
 	ss := strings.Builder{}
 	for _, e := range errs {
@@ -635,7 +635,7 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 
 	errStr := ss.String()
 
-	if nErrs < n {
+	if allErrorsNotFound && nErrs < n {
 		return nil, errStr
 	}
 
@@ -643,7 +643,7 @@ func optimistFanIn(errs []error, n int, subj string) (error, string) {
 		return dataTypes.ErrNotFound("all " + subj + " not found; merged errs: (" + errStr + ")"), errStr
 	}
 
-	return errors.New("all " + subj + " failed; merged errs: (" + errStr + ")"), errStr
+	return errors.New(subj + " failed; merged errs: (" + errStr + ")"), errStr
 }
 
 func sendRenderRequest(app *App, ctx context.Context, path string, from, until int32,

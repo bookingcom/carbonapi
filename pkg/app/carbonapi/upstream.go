@@ -73,7 +73,7 @@ func Render(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefi
 	ms.Renders.Add(float64(stats.DataPointCount))
 	ms.RenderMismatches.Add(float64(stats.MismatchCount))
 	ms.RenderFixedMismatches.Add(float64(stats.FixedMismatchCount))
-	err := errorsFanIn(errs, len(bs))
+	err := renderErrorsFanIn(metrics, errs, len(bs))
 	if err != nil {
 		return metrics, err
 	}
@@ -107,6 +107,15 @@ func Info(cache *expirecache.Cache, TLDPrefixes []tldcache.TopLevelDomainPrefix,
 	return infos, err
 }
 
+// An empty successful replica reply cannot recover a failed series fetch.
+// A replica that supplies data still wins over errors from other replicas.
+func renderErrorsFanIn(metrics []types.Metric, errs []error, nBackends int) error {
+	if len(metrics) == 0 {
+		nBackends = len(errs)
+	}
+	return errorsFanIn(errs, nBackends)
+}
+
 func errorsFanIn(errs []error, nBackends int) error {
 	nErrs := len(errs)
 	var counts = make(map[string]int)
@@ -122,16 +131,15 @@ func errorsFanIn(errs []error, nBackends int) error {
 		nNotNotFounds := 0
 		for _, e := range errs {
 			counts[e.Error()] += 1
-			if _, ok := e.(types.ErrNotFound); !ok {
+			var notFound types.ErrNotFound
+			if !errors.As(e, &notFound) {
 				nNotNotFounds += 1
 			}
 		}
 
-		nMajority := (nBackends + 1) / 2
-
-		if nNotNotFounds < nMajority {
+		if nNotNotFounds == 0 {
 			return types.ErrNotFound(fmt.Sprintf(
-				"majority of backends returned not found. %d total errors, %d not found",
+				"all backends returned not found. %d total errors, %d not found",
 				nErrs, nErrs-nNotNotFounds))
 		}
 		message := fmt.Sprintf("all backends failed with mixed errors: %+v", counts)

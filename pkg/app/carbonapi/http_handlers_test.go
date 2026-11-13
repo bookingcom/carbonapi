@@ -194,7 +194,7 @@ func TestOptimistErrsFanIn(t *testing.T) {
 				errors.New("some err"),
 			},
 			n:          2,
-			isErr:      false,
+			isErr:      true,
 			isNotFound: false,
 		},
 	}
@@ -204,6 +204,9 @@ func TestOptimistErrsFanIn(t *testing.T) {
 		t.Run(tst.name, func(t *testing.T) {
 			err, _ := optimistFanIn(tst.in, tst.n, "")
 
+			if (err != nil) != tst.isErr {
+				t.Fatalf("error = %v, want error: %v", err, tst.isErr)
+			}
 			if err != nil {
 				if !tst.isErr {
 					t.Fatal("got err, when none expected")

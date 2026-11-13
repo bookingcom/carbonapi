@@ -49,7 +49,7 @@ func sendGroupedRenderRequests(app *App, ctx context.Context, paths []string, fr
 		ms.Renders.Add(float64(reply.Stats.DataPointCount))
 		ms.RenderMismatches.Add(float64(reply.Stats.MismatchCount))
 		ms.RenderFixedMismatches.Add(float64(reply.Stats.FixedMismatchCount))
-		responses[i].error = errorsFanIn(reply.Errors, len(choices[i]))
+		responses[i].error = renderErrorsFanIn(reply.Metrics, reply.Errors, len(choices[i]))
 		if responses[i].error == nil && reply.Stats.MismatchCount > reply.Stats.FixedMismatchCount {
 			ms.RenderMismatchedResponses.Inc()
 		}
