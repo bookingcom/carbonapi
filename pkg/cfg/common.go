@@ -57,6 +57,8 @@ func DefaultCommonConfig() Common {
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
 		IdleConnTimeout:           90 * time.Second,
+		PrewarmConnsPerBackend:    64,
+		PrewarmTimeout:            5 * time.Second,
 		GrpcInitialWindowSize:     4 * 1024 * 1024,
 		GrpcInitialConnWindowSize: 4 * 1024 * 1024,
 
@@ -190,7 +192,15 @@ type Common struct {
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
 	// IdleConnTimeout closes a pooled backend connection after it has been
 	// idle this long; zero keeps it until the backend closes it.
-	IdleConnTimeout           time.Duration `yaml:"idleConnTimeout"`
+	IdleConnTimeout time.Duration `yaml:"idleConnTimeout"`
+	// PrewarmConnsPerBackend is how many connections a starting process
+	// dials to each HTTP backend before it serves. On a release reload
+	// (SIGUSR2) the old process keeps serving meanwhile, so the new one takes
+	// over with a warm pool instead of dialing every store at full load.
+	// Zero or negative disables it.
+	PrewarmConnsPerBackend int `yaml:"prewarmConnsPerBackend"`
+	// PrewarmTimeout bounds the prewarm; the process serves after it either way.
+	PrewarmTimeout            time.Duration `yaml:"prewarmTimeout"`
 	GrpcInitialWindowSize     int           `yaml:"grpcInitialWindowSize"`
 	GrpcInitialConnWindowSize int           `yaml:"grpcInitialConnWindowSize"`
 

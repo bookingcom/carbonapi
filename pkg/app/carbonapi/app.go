@@ -1,10 +1,12 @@
 package carbonapi
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -324,14 +326,30 @@ func (app *App) deferredAccessLogging(accessLogger *zap.Logger, r *http.Request,
 	}
 }
 
-func newBackendHTTPTransport(config cfg.Zipper) http.RoundTripper {
+// prewarmDialTimeout is the connect budget of a prewarm dial. It is longer
+// than the request-path connect timeout because nobody waits on it, and long
+// enough to ride out one dropped SYN (1 s initial retransmission).
+const prewarmDialTimeout = 2 * time.Second
+
+// prewarmConnTTL is how long a prewarmed connection may wait for its first
+// request before it is closed instead of handed out.
+const prewarmConnTTL = 10 * time.Second
+
+// prewarmParallel caps concurrent prewarm dials across all backends.
+const prewarmParallel = 256
+
+func newBackendHTTPTransport(config cfg.Zipper, warm *bnet.WarmDialer) http.RoundTripper {
+	dial := (&net.Dialer{
+		Timeout:   config.Timeouts.Connect,
+		KeepAlive: config.KeepAliveInterval,
+	}).DialContext
+	if warm != nil {
+		dial = warm.DialContext
+	}
 	transport := &http.Transport{
 		MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
 		IdleConnTimeout:     config.IdleConnTimeout,
-		DialContext: (&net.Dialer{
-			Timeout:   config.Timeouts.Connect,
-			KeepAlive: config.KeepAliveInterval,
-		}).DialContext,
+		DialContext:         dial,
 	}
 	if os.Getenv("CARBONAPI_SYNC_BACKEND_HTTP") == "1" {
 		return bnet.NewSyncTransport(transport)
@@ -339,8 +357,67 @@ func newBackendHTTPTransport(config cfg.Zipper) http.RoundTripper {
 	return transport
 }
 
+func newWarmDialer(config cfg.Zipper) *bnet.WarmDialer {
+	return bnet.NewWarmDialer((&net.Dialer{
+		Timeout:   config.Timeouts.Connect,
+		KeepAlive: config.KeepAliveInterval,
+	}).DialContext, prewarmConnTTL)
+}
+
+// prewarmAddrs returns the unique host:port of every HTTP backend.
+func prewarmAddrs(config cfg.Zipper) []string {
+	seen := make(map[string]struct{})
+	var addrs []string
+	for _, b := range config.GetBackends() {
+		u, err := url.Parse(b.Http)
+		if err != nil || u.Scheme != "http" || u.Hostname() == "" {
+			continue
+		}
+		addr := u.Host
+		if u.Port() == "" {
+			addr = net.JoinHostPort(u.Hostname(), "80")
+		}
+		if _, dup := seen[addr]; dup {
+			continue
+		}
+		seen[addr] = struct{}{}
+		addrs = append(addrs, addr)
+	}
+	return addrs
+}
+
+// prewarmBackends dials config.PrewarmConnsPerBackend connections to every
+// HTTP backend before the process serves. It runs before gracehttp.Serve, so
+// on a reload the old process still serves while this one warms up.
+func prewarmBackends(config cfg.Zipper, warm *bnet.WarmDialer, lg *zap.Logger) {
+	if warm == nil || config.PrewarmConnsPerBackend <= 0 || config.PrewarmTimeout <= 0 {
+		return
+	}
+	addrs := prewarmAddrs(config)
+	ctx, cancel := context.WithTimeout(context.Background(), config.PrewarmTimeout)
+	defer cancel()
+	dial := (&net.Dialer{
+		Timeout:   max(config.Timeouts.Connect, prewarmDialTimeout),
+		KeepAlive: config.KeepAliveInterval,
+	}).DialContext
+	res := warm.Prewarm(ctx, dial, addrs, config.PrewarmConnsPerBackend, prewarmParallel)
+	lg.Info("backend prewarm done",
+		zap.Int("backends", len(addrs)),
+		zap.Int("conns_per_backend", config.PrewarmConnsPerBackend),
+		zap.Int("dialed", res.Dialed),
+		zap.Int("failed", res.Failed),
+		zap.Duration("elapsed", res.Elapsed),
+	)
+}
+
 func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, error) {
-	client := &http.Client{Transport: newBackendHTTPTransport(config)}
+	bs, _, err := initBackends(config, zms, ms, lg)
+	return bs, err
+}
+
+func initBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, *bnet.WarmDialer, error) {
+	warm := newWarmDialer(config)
+	client := &http.Client{Transport: newBackendHTTPTransport(config, warm)}
 	backend.SetConnectRetry(backend.ConnectRetry{
 		Window:        config.Timeouts.ConnectRetry,
 		Retries:       zms.BackendConnectRetries,
@@ -356,7 +433,7 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 	backends := make([]backend.Backend, 0, len(configBackendList))
 	for _, host := range configBackendList {
 		if host.Http == "" {
-			return nil, fmt.Errorf("backend without http address was provided: %+v", host)
+			return nil, nil, fmt.Errorf("backend without http address was provided: %+v", host)
 		}
 		dc, cluster, _ := config.InfoOfBackend(host.Http)
 		var b backend.Backend
@@ -384,12 +461,12 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 			be, err = bnet.New(bConf)
 		}
 		if err != nil {
-			return nil, errors.Wrapf(err, "could not create backend for host: %s", host)
+			return nil, nil, errors.Wrapf(err, "could not create backend for host: %s", host)
 		}
 
 		beDuration, err := ms.BackendDuration.CurryWith(prometheus.Labels{"dc": dc, "cluster": cluster})
 		if err != nil {
-			return nil, errors.Wrap(err, "could not curry backend duration metric")
+			return nil, nil, errors.Wrap(err, "could not curry backend duration metric")
 		}
 		b = backend.NewBackend(be,
 			config.BackendQueueSize,
@@ -403,7 +480,7 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 		backends = append(backends, b)
 	}
 
-	return backends, nil
+	return backends, warm, nil
 }
 
 // Setup sets up the zipper for future lanuch.
@@ -438,10 +515,11 @@ func SetupZipper(configFile string, BuildVersion string, ms *PrometheusMetrics, 
 	)
 
 	zms := NewZipperPrometheusMetrics(config)
-	bs, err := InitBackends(config, zms, ms, lg)
+	bs, warm, err := initBackends(config, zms, ms, lg)
 	if err != nil {
 		lg.Fatal("failed to init backends", zap.Error(err))
 	}
+	prewarmBackends(config, warm, lg)
 
 	return config, bs, expirecache.New(0), tldcache.InitTLDPrefixes(lg, config.TLDCacheExtraPrefixes), zms
 }
