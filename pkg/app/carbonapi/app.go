@@ -347,6 +347,10 @@ func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *Prometheu
 		Recoveries:    zms.BackendConnectRecoveries,
 		Cancellations: zms.BackendConnectCancels,
 	})
+	backend.SetSlowReplicaGrace(backend.SlowReplicaGrace{
+		Grace:     config.Timeouts.SlowReplicaGrace,
+		Cancelled: zms.BackendSlowReplicaCuts,
+	})
 
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))

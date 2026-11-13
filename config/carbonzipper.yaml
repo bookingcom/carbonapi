@@ -26,6 +26,12 @@ timeouts:
     # group of the same cluster in another DC has answered (data or not-found).
     # 0 disables.
     connectRetry: "10s"
+    # How long a render still waits for a replica group once every other
+    # replica group of the same cluster answered (data or not-found) and at
+    # least one returned data (a store that accepts connections but answers
+    # slowly while it warms up). If all the others said not-found, the slow
+    # group may hold the only copy and is awaited. 0 waits up to afterStarted.
+    slowReplicaGrace: "1s"
 
 # Number of concurrent requests to any given backend - default is no limit.
 # If set, you likely want >= MaxIdleConnsPerHost

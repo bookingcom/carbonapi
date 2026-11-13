@@ -51,9 +51,9 @@ func RendersGrouped(ctx context.Context, choices [][]Backend, requests []types.R
 	for _, g := range groups {
 		g.backend.sendRenderGroup(ctx, g.calls)
 	}
-	for i := range fetches {
-		collectRenderGroups(&fetches[i])
-	}
+	// One fan-in covers every target, so the slow replica grace of each runs
+	// from when its other groups answered, not after the previous target.
+	collectRenderFetches(fetches, lg)
 	// One backoff schedule covers every target, so a restarting store delays
 	// the request once rather than once per target.
 	retryUnreachable(ctx, fetches, lg)

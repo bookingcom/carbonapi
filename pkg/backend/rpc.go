@@ -28,7 +28,7 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 	}
 
 	fetches := []renderFetch{{request: request, groups: groups}}
-	collectRenderGroups(&fetches[0])
+	collectRenderFetches(fetches, lg)
 	retryUnreachable(ctx, fetches, lg)
 	metrics, stats := types.MergeMetrics(fetches[0].messages, replicaMismatchConfig, lg)
 	return metrics, stats, renderGroupErrors(groups)

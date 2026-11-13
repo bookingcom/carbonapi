@@ -47,10 +47,11 @@ func DefaultCommonConfig() Common {
 
 		MaxProcs: 1,
 		Timeouts: Timeouts{
-			Global:       10000 * time.Millisecond,
-			AfterStarted: 2 * time.Second,
-			Connect:      200 * time.Millisecond,
-			ConnectRetry: 10 * time.Second,
+			Global:           10000 * time.Millisecond,
+			AfterStarted:     2 * time.Second,
+			Connect:          200 * time.Millisecond,
+			ConnectRetry:     10 * time.Second,
+			SlowReplicaGrace: time.Second,
 		},
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
@@ -380,6 +381,15 @@ type Timeouts struct {
 	// cluster in another DC has answered for the target, with data or
 	// not-found. Zero disables the retry.
 	ConnectRetry time.Duration `yaml:"connectRetry"`
+	// SlowReplicaGrace is how long a render still waits for a replica group
+	// once every other replica group of the same cluster answered for the
+	// target (data or not-found) and at least one of them returned data, as
+	// when a store warming up after a restart accepts connections but answers
+	// slowly. The slow group's fetches are then dropped and the other groups'
+	// merged data returned. If every other group said not-found, the slow
+	// group may hold the only copy and is awaited. Zero waits for every
+	// backend up to afterStarted.
+	SlowReplicaGrace time.Duration `yaml:"slowReplicaGrace"`
 }
 
 type ProtocolBackend struct {
