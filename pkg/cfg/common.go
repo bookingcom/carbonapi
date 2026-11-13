@@ -50,6 +50,7 @@ func DefaultCommonConfig() Common {
 			Global:       10000 * time.Millisecond,
 			AfterStarted: 2 * time.Second,
 			Connect:      200 * time.Millisecond,
+			ConnectRetry: 10 * time.Second,
 		},
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
@@ -373,6 +374,10 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
+	// ConnectRetry is how long a render keeps retrying a backend that refused,
+	// reset or timed out the connection before sending any response, as during
+	// a store restart. Zero disables the retry.
+	ConnectRetry time.Duration `yaml:"connectRetry"`
 }
 
 type ProtocolBackend struct {

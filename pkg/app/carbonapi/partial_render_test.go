@@ -65,6 +65,15 @@ func (b *partialRenderBackend) Render(_ context.Context, r types.RenderRequest) 
 
 func partialRenderApp(t *testing.T, stores ...*partialRenderBackend) *App {
 	t.Helper()
+	impls := make([]backend.BackendImpl, len(stores))
+	for i, store := range stores {
+		impls[i] = store
+	}
+	return partialRenderAppOf(t, impls...)
+}
+
+func partialRenderAppOf(t *testing.T, stores ...backend.BackendImpl) *App {
+	t.Helper()
 	functions.New(nil, zap.NewNop())
 	c := cfg.DefaultAPIConfig()
 	c.ResolveGlobs = 0

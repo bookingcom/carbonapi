@@ -21,6 +21,9 @@ timeouts:
     afterStarted: "200s"
     # Timeout to connect to the server
     connect: "200ms"
+    # How long a render keeps retrying a backend that refused, reset or timed
+    # out the connection before responding (a store restart). 0 disables.
+    connectRetry: "10s"
 
 # Number of concurrent requests to any given backend - default is no limit.
 # If set, you likely want >= MaxIdleConnsPerHost

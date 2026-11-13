@@ -33,31 +33,37 @@ func RendersGrouped(ctx context.Context, choices [][]Backend, requests []types.R
 		calls   []renderDispatch
 	}
 	groups := make(map[*requestQueue[*renderReq]]*group)
-	replicaGroups := make([][]renderGroup, len(requests))
+	fetches := make([]renderFetch, len(requests))
 	for i, request := range requests {
 		var membership []int
-		replicaGroups[i], membership = newRenderGroups(choices[i])
+		fetches[i].request = request
+		fetches[i].groups, membership = newRenderGroups(choices[i])
 		for j, b := range choices[i] {
 			g := groups[b.fastRenderQ]
 			if g == nil {
 				g = &group{backend: b}
 				groups[b.fastRenderQ] = g
 			}
-			replicas := replicaGroups[i][membership[j]]
+			replicas := fetches[i].groups[membership[j]]
 			g.calls = append(g.calls, renderDispatch{request, replicas.results, replicas.errors})
 		}
 	}
 	for _, g := range groups {
 		g.backend.sendRenderGroup(ctx, g.calls)
 	}
+	for i := range fetches {
+		collectRenderGroups(&fetches[i])
+	}
+	// One backoff schedule covers every target, so a restarting store delays
+	// the request once rather than once per target.
+	retryUnreachable(ctx, fetches, lg)
 	replies := make([]GroupedRenderReply, len(requests))
-	for i := range requests {
+	for i := range fetches {
 		if len(choices[i]) == 0 {
 			continue
 		}
-		var messages [][]types.Metric
-		messages, replies[i].Errors = collectRenderGroups(replicaGroups[i])
-		replies[i].Metrics, replies[i].Stats = types.MergeMetrics(messages, mismatch, lg)
+		replies[i].Errors = renderGroupErrors(fetches[i].groups)
+		replies[i].Metrics, replies[i].Stats = types.MergeMetrics(fetches[i].messages, mismatch, lg)
 	}
 	return replies
 }

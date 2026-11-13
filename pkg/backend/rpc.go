@@ -27,9 +27,11 @@ func Renders(ctx context.Context, backends []Backend, request types.RenderReques
 		backend.SendRender(ctx, request, g.results, g.errors)
 	}
 
-	msgs, errs := collectRenderGroups(groups)
-	metrics, stats := types.MergeMetrics(msgs, replicaMismatchConfig, lg)
-	return metrics, stats, errs
+	fetches := []renderFetch{{request: request, groups: groups}}
+	collectRenderGroups(&fetches[0])
+	retryUnreachable(ctx, fetches, lg)
+	metrics, stats := types.MergeMetrics(fetches[0].messages, replicaMismatchConfig, lg)
+	return metrics, stats, renderGroupErrors(groups)
 }
 
 // Infos makes Info calls to multiple backends.

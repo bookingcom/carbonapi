@@ -341,6 +341,11 @@ func newBackendHTTPTransport(config cfg.Zipper) http.RoundTripper {
 
 func InitBackends(config cfg.Zipper, zms *ZipperPrometheusMetrics, ms *PrometheusMetrics, lg *zap.Logger) ([]backend.Backend, error) {
 	client := &http.Client{Transport: newBackendHTTPTransport(config)}
+	backend.SetConnectRetry(backend.ConnectRetry{
+		Window:     config.Timeouts.ConnectRetry,
+		Retries:    zms.BackendConnectRetries,
+		Recoveries: zms.BackendConnectRecoveries,
+	})
 
 	configBackendList := config.GetBackends()
 	backends := make([]backend.Backend, 0, len(configBackendList))

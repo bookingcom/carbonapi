@@ -9,10 +9,12 @@ import (
 // Keep replica replies together until errors have been classified. Only the
 // backends actually selected for this request can establish that a group answered.
 type renderGroup struct {
-	n       int
-	cluster string
-	results chan []types.Metric
-	errors  chan error
+	n        int
+	cluster  string
+	results  chan []types.Metric
+	errors   chan error
+	answered bool
+	errs     []error
 }
 
 func newRenderGroups(backends []Backend) ([]renderGroup, []int) {
@@ -42,30 +44,49 @@ func newRenderGroups(backends []Backend) ([]renderGroup, []int) {
 	return groups, membership
 }
 
-func collectRenderGroups(groups []renderGroup) ([][]types.Metric, []error) {
-	var messages [][]types.Metric
-	var errs []error
-	for _, g := range groups {
-		start := len(errs)
-		answered := false
-		for range g.n {
-			select {
-			case metrics := <-g.results:
-				messages = append(messages, metrics)
-				answered = true
-			case err := <-g.errors:
-				errs = append(errs, err)
-				var notFound types.ErrNotFound
-				if errors.As(err, &notFound) {
-					answered = true
-				}
-			}
-		}
-		if g.cluster != "" && answered {
-			for i := start; i < len(errs); i++ {
-				errs[i] = types.ErrMetricsNotFound
+// receive collects n replies and returns how many of them were answers: data
+// or a backend's own not-found.
+func (g *renderGroup) receive(n int, messages [][]types.Metric) ([][]types.Metric, int) {
+	answers := 0
+	for range n {
+		select {
+		case metrics := <-g.results:
+			messages = append(messages, metrics)
+			answers++
+		case err := <-g.errors:
+			g.errs = append(g.errs, err)
+			var notFound types.ErrNotFound
+			if errors.As(err, &notFound) {
+				answers++
 			}
 		}
 	}
-	return messages, errs
+	if answers != 0 {
+		g.answered = true
+	}
+	return messages, answers
+}
+
+// unrecovered reports whether this group's errors still fail the fetch.
+func (g *renderGroup) unrecovered() bool { return g.cluster == "" || !g.answered }
+
+func collectRenderGroups(f *renderFetch) {
+	for i := range f.groups {
+		f.messages, _ = f.groups[i].receive(f.groups[i].n, f.messages)
+	}
+}
+
+func renderGroupErrors(groups []renderGroup) []error {
+	var errs []error
+	for _, g := range groups {
+		for _, err := range g.errs {
+			if !g.unrecovered() {
+				err = types.ErrMetricsNotFound
+			} else if u, ok := err.(unreachableError); ok {
+				err = u.error
+			}
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }
