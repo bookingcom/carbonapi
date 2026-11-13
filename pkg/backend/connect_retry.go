@@ -27,7 +27,8 @@ type ConnectRetry struct {
 	Retries    prometheus.Counter // repeated fetches
 	Recoveries prometheus.Counter // repeated fetches that the backend answered
 	// Cancellations counts unreachable fetches given up because another
-	// replica group of the same cluster returned data for the target.
+	// replica group of the same cluster answered for the target (data or
+	// not-found).
 	Cancellations prometheus.Counter
 }
 
@@ -85,10 +86,14 @@ type renderFetch struct {
 // retryUnreachable repeats unreachable fetches that no replica group has
 // answered, with one backoff schedule shared by all fetches of a request.
 // A fetch is repeated only while no other replica group of its cluster has
-// returned data for the target: once one has, the merged result is complete
-// without the unreachable store, and waiting for it would only delay the
-// response. It returns early when the request deadline cannot fit another
-// attempt.
+// answered for the target at all. Replica groups of one cluster hold the same
+// names, so a definitive answer from any of them, data or not-found, already
+// says what the unreachable store would return: with data the merged result is
+// complete without it, and with not-found the names live in another cluster
+// (renders fan out to every cluster) or nowhere. Waiting for the store would
+// only delay the response. Retries are for the case where every copy of the
+// cluster is unreachable, such as a one-group cluster restarting. It returns
+// early when the request deadline cannot fit another attempt.
 func retryUnreachable(ctx context.Context, fetches []renderFetch, lg *zap.Logger) {
 	policy := connectRetry.Load()
 	if policy == nil || policy.Window <= 0 {
@@ -184,9 +189,9 @@ type retryReply struct {
 }
 
 // awaitRetries collects the replies of one attempt. As soon as a replica group
-// returns data, the same fetch's repeats to other groups of that cluster are no
-// longer awaited: they keep their unreachable error for cancelCovered, and
-// their late replies are dropped.
+// answers (data or not-found), the same fetch's repeats to other groups of that
+// cluster are no longer awaited: they keep their unreachable error for
+// cancelCovered, and their late replies are dropped.
 func awaitRetries(fetches []renderFetch, flights []retryFlight) {
 	outstanding := 0
 	for i := range flights {
@@ -219,7 +224,7 @@ func awaitRetries(fetches []renderFetch, flights []retryFlight) {
 			continue
 		}
 		fl.answered++
-		if !g.data || g.cluster == "" {
+		if g.cluster == "" {
 			continue
 		}
 		for j := range flights {
@@ -238,9 +243,11 @@ func awaitRetries(fetches []renderFetch, flights []retryFlight) {
 }
 
 // cancelCovered gives up the unreachable fetches of every replica group whose
-// target another group of the same cluster has returned data for. Their
-// errors become final, so the required-fetch and replica-group rules decide the render exactly as without
-// retries. Ungrouped backends are never covered: they never recover each
+// target another group of the same cluster has answered for, with data or
+// not-found. Their errors become final plain connect errors, so the required-fetch and replica-group rules
+// decide the render exactly as without retries: another group's data still
+// does not recover them, and a required fetch that no group has data for
+// still fails. Ungrouped backends are never covered: they never recover each
 // other's errors.
 func cancelCovered(fetches []renderFetch, policy *ConnectRetry, lg *zap.Logger) {
 	for fi := range fetches {
@@ -263,7 +270,7 @@ func cancelCovered(fetches []renderFetch, policy *ConnectRetry, lg *zap.Logger) 
 			if policy.Cancellations != nil {
 				policy.Cancellations.Add(float64(n))
 			}
-			lg.Debug("render connect retry cancelled: another replica group answered",
+			lg.Debug("render connect retry cancelled: another replica group of the cluster answered",
 				zap.Strings("targets", f.request.Targets),
 				zap.String("cluster", g.cluster),
 				zap.Int("fetches", n))
@@ -271,14 +278,18 @@ func cancelCovered(fetches []renderFetch, policy *ConnectRetry, lg *zap.Logger) 
 	}
 }
 
-// covered reports whether a replica group of cluster returned data for this
-// fetch.
+// covered reports whether a replica group of cluster gave a definitive answer
+// for this fetch: data or the backend's own not-found. A not-found counts as
+// much as data. The canary of the data-only rule (30s refusal of a one-store
+// group) still waited the whole window for every glob held in another
+// cluster, because the refused cluster's other groups could only answer
+// not-found: 41 HTTP 500 and 67 499 in 30s on the refused frontend.
 func (f *renderFetch) covered(cluster string) bool {
 	if cluster == "" {
 		return false
 	}
 	for gi := range f.groups {
-		if f.groups[gi].cluster == cluster && f.groups[gi].data {
+		if f.groups[gi].cluster == cluster && f.groups[gi].answered {
 			return true
 		}
 	}

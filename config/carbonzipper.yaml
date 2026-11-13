@@ -23,7 +23,8 @@ timeouts:
     connect: "200ms"
     # How long a render keeps retrying a backend that refused, reset or timed
     # out the connection before responding (a store restart), while no replica
-    # group of the same cluster in another DC has returned data. 0 disables.
+    # group of the same cluster in another DC has answered (data or not-found).
+    # 0 disables.
     connectRetry: "10s"
 
 # Number of concurrent requests to any given backend - default is no limit.

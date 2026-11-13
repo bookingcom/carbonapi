@@ -217,8 +217,9 @@ func TestConnectRetryCancelledByOtherGroup(t *testing.T) {
 	}
 }
 
-// Only data from a replica group of the same cluster makes a retry redundant.
-func TestConnectRetryNotCancelledWithoutReplicaData(t *testing.T) {
+// Only an answer from a replica group of the same cluster makes a retry
+// redundant.
+func TestConnectRetryNotCancelledWithoutReplicaAnswer(t *testing.T) {
 	const window = 150 * time.Millisecond
 	for _, tc := range []struct {
 		name          string
@@ -227,7 +228,8 @@ func TestConnectRetryNotCancelledWithoutReplicaData(t *testing.T) {
 		ungroupedPeer bool
 	}{
 		{name: "other_cluster_data", dc: "dc3", cluster: "carbon"},
-		{name: "other_group_not_found", dc: "dc3", cluster: "cy", answer: types.ErrMetricsNotFound},
+		{name: "other_cluster_not_found", dc: "dc3", cluster: "carbon", answer: types.ErrMetricsNotFound},
+		{name: "other_group_server_error", dc: "dc3", cluster: "cy", answer: bnet.ErrHTTPCode(http.StatusServiceUnavailable)},
 		{name: "ungrouped", ungroupedPeer: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -245,6 +247,95 @@ func TestConnectRetryNotCancelledWithoutReplicaData(t *testing.T) {
 				t.Fatalf("gave up after %v: retries %v cancels %v, want the full window", elapsed, counterValue(retries), counterValue(cancels))
 			}
 		})
+	}
+}
+
+// The fe-112 canary: the refused store is the only member of one of its
+// cluster's replica groups, the other groups of that cluster answer not-found,
+// and the series lives in another cluster. Replicas of one cluster hold the
+// same names, so their not-found already tells what the refused store would
+// say: the fetch is given up at once instead of after the whole retry window.
+// The refusal stays a plain connect error, so the required-fetch and replica-group rules decide the render as
+// without retries: another cluster's data completes it, and with no data
+// anywhere the fetch fails as a required fetch did before.
+func TestConnectRetryCancelledByOtherGroupsNotFound(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		dataCluster bool // a group of another cluster holds the series
+		lhrRefused  bool // a second group of the refused cluster is unreachable too
+		wantCancels float64
+	}{
+		{name: "series_in_other_cluster", dataCluster: true, wantCancels: 3},
+		{name: "series_nowhere", wantCancels: 3},
+		{name: "two_groups_refused_one_not_found", dataCluster: true, lhrRefused: true, wantCancels: 6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			retries, _, cancels := fastConnectRetryCancels(t, 5*time.Second)
+			refused, _ := retryStoreIn("dc1", "carbon", 1<<30, refusedDial, nil)
+			lhrRefusals := int32(0)
+			if tc.lhrRefused {
+				lhrRefusals = 1 << 30
+			}
+			lhr, _ := retryStoreIn("dc3", "carbon", lhrRefusals, refusedDial, types.ErrMetricsNotFound)
+			fra, _ := retryStoreIn("dc2", "carbon", 0, nil, types.ErrMetricsNotFound)
+			backends := []Backend{refused, lhr, fra}
+			if tc.dataCluster {
+				cy, _ := retryStoreIn("dc2", "cy", 0, nil, nil)
+				backends = append(backends, cy)
+			}
+			start := time.Now()
+			fetchBoth(t, context.Background(), backends, "m", func(name string, metrics []types.Metric, errs []error) {
+				if (len(metrics) == 1) != tc.dataCluster {
+					t.Fatalf("%s: metrics %+v, want data %v", name, metrics, tc.dataCluster)
+				}
+				refusals, notFound := 0, 0
+				for _, err := range errs {
+					var u unreachableError
+					switch {
+					case errors.As(err, &u):
+						t.Fatalf("%s: internal retry marker leaked: %v", name, errs)
+					case errors.Is(err, syscall.ECONNREFUSED):
+						refusals++
+					case errors.Is(err, types.ErrMetricsNotFound):
+						notFound++
+					}
+				}
+				wantRefusals := 1
+				if tc.lhrRefused {
+					wantRefusals = 2
+				}
+				if refusals != wantRefusals || notFound != 3-wantRefusals {
+					t.Fatalf("%s: errs %v, want %d refusals as plain errors and the not-founds", name, errs, wantRefusals)
+				}
+			})
+			if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+				t.Fatalf("waited %v although the refused cluster's other groups answered not-found", elapsed)
+			}
+			if counterValue(retries) != 0 || counterValue(cancels) != tc.wantCancels {
+				t.Fatalf("retries %v cancels %v, want 0/%v", counterValue(retries), counterValue(cancels), tc.wantCancels)
+			}
+		})
+	}
+}
+
+// Every group of the cluster refuses, then one comes back and answers
+// not-found: the others' retries stop there.
+func TestConnectRetryAllGroupsRefusedThenNotFound(t *testing.T) {
+	retries, recoveries, cancels := fastConnectRetryCancels(t, 2*time.Second)
+	ams, _ := retryStoreIn("dc1", "carbon", 1<<30, refusedDial, nil)
+	lhr, _ := retryStoreIn("dc3", "carbon", 1<<30, refusedDial, nil)
+	fra, _ := retryStoreIn("dc2", "carbon", 3, refusedDial, types.ErrMetricsNotFound)
+	start := time.Now()
+	metrics, _, errs := Renders(context.Background(), []Backend{ams, lhr, fra}, types.NewRenderRequest([]string{"m"}, 1, 4),
+		cfg.RenderReplicaMismatchConfig{}, zap.NewNop())
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("waited %v after a group answered not-found", elapsed)
+	}
+	if len(metrics) != 0 || len(errs) != 3 {
+		t.Fatalf("metrics %+v errs %v", metrics, errs)
+	}
+	if counterValue(retries) < 9 || counterValue(recoveries) != 1 || counterValue(cancels) != 2 {
+		t.Fatalf("retries %v recoveries %v cancels %v", counterValue(retries), counterValue(recoveries), counterValue(cancels))
 	}
 }
 

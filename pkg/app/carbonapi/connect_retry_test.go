@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"sync/atomic"
@@ -98,6 +99,60 @@ func TestRenderRetriesRestartingStore(t *testing.T) {
 			}
 			if elapsed > window+2*time.Second {
 				t.Fatalf("request took %v", elapsed)
+			}
+		})
+	}
+}
+
+// The fe-112 canary scenario end to end: one cluster with three replica groups,
+// the one-store dc1 group refused, the dc3 and dc2 groups answering
+// not-found. The render returns without the retry wait. With the series held
+// by another cluster it is complete; with the series nowhere, the response is
+// the one the same stores give with retries disabled (the required-fetch and replica-group rules unchanged).
+func TestRenderRefusedStoreOtherGroupsNotFound(t *testing.T) {
+	refused := &url.Error{Op: "Get", URL: "http://store/render/", Err: &net.OpError{Op: "dial", Net: "tcp",
+		Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}}
+	for _, tc := range []struct {
+		name        string
+		dataCluster bool
+	}{
+		{name: "series_in_other_cluster", dataCluster: true},
+		{name: "series_nowhere"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			run := func(window time.Duration) (*restartingStore, int, string, time.Duration) {
+				backend.SetConnectRetry(backend.ConnectRetry{Window: window, InitialDelay: 10 * time.Millisecond, MaxDelay: 50 * time.Millisecond})
+				t.Cleanup(func() { backend.SetConnectRetry(backend.ConnectRetry{}) })
+				store := &restartingStore{partialRenderBackend: &partialRenderBackend{path: "m.ok", cluster: "carbon", dc: "dc1"},
+					refusals: 1 << 30, failure: refused}
+				stores := []backend.BackendImpl{store,
+					&partialRenderBackend{path: "m.ok", err: types.ErrMetricsNotFound, cluster: "carbon", dc: "dc3"},
+					&partialRenderBackend{path: "m.ok", err: types.ErrMetricsNotFound, cluster: "carbon", dc: "dc2"},
+					&partialRenderBackend{path: "m.ko", cluster: "cy", dc: "dc1"}}
+				if tc.dataCluster {
+					stores = append(stores, &partialRenderBackend{path: "m.ok", cluster: "cy", dc: "dc2"})
+				}
+				app := partialRenderAppOf(t, stores...)
+				start := time.Now()
+				w := partialRenderRequest(app, "sumSeries(m.ok,m.ko)")
+				return store, w.Code, w.Body.String(), time.Since(start)
+			}
+			store, code, body, elapsed := run(5 * time.Second)
+			if elapsed > 200*time.Millisecond || store.calls.Load() != 1 {
+				t.Fatalf("took %v and %d store calls, want no retry wait", elapsed, store.calls.Load())
+			}
+			_, baseCode, baseBody, _ := run(0)
+			if code != baseCode || body != baseBody {
+				t.Fatalf("HTTP %d %s, without retries HTTP %d %s", code, body, baseCode, baseBody)
+			}
+			if tc.dataCluster {
+				w := httptest.NewRecorder()
+				w.Code = code
+				w.Body.WriteString(body)
+				assertPartialRenderValue(t, w, 100)
+			} else if code != http.StatusInternalServerError {
+				// A required series no group has data for still fails (the required-fetch and replica-group rules).
+				t.Fatalf("HTTP %d, want 500 as without retries: %s", code, body)
 			}
 		})
 	}

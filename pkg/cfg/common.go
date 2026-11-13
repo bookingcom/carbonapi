@@ -377,8 +377,8 @@ type Timeouts struct {
 	// ConnectRetry is how long a render keeps retrying a backend that refused,
 	// reset or timed out the connection before sending any response, as during
 	// a store restart. The retry stops as soon as a replica group of the same
-	// cluster in another DC has returned data for the target. Zero disables
-	// the retry.
+	// cluster in another DC has answered for the target, with data or
+	// not-found. Zero disables the retry.
 	ConnectRetry time.Duration `yaml:"connectRetry"`
 }
 

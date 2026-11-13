@@ -484,7 +484,7 @@ func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {
 		BackendConnectCancels: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Name: "backend_connect_retries_cancelled_total",
-				Help: "Render fetches of an unreachable backend given up without waiting for the retry window because another replica group of the same cluster returned data",
+				Help: "Render fetches of an unreachable backend given up without waiting for the retry window because another replica group of the same cluster answered (data or not-found)",
 			},
 		),
 	}
