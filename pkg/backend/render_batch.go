@@ -86,7 +86,7 @@ func (b *Backend) renderOne(r *renderReq) {
 	res, err := b.renderMetrics(r.Ctx, r.RenderRequest)
 	t.ObserveDuration()
 	if err != nil {
-		r.Errors <- err
+		r.Errors <- b.renderError(err)
 		return
 	}
 	b.addSourceMetaToMetrics(res)
@@ -116,6 +116,7 @@ func (b *Backend) renderBatch(batch []*renderReq) {
 		}
 		// Each original render keeps its own replica fan-in. In particular, a
 		// slow or failed replica must not trigger another whole-query retry.
+		err = b.renderError(err)
 		for _, r := range batch {
 			r.Errors <- err
 		}

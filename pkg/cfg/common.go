@@ -47,14 +47,18 @@ func DefaultCommonConfig() Common {
 
 		MaxProcs: 1,
 		Timeouts: Timeouts{
-			Global:       10000 * time.Millisecond,
-			AfterStarted: 2 * time.Second,
-			Connect:      200 * time.Millisecond,
+			Global:           10000 * time.Millisecond,
+			AfterStarted:     2 * time.Second,
+			Connect:          200 * time.Millisecond,
+			ConnectRetry:     10 * time.Second,
+			SlowReplicaGrace: time.Second,
 		},
 		ConcurrencyLimitPerServer: 20,
 		KeepAliveInterval:         30 * time.Second,
 		MaxIdleConnsPerHost:       100,
 		IdleConnTimeout:           90 * time.Second,
+		PrewarmConnsPerBackend:    64,
+		PrewarmTimeout:            5 * time.Second,
 		GrpcInitialWindowSize:     4 * 1024 * 1024,
 		GrpcInitialConnWindowSize: 4 * 1024 * 1024,
 
@@ -188,7 +192,15 @@ type Common struct {
 	MaxIdleConnsPerHost       int           `yaml:"maxIdleConnsPerHost"`
 	// IdleConnTimeout closes a pooled backend connection after it has been
 	// idle this long; zero keeps it until the backend closes it.
-	IdleConnTimeout           time.Duration `yaml:"idleConnTimeout"`
+	IdleConnTimeout time.Duration `yaml:"idleConnTimeout"`
+	// PrewarmConnsPerBackend is how many connections a starting process
+	// dials to each HTTP backend before it serves. On a release reload
+	// (SIGUSR2) the old process keeps serving meanwhile, so the new one takes
+	// over with a warm pool instead of dialing every store at full load.
+	// Zero or negative disables it.
+	PrewarmConnsPerBackend int `yaml:"prewarmConnsPerBackend"`
+	// PrewarmTimeout bounds the prewarm; the process serves after it either way.
+	PrewarmTimeout            time.Duration `yaml:"prewarmTimeout"`
 	GrpcInitialWindowSize     int           `yaml:"grpcInitialWindowSize"`
 	GrpcInitialConnWindowSize int           `yaml:"grpcInitialConnWindowSize"`
 
@@ -373,6 +385,21 @@ type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
 	Connect      time.Duration `yaml:"connect"`
+	// ConnectRetry is how long a render keeps retrying a backend that refused,
+	// reset or timed out the connection before sending any response, as during
+	// a store restart. The retry stops as soon as a replica group of the same
+	// cluster in another DC has answered for the target, with data or
+	// not-found. Zero disables the retry.
+	ConnectRetry time.Duration `yaml:"connectRetry"`
+	// SlowReplicaGrace is how long a render still waits for a replica group
+	// once every other replica group of the same cluster answered for the
+	// target (data or not-found) and at least one of them returned data, as
+	// when a store warming up after a restart accepts connections but answers
+	// slowly. The slow group's fetches are then dropped and the other groups'
+	// merged data returned. If every other group said not-found, the slow
+	// group may hold the only copy and is awaited. Zero waits for every
+	// backend up to afterStarted.
+	SlowReplicaGrace time.Duration `yaml:"slowReplicaGrace"`
 }
 
 type ProtocolBackend struct {

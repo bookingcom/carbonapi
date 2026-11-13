@@ -66,9 +66,11 @@ loggerConfig:
 
 				MaxProcs: 16,
 				Timeouts: Timeouts{
-					Global:       10 * time.Minute,
-					AfterStarted: 10 * time.Minute,
-					Connect:      200 * time.Millisecond,
+					Global:           10 * time.Minute,
+					AfterStarted:     10 * time.Minute,
+					Connect:          200 * time.Millisecond,
+					ConnectRetry:     10 * time.Second,
+					SlowReplicaGrace: time.Second,
 				},
 				ConcurrencyLimitPerServer: 1024,
 				KeepAliveInterval:         30 * time.Second,
@@ -167,9 +169,11 @@ loggerConfig:
 
 				MaxProcs: 16,
 				Timeouts: Timeouts{
-					Global:       10 * time.Minute,
-					AfterStarted: 10 * time.Minute,
-					Connect:      200 * time.Millisecond,
+					Global:           10 * time.Minute,
+					AfterStarted:     10 * time.Minute,
+					Connect:          200 * time.Millisecond,
+					ConnectRetry:     10 * time.Second,
+					SlowReplicaGrace: time.Second,
 				},
 				ConcurrencyLimitPerServer: 1024,
 				KeepAliveInterval:         30 * time.Second,

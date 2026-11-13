@@ -53,6 +53,11 @@ type ZipperPrometheusMetrics struct {
 
 	BackendResponses *prometheus.CounterVec
 
+	BackendConnectRetries    prometheus.Counter
+	BackendConnectRecoveries prometheus.Counter
+	BackendConnectCancels    prometheus.Counter
+	BackendSlowReplicaCuts   prometheus.Counter
+
 	RenderOutDurationExp *prometheus.HistogramVec
 	FindOutDuration      *prometheus.HistogramVec
 
@@ -342,6 +347,10 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(zms.RenderFixedMismatches)
 	prometheus.MustRegister(zms.RenderMismatchedResponses)
 	prometheus.MustRegister(zms.BackendResponses)
+	prometheus.MustRegister(zms.BackendConnectRetries)
+	prometheus.MustRegister(zms.BackendConnectRecoveries)
+	prometheus.MustRegister(zms.BackendConnectCancels)
+	prometheus.MustRegister(zms.BackendSlowReplicaCuts)
 	prometheus.MustRegister(zms.RenderOutDurationExp)
 	prometheus.MustRegister(zms.FindOutDuration)
 	prometheus.MustRegister(zms.BackendEnqueuedRequests)
@@ -461,6 +470,30 @@ func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {
 				Help: "Count of backend responses, partitioned by status and request type",
 			},
 			[]string{"status", "request"},
+		),
+		BackendConnectRetries: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "backend_connect_retries_total",
+				Help: "Render fetches repeated after a backend refused or dropped the connection before responding",
+			},
+		),
+		BackendConnectRecoveries: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "backend_connect_retry_recoveries_total",
+				Help: "Repeated render fetches that the backend answered with data or not-found",
+			},
+		),
+		BackendConnectCancels: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "backend_connect_retries_cancelled_total",
+				Help: "Render fetches of an unreachable backend given up without waiting for the retry window because another replica group of the same cluster answered (data or not-found)",
+			},
+		),
+		BackendSlowReplicaCuts: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "backend_slow_replica_cancelled_total",
+				Help: "Render fetches of a backend no longer awaited because every other replica group of the same cluster had answered, at least one with data, and this backend stayed silent for timeouts.slowReplicaGrace",
+			},
 		),
 	}
 }
