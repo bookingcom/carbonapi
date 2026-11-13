@@ -26,24 +26,36 @@ var refusedDial = &url.Error{Op: "Get", URL: "http://store/render/", Err: &net.O
 
 type retryTestBackend struct {
 	coalesceTestBackend
-	cluster string
+	cluster, dc string
 }
 
-func (b retryTestBackend) BackendInfo() (string, string, string) { return b.cluster, b.cluster, "dc1" }
+func (b retryTestBackend) BackendInfo() (string, string, string) { return b.cluster, b.cluster, b.dc }
 
 // retryStore fails its first refusals calls with failure, then answers.
 func retryStore(cluster string, refusals int32, failure error, answer error) (Backend, *atomic.Int32) {
-	calls := new(atomic.Int32)
-	b := coalesceBackend(func(_ context.Context, r types.RenderRequest) ([]types.Metric, error) {
-		if calls.Add(1) <= refusals {
-			return nil, failure
-		}
+	return retryStoreIn("dc1", cluster, refusals, failure, answer)
+}
+
+// retryStoreIn is retryStore in the replica group of dc.
+func retryStoreIn(dc, cluster string, refusals int32, failure error, answer error) (Backend, *atomic.Int32) {
+	return retryStoreFunc(dc, cluster, refusals, failure, func(_ context.Context, r types.RenderRequest) ([]types.Metric, error) {
 		if answer != nil {
 			return nil, answer
 		}
 		return coalesceMetrics(r.Targets), nil
+	})
+}
+
+func retryStoreFunc(dc, cluster string, refusals int32, failure error,
+	serve func(context.Context, types.RenderRequest) ([]types.Metric, error)) (Backend, *atomic.Int32) {
+	calls := new(atomic.Int32)
+	b := coalesceBackend(func(ctx context.Context, r types.RenderRequest) ([]types.Metric, error) {
+		if calls.Add(1) <= refusals {
+			return nil, failure
+		}
+		return serve(ctx, r)
 	}, 4)
-	b.BackendImpl = retryTestBackend{coalesceTestBackend: b.BackendImpl.(coalesceTestBackend), cluster: cluster}
+	b.BackendImpl = retryTestBackend{coalesceTestBackend: b.BackendImpl.(coalesceTestBackend), cluster: cluster, dc: dc}
 	b.Proc()
 	return b, calls
 }
@@ -58,12 +70,19 @@ func counterValue(c prometheus.Counter) float64 {
 
 func fastConnectRetry(t *testing.T, window time.Duration) (retries, recoveries prometheus.Counter) {
 	t.Helper()
+	retries, recoveries, _ = fastConnectRetryCancels(t, window)
+	return retries, recoveries
+}
+
+func fastConnectRetryCancels(t *testing.T, window time.Duration) (retries, recoveries, cancels prometheus.Counter) {
+	t.Helper()
 	retries = prometheus.NewCounter(prometheus.CounterOpts{Name: "test_retries"})
 	recoveries = prometheus.NewCounter(prometheus.CounterOpts{Name: "test_recoveries"})
+	cancels = prometheus.NewCounter(prometheus.CounterOpts{Name: "test_cancels"})
 	SetConnectRetry(ConnectRetry{Window: window, InitialDelay: 10 * time.Millisecond, MaxDelay: 40 * time.Millisecond,
-		Retries: retries, Recoveries: recoveries})
+		Retries: retries, Recoveries: recoveries, Cancellations: cancels})
 	t.Cleanup(func() { connectRetry.Store(nil) })
-	return retries, recoveries
+	return retries, recoveries, cancels
 }
 
 // fetchBoth runs the ordinary and the grouped (stable batch) fan-in.
@@ -164,6 +183,112 @@ func TestConnectRetrySkipsAnsweredGroup(t *testing.T) {
 		if calls.Load() == 0 || counterValue(retries) != 0 || time.Since(start) > time.Second {
 			t.Fatalf("peer %v: answered group was retried: retries %v after %v", peer, counterValue(retries), time.Since(start))
 		}
+	}
+}
+
+// A store whose whole replica group is unreachable is not retried once another
+// DC's group of the same cluster returned data: the render returns at the
+// healthy groups' speed with their full data, and the refusal stays a plain
+// error that the required-fetch rule recovers from the other group's data.
+func TestConnectRetryCancelledByOtherGroup(t *testing.T) {
+	retries, _, cancels := fastConnectRetryCancels(t, 5*time.Second)
+	refused, _ := retryStoreIn("dc1", "cy", 1<<30, refusedDial, nil)
+	lhr, _ := retryStoreIn("dc3", "cy", 0, nil, nil)
+	fra, _ := retryStoreIn("dc2", "cy", 0, nil, nil)
+	start := time.Now()
+	fetchBoth(t, context.Background(), []Backend{refused, lhr, fra}, "m", func(name string, metrics []types.Metric, errs []error) {
+		if len(metrics) != 1 || metrics[0].Values[1] != 42 {
+			t.Fatalf("%s: metrics %+v, want the other groups' data", name, metrics)
+		}
+		if len(errs) != 1 || !errors.Is(errs[0], syscall.ECONNREFUSED) {
+			t.Fatalf("%s: errs %v, want the refusal", name, errs)
+		}
+		var u unreachableError
+		if errors.As(errs[0], &u) {
+			t.Fatalf("%s: internal retry marker leaked", name)
+		}
+	})
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("waited %v for a store other groups had already covered", elapsed)
+	}
+	// One ordinary and two grouped fetches.
+	if counterValue(retries) != 0 || counterValue(cancels) != 3 {
+		t.Fatalf("retries %v cancels %v, want 0/3", counterValue(retries), counterValue(cancels))
+	}
+}
+
+// Only data from a replica group of the same cluster makes a retry redundant.
+func TestConnectRetryNotCancelledWithoutReplicaData(t *testing.T) {
+	const window = 150 * time.Millisecond
+	for _, tc := range []struct {
+		name          string
+		dc, cluster   string
+		answer        error
+		ungroupedPeer bool
+	}{
+		{name: "other_cluster_data", dc: "dc3", cluster: "carbon"},
+		{name: "other_group_not_found", dc: "dc3", cluster: "cy", answer: types.ErrMetricsNotFound},
+		{name: "ungrouped", ungroupedPeer: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			retries, _, cancels := fastConnectRetryCancels(t, window)
+			cluster := "cy"
+			if tc.ungroupedPeer {
+				cluster = ""
+			}
+			refused, _ := retryStoreIn("dc1", cluster, 1<<30, refusedDial, nil)
+			peer, _ := retryStoreIn(tc.dc, tc.cluster, 0, nil, tc.answer)
+			start := time.Now()
+			Renders(context.Background(), []Backend{refused, peer}, types.NewRenderRequest([]string{"m"}, 1, 4),
+				cfg.RenderReplicaMismatchConfig{}, zap.NewNop())
+			if elapsed := time.Since(start); elapsed < window-20*time.Millisecond || counterValue(retries) == 0 || counterValue(cancels) != 0 {
+				t.Fatalf("gave up after %v: retries %v cancels %v, want the full window", elapsed, counterValue(retries), counterValue(cancels))
+			}
+		})
+	}
+}
+
+// When every group was unreachable and one recovers, the others' repeats are
+// not awaited, even if a just-restarted store accepts but answers slowly.
+func TestConnectRetryStopsWaitingOnceAGroupRecovers(t *testing.T) {
+	_, recoveries, cancels := fastConnectRetryCancels(t, 5*time.Second)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	slow, _ := retryStoreFunc("dc1", "cy", 1, refusedDial, func(context.Context, types.RenderRequest) ([]types.Metric, error) {
+		<-release
+		return nil, refusedDial
+	})
+	lhr, _ := retryStoreIn("dc3", "cy", 1, refusedDial, nil)
+	start := time.Now()
+	metrics, _, errs := Renders(context.Background(), []Backend{slow, lhr}, types.NewRenderRequest([]string{"m"}, 1, 4),
+		cfg.RenderReplicaMismatchConfig{}, zap.NewNop())
+	if elapsed := time.Since(start); elapsed > 300*time.Millisecond {
+		t.Fatalf("waited %v on a slow repeat after another group recovered", elapsed)
+	}
+	if len(metrics) != 1 || len(errs) != 1 || !errors.Is(errs[0], syscall.ECONNREFUSED) {
+		t.Fatalf("metrics %+v errs %v, want lhr data and the ams refusal", metrics, errs)
+	}
+	var u unreachableError
+	if errors.As(errs[0], &u) {
+		t.Fatal("internal retry marker leaked")
+	}
+	if counterValue(recoveries) != 1 || counterValue(cancels) != 1 {
+		t.Fatalf("recoveries %v cancels %v, want 1/1", counterValue(recoveries), counterValue(cancels))
+	}
+}
+
+// All replica groups refuse briefly: retries continue until one is back.
+func TestConnectRetryAllGroupsRefusedThenUp(t *testing.T) {
+	retries, recoveries, cancels := fastConnectRetryCancels(t, 2*time.Second)
+	ams, _ := retryStoreIn("dc1", "cy", 1<<30, refusedDial, nil)
+	lhr, _ := retryStoreIn("dc3", "cy", 3, refusedDial, nil)
+	metrics, _, errs := Renders(context.Background(), []Backend{ams, lhr}, types.NewRenderRequest([]string{"m"}, 1, 4),
+		cfg.RenderReplicaMismatchConfig{}, zap.NewNop())
+	if len(metrics) != 1 || metrics[0].Values[1] != 42 || len(errs) != 1 || !errors.Is(errs[0], syscall.ECONNREFUSED) {
+		t.Fatalf("metrics %+v errs %v, want lhr data after its restart", metrics, errs)
+	}
+	if counterValue(retries) < 6 || counterValue(recoveries) != 1 || counterValue(cancels) != 1 {
+		t.Fatalf("retries %v recoveries %v cancels %v", counterValue(retries), counterValue(recoveries), counterValue(cancels))
 	}
 }
 

@@ -14,6 +14,7 @@ type renderGroup struct {
 	results  chan []types.Metric
 	errors   chan error
 	answered bool
+	data     bool // a member returned at least one series
 	errs     []error
 }
 
@@ -44,25 +45,46 @@ func newRenderGroups(backends []Backend) ([]renderGroup, []int) {
 	return groups, membership
 }
 
-// receive collects n replies and returns how many of them were answers: data
-// or a backend's own not-found.
+// next waits for one member's reply.
+func (g *renderGroup) next() ([]types.Metric, error) {
+	return nextReply(g.results, g.errors)
+}
+
+func nextReply(results <-chan []types.Metric, errs <-chan error) ([]types.Metric, error) {
+	select {
+	case metrics := <-results:
+		return metrics, nil
+	case err := <-errs:
+		return nil, err
+	}
+}
+
+// take records one member's reply and reports whether it was an answer: data
+// or the backend's own not-found.
+func (g *renderGroup) take(metrics []types.Metric, err error, messages [][]types.Metric) ([][]types.Metric, bool) {
+	if err != nil {
+		g.errs = append(g.errs, err)
+		var notFound types.ErrNotFound
+		if !errors.As(err, &notFound) {
+			return messages, false
+		}
+	} else {
+		messages = append(messages, metrics)
+		g.data = g.data || len(metrics) != 0
+	}
+	g.answered = true
+	return messages, true
+}
+
+// receive collects n replies and returns how many of them were answers.
 func (g *renderGroup) receive(n int, messages [][]types.Metric) ([][]types.Metric, int) {
 	answers := 0
 	for range n {
-		select {
-		case metrics := <-g.results:
-			messages = append(messages, metrics)
+		metrics, err := g.next()
+		var answer bool
+		if messages, answer = g.take(metrics, err, messages); answer {
 			answers++
-		case err := <-g.errors:
-			g.errs = append(g.errs, err)
-			var notFound types.ErrNotFound
-			if errors.As(err, &notFound) {
-				answers++
-			}
 		}
-	}
-	if answers != 0 {
-		g.answered = true
 	}
 	return messages, answers
 }

@@ -55,6 +55,7 @@ type ZipperPrometheusMetrics struct {
 
 	BackendConnectRetries    prometheus.Counter
 	BackendConnectRecoveries prometheus.Counter
+	BackendConnectCancels    prometheus.Counter
 
 	RenderOutDurationExp *prometheus.HistogramVec
 	FindOutDuration      *prometheus.HistogramVec
@@ -347,6 +348,7 @@ func registerPrometheusMetrics(ms *PrometheusMetrics, zms *ZipperPrometheusMetri
 	prometheus.MustRegister(zms.BackendResponses)
 	prometheus.MustRegister(zms.BackendConnectRetries)
 	prometheus.MustRegister(zms.BackendConnectRecoveries)
+	prometheus.MustRegister(zms.BackendConnectCancels)
 	prometheus.MustRegister(zms.RenderOutDurationExp)
 	prometheus.MustRegister(zms.FindOutDuration)
 	prometheus.MustRegister(zms.BackendEnqueuedRequests)
@@ -477,6 +479,12 @@ func NewZipperPrometheusMetrics(config cfg.Zipper) *ZipperPrometheusMetrics {
 			prometheus.CounterOpts{
 				Name: "backend_connect_retry_recoveries_total",
 				Help: "Repeated render fetches that the backend answered with data or not-found",
+			},
+		),
+		BackendConnectCancels: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "backend_connect_retries_cancelled_total",
+				Help: "Render fetches of an unreachable backend given up without waiting for the retry window because another replica group of the same cluster returned data",
 			},
 		),
 	}
