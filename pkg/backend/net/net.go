@@ -31,6 +31,9 @@ import (
 // ErrHTTPCode is a custom error type to distinguish HTTP errors
 type ErrHTTPCode int
 
+// HTTPStatusCode exposes the response status without coupling callers to this transport.
+func (e ErrHTTPCode) HTTPStatusCode() int { return int(e) }
+
 func (e ErrHTTPCode) Error() string {
 	switch e / 100 {
 	case 4:

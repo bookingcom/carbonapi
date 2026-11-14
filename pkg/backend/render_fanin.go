@@ -6,8 +6,6 @@ import (
 	"net"
 	"net/http"
 
-	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
-
 	"github.com/bookingcom/carbonapi/pkg/types"
 )
 
@@ -145,8 +143,8 @@ func replicaUnavailable(err error) bool {
 	if connectFailure(err) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	var code bnet.ErrHTTPCode
-	if errors.As(err, &code) && code == http.StatusServiceUnavailable {
+	var code interface{ HTTPStatusCode() int }
+	if errors.As(err, &code) && code.HTTPStatusCode() == http.StatusServiceUnavailable {
 		return true
 	}
 	var timeout net.Error
