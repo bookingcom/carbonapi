@@ -1,7 +1,12 @@
 package backend
 
 import (
+	"context"
 	"errors"
+	"net"
+	"net/http"
+
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 
 	"github.com/bookingcom/carbonapi/pkg/types"
 )
@@ -108,7 +113,7 @@ func collectRenderGroups(f *renderFetch) {
 }
 
 // renderGroupErrors returns the errors that still decide the fetch: an
-// answered group's errors become not-found, and so do the connect failures of
+// answered group's errors become not-found, and so do temporary availability failures of
 // a group whose cluster's other replica groups all answered not-found
 // (clusterNotFound). Every other error is returned as the backend reported it.
 func renderGroupErrors(groups []renderGroup) []error {
@@ -116,10 +121,10 @@ func renderGroupErrors(groups []renderGroup) []error {
 	for gi := range groups {
 		g := &groups[gi]
 		notFound := !g.unrecovered()
-		unreachableNotFound := !notFound && clusterNotFound(groups, gi)
+		unavailableNotFound := !notFound && clusterNotFound(groups, gi)
 		for _, err := range g.errs {
 			switch {
-			case notFound, unreachableNotFound && connectFailure(err):
+			case notFound, unavailableNotFound && replicaUnavailable(err):
 				err = types.ErrMetricsNotFound
 			default:
 				if u, ok := err.(unreachableError); ok {
@@ -132,22 +137,27 @@ func renderGroupErrors(groups []renderGroup) []error {
 	return errs
 }
 
-// clusterNotFound reports whether the cluster of group gi has at least one
-// other replica group and every one of them gave a definitive not-found: some
-// member answered, and none returned data. Replica groups of one cluster hold
-// the same names, so that is what gi's refused or timed-out stores would have
-// answered too; their connect failures then count as the cluster's not-found
-// instead of failing the fetch. The fe-112 canary needed this: the literal
-// target "*" (as in sumSeries(x, *)) got not-found from 93 stores and a refusal
-// from the one store of the dc1 carbon group, and the required-fetch rule (not-found only
-// when every error is a not-found) turned the whole render into HTTP 500.
-//
-// The connect failure stays an error, so the required-fetch rule still fails a fetch no store has
-// data for, when gi is its cluster's only group, when any other group is
-// unreachable too or failed (for example HTTP 5xx), or when another group
-// returned data (the render then has that data anyway). Server errors and
-// failures after the backend accepted the request are never converted, and
-// ungrouped backends never recover each other.
+// replicaUnavailable identifies availability failures that a definitive
+// not-found from every other replica group of this cluster can cover. Keep
+// decoding failures and arbitrary server errors visible: they can indicate
+// corruption rather than a replica temporarily unable to serve the request.
+func replicaUnavailable(err error) bool {
+	if connectFailure(err) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var code bnet.ErrHTTPCode
+	if errors.As(err, &code) && code == http.StatusServiceUnavailable {
+		return true
+	}
+	var timeout net.Error
+	return errors.As(err, &timeout) && timeout.Timeout()
+}
+
+// clusterNotFound reports whether this cluster has another selected replica
+// group and every other group answered without data. Only replies for this
+// exact fetch count. This lets a temporarily unavailable replica share the
+// definitive not-found of its peers without hiding an entirely failed cluster,
+// unrelated clusters, or failures such as malformed response bodies.
 func clusterNotFound(groups []renderGroup, gi int) bool {
 	cluster := groups[gi].cluster
 	if cluster == "" {
