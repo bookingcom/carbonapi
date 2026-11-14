@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"testing"
 
+	bnet "github.com/bookingcom/carbonapi/pkg/backend/net"
 	"github.com/bookingcom/carbonapi/pkg/carbonapipb"
 	"github.com/bookingcom/carbonapi/pkg/types"
 	"go.uber.org/zap"
@@ -40,6 +41,16 @@ func TestRenderReplicaGroupFailure(t *testing.T) {
 		// A bare dial error is not an http.Client connect failure (no *url.Error),
 		// so the cluster not-found rule does not apply; real refusals are in
 		// TestRenderStarWithUnreachableSingleStoreGroup.
+		{name: "other_dc_503_data", failure: bnet.ErrHTTPCode(http.StatusServiceUnavailable), cluster: "cy", peerCluster: "cy", peerDC: "dc4", wantData: true},
+		{name: "other_dc_503_not_found", failure: bnet.ErrHTTPCode(http.StatusServiceUnavailable), cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound},
+		{name: "other_dc_wrapped_503_not_found", failure: fmt.Errorf("store: %w", bnet.ErrHTTPCode(http.StatusServiceUnavailable)), cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound},
+		{name: "other_dc_read_timeout_not_found", failure: ioTimeout, cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound},
+		{name: "other_dc_deadline_not_found", failure: context.DeadlineExceeded, cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound},
+		{name: "other_dc_500_still_fails", failure: bnet.ErrHTTPCode(http.StatusInternalServerError), cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound, wantError: true},
+		{name: "other_dc_bad_body_still_fails", failure: errors.New("invalid protobuf"), cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound, wantError: true},
+		{name: "unrelated_cluster_cannot_cover_503", failure: bnet.ErrHTTPCode(http.StatusServiceUnavailable), cluster: "cy", peerCluster: "infra", peerDC: "dc4", peerError: types.ErrMetricsNotFound, wantError: true},
+		{name: "all_replicas_503_still_fails", failure: bnet.ErrHTTPCode(http.StatusServiceUnavailable), cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: bnet.ErrHTTPCode(http.StatusServiceUnavailable), wantError: true},
+		{name: "ungrouped_503_still_fails", failure: bnet.ErrHTTPCode(http.StatusServiceUnavailable), peerError: types.ErrMetricsNotFound, wantError: true},
 		{name: "other_dc_cannot_recover", failure: refused, cluster: "cy", peerCluster: "cy", peerDC: "dc4", peerError: types.ErrMetricsNotFound, wantError: true},
 		{name: "ungrouped_unchanged", failure: refused, peerError: types.ErrMetricsNotFound, wantError: true},
 	} {
